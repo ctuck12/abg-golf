@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ScoreNotation } from './ScoreNotation'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -142,13 +143,9 @@ export default function PlayerScorecard({
                     <td className="px-3 py-2.5 font-bold text-gray-900">{hole.hole_number}</td>
                     <td className="px-2 py-2.5 text-center text-gray-500">{hole.par}</td>
                     <td className="px-2 py-2.5 text-center">
-                      {strokes != null ? (
-                        <span className="font-bold text-base" style={{ color: scoreColor(strokes, hole.par) }}>
-                          {strokes}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">–</span>
-                      )}
+                      {strokes != null
+                        ? <ScoreNotation strokes={strokes} par={hole.par} />
+                        : <span className="text-gray-300">–</span>}
                     </td>
                     <td className="px-2 py-2.5 text-center">
                       {vp != null ? (

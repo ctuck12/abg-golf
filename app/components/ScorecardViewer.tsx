@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { computeHoleBallScores } from '@/lib/scoring'
+import { ScoreNotation } from './ScoreNotation'
 
 type Player = { id: string; name: string }
 type Hole = { hole_number: number; par: number }
@@ -112,14 +113,17 @@ export default function ScorecardViewer({
                   <td className="px-3 py-2 font-bold text-gray-900">{hole.hole_number}</td>
                   <td className="px-2 py-2 text-center text-gray-500">{par}</td>
                   {playerScores.map((s, i) => (
-                    <td key={i} className="px-2 py-2 text-center font-medium" style={{ color: s != null ? cellColor(s, par) : '#9ca3af' }}>
-                      {s ?? '–'}
+                    <td key={i} className="px-2 py-2 text-center">
+                      {s != null
+                        ? <ScoreNotation strokes={s} par={par} size="sm" />
+                        : <span className="text-gray-300">–</span>}
                     </td>
                   ))}
                   {ballScores.map((b, i) => (
-                    <td key={i} className="px-2 py-2 text-center font-bold"
-                      style={{ color: b != null ? cellColor(b, par) : '#9ca3af', background: '#fafafa' }}>
-                      {b ?? '–'}
+                    <td key={i} className="px-2 py-2 text-center" style={{ background: '#fafafa' }}>
+                      {b != null
+                        ? <ScoreNotation strokes={b} par={par} size="sm" />
+                        : <span className="text-gray-300">–</span>}
                     </td>
                   ))}
                 </tr>

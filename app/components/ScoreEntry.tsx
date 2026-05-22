@@ -3,6 +3,7 @@
 import { useState, Fragment } from 'react'
 import { submitHoleScores } from '@/app/actions'
 import { computeHoleBallScores, computeTeamBallSummary } from '@/lib/scoring'
+import { ScoreNotation } from './ScoreNotation'
 
 type Player = { id: string; name: string }
 type Hole = { hole_number: number; par: number }
@@ -278,7 +279,7 @@ export default function ScoreEntry({
                           className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition">
                           −
                         </button>
-                        <span className="w-6 text-center font-bold text-gray-900">{val}</span>
+                        <ScoreNotation strokes={val} par={hole.par} />
                         <button type="button" onClick={() => setStroke(player.id, hole.hole_number, val + 1)}
                           className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition">
                           +
