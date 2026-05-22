@@ -33,6 +33,7 @@ export default async function AdminDashboardPage() {
 
   const teams = teamsRes.data ?? []
   const teamIds = teams.map((t) => t.id)
+  const scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
 
   const [playersRes, scoresRes] = await Promise.all([
     teamIds.length
@@ -51,6 +52,7 @@ export default async function AdminDashboardPage() {
       holes={holesRes.data ?? []}
       ballValues={ballValuesRes.data ?? []}
       scores={scoresRes.data ?? []}
+      scorecardTeamId={scorecardTeamId}
     />
   )
 }

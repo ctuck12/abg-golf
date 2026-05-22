@@ -28,9 +28,9 @@ type BallValue = { ball_number: number; value_dollars: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 
 export default function AdminDashboard({
-  round, teams, players, holes, ballValues, scores,
+  round, teams, players, holes, ballValues, scores, scorecardTeamId = null,
 }: {
-  round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]
+  round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<'teams' | 'setup' | 'payouts'>(!round ? 'setup' : 'teams')
@@ -135,14 +135,22 @@ export default function AdminDashboard({
             <h1 className="font-bold text-lg">Anything But Golf Group</h1>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/" className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>Leaderboard ↗</a>
-            <button
-              type="button"
-              onClick={() => setShowPinModal(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-              style={{ background: gold, color: navy }}>
-              Team Scorecard
-            </button>
+            <a href="/" className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>Leaderboard</a>
+            {scorecardTeamId ? (
+              <a href={`/score/${scorecardTeamId}`}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                style={{ background: gold, color: navy }}>
+                Team Scorecard
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowPinModal(true)}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                style={{ background: gold, color: navy }}>
+                Team Pin
+              </button>
+            )}
             <form action={adminLogout}>
               <button type="submit" className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10">Sign out</button>
             </form>
