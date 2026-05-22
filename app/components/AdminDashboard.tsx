@@ -9,7 +9,6 @@ import {
 } from '@/app/actions'
 import { computeTeamBallSummary, calculateFrontBackPayouts } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
-import { VsParNotation } from './ScoreNotation'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -34,10 +33,9 @@ export default function AdminDashboard({
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState<'overview' | 'teams' | 'setup' | 'payouts'>(!round ? 'setup' : 'overview')
+  const [tab, setTab] = useState<'teams' | 'setup' | 'payouts'>(!round ? 'setup' : 'teams')
   const [showPinModal, setShowPinModal] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
-  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [selectedCourse, setSelectedCourse] = useState('north')
 
@@ -80,11 +78,6 @@ export default function AdminDashboard({
   const parTotal = Object.values(pars).reduce((a, b) => a + b, 0)
   const ballsCount = round?.balls_count ?? 3
 
-  const summaryMap = new Map(teams.map((team) => {
-    const tp = players.filter((p) => p.team_id === team.id)
-    return [team.id, computeTeamBallSummary(holes, tp.map((p) => p.id), scores, ballsCount)]
-  }))
-
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
   const backHoles = holes.filter((h) => h.hole_number >= 10)
   const frontSummaries = new Map(teams.map((team) => {
@@ -122,15 +115,6 @@ export default function AdminDashboard({
     router.refresh()
   }
 
-  function toggleExpand(teamId: string) {
-    setExpandedTeams((prev) => {
-      const next = new Set(prev)
-      if (next.has(teamId)) next.delete(teamId)
-      else next.add(teamId)
-      return next
-    })
-  }
-
   function handleCourseChange(courseKey: string) {
     setSelectedCourse(courseKey)
     const presetPars = COURSE_PARS_CLIENT[courseKey]
@@ -139,7 +123,7 @@ export default function AdminDashboard({
     }
   }
 
-  const tabs = ['overview', 'teams', 'setup', 'payouts'] as const
+  const tabs = ['teams', 'setup', 'payouts'] as const
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -219,72 +203,6 @@ export default function AdminDashboard({
             </button>
           ))}
         </div>
-
-        {/* ── OVERVIEW ─────────────────────────────────────────────────── */}
-        {tab === 'overview' && round && (
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase"
-              style={{ background: navy, color: 'rgba(255,255,255,0.7)' }}>
-              <span className="flex-1">Team / Players</span>
-              {Array.from({ length: ballsCount }, (_, i) => (
-                <span key={i} className="w-12 text-center" style={{ color: gold }}>{BALL_NAMES[i]}</span>
-              ))}
-              <span className="w-10 text-center">Thru</span>
-              <span className="w-5" />
-            </div>
-            {teams.length === 0 && (
-              <p className="text-sm text-gray-500 text-center py-6">No teams yet. Add them in the Teams tab.</p>
-            )}
-            {teams.map((team) => {
-              const s = summaryMap.get(team.id)!
-              const teamPlayers = players.filter((p) => p.team_id === team.id)
-              const isExpanded = expandedTeams.has(team.id)
-              return (
-                <div key={team.id} className="border-b border-gray-100 last:border-0">
-                  <button
-                    type="button"
-                    onClick={() => toggleExpand(team.id)}
-                    className="w-full flex items-center px-4 py-2.5 hover:bg-gray-50 transition text-left"
-                  >
-                    <span className="flex-1 font-semibold text-gray-900 text-sm truncate">{team.name}</span>
-                    {Array.from({ length: ballsCount }, (_, i) => (
-                      <span key={i} className="w-12 flex items-center justify-center">
-                        <VsParNotation vp={s.ballVsPar[i]} />
-                      </span>
-                    ))}
-                    <span className="w-10 text-center text-sm text-gray-500">
-                      {s.holesPerBall[0] === 0 ? '–' : s.holesPerBall[0] === 18 ? 'F' : s.holesPerBall[0]}
-                    </span>
-                    <span className="w-5 text-gray-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
-                  </button>
-                  {isExpanded && (
-                    <div className="bg-gray-50 px-5 py-2 space-y-1">
-                      {teamPlayers.length === 0 && (
-                        <p className="text-xs text-gray-400 py-1">No players added yet</p>
-                      )}
-                      {teamPlayers.map((player) => {
-                        const playerScores = scores.filter((s) => s.player_id === player.id)
-                        const total = playerScores.reduce((sum, s) => sum + s.strokes, 0)
-                        const thru = playerScores.length
-                        const parForThru = holes
-                          .filter((h) => playerScores.some((s) => s.hole_number === h.hole_number))
-                          .reduce((sum, h) => sum + h.par, 0)
-                        const vp = thru > 0 ? total - parForThru : null
-                        return (
-                          <div key={player.id} className="flex items-center py-0.5">
-                            <span className="flex-1 text-sm text-gray-700">{player.name}</span>
-                            <span className="text-xs text-gray-400 mr-3">{thru > 0 ? `Thru ${thru}` : 'No scores'}</span>
-                            <VsParNotation vp={vp} />
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
 
         {/* ── TEAMS ────────────────────────────────────────────────────── */}
         {tab === 'teams' && round && (
