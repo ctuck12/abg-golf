@@ -80,6 +80,9 @@ export default function ScoreEntry({
     return saved
   })
 
+  // Separate from strokes: only updated on successful save — drives the header totals
+  const [savedScores, setSavedScores] = useState<Score[]>(initialScores)
+
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
   const [expandedHole, setExpandedHole] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
@@ -103,24 +106,25 @@ export default function ScoreEntry({
       setErrors((e) => ({ ...e, [holeNumber]: result.error! }))
     } else {
       setSavedHoles((s) => new Set([...s, holeNumber]))
+      setSavedScores((prev) => {
+        const ids = players.map((p) => p.id)
+        const without = prev.filter((s) => !(ids.includes(s.player_id) && s.hole_number === holeNumber))
+        const added = playerScores.map(({ playerId, strokes: st }) => ({
+          player_id: playerId, hole_number: holeNumber, strokes: st,
+        }))
+        return [...without, ...added]
+      })
       setErrors((e) => { const n = { ...e }; delete n[holeNumber]; return n })
       setExpandedHole(null)
-    }
-  }
-
-  // Build current scores array for summary
-  const allScores: Score[] = []
-  for (const [playerId, holeMap] of Object.entries(strokes)) {
-    for (const [hole, s] of Object.entries(holeMap)) {
-      allScores.push({ player_id: playerId, hole_number: parseInt(hole), strokes: s })
     }
   }
 
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
   const backHoles = holes.filter((h) => h.hole_number >= 10)
   const playerIds = players.map((p) => p.id)
-  const frontSummary = computeTeamBallSummary(frontHoles, playerIds, allScores, ballsCount)
-  const backSummary = computeTeamBallSummary(backHoles, playerIds, allScores, ballsCount)
+  // Header totals use savedScores only — they don't move until Save Hole is tapped
+  const frontSummary = computeTeamBallSummary(frontHoles, playerIds, savedScores, ballsCount)
+  const backSummary = computeTeamBallSummary(backHoles, playerIds, savedScores, ballsCount)
   const savedCount = savedHoles.size
   const parMap = Object.fromEntries(holes.map((h) => [h.hole_number, h.par]))
 
@@ -212,13 +216,9 @@ export default function ScoreEntry({
           const isExpanded = expandedHole === hole.hole_number
           const error = errors[hole.hole_number]
 
-          // Compute ball scores for this hole from current strokes
-          const holePlayerScores = players
-            .map((p) => strokes[p.id]?.[hole.hole_number])
-            .filter((s): s is number => s !== undefined)
-          const holeBalls = holePlayerScores.length > 0
-            ? computeHoleBallScores(holePlayerScores, ballsCount)
-            : []
+          // Always include a score per player (default to par) so the ball row shows E immediately
+          const holePlayerScores = players.map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
+          const holeBalls = computeHoleBallScores(holePlayerScores, ballsCount)
 
           return (
             <Fragment key={hole.hole_number}>
