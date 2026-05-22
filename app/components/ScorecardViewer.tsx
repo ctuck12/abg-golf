@@ -61,7 +61,11 @@ export default function ScorecardViewer({
               <th className="px-3 py-2 text-left text-xs font-semibold">Hole</th>
               <th className="px-2 py-2 text-center text-xs font-semibold">Par</th>
               {players.map((p) => (
-                <th key={p.id} className="px-2 py-2 text-center text-xs font-semibold truncate max-w-16">{p.name.split(' ')[0]}</th>
+                <th key={p.id} className="px-2 py-2 text-center text-xs font-semibold truncate max-w-16">
+                  <a href={`/player/${p.id}`} className="underline underline-offset-2" style={{ color: gold }}>
+                    {p.name.split(' ')[0]}
+                  </a>
+                </th>
               ))}
               {Array.from({ length: ballsCount }, (_, i) => (
                 <th key={i} className="px-2 py-2 text-center text-xs font-semibold" style={{ color: gold }}>
