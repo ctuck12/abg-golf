@@ -147,7 +147,7 @@ export default function LeaderboardClient({
                   className="inline-flex items-center gap-1 text-xs font-semibold mb-3 px-3 py-1.5 rounded-lg"
                   style={{ background: gold, color: navy }}
                 >
-                  ← Back to Scorecard
+                  Enter Scores
                 </a>
               )}
               <div className="text-center">
