@@ -7,7 +7,10 @@ import {
   toggleTeamAdmin, resetTeamScores, activateRound, updateHolePars, updateBallValues,
   adminLogout, renameTeam, movePlayer,
 } from '@/app/actions'
-import { computeTeamBallSummary, calculateFrontBackPayouts } from '@/lib/scoring'
+import {
+  computeTeamBallSummary, calculateFrontBackPayouts,
+  computeAllTeamsDaytonaSummaries, calculateDaytonaPayouts,
+} from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 
 const navy = '#0f172a'
@@ -20,7 +23,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   south: [4, 4, 5, 3, 4, 4, 4, 3, 5, 4, 3, 4, 4, 5, 4, 3, 4, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; is_started: boolean } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; is_started: boolean } | null
 type Team = { id: string; name: string; pin: string; is_admin: boolean }
 type Player = { id: string; team_id: string; name: string; position: number | null }
 type Hole = { hole_number: number; par: number }
@@ -38,6 +41,7 @@ export default function AdminDashboard({
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [selectedCourse, setSelectedCourse] = useState('north')
+  const [selectedFormat, setSelectedFormat] = useState('standard')
 
   const [createState, createAction, createPending] = useActionState(createRound, null)
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
@@ -47,8 +51,6 @@ export default function AdminDashboard({
   const [renameState, renameAction, renamePending] = useActionState(renameTeam, null)
 
   // Refresh server data after mutations so the UI updates without a manual reload.
-  // Watch the full state object (not just .success) — the object reference changes
-  // on every submission, so the effect re-fires even on back-to-back successes.
   useEffect(() => {
     if (createState?.success) { router.refresh(); setTab('teams') }
   }, [createState])
@@ -77,22 +79,40 @@ export default function AdminDashboard({
 
   const parTotal = Object.values(pars).reduce((a, b) => a + b, 0)
   const ballsCount = round?.balls_count ?? 3
+  const isDaytona = round?.format === 'daytona'
 
+  // Standard ball payouts
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
   const backHoles = holes.filter((h) => h.hole_number >= 10)
-  const frontSummaries = new Map(teams.map((team) => {
+  const frontSummaries = !isDaytona ? new Map(teams.map((team) => {
     const tp = players.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(frontHoles, tp.map((p) => p.id), scores, ballsCount)]
-  }))
-  const backSummaries = new Map(teams.map((team) => {
+  })) : new Map()
+  const backSummaries = !isDaytona ? new Map(teams.map((team) => {
     const tp = players.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(backHoles, tp.map((p) => p.id), scores, ballsCount)]
-  }))
+  })) : new Map()
 
   const ballValueArr = Array.from({ length: ballsCount }, (_, i) => ballVals[i + 1] ?? 0)
-  const { results: ballResults, net, settlements } = calculateFrontBackPayouts(
-    teams, frontSummaries, backSummaries, ballValueArr, ballsCount
-  )
+  const { results: ballResults, net, settlements } = !isDaytona
+    ? calculateFrontBackPayouts(teams, frontSummaries, backSummaries, ballValueArr, ballsCount)
+    : { results: [], net: {} as Record<string, number>, settlements: [] }
+
+  // Daytona payouts
+  const dtTeamsInput = isDaytona ? teams.map((t) => ({
+    id: t.id,
+    playerIds: players.filter((p) => p.team_id === t.id).map((p) => p.id),
+  })) : []
+  const dtSummariesMap = isDaytona
+    ? computeAllTeamsDaytonaSummaries(holes, dtTeamsInput, scores)
+    : new Map()
+  const dtPayoutValue = ballVals[1] ?? 0
+  const { results: dtResults, net: dtNet, settlements: dtSettlements } = isDaytona
+    ? calculateDaytonaPayouts(teams, dtSummariesMap, dtPayoutValue)
+    : { results: [], net: {} as Record<string, number>, settlements: [] }
+
+  const payoutNet = isDaytona ? dtNet : net
+  const payoutSettlements = isDaytona ? dtSettlements : settlements
 
   async function handleDeleteTeam(teamId: string) {
     await deleteTeam(teamId)
@@ -176,7 +196,8 @@ export default function AdminDashboard({
                 <p className="text-xs text-gray-500">
                   {round.course && `${round.course} · `}
                   {new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  {' · '}{teams.length} teams · Par {parTotal} · {ballsCount}-ball
+                  {' · '}{teams.length} teams · Par {parTotal}
+                  {' · '}{isDaytona ? 'Daytona' : `${ballsCount}-ball`}
                 </p>
               </div>
               {!round.is_started && (
@@ -364,6 +385,16 @@ export default function AdminDashboard({
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                   </div>
                   <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Scoring Format</label>
+                    <select name="format" value={selectedFormat} onChange={(e) => setSelectedFormat(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                      <option value="standard">Standard (Best Balls)</option>
+                      <option value="daytona">Daytona</option>
+                    </select>
+                  </div>
+                </div>
+                {selectedFormat !== 'daytona' && (
+                  <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Balls in Play</label>
                     <select name="ballsCount" defaultValue="3"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
@@ -371,7 +402,7 @@ export default function AdminDashboard({
                       <option value="4">4 Balls</option>
                     </select>
                   </div>
-                </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Choose Course</label>
                   <select
@@ -440,25 +471,38 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* Ball values */}
+            {/* Ball / Daytona values */}
             {round && (
               <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <h3 className="font-semibold text-gray-900 mb-3 text-sm">Ball Values</h3>
+                <h3 className="font-semibold text-gray-900 mb-3 text-sm">
+                  {isDaytona ? 'Daytona Payout Value' : 'Ball Values'}
+                </h3>
                 <form action={ballAction} className="space-y-3">
                   <input type="hidden" name="roundId" value={round.id} />
-                  <input type="hidden" name="ballsCount" value={round.balls_count} />
+                  <input type="hidden" name="ballsCount" value={isDaytona ? 1 : round.balls_count} />
                   {ballState?.success && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Values saved!</p>}
-                  <div className="grid grid-cols-2 gap-3">
-                    {Array.from({ length: round.balls_count }, (_, i) => i + 1).map((bn) => (
-                      <div key={bn}>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">{BALL_NAMES[bn - 1]} Per Half ($)</label>
-                        <input type="number" name={`ball_${bn}`} min="0" step="5"
-                          value={ballVals[bn] ?? 10}
-                          onChange={(e) => setBallVals((v) => ({ ...v, [bn]: parseFloat(e.target.value) || 0 }))}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-                      </div>
-                    ))}
-                  </div>
+                  {isDaytona ? (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Per Half ($)</label>
+                      <input type="number" name="ball_1" min="0" step="5"
+                        value={ballVals[1] ?? 10}
+                        onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                      <p className="text-xs text-gray-400 mt-1">Winning team collects this from each other team per nine.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      {Array.from({ length: round.balls_count }, (_, i) => i + 1).map((bn) => (
+                        <div key={bn}>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">{BALL_NAMES[bn - 1]} Per Half ($)</label>
+                          <input type="number" name={`ball_${bn}`} min="0" step="5"
+                            value={ballVals[bn] ?? 10}
+                            onChange={(e) => setBallVals((v) => ({ ...v, [bn]: parseFloat(e.target.value) || 0 }))}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <button type="submit" disabled={ballPending}
                     className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
                     style={{ background: navy }}>
@@ -473,48 +517,75 @@ export default function AdminDashboard({
         {/* ── PAYOUTS ──────────────────────────────────────────────────── */}
         {tab === 'payouts' && round && (
           <div className="space-y-4">
-            {/* Ball Results */}
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-900 text-sm">Ball Results</h3>
-                <p className="text-xs text-gray-500">6 balls total · ties wash · winner takes ${ballVals[1] ?? 0}/team per half</p>
-              </div>
-              <div className="px-4 py-4 space-y-4">
-                {Array.from({ length: ballsCount }, (_, bi) => {
-                  const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
-                  const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
-                  return (
-                    <div key={bi}>
-                      <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>
-                        {BALL_NAMES[bi]}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[front, back].map((result, hi) => {
-                          if (!result) return <div key={hi} />
-                          const vp = result.winnerVsPar
-                          const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
-                          return (
-                            <div key={hi} className="bg-gray-50 rounded-lg px-3 py-2">
-                              <p className="text-xs text-gray-500 mb-0.5">{result.half}</p>
-                              {!result.played ? (
-                                <p className="text-sm text-gray-300 font-medium">–</p>
-                              ) : result.tied ? (
-                                <p className="text-sm text-gray-500 font-medium">Tie — Washes</p>
-                              ) : (
-                                <>
-                                  <p className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</p>
-                                  {vpStr && <p className="text-xs text-gray-400">{vpStr}</p>}
-                                </>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
+            {isDaytona ? (
+              /* ── Daytona payout results ── */
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-900 text-sm">Daytona Results</h3>
+                  <p className="text-xs text-gray-500">Lowest team DT total wins each half · ties wash · ${dtPayoutValue}/team per half</p>
+                </div>
+                <div className="px-4 py-4 space-y-3">
+                  {dtResults.map((result, i) => (
+                    <div key={i} className="bg-gray-50 rounded-lg px-3 py-2">
+                      <p className="text-xs text-gray-500 mb-0.5">{result.half}</p>
+                      {!result.played ? (
+                        <p className="text-sm text-gray-300 font-medium">–</p>
+                      ) : result.tied ? (
+                        <p className="text-sm text-gray-500 font-medium">Tie — Washes</p>
+                      ) : (
+                        <>
+                          <p className="text-sm font-semibold text-green-700">{result.winnerName}</p>
+                          {result.winnerTotal != null && <p className="text-xs text-gray-400">DT: {result.winnerTotal}</p>}
+                        </>
+                      )}
                     </div>
-                  )
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              /* ── Standard ball results ── */
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-900 text-sm">Ball Results</h3>
+                  <p className="text-xs text-gray-500">6 balls total · ties wash · winner takes ${ballVals[1] ?? 0}/team per half</p>
+                </div>
+                <div className="px-4 py-4 space-y-4">
+                  {Array.from({ length: ballsCount }, (_, bi) => {
+                    const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
+                    const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
+                    return (
+                      <div key={bi}>
+                        <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>
+                          {BALL_NAMES[bi]}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[front, back].map((result, hi) => {
+                            if (!result) return <div key={hi} />
+                            const vp = result.winnerVsPar
+                            const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                            return (
+                              <div key={hi} className="bg-gray-50 rounded-lg px-3 py-2">
+                                <p className="text-xs text-gray-500 mb-0.5">{result.half}</p>
+                                {!result.played ? (
+                                  <p className="text-sm text-gray-300 font-medium">–</p>
+                                ) : result.tied ? (
+                                  <p className="text-sm text-gray-500 font-medium">Tie — Washes</p>
+                                ) : (
+                                  <>
+                                    <p className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</p>
+                                    {vpStr && <p className="text-xs text-gray-400">{vpStr}</p>}
+                                  </>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Team Net */}
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -522,8 +593,8 @@ export default function AdminDashboard({
                 <h3 className="font-semibold text-gray-900 text-sm">Team Net</h3>
                 <p className="text-xs text-gray-500">Based on scores entered so far</p>
               </div>
-              {[...teams].sort((a, b) => (net[b.id] ?? 0) - (net[a.id] ?? 0)).map((team) => {
-                const teamNet = net[team.id] ?? 0
+              {[...teams].sort((a, b) => (payoutNet[b.id] ?? 0) - (payoutNet[a.id] ?? 0)).map((team) => {
+                const teamNet = payoutNet[team.id] ?? 0
                 return (
                   <div key={team.id} className="flex items-center px-4 py-2.5 border-b border-gray-100 last:border-0">
                     <span className="flex-1 font-medium text-gray-900 text-sm">{team.name}</span>
@@ -541,9 +612,9 @@ export default function AdminDashboard({
                 <h3 className="font-semibold text-gray-900 text-sm">Settlement</h3>
                 <p className="text-xs text-gray-500">Who pays who</p>
               </div>
-              {settlements.length === 0 ? (
+              {payoutSettlements.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-6">No payouts yet.</p>
-              ) : settlements.map((s, i) => (
+              ) : payoutSettlements.map((s, i) => (
                 <div key={i} className="flex items-center px-4 py-2.5 border-b border-gray-100 last:border-0 gap-2">
                   <span className="flex-1 text-sm text-gray-900">
                     <span className="font-semibold text-red-600">{s.fromName}</span>

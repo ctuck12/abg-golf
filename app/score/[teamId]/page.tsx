@@ -16,7 +16,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
   if (!team) redirect('/')
 
   const { data: round } = await sb
-    .from('rounds').select('id, balls_count, is_active').eq('id', team.round_id).single()
+    .from('rounds').select('id, balls_count, format, is_active').eq('id', team.round_id).single()
   if (!round || !round.is_active) redirect('/')
 
   const { data: players } = await sb
@@ -36,6 +36,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
       holes={holes ?? []}
       initialScores={scores ?? []}
       ballsCount={round.balls_count}
+      format={round.format ?? 'standard'}
       isAdmin={team.is_admin ?? false}
     />
   )

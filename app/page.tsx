@@ -12,7 +12,7 @@ export default async function HomePage() {
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, is_started')
+    .select('id, name, date, course, balls_count, format, is_started')
     .eq('is_active', true)
     .single()
 
@@ -41,6 +41,7 @@ export default async function HomePage() {
       holes={holes ?? []}
       initialScores={scores ?? []}
       ballsCount={round.balls_count}
+      format={round.format ?? 'standard'}
       roundName={round.name}
       roundDate={round.date}
       roundCourse={round.course ?? ''}

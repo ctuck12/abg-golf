@@ -2,7 +2,7 @@
 
 import { useState, Fragment } from 'react'
 import { submitHoleScores } from '@/app/actions'
-import { computeHoleBallScores, computeTeamBallSummary } from '@/lib/scoring'
+import { computeHoleBallScores, computeTeamBallSummary, computeHoleDaytona, computeTeamDaytonaSummary } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 
 type Player = { id: string; name: string }
@@ -15,15 +15,18 @@ const gold = '#f59e0b'
 
 
 export default function ScoreEntry({
-  team, players, holes, initialScores, ballsCount, isAdmin,
+  team, players, holes, initialScores, ballsCount, format = 'standard', isAdmin,
 }: {
   team: Team
   players: Player[]
   holes: Hole[]
   initialScores: Score[]
   ballsCount: number
+  format?: string
   isAdmin: boolean
 }) {
+  const isDaytona = format === 'daytona'
+
   // strokes[playerId][holeNumber] = strokes
   const [strokes, setStrokes] = useState<Record<string, Record<number, number>>>(() => {
     const s: Record<string, Record<number, number>> = {}
@@ -85,23 +88,46 @@ export default function ScoreEntry({
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
   const backHoles = holes.filter((h) => h.hole_number >= 10)
   const playerIds = players.map((p) => p.id)
-  // Header totals use savedScores only — they don't move until Save Hole is tapped
-  const frontSummary = computeTeamBallSummary(frontHoles, playerIds, savedScores, ballsCount)
-  const backSummary = computeTeamBallSummary(backHoles, playerIds, savedScores, ballsCount)
+
+  // Header totals — only updated on save
+  const frontSummary = !isDaytona ? computeTeamBallSummary(frontHoles, playerIds, savedScores, ballsCount) : null
+  const backSummary = !isDaytona ? computeTeamBallSummary(backHoles, playerIds, savedScores, ballsCount) : null
+  const dtSummary = isDaytona ? computeTeamDaytonaSummary(holes, playerIds, savedScores) : null
+
   const savedCount = savedHoles.size
 
-  const frontBallTotals = Array.from({ length: ballsCount }, (_, bi) =>
-    frontHoles.reduce((sum, h) => {
-      const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
-      return sum + (computeHoleBallScores(hps, ballsCount)[bi] ?? h.par)
-    }, 0)
-  )
-  const backBallTotals = Array.from({ length: ballsCount }, (_, bi) =>
-    backHoles.reduce((sum, h) => {
-      const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
-      return sum + (computeHoleBallScores(hps, ballsCount)[bi] ?? h.par)
-    }, 0)
-  )
+  // Live totals for the Front/Back Total cards (include unsaved edits)
+  const frontBallTotals = !isDaytona
+    ? Array.from({ length: ballsCount }, (_, bi) =>
+        frontHoles.reduce((sum, h) => {
+          const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
+          return sum + (computeHoleBallScores(hps, ballsCount)[bi] ?? h.par)
+        }, 0)
+      )
+    : []
+  const backBallTotals = !isDaytona
+    ? Array.from({ length: ballsCount }, (_, bi) =>
+        backHoles.reduce((sum, h) => {
+          const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
+          return sum + (computeHoleBallScores(hps, ballsCount)[bi] ?? h.par)
+        }, 0)
+      )
+    : []
+
+  const frontDtTotal = isDaytona
+    ? frontHoles.reduce((sum, h) => {
+        const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
+        const dt = computeHoleDaytona(hps, h.par)
+        return dt != null ? sum + dt : sum
+      }, 0)
+    : 0
+  const backDtTotal = isDaytona
+    ? backHoles.reduce((sum, h) => {
+        const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
+        const dt = computeHoleDaytona(hps, h.par)
+        return dt != null ? sum + dt : sum
+      }, 0)
+    : 0
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -116,24 +142,43 @@ export default function ScoreEntry({
             <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
           <div className="flex gap-3">
-            {([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
-              <div key={label} className="flex-1">
-                <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
-                <div className="flex gap-3">
-                  {Array.from({ length: ballsCount }, (_, i) => {
-                    const vp = s.ballVsPar[i]
-                    return (
-                      <div key={i} className="text-center">
-                        <p className="text-xs" style={{ color: gold }}>{i + 1}B</p>
-                        <p className="font-bold text-sm" style={{ color: vp == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
-                          {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
-                        </p>
-                      </div>
-                    )
-                  })}
+            {isDaytona ? (
+              ([
+                { label: 'Front 9', total: dtSummary?.frontTotal ?? null },
+                { label: 'Back 9', total: dtSummary?.backTotal ?? null },
+              ]).map(({ label, total }) => (
+                <div key={label} className="flex-1">
+                  <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                  <div className="flex gap-3">
+                    <div className="text-center">
+                      <p className="text-xs" style={{ color: gold }}>DT</p>
+                      <p className="font-bold text-sm" style={{ color: total == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
+                        {total ?? '–'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              ([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
+                <div key={label} className="flex-1">
+                  <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                  <div className="flex gap-3">
+                    {Array.from({ length: ballsCount }, (_, i) => {
+                      const vp = s?.ballVsPar[i] ?? null
+                      return (
+                        <div key={i} className="text-center">
+                          <p className="text-xs" style={{ color: gold }}>{i + 1}B</p>
+                          <p className="font-bold text-sm" style={{ color: vp == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
+                            {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </header>
@@ -154,12 +199,13 @@ export default function ScoreEntry({
           const isExpanded = expandedHole === hole.hole_number
           const error = errors[hole.hole_number]
 
-          // Collapsed ball scores use savedScores so they don't change until Save Hole is tapped
+          // Collapsed scores use savedScores so they don't change until Save Hole is tapped
           const savedHolePlayerScores = players.map((p) => {
             const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
             return sc?.strokes ?? hole.par
           })
-          const holeBalls = computeHoleBallScores(savedHolePlayerScores, ballsCount)
+          const holeBalls = !isDaytona ? computeHoleBallScores(savedHolePlayerScores, ballsCount) : []
+          const holeDt = isDaytona ? computeHoleDaytona(savedHolePlayerScores, hole.par) : null
 
           return (
             <Fragment key={hole.hole_number}>
@@ -182,12 +228,19 @@ export default function ScoreEntry({
                 <div className="flex-1" />
                 {isSaved && (
                   <div className="flex items-center gap-3 mr-2">
-                    {holeBalls.map((score, i) => (
-                      <div key={i} className="text-center">
-                        <p className="text-xs text-gray-400">{i + 1}B</p>
-                        <ScoreNotation strokes={score ?? hole.par} par={hole.par} size="sm" />
+                    {isDaytona ? (
+                      <div className="text-center">
+                        <p className="text-xs text-gray-400">DT</p>
+                        <p className="font-bold text-sm text-gray-900">{holeDt ?? '–'}</p>
                       </div>
-                    ))}
+                    ) : (
+                      holeBalls.map((score, i) => (
+                        <div key={i} className="text-center">
+                          <p className="text-xs text-gray-400">{i + 1}B</p>
+                          <ScoreNotation strokes={score ?? hole.par} par={hole.par} size="sm" />
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -236,12 +289,19 @@ export default function ScoreEntry({
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Front 9 Total</p>
                     {savedHoles.has(9) && (
                       <div className="flex items-center gap-3 mr-8">
-                        {frontBallTotals.map((total, i) => (
-                          <div key={i} className="text-center">
-                            <p className="text-xs text-gray-400">{i + 1}B</p>
-                            <p className="font-bold text-sm text-gray-900">{total}</p>
+                        {isDaytona ? (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-400">DT</p>
+                            <p className="font-bold text-sm text-gray-900">{frontDtTotal}</p>
                           </div>
-                        ))}
+                        ) : (
+                          frontBallTotals.map((total, i) => (
+                            <div key={i} className="text-center">
+                              <p className="text-xs text-gray-400">{i + 1}B</p>
+                              <p className="font-bold text-sm text-gray-900">{total}</p>
+                            </div>
+                          ))
+                        )}
                       </div>
                     )}
                   </div>
@@ -253,12 +313,19 @@ export default function ScoreEntry({
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Back 9 Total</p>
                     {savedHoles.has(18) && (
                       <div className="flex items-center gap-3 mr-8">
-                        {backBallTotals.map((total, i) => (
-                          <div key={i} className="text-center">
-                            <p className="text-xs text-gray-400">{i + 1}B</p>
-                            <p className="font-bold text-sm text-gray-900">{total}</p>
+                        {isDaytona ? (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-400">DT</p>
+                            <p className="font-bold text-sm text-gray-900">{backDtTotal}</p>
                           </div>
-                        ))}
+                        ) : (
+                          backBallTotals.map((total, i) => (
+                            <div key={i} className="text-center">
+                              <p className="text-xs text-gray-400">{i + 1}B</p>
+                              <p className="font-bold text-sm text-gray-900">{total}</p>
+                            </div>
+                          ))
+                        )}
                       </div>
                     )}
                   </div>

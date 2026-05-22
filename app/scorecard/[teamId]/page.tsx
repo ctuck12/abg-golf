@@ -12,7 +12,7 @@ export default async function ScorecardPage({ params }: { params: Promise<{ team
   if (!team) redirect('/leaderboard')
 
   const { data: round } = await sb
-    .from('rounds').select('id, balls_count').eq('id', team.round_id).single()
+    .from('rounds').select('id, balls_count, format').eq('id', team.round_id).single()
   if (!round) redirect('/leaderboard')
 
   const { data: players } = await sb
@@ -32,6 +32,7 @@ export default async function ScorecardPage({ params }: { params: Promise<{ team
       holes={holes ?? []}
       scores={scores ?? []}
       ballsCount={round.balls_count}
+      format={round.format ?? 'standard'}
     />
   )
 }

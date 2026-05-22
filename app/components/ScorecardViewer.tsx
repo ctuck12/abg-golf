@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { computeHoleBallScores } from '@/lib/scoring'
+import { computeHoleBallScores, computeHoleDaytona } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 
 type Player = { id: string; name: string }
@@ -42,15 +42,17 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 })
 
 export default function ScorecardViewer({
-  teamName, players, holes, scores: initialScores, ballsCount,
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard',
 }: {
   teamName: string
   players: Player[]
   holes: Hole[]
   scores: Score[]
   ballsCount: number
+  format?: string
 }) {
   const [scores, setScores] = useState(initialScores)
+  const isDaytona = format === 'daytona'
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -70,10 +72,13 @@ export default function ScorecardViewer({
       scores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes ?? null
     )
     const validScores = playerScores.filter((s): s is number => s !== null)
-    const ballScores: (number | null)[] = validScores.length > 0
+    const ballScores: (number | null)[] = !isDaytona && validScores.length > 0
       ? computeHoleBallScores(validScores, ballsCount)
       : Array(ballsCount).fill(null)
-    return { hole, playerScores, ballScores }
+    const dtScore: number | null = isDaytona && validScores.length >= 2
+      ? computeHoleDaytona(validScores, hole.par)
+      : null
+    return { hole, playerScores, ballScores, dtScore }
   })
 
   const frontData = holeData.filter((d) => d.hole.hole_number <= 9)
@@ -171,44 +176,81 @@ export default function ScorecardViewer({
               </tr>
             ))}
 
-            {/* Divider before ball rows */}
+            {/* Divider before ball / DT rows */}
             <tr><td colSpan={23} style={{ height: '2px', background: '#e5e7eb', padding: 0 }} /></tr>
 
-            {/* One row per ball */}
-            {Array.from({ length: ballsCount }, (_, bi) => (
-              <tr key={bi}>
+            {/* Daytona row OR ball rows */}
+            {isDaytona ? (
+              <tr>
                 <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#92400e' }}>
-                  {BALL_LABELS[bi]}
+                  DT
                 </td>
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const d = holeData.find((d) => d.hole.hole_number === n)
-                  const b = d?.ballScores[bi] ?? null
                   return (
                     <td key={n} style={tdScore(false, true)}>
-                      {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
+                      {d?.dtScore != null
+                        ? <span style={{ fontWeight: 700, color: '#111827' }}>{d.dtScore}</span>
+                        : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
                 })}
                 <td style={{ ...tdScore(true, true) }}>
-                  {sumScored(frontData, (d) => d.ballScores[bi]) ?? '–'}
+                  {sumScored(frontData, (d) => d.dtScore) ?? '–'}
                 </td>
                 {[10,11,12,13,14,15,16,17,18].map((n) => {
                   const d = holeData.find((d) => d.hole.hole_number === n)
-                  const b = d?.ballScores[bi] ?? null
                   return (
                     <td key={n} style={tdScore(false, true)}>
-                      {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
+                      {d?.dtScore != null
+                        ? <span style={{ fontWeight: 700, color: '#111827' }}>{d.dtScore}</span>
+                        : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
                 })}
                 <td style={{ ...tdScore(true, true) }}>
-                  {sumScored(backData, (d) => d.ballScores[bi]) ?? '–'}
+                  {sumScored(backData, (d) => d.dtScore) ?? '–'}
                 </td>
                 <td style={{ ...tdScore(false, true), fontWeight: 700, color: '#111827' }}>
-                  {sumScored(holeData, (d) => d.ballScores[bi]) ?? '–'}
+                  {sumScored(holeData, (d) => d.dtScore) ?? '–'}
                 </td>
               </tr>
-            ))}
+            ) : (
+              Array.from({ length: ballsCount }, (_, bi) => (
+                <tr key={bi}>
+                  <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#92400e' }}>
+                    {BALL_LABELS[bi]}
+                  </td>
+                  {[1,2,3,4,5,6,7,8,9].map((n) => {
+                    const d = holeData.find((d) => d.hole.hole_number === n)
+                    const b = d?.ballScores[bi] ?? null
+                    return (
+                      <td key={n} style={tdScore(false, true)}>
+                        {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
+                      </td>
+                    )
+                  })}
+                  <td style={{ ...tdScore(true, true) }}>
+                    {sumScored(frontData, (d) => d.ballScores[bi]) ?? '–'}
+                  </td>
+                  {[10,11,12,13,14,15,16,17,18].map((n) => {
+                    const d = holeData.find((d) => d.hole.hole_number === n)
+                    const b = d?.ballScores[bi] ?? null
+                    return (
+                      <td key={n} style={tdScore(false, true)}>
+                        {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
+                      </td>
+                    )
+                  })}
+                  <td style={{ ...tdScore(true, true) }}>
+                    {sumScored(backData, (d) => d.ballScores[bi]) ?? '–'}
+                  </td>
+                  <td style={{ ...tdScore(false, true), fontWeight: 700, color: '#111827' }}>
+                    {sumScored(holeData, (d) => d.ballScores[bi]) ?? '–'}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
 
