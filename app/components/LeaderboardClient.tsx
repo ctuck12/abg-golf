@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { computeTeamBallSummary, computeAllTeamsDaytonaSummaries } from '@/lib/scoring'
+import { computeTeamBallSummary, computeDaytonaSidesSummary, type DaytonaHoleAssignment } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 
 type Team = { id: string; name: string }
@@ -31,7 +31,7 @@ function vpColor(vp: number | null): string {
 }
 
 export default function LeaderboardClient({
-  initialTeams, players, holes, initialScores, ballsCount, roundName, roundDate, roundCourse, format = 'standard', viewOnly = false, scorecardTeamId = null, isAdmin = false,
+  initialTeams, players, holes, initialScores, ballsCount, roundName, roundDate, roundCourse, format = 'standard', viewOnly = false, scorecardTeamId = null, isAdmin = false, roundId = '', initialAssignments = [],
 }: {
   initialTeams: Team[]
   players: Player[]
@@ -45,11 +45,16 @@ export default function LeaderboardClient({
   viewOnly?: boolean
   scorecardTeamId?: string | null
   isAdmin?: boolean
+  roundId?: string
+  initialAssignments?: DaytonaHoleAssignment[]
 }) {
   const [scores, setScores] = useState<Score[]>(initialScores)
+  const [assignments, setAssignments] = useState<DaytonaHoleAssignment[]>(initialAssignments)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [showPin, setShowPin] = useState(false)
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
+
+  const isDaytona = format === 'daytona'
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -63,26 +68,28 @@ export default function LeaderboardClient({
     return () => { supabase.removeChannel(channel) }
   }, [players])
 
-  const isDaytona = format === 'daytona'
+  useEffect(() => {
+    if (!isDaytona || !roundId) return
+    const channel = supabase.channel('leaderboard-assignments')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daytona_hole_assignments' }, async () => {
+        const { data } = await supabase
+          .from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
+        if (data) { setAssignments(data as DaytonaHoleAssignment[]); setLastUpdated(new Date()) }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [isDaytona, roundId])
+
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
   const backHoles = holes.filter((h) => h.hole_number >= 10)
-
-  const dtSummaries = isDaytona
-    ? computeAllTeamsDaytonaSummaries(
-        holes,
-        initialTeams.map((t) => ({
-          id: t.id,
-          playerIds: players.filter((p) => p.team_id === t.id).map((p) => p.id),
-        })),
-        scores
-      )
-    : null
 
   const rows = initialTeams.map((team) => {
     const teamPlayers = players.filter((p) => p.team_id === team.id)
     const playerIds = teamPlayers.map((p) => p.id)
     if (isDaytona) {
-      return { team, summary: null, frontSummary: null, backSummary: null, dtSummary: dtSummaries!.get(team.id) ?? null }
+      const teamAssignments = assignments.filter((a) => playerIds.includes(a.player_id))
+      const dtSummary = computeDaytonaSidesSummary(holes, scores, teamAssignments)
+      return { team, summary: null, frontSummary: null, backSummary: null, dtSummary }
     }
     const summary = computeTeamBallSummary(holes, playerIds, scores, ballsCount)
     const frontSummary = computeTeamBallSummary(frontHoles, playerIds, scores, ballsCount)
@@ -90,8 +97,8 @@ export default function LeaderboardClient({
     return { team, summary, frontSummary, backSummary, dtSummary: null }
   }).sort((a, b) => {
     if (isDaytona) {
-      const at = a.dtSummary?.total ?? null
-      const bt = b.dtSummary?.total ?? null
+      const at = a.dtSummary?.leftTotal ?? null
+      const bt = b.dtSummary?.leftTotal ?? null
       if (at == null && bt == null) return a.team.name.localeCompare(b.team.name)
       if (at == null) return 1
       if (bt == null) return -1
@@ -212,9 +219,8 @@ export default function LeaderboardClient({
                 style={{ color: 'rgba(255,255,255,0.6)' }}>
                 <span className="w-5 mr-2 flex-shrink-0">#</span>
                 <span className="flex-1 min-w-0">Team</span>
-                <span className="inline-flex justify-center flex-shrink-0" style={{ width: dtColW, color: gold }}>Front</span>
-                <span className="inline-flex justify-center flex-shrink-0" style={{ width: dtColW, color: gold }}>Back</span>
-                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>Total</span>
+                <span className="inline-flex justify-center flex-shrink-0" style={{ width: dtColW, color: '#60a5fa' }}>Left</span>
+                <span className="inline-flex justify-center flex-shrink-0" style={{ width: dtColW, color: gold }}>Right</span>
                 <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
                 <span className="flex-shrink-0" style={{ width: '1.5rem' }} />
               </div>
@@ -264,7 +270,7 @@ export default function LeaderboardClient({
           {rows.map((row, i) => {
             const thruCount = isDaytona
               ? (row.dtSummary?.holesPlayed ?? 0)
-              : (row.summary?.holesPerBall[0] ?? 0)
+              : (row.summary?.holesPerBall?.[0] ?? 0)
             const hasScores = thruCount > 0
             const isLeader = i === 0 && hasScores
             const isExpanded = expandedTeam === row.team.id
@@ -283,18 +289,13 @@ export default function LeaderboardClient({
                   {isDaytona ? (
                     <>
                       <span className="inline-flex justify-center text-xs flex-shrink-0" style={{ width: dtColW }}>
-                        {row.dtSummary?.frontTotal != null
-                          ? <span className="font-semibold text-gray-900">{row.dtSummary.frontTotal}</span>
+                        {row.dtSummary?.leftTotal != null
+                          ? <span className="font-semibold" style={{ color: '#2563eb' }}>{row.dtSummary.leftTotal}</span>
                           : <span className="text-gray-300">–</span>}
                       </span>
                       <span className="inline-flex justify-center text-xs flex-shrink-0" style={{ width: dtColW }}>
-                        {row.dtSummary?.backTotal != null
-                          ? <span className="font-semibold text-gray-900">{row.dtSummary.backTotal}</span>
-                          : <span className="text-gray-300">–</span>}
-                      </span>
-                      <span className="inline-flex justify-center text-sm flex-shrink-0" style={{ width: '4rem' }}>
-                        {row.dtSummary?.total != null
-                          ? <span className="font-bold text-gray-900">{row.dtSummary.total}</span>
+                        {row.dtSummary?.rightTotal != null
+                          ? <span className="font-semibold text-gray-900">{row.dtSummary.rightTotal}</span>
                           : <span className="text-gray-300">–</span>}
                       </span>
                     </>

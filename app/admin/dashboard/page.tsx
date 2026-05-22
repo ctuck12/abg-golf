@@ -35,12 +35,17 @@ export default async function AdminDashboardPage() {
   const teamIds = teams.map((t) => t.id)
   const scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
 
-  const [playersRes, scoresRes] = await Promise.all([
+  const isDaytona = (round?.format ?? 'standard') === 'daytona'
+
+  const [playersRes, scoresRes, assignmentsRes] = await Promise.all([
     teamIds.length
       ? sb.from('players').select('id, team_id, name, position').in('team_id', teamIds).order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
     roundId
       ? sb.from('scores').select('player_id, hole_number, strokes')
+      : Promise.resolve({ data: [] }),
+    roundId && isDaytona
+      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
       : Promise.resolve({ data: [] }),
   ])
 
@@ -53,6 +58,7 @@ export default async function AdminDashboardPage() {
       ballValues={ballValuesRes.data ?? []}
       scores={scoresRes.data ?? []}
       scorecardTeamId={scorecardTeamId}
+      dtAssignments={assignmentsRes.data ?? []}
     />
   )
 }

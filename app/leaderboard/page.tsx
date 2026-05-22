@@ -20,11 +20,15 @@ export default async function LeaderboardPage() {
     .from('teams').select('id, name').eq('round_id', round.id).order('name')
 
   const teamIds = (teams ?? []).map((t) => t.id)
+  const isDaytona = (round.format ?? 'standard') === 'daytona'
 
-  const [{ data: players }, { data: holes }, { data: scores }] = await Promise.all([
+  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }] = await Promise.all([
     sb.from('players').select('id, team_id, name, position').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
+    isDaytona
+      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id)
+      : Promise.resolve({ data: [] }),
   ])
 
   // Detect if a team member is currently logged in (so we can show "Back to Scorecard")
@@ -39,6 +43,8 @@ export default async function LeaderboardPage() {
       initialScores={scores ?? []}
       ballsCount={round.balls_count}
       format={round.format ?? 'standard'}
+      roundId={round.id}
+      initialAssignments={assignments ?? []}
       roundName={round.name}
       roundDate={round.date}
       roundCourse={round.course ?? ''}

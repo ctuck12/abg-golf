@@ -1,21 +1,37 @@
 'use client'
 
 import { useState, Fragment } from 'react'
-import { submitHoleScores } from '@/app/actions'
-import { computeHoleBallScores, computeTeamBallSummary, computeHoleDaytona, computeTeamDaytonaSummary } from '@/lib/scoring'
+import { submitHoleScores, saveDaytonaAssignments } from '@/app/actions'
+import {
+  computeHoleBallScores, computeTeamBallSummary,
+  computeHoleDaytonaWithSides, computeDaytonaSidesSummary,
+  type DaytonaHoleAssignment, type DaytonaSide,
+} from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 
 type Player = { id: string; name: string }
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type Team = { id: string; name: string }
+type AssignmentMap = Record<number, Record<string, DaytonaSide>>
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
+function defaultAssignmentForHole(players: Player[], holeNumber: number, existing: AssignmentMap): Record<string, DaytonaSide> {
+  // Use most-recent saved hole's assignments as default
+  const savedHoleNumbers = Object.keys(existing).map(Number).filter((n) => n < holeNumber).sort((a, b) => b - a)
+  if (savedHoleNumbers.length > 0) {
+    return { ...existing[savedHoleNumbers[0]] }
+  }
+  // Fallback: first 2 players = left, rest = right
+  const m: Record<string, DaytonaSide> = {}
+  players.forEach((p, i) => { m[p.id] = i < 2 ? 'left' : 'right' })
+  return m
+}
 
 export default function ScoreEntry({
-  team, players, holes, initialScores, ballsCount, format = 'standard', isAdmin,
+  team, players, holes, initialScores, ballsCount, format = 'standard', isAdmin, roundId = '', initialAssignments = [],
 }: {
   team: Team
   players: Player[]
@@ -24,10 +40,11 @@ export default function ScoreEntry({
   ballsCount: number
   format?: string
   isAdmin: boolean
+  roundId?: string
+  initialAssignments?: DaytonaHoleAssignment[]
 }) {
   const isDaytona = format === 'daytona'
 
-  // strokes[playerId][holeNumber] = strokes
   const [strokes, setStrokes] = useState<Record<string, Record<number, number>>>(() => {
     const s: Record<string, Record<number, number>> = {}
     for (const sc of initialScores) {
@@ -47,25 +64,71 @@ export default function ScoreEntry({
     return saved
   })
 
-  // Separate from strokes: only updated on successful save — drives the header totals
   const [savedScores, setSavedScores] = useState<Score[]>(initialScores)
-
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
   const [expandedHole, setExpandedHole] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
+
+  // Daytona Left/Right assignments per hole
+  const [assignments, setAssignments] = useState<AssignmentMap>(() => {
+    const m: AssignmentMap = {}
+    for (const a of initialAssignments) {
+      if (!m[a.hole_number]) m[a.hole_number] = {}
+      m[a.hole_number][a.player_id] = a.side as DaytonaSide
+    }
+    return m
+  })
 
   function setStroke(playerId: string, hole: number, val: number) {
     setStrokes((s) => ({ ...s, [playerId]: { ...s[playerId], [hole]: Math.max(1, Math.min(20, val)) } }))
   }
 
+  function toggleSide(holeNumber: number, playerId: string) {
+    setAssignments((prev) => {
+      const holeMap = prev[holeNumber] ?? {}
+      const current = holeMap[playerId] ?? 'right'
+      return { ...prev, [holeNumber]: { ...holeMap, [playerId]: current === 'left' ? 'right' : 'left' } }
+    })
+  }
+
+  function expandHole(holeNumber: number) {
+    setExpandedHole((prev) => {
+      if (prev === holeNumber) return null
+      if (isDaytona && !assignments[holeNumber]) {
+        const def = defaultAssignmentForHole(players, holeNumber, assignments)
+        setAssignments((a) => ({ ...a, [holeNumber]: def }))
+      }
+      return holeNumber
+    })
+  }
+
   async function saveHole(holeNumber: number) {
+    const holeAssignments = assignments[holeNumber] ?? {}
+    const leftCount = Object.values(holeAssignments).filter((s) => s === 'left').length
+
+    if (isDaytona && leftCount !== 2) {
+      setErrors((e) => ({ ...e, [holeNumber]: 'Assign exactly 2 players to Left before saving.' }))
+      return
+    }
+
     const playerScores = players.map((p) => ({
       playerId: p.id,
       strokes: strokes[p.id]?.[holeNumber] ?? holes.find((h) => h.hole_number === holeNumber)?.par ?? 4,
     }))
 
     setPendingHoles((p) => new Set([...p, holeNumber]))
-    const result = await submitHoleScores(team.id, holeNumber, playerScores)
+
+    const [result] = await Promise.all([
+      submitHoleScores(team.id, holeNumber, playerScores),
+      isDaytona && roundId
+        ? saveDaytonaAssignments(
+            roundId,
+            holeNumber,
+            Object.entries(holeAssignments).map(([playerId, side]) => ({ playerId, side }))
+          )
+        : Promise.resolve(),
+    ])
+
     setPendingHoles((p) => { const n = new Set(p); n.delete(holeNumber); return n })
 
     if (result.error) {
@@ -89,14 +152,18 @@ export default function ScoreEntry({
   const backHoles = holes.filter((h) => h.hole_number >= 10)
   const playerIds = players.map((p) => p.id)
 
-  // Header totals — only updated on save
   const frontSummary = !isDaytona ? computeTeamBallSummary(frontHoles, playerIds, savedScores, ballsCount) : null
   const backSummary = !isDaytona ? computeTeamBallSummary(backHoles, playerIds, savedScores, ballsCount) : null
-  const dtSummary = isDaytona ? computeTeamDaytonaSummary(holes, playerIds, savedScores) : null
 
-  const savedCount = savedHoles.size
+  // Convert assignments map to flat array for summary functions
+  const flatAssignments: DaytonaHoleAssignment[] = isDaytona
+    ? Object.entries(assignments).flatMap(([hn, map]) =>
+        Object.entries(map).map(([pid, side]) => ({ player_id: pid, hole_number: Number(hn), side }))
+      )
+    : []
 
-  // Live totals for the Front/Back Total cards (include unsaved edits)
+  const dtSummary = isDaytona ? computeDaytonaSidesSummary(holes, savedScores, flatAssignments) : null
+
   const frontBallTotals = !isDaytona
     ? Array.from({ length: ballsCount }, (_, bi) =>
         frontHoles.reduce((sum, h) => {
@@ -114,20 +181,7 @@ export default function ScoreEntry({
       )
     : []
 
-  const frontDtTotal = isDaytona
-    ? frontHoles.reduce((sum, h) => {
-        const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
-        const dt = computeHoleDaytona(hps, h.par)
-        return dt != null ? sum + dt : sum
-      }, 0)
-    : 0
-  const backDtTotal = isDaytona
-    ? backHoles.reduce((sum, h) => {
-        const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
-        const dt = computeHoleDaytona(hps, h.par)
-        return dt != null ? sum + dt : sum
-      }, 0)
-    : 0
+  const savedCount = savedHoles.size
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -144,16 +198,22 @@ export default function ScoreEntry({
           <div className="flex gap-3">
             {isDaytona ? (
               ([
-                { label: 'Front 9', total: dtSummary?.frontTotal ?? null },
-                { label: 'Back 9', total: dtSummary?.backTotal ?? null },
-              ]).map(({ label, total }) => (
+                { label: 'Front 9', leftTotal: dtSummary?.leftFront ?? null, rightTotal: dtSummary?.rightFront ?? null },
+                { label: 'Back 9', leftTotal: dtSummary?.leftBack ?? null, rightTotal: dtSummary?.rightBack ?? null },
+              ]).map(({ label, leftTotal, rightTotal }) => (
                 <div key={label} className="flex-1">
                   <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
                   <div className="flex gap-3">
                     <div className="text-center">
-                      <p className="text-xs" style={{ color: gold }}>DT</p>
-                      <p className="font-bold text-sm" style={{ color: total == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
-                        {total ?? '–'}
+                      <p className="text-xs" style={{ color: '#60a5fa' }}>Left</p>
+                      <p className="font-bold text-sm" style={{ color: leftTotal == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
+                        {leftTotal ?? '–'}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs" style={{ color: gold }}>Right</p>
+                      <p className="font-bold text-sm" style={{ color: rightTotal == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
+                        {rightTotal ?? '–'}
                       </p>
                     </div>
                   </div>
@@ -199,13 +259,38 @@ export default function ScoreEntry({
           const isExpanded = expandedHole === hole.hole_number
           const error = errors[hole.hole_number]
 
-          // Collapsed scores use savedScores so they don't change until Save Hole is tapped
           const savedHolePlayerScores = players.map((p) => {
             const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
             return sc?.strokes ?? hole.par
           })
           const holeBalls = !isDaytona ? computeHoleBallScores(savedHolePlayerScores, ballsCount) : []
-          const holeDt = isDaytona ? computeHoleDaytona(savedHolePlayerScores, hole.par) : null
+
+          // Compute Left/Right DT for collapsed row using saved data
+          const holeAssignments = assignments[hole.hole_number] ?? {}
+          const savedLeftScores = players
+            .filter((p) => holeAssignments[p.id] === 'left')
+            .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
+            .filter((s): s is number => s !== undefined)
+          const savedRightScores = players
+            .filter((p) => holeAssignments[p.id] === 'right')
+            .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
+            .filter((s): s is number => s !== undefined)
+          const { leftDt, rightDt } = isDaytona
+            ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par)
+            : { leftDt: null, rightDt: null }
+
+          // Live preview during edit
+          const editLeftScores = players
+            .filter((p) => holeAssignments[p.id] === 'left')
+            .map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
+          const editRightScores = players
+            .filter((p) => holeAssignments[p.id] === 'right')
+            .map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
+          const { leftDt: liveLeftDt, rightDt: liveRightDt } = isDaytona
+            ? computeHoleDaytonaWithSides(editLeftScores, editRightScores, hole.par)
+            : { leftDt: null, rightDt: null }
+
+          const leftCount = Object.values(holeAssignments).filter((s) => s === 'left').length
 
           return (
             <Fragment key={hole.hole_number}>
@@ -216,7 +301,7 @@ export default function ScoreEntry({
               <button
                 type="button"
                 className="w-full flex items-center px-4 py-3 gap-3 text-left"
-                onClick={() => setExpandedHole(isExpanded ? null : hole.hole_number)}>
+                onClick={() => expandHole(hole.hole_number)}>
                 <div className="w-8 text-center flex-shrink-0">
                   <p className="text-xs text-gray-400">Hole</p>
                   <p className="font-bold text-gray-900">{hole.hole_number}</p>
@@ -229,10 +314,16 @@ export default function ScoreEntry({
                 {isSaved && (
                   <div className="flex items-center gap-3 mr-2">
                     {isDaytona ? (
-                      <div className="text-center">
-                        <p className="text-xs text-gray-400">DT</p>
-                        <p className="font-bold text-sm text-gray-900">{holeDt ?? '–'}</p>
-                      </div>
+                      <>
+                        <div className="text-center">
+                          <p className="text-xs" style={{ color: '#2563eb' }}>Left</p>
+                          <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs" style={{ color: '#92400e' }}>Right</p>
+                          <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
+                        </div>
+                      </>
                     ) : (
                       holeBalls.map((score, i) => (
                         <div key={i} className="text-center">
@@ -254,8 +345,23 @@ export default function ScoreEntry({
                 <div className="border-t border-gray-100 px-4 py-3 space-y-2">
                   {players.map((player) => {
                     const val = strokes[player.id]?.[hole.hole_number] ?? hole.par
+                    const side = holeAssignments[player.id] ?? 'right'
                     return (
-                      <div key={player.id} className="flex items-center gap-3">
+                      <div key={player.id} className="flex items-center gap-2">
+                        {isDaytona && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSide(hole.hole_number, player.id)}
+                            className="flex-shrink-0 text-xs font-bold px-2 py-1 rounded-lg border transition"
+                            style={{
+                              background: side === 'left' ? '#2563eb' : '#f3f4f6',
+                              color: side === 'left' ? 'white' : '#6b7280',
+                              borderColor: side === 'left' ? '#2563eb' : '#e5e7eb',
+                              minWidth: '2.5rem',
+                            }}>
+                            {side === 'left' ? 'Left' : 'Right'}
+                          </button>
+                        )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate">{player.name}</span>
                         <button type="button" onClick={() => setStroke(player.id, hole.hole_number, val - 1)}
                           className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition flex-shrink-0">
@@ -272,9 +378,27 @@ export default function ScoreEntry({
                     )
                   })}
 
+                  {isDaytona && (
+                    <div className="flex items-center gap-4 pt-1 pb-1">
+                      <span className="text-xs text-gray-400">
+                        Left: <strong>{leftCount}</strong> · Right: <strong>{players.length - leftCount}</strong>
+                        {leftCount !== 2 && <span className="text-red-500 ml-1">(need exactly 2 on Left)</span>}
+                      </span>
+                      <div className="flex-1" />
+                      {liveLeftDt != null && liveRightDt != null && (
+                        <span className="text-xs text-gray-500">
+                          Preview: <span style={{ color: '#2563eb' }}>L {liveLeftDt}</span> · <span style={{ color: '#92400e' }}>R {liveRightDt}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {error && <p className="text-xs text-red-500">{error}</p>}
 
-                  <button type="button" onClick={() => saveHole(hole.hole_number)} disabled={isPending}
+                  <button
+                    type="button"
+                    onClick={() => saveHole(hole.hole_number)}
+                    disabled={isPending || (isDaytona && leftCount !== 2)}
                     className="w-full mt-2 text-white py-2 rounded-lg font-semibold text-sm disabled:opacity-60 transition"
                     style={{ background: navy }}>
                     {isPending ? 'Saving…' : 'Save Hole'}
@@ -290,10 +414,16 @@ export default function ScoreEntry({
                     {savedHoles.has(9) && (
                       <div className="flex items-center gap-3 mr-8">
                         {isDaytona ? (
-                          <div className="text-center">
-                            <p className="text-xs text-gray-400">DT</p>
-                            <p className="font-bold text-sm text-gray-900">{frontDtTotal}</p>
-                          </div>
+                          <>
+                            <div className="text-center">
+                              <p className="text-xs" style={{ color: '#2563eb' }}>Left</p>
+                              <p className="font-bold text-sm text-gray-900">{dtSummary?.leftFront ?? '–'}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs" style={{ color: '#92400e' }}>Right</p>
+                              <p className="font-bold text-sm text-gray-900">{dtSummary?.rightFront ?? '–'}</p>
+                            </div>
+                          </>
                         ) : (
                           frontBallTotals.map((total, i) => (
                             <div key={i} className="text-center">
@@ -314,10 +444,16 @@ export default function ScoreEntry({
                     {savedHoles.has(18) && (
                       <div className="flex items-center gap-3 mr-8">
                         {isDaytona ? (
-                          <div className="text-center">
-                            <p className="text-xs text-gray-400">DT</p>
-                            <p className="font-bold text-sm text-gray-900">{backDtTotal}</p>
-                          </div>
+                          <>
+                            <div className="text-center">
+                              <p className="text-xs" style={{ color: '#2563eb' }}>Left</p>
+                              <p className="font-bold text-sm text-gray-900">{dtSummary?.leftBack ?? '–'}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs" style={{ color: '#92400e' }}>Right</p>
+                              <p className="font-bold text-sm text-gray-900">{dtSummary?.rightBack ?? '–'}</p>
+                            </div>
+                          </>
                         ) : (
                           backBallTotals.map((total, i) => (
                             <div key={i} className="text-center">

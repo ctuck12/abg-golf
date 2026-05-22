@@ -1,5 +1,176 @@
 export type BallScores = (number | null)[]
 
+// ── Daytona scoring ───────────────────────────────────────────────────────────
+
+// Combine the 2 best scores on a hole into a Daytona number.
+//
+// Rule 1 — no par or better (self):
+//   If the team's best score is still over par, flip: high digit first.
+//   e.g. 5+7 on par-4 → 75 instead of 57.
+//
+// Rule 2 — birdie flip (inter-team):
+//   If another team has a strictly better best score that is under par, flip.
+//   Eagle beats birdie; tied levels cancel (both birdie → no flip).
+//   Pass otherTeamsBestScores=[] (default) for single-team contexts (score entry).
+export function computeHoleDaytona(
+  myPlayerScores: number[],
+  par: number,
+  otherTeamsBestScores: number[] = []
+): number | null {
+  if (myPlayerScores.length < 2) return null
+  const sorted = [...myPlayerScores].sort((a, b) => a - b)
+  const low = sorted[0], high = sorted[1]
+  let flip = low > par  // Rule 1
+  if (!flip) {
+    // Rule 2: any other team has a strictly better under-par score?
+    flip = otherTeamsBestScores.some((ob) => ob < low && ob < par)
+  }
+  return flip ? parseInt(`${high}${low}`) : parseInt(`${low}${high}`)
+}
+
+export type DaytonaSummary = {
+  frontTotal: number | null
+  backTotal: number | null
+  total: number | null
+  frontHolesPlayed: number
+  backHolesPlayed: number
+  holesPlayed: number
+}
+
+// Single-team summary — Rule 1 only (used in score entry / player scorecard).
+export function computeTeamDaytonaSummary(
+  holes: { hole_number: number; par: number }[],
+  playerIds: string[],
+  scores: { player_id: string; hole_number: number; strokes: number }[]
+): DaytonaSummary {
+  let frontTotal = 0, backTotal = 0, frontHolesPlayed = 0, backHolesPlayed = 0
+  for (const hole of holes) {
+    const holeScores = playerIds
+      .map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes)
+      .filter((s): s is number => s !== undefined)
+    const dt = computeHoleDaytona(holeScores, hole.par)
+    if (dt === null) continue
+    if (hole.hole_number <= 9) { frontTotal += dt; frontHolesPlayed++ }
+    else { backTotal += dt; backHolesPlayed++ }
+  }
+  return {
+    frontTotal: frontHolesPlayed > 0 ? frontTotal : null,
+    backTotal: backHolesPlayed > 0 ? backTotal : null,
+    total: frontHolesPlayed + backHolesPlayed > 0 ? frontTotal + backTotal : null,
+    frontHolesPlayed,
+    backHolesPlayed,
+    holesPlayed: frontHolesPlayed + backHolesPlayed,
+  }
+}
+
+// All-teams summary — both rules applied (used in leaderboard / admin / payouts).
+// Rule 2 requires knowing every team's best score per hole.
+export function computeAllTeamsDaytonaSummaries(
+  holes: { hole_number: number; par: number }[],
+  teams: { id: string; playerIds: string[] }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[]
+): Map<string, DaytonaSummary> {
+  const sums: Record<string, { ft: number; bt: number; fh: number; bh: number }> = {}
+  for (const t of teams) sums[t.id] = { ft: 0, bt: 0, fh: 0, bh: 0 }
+
+  for (const hole of holes) {
+    const teamData = teams.map((t) => {
+      const ps = t.playerIds
+        .map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes)
+        .filter((s): s is number => s !== undefined)
+      return { id: t.id, ps, best: ps.length > 0 ? Math.min(...ps) : null }
+    })
+
+    for (const td of teamData) {
+      if (td.ps.length < 2) continue
+      const otherBests = teamData
+        .filter((d) => d.id !== td.id && d.best !== null)
+        .map((d) => d.best as number)
+      const dt = computeHoleDaytona(td.ps, hole.par, otherBests)
+      if (dt === null) continue
+      const s = sums[td.id]
+      if (hole.hole_number <= 9) { s.ft += dt; s.fh++ } else { s.bt += dt; s.bh++ }
+    }
+  }
+
+  const result = new Map<string, DaytonaSummary>()
+  for (const t of teams) {
+    const s = sums[t.id]
+    result.set(t.id, {
+      frontTotal: s.fh > 0 ? s.ft : null,
+      backTotal: s.bh > 0 ? s.bt : null,
+      total: s.fh + s.bh > 0 ? s.ft + s.bt : null,
+      frontHolesPlayed: s.fh,
+      backHolesPlayed: s.bh,
+      holesPlayed: s.fh + s.bh,
+    })
+  }
+  return result
+}
+
+export type DaytonaHalfResult = {
+  half: 'Front 9' | 'Back 9'
+  winnerId: string | null
+  winnerName: string | null
+  winnerTotal: number | null
+  tied: boolean
+  played: boolean
+}
+
+export function calculateDaytonaPayouts(
+  teams: { id: string; name: string }[],
+  summaries: Map<string, DaytonaSummary>,
+  value: number
+): {
+  results: DaytonaHalfResult[]
+  net: Record<string, number>
+  settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[]
+} {
+  const net: Record<string, number> = {}
+  for (const t of teams) net[t.id] = 0
+  const results: DaytonaHalfResult[] = []
+
+  for (const half of ['Front 9', 'Back 9'] as const) {
+    const teamScores = teams.map((t) => ({
+      id: t.id, name: t.name,
+      total: half === 'Front 9' ? (summaries.get(t.id)?.frontTotal ?? null) : (summaries.get(t.id)?.backTotal ?? null),
+    })).filter((s): s is typeof s & { total: number } => s.total !== null)
+
+    if (teamScores.length === 0) {
+      results.push({ half, winnerId: null, winnerName: null, winnerTotal: null, tied: false, played: false })
+      continue
+    }
+    const minTotal = Math.min(...teamScores.map((s) => s.total))
+    const winners = teamScores.filter((s) => s.total === minTotal)
+    if (winners.length > 1) {
+      results.push({ half, winnerId: null, winnerName: null, winnerTotal: minTotal, tied: true, played: true })
+    } else {
+      const winner = winners[0]
+      results.push({ half, winnerId: winner.id, winnerName: winner.name, winnerTotal: winner.total, tied: false, played: true })
+      if (value > 0) {
+        for (const loser of teamScores.filter((s) => s.id !== winner.id)) {
+          net[winner.id] += value; net[loser.id] -= value
+        }
+      }
+    }
+  }
+
+  const balances = teams.map((t) => ({ id: t.id, name: t.name, bal: net[t.id] ?? 0 }))
+  const pos = balances.filter((b) => b.bal > 0).sort((a, b) => b.bal - a.bal)
+  const neg = balances.filter((b) => b.bal < 0).sort((a, b) => a.bal - b.bal)
+  const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
+  let wi = 0, li = 0
+  while (wi < pos.length && li < neg.length) {
+    const w = pos[wi], l = neg[li]
+    const amount = Math.min(w.bal, -l.bal)
+    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    w.bal -= amount; l.bal += amount
+    if (w.bal === 0) wi++; if (l.bal === 0) li++
+  }
+  return { results, net, settlements }
+}
+
+
 // Sort player scores ascending and return [1-ball, 2-ball, 3-ball, ...]
 export function computeHoleBallScores(playerStrokes: number[], ballsCount: number): BallScores {
   const sorted = [...playerStrokes].sort((a, b) => a - b)
@@ -146,4 +317,65 @@ export function calculateFrontBackPayouts(
   }
 
   return { results, net, settlements }
+}
+
+export type DaytonaSide = 'left' | 'right'
+export type DaytonaHoleAssignment = { player_id: string; hole_number: number; side: DaytonaSide }
+
+export function computeHoleDaytonaWithSides(
+  leftScores: number[],
+  rightScores: number[],
+  par: number
+): { leftDt: number | null; rightDt: number | null } {
+  if (leftScores.length < 2 || rightScores.length < 2) return { leftDt: null, rightDt: null }
+  const leftDt = computeHoleDaytona(leftScores, par, rightScores)
+  const rightDt = computeHoleDaytona(rightScores, par, leftScores)
+  return { leftDt, rightDt }
+}
+
+export type DaytonaSidesSummary = {
+  leftFront: number | null
+  leftBack: number | null
+  leftTotal: number | null
+  rightFront: number | null
+  rightBack: number | null
+  rightTotal: number | null
+  holesPlayed: number
+}
+
+export function computeDaytonaSidesSummary(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  assignments: DaytonaHoleAssignment[]
+): DaytonaSidesSummary {
+  let leftFront: number | null = null
+  let leftBack: number | null = null
+  let rightFront: number | null = null
+  let rightBack: number | null = null
+  let holesPlayed = 0
+
+  for (const hole of holes) {
+    const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
+    const leftIds = holeAssignments.filter((a) => a.side === 'left').map((a) => a.player_id)
+    const rightIds = holeAssignments.filter((a) => a.side === 'right').map((a) => a.player_id)
+    const leftScores = leftIds.map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== null && s !== undefined)
+    const rightScores = rightIds.map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== null && s !== undefined)
+
+    const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftScores, rightScores, hole.par)
+    if (leftDt === null || rightDt === null) continue
+
+    holesPlayed++
+    if (hole.hole_number <= 9) {
+      leftFront = (leftFront ?? 0) + leftDt
+      rightFront = (rightFront ?? 0) + rightDt
+    } else {
+      leftBack = (leftBack ?? 0) + leftDt
+      rightBack = (rightBack ?? 0) + rightDt
+    }
+  }
+
+  const leftTotal = leftFront !== null || leftBack !== null ? (leftFront ?? 0) + (leftBack ?? 0) : null
+  const rightTotal = rightFront !== null || rightBack !== null ? (rightFront ?? 0) + (rightBack ?? 0) : null
+
+  return { leftFront, leftBack, leftTotal, rightFront, rightBack, rightTotal, holesPlayed }
 }

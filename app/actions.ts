@@ -82,7 +82,8 @@ export async function createRound(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
   const date = formData.get('date') as string
   const courseKey = (formData.get('course') as string) || 'north'
-  const ballsCount = parseInt(formData.get('ballsCount') as string) || 3
+  const format = (formData.get('format') as string) || 'standard'
+  const ballsCount = format === 'daytona' ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
 
   if (!name || !date) return { error: 'Round name and date are required.' }
 
@@ -94,7 +95,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
   const { data: round, error } = await supabase
     .from('rounds')
-    .insert({ name, date, course: courseName, balls_count: ballsCount, is_active: true, is_started: false })
+    .insert({ name, date, course: courseName, balls_count: ballsCount, format, is_active: true, is_started: false })
     .select().single()
 
   if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
@@ -227,4 +228,22 @@ export async function movePlayer(playerId: string, direction: 'up' | 'down') {
     supabase.from('players').update({ position: other.position }).eq('id', player.id),
     supabase.from('players').update({ position: player.position }).eq('id', other.id),
   ])
+}
+
+// ── Daytona hole assignments ──────────────────────────────────────────────────
+
+export async function saveDaytonaAssignments(
+  roundId: string,
+  holeNumber: number,
+  assignments: { playerId: string; side: 'left' | 'right' }[]
+) {
+  const supabase = createServerClient()
+  await supabase.from('daytona_hole_assignments')
+    .delete().eq('round_id', roundId).eq('hole_number', holeNumber)
+  if (assignments.length > 0) {
+    await supabase.from('daytona_hole_assignments').insert(
+      assignments.map((a) => ({ round_id: roundId, hole_number: holeNumber, player_id: a.playerId, side: a.side }))
+    )
+  }
+  return { success: true }
 }
