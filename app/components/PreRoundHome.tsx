@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useActionState } from 'react'
 import { teamLogin } from '@/app/actions'
 
@@ -13,6 +13,12 @@ const gold = '#f59e0b'
 export default function PreRoundHome({ teams, round }: { teams: Team[]; round: Round }) {
   const [showPin, setShowPin] = useState(false)
   const [state, action, pending] = useActionState(teamLogin, null)
+
+  useEffect(() => {
+    if (state && 'success' in state && state.success) {
+      window.location.href = `/score/${state.teamId}`
+    }
+  }, [state])
 
   const formattedDate = round
     ? new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -72,7 +78,7 @@ export default function PreRoundHome({ teams, round }: { teams: Team[]; round: R
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <h2 className="font-semibold text-gray-900 mb-3 text-sm">Select your team and enter PIN</h2>
               <form action={action} className="space-y-3">
-                {state?.error && (
+                {state && 'error' in state && (
                   <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{state.error}</p>
                 )}
                 <select

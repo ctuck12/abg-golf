@@ -34,7 +34,8 @@ export async function teamLogin(_prev: unknown, formData: FormData) {
     cookieStore.set('admin_auth', 'true', { httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24, path: '/' })
   }
 
-  redirect(`/score/${teamId}`)
+  // Return success + teamId; client handles navigation (redirect() breaks in useActionState on Next.js 16)
+  return { success: true as const, teamId }
 }
 
 export async function adminLogin(_prev: unknown, formData: FormData) {
@@ -43,7 +44,9 @@ export async function adminLogin(_prev: unknown, formData: FormData) {
 
   const cookieStore = await cookies()
   cookieStore.set('admin_auth', 'true', { httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 8, path: '/' })
-  redirect('/admin/dashboard')
+
+  // Return success; client handles navigation (redirect() breaks in useActionState on Next.js 16)
+  return { success: true as const }
 }
 
 export async function adminLogout() {

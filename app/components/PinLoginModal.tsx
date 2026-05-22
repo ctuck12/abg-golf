@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import { teamLogin } from '@/app/actions'
 
 type Team = { id: string; name: string }
@@ -9,6 +9,12 @@ const navy = '#0f172a'
 
 export default function PinLoginModal({ teams, onClose }: { teams: Team[]; onClose: () => void }) {
   const [state, action, pending] = useActionState(teamLogin, null)
+
+  useEffect(() => {
+    if (state && 'success' in state && state.success) {
+      window.location.href = `/score/${state.teamId}`
+    }
+  }, [state])
 
   return (
     <div
@@ -22,7 +28,7 @@ export default function PinLoginModal({ teams, onClose }: { teams: Team[]; onClo
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
         <form action={action} className="space-y-3">
-          {state?.error && (
+          {state && 'error' in state && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{state.error}</p>
           )}
           <div>
