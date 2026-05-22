@@ -1,5 +1,8 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
@@ -26,7 +29,7 @@ function scoreLabel(strokes: number, par: number): string {
 }
 
 export default function PlayerScorecard({
-  player, teamName, teamId, holes, scores,
+  player, teamName, teamId, holes, scores: initialScores,
 }: {
   player: { id: string; name: string }
   teamName: string
@@ -34,6 +37,21 @@ export default function PlayerScorecard({
   holes: Hole[]
   scores: Score[]
 }) {
+  const [scores, setScores] = useState(initialScores)
+
+  useEffect(() => {
+    const channel = supabase.channel(`player-${player.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
+        const { data } = await supabase
+          .from('scores')
+          .select('hole_number, strokes')
+          .eq('player_id', player.id)
+        if (data) setScores(data)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [player.id])
+
   const scoreMap = Object.fromEntries(scores.map((s) => [s.hole_number, s.strokes]))
   const thru = scores.length
   const totalStrokes = scores.reduce((sum, s) => sum + s.strokes, 0)

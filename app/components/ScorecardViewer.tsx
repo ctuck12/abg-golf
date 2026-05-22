@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 import { computeHoleBallScores } from '@/lib/scoring'
 
 type Player = { id: string; name: string }
@@ -28,7 +30,7 @@ function fmt(strokes: number | null, par: number): string {
 }
 
 export default function ScorecardViewer({
-  teamName, players, holes, scores, ballsCount,
+  teamName, players, holes, scores: initialScores, ballsCount,
 }: {
   teamName: string
   players: Player[]
@@ -36,6 +38,22 @@ export default function ScorecardViewer({
   scores: Score[]
   ballsCount: number
 }) {
+  const [scores, setScores] = useState(initialScores)
+
+  useEffect(() => {
+    const playerIds = players.map((p) => p.id)
+    const channel = supabase.channel('scorecard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
+        const { data } = await supabase
+          .from('scores')
+          .select('player_id, hole_number, strokes')
+          .in('player_id', playerIds)
+        if (data) setScores(data)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [players])
+
   const parMap = Object.fromEntries(holes.map((h) => [h.hole_number, h.par]))
 
   // Build totals
