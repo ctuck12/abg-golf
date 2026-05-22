@@ -1,10 +1,13 @@
 export const dynamic = 'force-dynamic'
 
+import { cookies } from 'next/headers'
 import { createServerClient } from '@/lib/supabase-server'
 import PreRoundHome from './components/PreRoundHome'
 import LeaderboardClient from './components/LeaderboardClient'
 
 export default async function HomePage() {
+  const cookieStore = await cookies()
+  const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
   const sb = createServerClient()
 
   const { data: round } = await sb
@@ -41,6 +44,7 @@ export default async function HomePage() {
       roundDate={round.date}
       roundCourse={round.course ?? ''}
       viewOnly
+      isAdmin={isAdmin}
     />
   )
 }
