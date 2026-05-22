@@ -139,7 +139,7 @@ export default function MatchupClient({
                 <option value="">Select player…</option>
                 {players.map((p) => (
                   <option key={p.id} value={p.id} disabled={p.id === p2Id}>
-                    {p.name} · {p.teamName}
+                    {p.name}
                   </option>
                 ))}
               </select>
@@ -154,7 +154,7 @@ export default function MatchupClient({
                 <option value="">Select player…</option>
                 {players.map((p) => (
                   <option key={p.id} value={p.id} disabled={p.id === p1Id}>
-                    {p.name} · {p.teamName}
+                    {p.name}
                   </option>
                 ))}
               </select>
