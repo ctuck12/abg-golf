@@ -8,6 +8,7 @@ import {
   adminLogout, renameTeam, movePlayer,
 } from '@/app/actions'
 import { computeTeamBallSummary, calculateFrontBackPayouts } from '@/lib/scoring'
+import PinLoginModal from './PinLoginModal'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -33,6 +34,7 @@ export default function AdminDashboard({
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<'overview' | 'teams' | 'setup' | 'payouts'>(!round ? 'setup' : 'overview')
+  const [showPinModal, setShowPinModal] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
@@ -140,14 +142,22 @@ export default function AdminDashboard({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+      {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} />}
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Admin</p>
             <h1 className="font-bold text-lg">Anything But Golf Group</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <a href="/" className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>Leaderboard ↗</a>
+            <button
+              type="button"
+              onClick={() => setShowPinModal(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+              style={{ background: gold, color: navy }}>
+              Team Scorecard
+            </button>
             <form action={adminLogout}>
               <button type="submit" className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10">Sign out</button>
             </form>

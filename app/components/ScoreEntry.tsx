@@ -41,6 +41,34 @@ export default function ScoreEntry({
     return s
   })
 
+  const [showAdminModal, setShowAdminModal] = useState(false)
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminError, setAdminError] = useState('')
+  const [adminPending, setAdminPending] = useState(false)
+
+  async function handleAdminLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setAdminError('')
+    setAdminPending(true)
+    try {
+      const res = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        window.location.href = '/admin/dashboard'
+      } else {
+        setAdminError(data.error ?? 'Incorrect password.')
+      }
+    } catch {
+      setAdminError('Network error. Please try again.')
+    } finally {
+      setAdminPending(false)
+    }
+  }
+
   const [savedHoles, setSavedHoles] = useState<Set<number>>(() => {
     const saved = new Set<number>()
     for (let h = 1; h <= 18; h++) {
@@ -97,6 +125,43 @@ export default function ScoreEntry({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+      {showAdminModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowAdminModal(false); setAdminError(''); setAdminPassword('') } }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900">Admin Login</h2>
+              <button onClick={() => { setShowAdminModal(false); setAdminError(''); setAdminPassword('') }}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <form onSubmit={handleAdminLogin} className="space-y-3">
+              {adminError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{adminError}</p>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Admin Password</label>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Password"
+                  required
+                  autoFocus
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none"
+                />
+              </div>
+              <button type="submit" disabled={adminPending}
+                className="w-full text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-60 transition active:scale-95"
+                style={{ background: navy }}>
+                {adminPending ? 'Verifying…' : 'Open Admin Portal →'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
@@ -240,8 +305,14 @@ export default function ScoreEntry({
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center justify-between text-sm">
           <a href="/leaderboard" className="font-medium" style={{ color: navy }}>← Leaderboard</a>
-          <span className="text-gray-500">{savedCount} of 18 saved</span>
-          <a href="/" className="text-gray-400 hover:text-gray-600">Switch Team</a>
+          <span className="text-xs text-gray-400">{savedCount} of 18 saved</span>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => { setShowAdminModal(true); setAdminError(''); setAdminPassword('') }}
+              className="text-xs text-gray-400 hover:text-gray-700 transition">
+              Admin Login
+            </button>
+            <a href="/" className="text-xs text-gray-400 hover:text-gray-600">Switch Team</a>
+          </div>
         </div>
       </div>
     </div>
