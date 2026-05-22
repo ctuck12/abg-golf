@@ -9,7 +9,8 @@ import {
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculateFrontBackPayouts,
-  computeDaytonaSidesSummary, type DaytonaHoleAssignment,
+  computeDaytonaSidesSummary, computePlayerDaytonaPoints, settleDaytonaPlayerPoints,
+  type DaytonaHoleAssignment,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 
@@ -480,12 +481,12 @@ export default function AdminDashboard({
                   {ballState?.success && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Values saved!</p>}
                   {isDaytona ? (
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Per Half ($)</label>
-                      <input type="number" name="ball_1" min="0" step="5"
-                        value={ballVals[1] ?? 10}
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Value Per Point ($)</label>
+                      <input type="number" name="ball_1" min="0" step="0.5"
+                        value={ballVals[1] ?? 1}
                         onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-                      <p className="text-xs text-gray-400 mt-1">Winning team collects this from each other team per nine.</p>
+                      <p className="text-xs text-gray-400 mt-1">Each point = this dollar amount. Points are the DT score difference per hole per player.</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
@@ -515,55 +516,96 @@ export default function AdminDashboard({
         {tab === 'payouts' && round && (
           <div className="space-y-4">
             {isDaytona ? (
-              /* ── Daytona Left vs Right results per group ── */
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <h3 className="font-semibold text-gray-900 text-sm">Daytona Results</h3>
-                  <p className="text-xs text-gray-500">Left vs Right per group · lower DT wins each half · ${dtPayoutValue}/half</p>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {teams.map((team) => {
-                    const summary = dtSummaries.get(team.id)
-                    const frontWinner = summary?.leftFront != null && summary?.rightFront != null
-                      ? (summary.leftFront < summary.rightFront ? 'Left' : summary.rightFront < summary.leftFront ? 'Right' : 'Tie')
-                      : null
-                    const backWinner = summary?.leftBack != null && summary?.rightBack != null
-                      ? (summary.leftBack < summary.rightBack ? 'Left' : summary.rightBack < summary.leftBack ? 'Right' : 'Tie')
-                      : null
-                    return (
-                      <div key={team.id} className="px-4 py-3">
-                        <p className="text-sm font-semibold text-gray-900 mb-2">{team.name}</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {([
-                            { label: 'Front 9', leftDt: summary?.leftFront, rightDt: summary?.rightFront, winner: frontWinner },
-                            { label: 'Back 9', leftDt: summary?.leftBack, rightDt: summary?.rightBack, winner: backWinner },
-                          ] as const).map(({ label, leftDt, rightDt, winner }) => (
-                            <div key={label} className="bg-gray-50 rounded-lg px-3 py-2">
-                              <p className="text-xs text-gray-500 mb-1">{label}</p>
-                              {leftDt == null ? (
-                                <p className="text-sm text-gray-300">–</p>
-                              ) : (
-                                <>
-                                  <div className="flex items-center gap-2 text-xs mb-0.5">
-                                    <span style={{ color: '#2563eb' }} className="font-medium">Left:</span>
-                                    <span className="font-bold text-gray-900">{leftDt}</span>
-                                    <span className="text-gray-400">vs</span>
-                                    <span style={{ color: '#92400e' }} className="font-medium">Right:</span>
-                                    <span className="font-bold text-gray-900">{rightDt}</span>
-                                  </div>
-                                  <p className="text-xs font-semibold" style={{ color: winner === 'Tie' ? '#6b7280' : '#16a34a' }}>
-                                    {winner === 'Tie' ? 'Tie — Washes' : `${winner} wins`}
-                                  </p>
-                                </>
+              /* ── Daytona per-player point tracking ── */
+              <>
+                {teams.map((team) => {
+                  const teamPlayers = players.filter((p) => p.team_id === team.id)
+                  const teamPlayerIds = teamPlayers.map((p) => p.id)
+                  const teamAssignments = dtAssignments.filter((a) => teamPlayerIds.includes(a.player_id))
+                  const teamScores = scores.filter((s) => teamPlayerIds.includes(s.player_id))
+                  const pointTotals = computePlayerDaytonaPoints(holes, teamScores, teamAssignments)
+                  const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(
+                    teamPlayers, pointTotals, dtPayoutValue
+                  )
+
+                  return (
+                    <div key={team.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <h3 className="font-semibold text-gray-900 text-sm">{team.name}</h3>
+                        <p className="text-xs text-gray-500">${dtPayoutValue}/point · lower DT wins each hole · difference = points</p>
+                      </div>
+
+                      {/* Per-player point totals */}
+                      <div className="divide-y divide-gray-100">
+                        {teamPlayers.map((p) => {
+                          const pts = pointTotals.get(p.id) ?? 0
+                          const dollars = playerNet[p.id] ?? 0
+                          return (
+                            <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
+                              <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                              <span className="text-sm font-semibold tabular-nums w-16 text-right"
+                                style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>
+                                {pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts
+                              </span>
+                              <span className="text-sm font-bold tabular-nums w-16 text-right"
+                                style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>
+                                {dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Hole-by-hole DT summary */}
+                      {(() => {
+                        const summary = dtSummaries.get(team.id)
+                        return summary && (summary.leftFront != null || summary.leftBack != null) ? (
+                          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                            <div className="flex gap-4 text-xs">
+                              {summary.leftFront != null && (
+                                <span className="text-gray-500">
+                                  Front: <span style={{ color: '#2563eb' }}>L {summary.leftFront}</span>
+                                  {' vs '}
+                                  <span style={{ color: '#92400e' }}>R {summary.rightFront}</span>
+                                </span>
                               )}
+                              {summary.leftBack != null && (
+                                <span className="text-gray-500">
+                                  Back: <span style={{ color: '#2563eb' }}>L {summary.leftBack}</span>
+                                  {' vs '}
+                                  <span style={{ color: '#92400e' }}>R {summary.rightBack}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : null
+                      })()}
+
+                      {/* Settlement */}
+                      {playerSettlements.length > 0 && (
+                        <div className="border-t border-gray-200 px-4 py-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>
+                          {playerSettlements.map((s, i) => (
+                            <div key={i} className="flex items-center py-1 gap-2 text-sm">
+                              <span className="flex-1">
+                                <span className="font-semibold text-red-600">{s.fromName}</span>
+                                {' pays '}
+                                <span className="font-semibold text-green-700">{s.toName}</span>
+                              </span>
+                              <span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+                      )}
+                      {playerSettlements.length === 0 && teamPlayers.length > 0 && (
+                        <p className="text-xs text-gray-400 text-center py-3">
+                          {[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
             ) : (
               /* ── Standard ball results ── */
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">

@@ -4,7 +4,7 @@ import { useState, Fragment } from 'react'
 import { submitHoleScores, saveDaytonaAssignments } from '@/app/actions'
 import {
   computeHoleBallScores, computeTeamBallSummary,
-  computeHoleDaytonaWithSides, computeDaytonaSidesSummary,
+  computeHoleDaytonaWithSides, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
   type DaytonaHoleAssignment, type DaytonaSide,
 } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
@@ -163,6 +163,7 @@ export default function ScoreEntry({
     : []
 
   const dtSummary = isDaytona ? computeDaytonaSidesSummary(holes, savedScores, flatAssignments) : null
+  const playerPointTotals = isDaytona ? computePlayerDaytonaPoints(holes, savedScores, flatAssignments) : new Map<string, number>()
 
   const frontBallTotals = !isDaytona
     ? Array.from({ length: ballsCount }, (_, bi) =>
@@ -240,6 +241,23 @@ export default function ScoreEntry({
               ))
             )}
           </div>
+
+          {/* Player running point totals — Daytona only */}
+          {isDaytona && playerPointTotals.size > 0 && (
+            <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
+              {players.map((p) => {
+                const pts = playerPointTotals.get(p.id) ?? 0
+                return (
+                  <div key={p.id} className="flex items-center gap-1.5 text-xs">
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}</span>
+                    <span className="font-bold" style={{ color: pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
+                      {pts > 0 ? `+${pts}` : pts}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </header>
 
@@ -323,6 +341,14 @@ export default function ScoreEntry({
                           <p className="text-xs" style={{ color: '#92400e' }}>Right</p>
                           <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
                         </div>
+                        {leftDt != null && rightDt != null && leftDt !== rightDt && (
+                          <div className="text-center">
+                            <p className="text-xs text-gray-400">Pts</p>
+                            <p className="font-bold text-sm" style={{ color: leftDt < rightDt ? '#16a34a' : '#dc2626' }}>
+                              {leftDt < rightDt ? `L +${rightDt - leftDt}` : `R +${leftDt - rightDt}`}
+                            </p>
+                          </div>
+                        )}
                       </>
                     ) : (
                       holeBalls.map((score, i) => (

@@ -379,3 +379,74 @@ export function computeDaytonaSidesSummary(
 
   return { leftFront, leftBack, leftTotal, rightFront, rightBack, rightTotal, holesPlayed }
 }
+
+// Per-player Daytona point tracking
+// Each hole: winner side gets +(rightDt - leftDt) or +(leftDt - rightDt) per player; loser side gets the negative. Tie = 0.
+export function computePlayerDaytonaPoints(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  assignments: DaytonaHoleAssignment[]
+): Map<string, number> {
+  const totals = new Map<string, number>()
+
+  for (const hole of holes) {
+    const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
+    const leftIds = holeAssignments.filter((a) => a.side === 'left').map((a) => a.player_id)
+    const rightIds = holeAssignments.filter((a) => a.side === 'right').map((a) => a.player_id)
+
+    if (leftIds.length < 2 || rightIds.length < 2) continue
+
+    const leftScores = leftIds
+      .map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes)
+      .filter((s): s is number => s !== undefined)
+    const rightScores = rightIds
+      .map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes)
+      .filter((s): s is number => s !== undefined)
+
+    if (leftScores.length < 2 || rightScores.length < 2) continue
+
+    const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftScores, rightScores, hole.par)
+    if (leftDt === null || rightDt === null) continue
+
+    const diff = Math.abs(leftDt - rightDt)
+    const leftPoints = leftDt < rightDt ? diff : leftDt > rightDt ? -diff : 0
+    const rightPoints = -leftPoints
+
+    for (const id of leftIds) totals.set(id, (totals.get(id) ?? 0) + leftPoints)
+    for (const id of rightIds) totals.set(id, (totals.get(id) ?? 0) + rightPoints)
+  }
+
+  return totals
+}
+
+export function settleDaytonaPlayerPoints(
+  players: { id: string; name: string }[],
+  pointTotals: Map<string, number>,
+  dollarPerPoint: number
+): {
+  net: Record<string, number>
+  settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[]
+} {
+  const net: Record<string, number> = {}
+  for (const p of players) {
+    net[p.id] = Math.round((pointTotals.get(p.id) ?? 0) * dollarPerPoint * 100) / 100
+  }
+
+  const balances = players.map((p) => ({ id: p.id, name: p.name, bal: net[p.id] ?? 0 }))
+  const pos = balances.filter((b) => b.bal > 0).sort((a, b) => b.bal - a.bal)
+  const neg = balances.filter((b) => b.bal < 0).sort((a, b) => a.bal - b.bal)
+  const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
+
+  let wi = 0, li = 0
+  while (wi < pos.length && li < neg.length) {
+    const w = pos[wi], l = neg[li]
+    const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
+    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    w.bal -= amount
+    l.bal += amount
+    if (Math.abs(w.bal) < 0.01) wi++
+    if (Math.abs(l.bal) < 0.01) li++
+  }
+
+  return { net, settlements }
+}
