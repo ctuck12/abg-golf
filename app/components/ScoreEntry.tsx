@@ -282,14 +282,14 @@ export default function ScoreEntry({
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
-        <div className="max-w-lg mx-auto flex items-center justify-between text-sm">
-          {isAdmin ? (
+        <div className={`max-w-lg mx-auto flex items-center text-sm ${isAdmin ? 'justify-between' : 'justify-center'}`}>
+          {isAdmin && (
             <a href="/admin/dashboard"
               className="text-xs px-3 py-1.5 rounded-lg font-semibold"
               style={{ background: navy, color: gold }}>
               Admin Hub
             </a>
-          ) : <div />}
+          )}
           <p className="text-xs text-gray-400">{savedCount}/18 holes saved</p>
         </div>
       </div>
