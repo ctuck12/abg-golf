@@ -45,22 +45,27 @@ export default function AdminDashboard({
   const [ballState, ballAction, ballPending] = useActionState(updateBallValues, null)
   const [renameState, renameAction, renamePending] = useActionState(renameTeam, null)
 
-  // Refresh server data after mutations so the UI updates without a manual reload
+  // Refresh server data after mutations so the UI updates without a manual reload.
+  // Watch the full state object (not just .success) — the object reference changes
+  // on every submission, so the effect re-fires even on back-to-back successes.
   useEffect(() => {
     if (createState?.success) { router.refresh(); setTab('teams') }
-  }, [createState?.success])
+  }, [createState])
   useEffect(() => {
     if (addTeamState?.success) router.refresh()
-  }, [addTeamState?.success])
+  }, [addTeamState])
   useEffect(() => {
     if (addPlayerState?.success) router.refresh()
-  }, [addPlayerState?.success])
+  }, [addPlayerState])
   useEffect(() => {
     if (renameState?.success) { router.refresh(); setRenamingTeam(null) }
-  }, [renameState?.success])
+  }, [renameState])
   useEffect(() => {
-    if (parState?.success || ballState?.success) router.refresh()
-  }, [parState?.success, ballState?.success])
+    if (parState?.success) router.refresh()
+  }, [parState])
+  useEffect(() => {
+    if (ballState?.success) router.refresh()
+  }, [ballState])
 
   const [pars, setPars] = useState<Record<number, number>>(
     Object.fromEntries(Array.from({ length: 18 }, (_, i) => [i + 1, holes.find((h) => h.hole_number === i + 1)?.par ?? 4]))
