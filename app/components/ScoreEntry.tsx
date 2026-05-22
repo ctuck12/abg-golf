@@ -163,18 +163,6 @@ export default function ScoreEntry({
 
           return (
             <Fragment key={hole.hole_number}>
-              {hole.hole_number === 1 && (
-                <div className="flex items-center gap-3 px-1 pt-1">
-                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Front 9</p>
-                  <div className="flex-1 h-px bg-gray-200" />
-                </div>
-              )}
-              {hole.hole_number === 10 && (
-                <div className="flex items-center gap-3 px-1 pt-3">
-                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Back 9</p>
-                  <div className="flex-1 h-px bg-gray-200" />
-                </div>
-              )}
             <div
               className="bg-white rounded-xl border overflow-hidden"
               style={{ borderColor: isSaved ? gold : '#e5e7eb' }}>
@@ -243,7 +231,7 @@ export default function ScoreEntry({
             </div>
 
               {hole.hole_number === 9 && (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: navy }}>
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Front 9 Total</p>
                     {savedHoles.has(9) && (
@@ -260,7 +248,7 @@ export default function ScoreEntry({
                 </div>
               )}
               {hole.hole_number === 18 && (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: navy }}>
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Back 9 Total</p>
                     {savedHoles.has(18) && (
