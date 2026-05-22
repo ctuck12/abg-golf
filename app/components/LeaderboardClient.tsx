@@ -20,6 +20,16 @@ function ScoreCell({ vp }: { vp: number | null }) {
   return <span className="font-semibold text-gray-900">+{vp}</span>
 }
 
+function vpDisplay(vp: number | null): string {
+  if (vp === null) return '–'
+  if (vp === 0) return 'E'
+  return vp > 0 ? `+${vp}` : `${vp}`
+}
+
+function vpColor(vp: number | null): string {
+  return vp !== null && vp < 0 ? '#dc2626' : '#111827'
+}
+
 export default function LeaderboardClient({
   initialTeams, players, holes, initialScores, ballsCount, roundName, roundDate, roundCourse, viewOnly = false, scorecardTeamId = null, isAdmin = false,
 }: {
@@ -261,40 +271,28 @@ export default function LeaderboardClient({
                       const frontScores = playerScores.filter((s) => s.hole_number <= 9)
                       const frontStrokes = frontScores.reduce((sum, s) => sum + s.strokes, 0)
                       const frontPar = holes.filter((h) => h.hole_number <= 9 && frontScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
-                      const frontVp = frontScores.length > 0 ? frontStrokes - frontPar : null
+                      const frontVp: number | null = frontScores.length > 0 ? frontStrokes - frontPar : null
 
                       const backScores = playerScores.filter((s) => s.hole_number >= 10)
                       const backStrokes = backScores.reduce((sum, s) => sum + s.strokes, 0)
                       const backPar = holes.filter((h) => h.hole_number >= 10 && backScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
-                      const backVp = backScores.length > 0 ? backStrokes - backPar : null
+                      const backVp: number | null = backScores.length > 0 ? backStrokes - backPar : null
 
                       const totalPar = holes.filter((h) => playerScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
-                      const totalVp = playerScores.length > 0 ? playerScores.reduce((sum, s) => sum + s.strokes, 0) - totalPar : null
-
-                      function vpStr(vp: number | null) {
-                        if (vp === null) return '–'
-                        if (vp === 0) return 'E'
-                        return vp > 0 ? `+${vp}` : `${vp}`
-                      }
-                      function vpColor(vp: number | null) {
-                        return vp !== null && vp < 0 ? '#dc2626' : '#111827'
-                      }
+                      const totalVp: number | null = playerScores.length > 0 ? playerScores.reduce((sum, s) => sum + s.strokes, 0) - totalPar : null
 
                       return (
                         <a key={player.id} href={`/player/${player.id}`}
                           className="flex items-center py-1.5 px-2 rounded-lg hover:bg-white transition gap-3">
                           <span className="flex-1 text-sm text-gray-800">{player.name}</span>
-                          {(['Front', 'Back', 'Total'] as const).map((label, li) => {
-                            const vp = [frontVp, backVp, totalVp][li]
-                            return (
-                              <span key={label} className="flex items-center gap-1 text-xs flex-shrink-0">
-                                <span className="text-gray-400">{label}:</span>
-                                <span className="font-semibold" style={{ color: vp === null ? '#9ca3af' : vpColor(vp) }}>
-                                  {vpStr(vp)}
-                                </span>
+                          {([['Front', frontVp], ['Back', backVp], ['Total', totalVp]] as [string, number | null][]).map(([label, vp]) => (
+                            <span key={label} className="flex items-center gap-1 text-xs flex-shrink-0">
+                              <span className="text-gray-400">{label}:</span>
+                              <span className="font-semibold" style={{ color: vp === null ? '#9ca3af' : vpColor(vp) }}>
+                                {vpDisplay(vp)}
                               </span>
-                            )
-                          })}
+                            </span>
+                          ))}
                         </a>
                       )
                     })}
