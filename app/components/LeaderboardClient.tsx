@@ -289,7 +289,7 @@ export default function LeaderboardClient({
                             {([['Front', frontVp], ['Back', backVp], ['Total', totalVp]] as [string, number | null][]).map(([label, vp], i) => (
                               <span key={label} className="flex items-center" style={{ gap: '0.15rem' }}>
                                 <span className="text-gray-400">{label}:</span>
-                                <span className="font-semibold" style={{ color: vp === null ? '#9ca3af' : vpColor(vp), display: 'inline-block', width: '1.5rem', textAlign: 'right' }}>
+                                <span className="font-semibold" style={{ color: vp === null ? '#9ca3af' : vpColor(vp), display: 'inline-block', width: '0.75rem', textAlign: 'right' }}>
                                   {vpDisplay(vp)}
                                 </span>
                               </span>
