@@ -1,29 +1,25 @@
+import { redirect } from 'next/navigation'
+import { createServerClient } from '@/lib/supabase-server'
+import LeaderboardClient from '@/app/components/LeaderboardClient'
+
 export const dynamic = 'force-dynamic'
 
-import { createServerClient } from '@/lib/supabase-server'
-import PreRoundHome from './components/PreRoundHome'
-import LeaderboardClient from './components/LeaderboardClient'
-
-export default async function HomePage() {
+export default async function LeaderboardPage() {
   const sb = createServerClient()
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, is_started')
+    .select('id, name, date, course, balls_count')
     .eq('is_active', true)
     .single()
 
-  const { data: teamsRaw } = round
-    ? await sb.from('teams').select('id, name').eq('round_id', round.id).order('name')
-    : { data: [] }
-  const teams = teamsRaw ?? []
+  if (!round) redirect('/')
 
-  // Pre-round: only Admin Login + Enter Team PIN
-  if (!round || !round.is_started) {
-    return <PreRoundHome teams={teams} round={round ?? null} />
-  }
+  const { data: teams } = await sb
+    .from('teams').select('id, name').eq('round_id', round.id).order('name')
 
-  const teamIds = teams.map((t) => t.id)
+  const teamIds = (teams ?? []).map((t) => t.id)
+
   const [{ data: players }, { data: holes }, { data: scores }] = await Promise.all([
     sb.from('players').select('id, team_id, name').in('team_id', teamIds.length ? teamIds : ['']),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
@@ -32,7 +28,7 @@ export default async function HomePage() {
 
   return (
     <LeaderboardClient
-      initialTeams={teams}
+      initialTeams={teams ?? []}
       players={players ?? []}
       holes={holes ?? []}
       initialScores={scores ?? []}
@@ -40,7 +36,6 @@ export default async function HomePage() {
       roundName={round.name}
       roundDate={round.date}
       roundCourse={round.course ?? ''}
-      viewOnly
     />
   )
 }
