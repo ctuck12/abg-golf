@@ -171,8 +171,7 @@ export default function MatchupClient({
               <div className="grid grid-cols-3 divide-x divide-gray-100">
                 {/* Player 1 */}
                 <div className="px-4 py-4 text-center">
-                  <p className="text-xs font-semibold text-gray-500 truncate mb-1">{p1.name}</p>
-                  <p className="text-xs text-gray-400 mb-2">{p1.teamName}</p>
+                  <p className="text-xs font-semibold text-gray-500 truncate mb-2">{p1.name}</p>
                   <p className="text-3xl font-bold" style={{ color: comparison.p1Wins > comparison.p2Wins ? '#16a34a' : '#374151' }}>
                     {comparison.p1Wins}
                   </p>
@@ -204,8 +203,7 @@ export default function MatchupClient({
 
                 {/* Player 2 */}
                 <div className="px-4 py-4 text-center">
-                  <p className="text-xs font-semibold text-gray-500 truncate mb-1">{p2.name}</p>
-                  <p className="text-xs text-gray-400 mb-2">{p2.teamName}</p>
+                  <p className="text-xs font-semibold text-gray-500 truncate mb-2">{p2.name}</p>
                   <p className="text-3xl font-bold" style={{ color: comparison.p2Wins > comparison.p1Wins ? '#16a34a' : '#374151' }}>
                     {comparison.p2Wins}
                   </p>
