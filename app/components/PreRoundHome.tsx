@@ -1,8 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useActionState } from 'react'
-import { teamLogin } from '@/app/actions'
+import { useState } from 'react'
 
 type Team = { id: string; name: string }
 type Round = { name: string; date: string; course: string } | null
@@ -12,17 +10,38 @@ const gold = '#f59e0b'
 
 export default function PreRoundHome({ teams, round }: { teams: Team[]; round: Round }) {
   const [showPin, setShowPin] = useState(false)
-  const [state, action, pending] = useActionState(teamLogin, null)
-
-  useEffect(() => {
-    if (state && 'success' in state && state.success) {
-      window.location.href = `/score/${state.teamId}`
-    }
-  }, [state])
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
 
   const formattedDate = round
     ? new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     : null
+
+  async function handlePinSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError('')
+    setPending(true)
+    const form = e.currentTarget
+    const teamId = (form.elements.namedItem('teamId') as HTMLSelectElement).value
+    const pin = (form.elements.namedItem('pin') as HTMLInputElement).value
+    try {
+      const res = await fetch('/api/team-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, pin }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        window.location.href = `/score/${data.teamId}`
+      } else {
+        setError(data.error ?? 'Login failed.')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setPending(false)
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
@@ -77,9 +96,9 @@ export default function PreRoundHome({ teams, round }: { teams: Team[]; round: R
           {showPin && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <h2 className="font-semibold text-gray-900 mb-3 text-sm">Select your team and enter PIN</h2>
-              <form action={action} className="space-y-3">
-                {state && 'error' in state && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{state.error}</p>
+              <form onSubmit={handlePinSubmit} className="space-y-3">
+                {error && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
                 )}
                 <select
                   name="teamId"

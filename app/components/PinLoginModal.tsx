@@ -1,20 +1,40 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
-import { teamLogin } from '@/app/actions'
+import { useState } from 'react'
 
 type Team = { id: string; name: string }
 
 const navy = '#0f172a'
 
 export default function PinLoginModal({ teams, onClose }: { teams: Team[]; onClose: () => void }) {
-  const [state, action, pending] = useActionState(teamLogin, null)
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
 
-  useEffect(() => {
-    if (state && 'success' in state && state.success) {
-      window.location.href = `/score/${state.teamId}`
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError('')
+    setPending(true)
+    const form = e.currentTarget
+    const teamId = (form.elements.namedItem('teamId') as HTMLSelectElement).value
+    const pin = (form.elements.namedItem('pin') as HTMLInputElement).value
+    try {
+      const res = await fetch('/api/team-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, pin }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        window.location.href = `/score/${data.teamId}`
+      } else {
+        setError(data.error ?? 'Login failed.')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setPending(false)
     }
-  }, [state])
+  }
 
   return (
     <div
@@ -27,9 +47,9 @@ export default function PinLoginModal({ teams, onClose }: { teams: Team[]; onClo
           <h2 className="font-bold text-gray-900">Enter Team PIN</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
-        <form action={action} className="space-y-3">
-          {state && 'error' in state && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{state.error}</p>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Your Team</label>

@@ -1,28 +1,46 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
-import { adminLogin } from '@/app/actions'
+import { useState } from 'react'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
 export default function AdminLoginForm() {
-  const [state, action, pending] = useActionState(adminLogin, null)
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
 
-  useEffect(() => {
-    if (state && 'success' in state && state.success) {
-      window.location.href = '/admin/dashboard'
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError('')
+    setPending(true)
+    const password = (e.currentTarget.elements.namedItem('password') as HTMLInputElement).value
+    try {
+      const res = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        window.location.href = '/admin/dashboard'
+      } else {
+        setError(data.error ?? 'Login failed.')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setPending(false)
     }
-  }, [state])
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#f8fafc' }}>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
         <h1 className="text-xl font-bold mb-1" style={{ color: navy }}>Admin Login</h1>
         <p className="text-sm text-gray-500 mb-6">Anything But Golf Group</p>
-        <form action={action} className="space-y-4">
-          {state && 'error' in state && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{state.error}</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
