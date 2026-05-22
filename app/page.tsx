@@ -20,6 +20,7 @@ export default async function HomePage() {
     ? await sb.from('teams').select('id, name').eq('round_id', round.id).order('name')
     : { data: [] }
   const teams = teamsRaw ?? []
+  const scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
 
   // Pre-round: only Admin Login + Enter Team PIN
   if (!round || !round.is_started) {
@@ -45,6 +46,7 @@ export default async function HomePage() {
       roundCourse={round.course ?? ''}
       viewOnly
       isAdmin={isAdmin}
+      scorecardTeamId={scorecardTeamId}
     />
   )
 }

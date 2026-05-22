@@ -97,22 +97,15 @@ export default function LeaderboardClient({
                   {roundCourse && `${roundCourse} · `}{formattedDate}
                 </p>
               </div>
-              <div className="flex flex-col items-end gap-1.5 mt-0.5">
+              {scorecardTeamId && (
                 <a
-                  href="/admin"
-                  className="text-xs px-3 py-1 rounded-lg border font-medium"
-                  style={{ borderColor: 'rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.8)' }}
-                >
-                  Admin
-                </a>
-                <button
-                  onClick={() => setShowPin(true)}
-                  className="text-xs px-3 py-1 rounded-lg font-medium"
+                  href={`/score/${scorecardTeamId}`}
+                  className="text-xs px-3 py-1.5 rounded-lg font-semibold mt-0.5 flex-shrink-0"
                   style={{ background: gold, color: navy }}
                 >
-                  Team PIN
-                </button>
-              </div>
+                  Scorecard
+                </a>
+              )}
             </div>
           ) : (
             <div>
