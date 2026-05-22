@@ -7,7 +7,7 @@ import {
   toggleTeamAdmin, resetTeamScores, activateRound, updateHolePars, updateBallValues,
   adminLogout, renameTeam, movePlayer,
 } from '@/app/actions'
-import { computeTeamBallSummary, calculatePayouts } from '@/lib/scoring'
+import { computeTeamBallSummary, calculateFrontBackPayouts } from '@/lib/scoring'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -82,15 +82,21 @@ export default function AdminDashboard({
     return [team.id, computeTeamBallSummary(holes, tp.map((p) => p.id), scores, ballsCount)]
   }))
 
-  const ballValueArr = Array.from({ length: ballsCount }, (_, i) => ballVals[i + 1] ?? 0)
-  const payouts = round ? calculatePayouts(teams, summaryMap, ballValueArr, ballsCount) : []
+  const frontHoles = holes.filter((h) => h.hole_number <= 9)
+  const backHoles = holes.filter((h) => h.hole_number >= 10)
+  const frontSummaries = new Map(teams.map((team) => {
+    const tp = players.filter((p) => p.team_id === team.id)
+    return [team.id, computeTeamBallSummary(frontHoles, tp.map((p) => p.id), scores, ballsCount)]
+  }))
+  const backSummaries = new Map(teams.map((team) => {
+    const tp = players.filter((p) => p.team_id === team.id)
+    return [team.id, computeTeamBallSummary(backHoles, tp.map((p) => p.id), scores, ballsCount)]
+  }))
 
-  const netMap: Record<string, number> = {}
-  for (const t of teams) netMap[t.id] = 0
-  for (const p of payouts) {
-    netMap[p.fromTeamId] -= p.amount
-    netMap[p.toTeamId] += p.amount
-  }
+  const ballValueArr = Array.from({ length: ballsCount }, (_, i) => ballVals[i + 1] ?? 0)
+  const { results: ballResults, net, settlements } = calculateFrontBackPayouts(
+    teams, frontSummaries, backSummaries, ballValueArr, ballsCount
+  )
 
   async function handleDeleteTeam(teamId: string) {
     await deleteTeam(teamId)
@@ -513,7 +519,7 @@ export default function AdminDashboard({
                   <div className="grid grid-cols-2 gap-3">
                     {Array.from({ length: round.balls_count }, (_, i) => i + 1).map((bn) => (
                       <div key={bn}>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">{BALL_NAMES[bn - 1]} value ($)</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">{BALL_NAMES[bn - 1]} Per Half ($)</label>
                         <input type="number" name={`ball_${bn}`} min="0" step="5"
                           value={ballVals[bn] ?? 10}
                           onChange={(e) => setBallVals((v) => ({ ...v, [bn]: parseFloat(e.target.value) || 0 }))}
@@ -535,77 +541,86 @@ export default function AdminDashboard({
         {/* ── PAYOUTS ──────────────────────────────────────────────────── */}
         {tab === 'payouts' && round && (
           <div className="space-y-4">
+            {/* Ball Results */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-900 text-sm">Ball Results</h3>
+                <p className="text-xs text-gray-500">6 balls total · ties wash · winner takes ${ballVals[1] ?? 0}/team per half</p>
+              </div>
+              <div className="px-4 py-4 space-y-4">
+                {Array.from({ length: ballsCount }, (_, bi) => {
+                  const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
+                  const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
+                  return (
+                    <div key={bi}>
+                      <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>
+                        {BALL_NAMES[bi]}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[front, back].map((result, hi) => {
+                          if (!result) return <div key={hi} />
+                          const vp = result.winnerVsPar
+                          const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                          return (
+                            <div key={hi} className="bg-gray-50 rounded-lg px-3 py-2">
+                              <p className="text-xs text-gray-500 mb-0.5">{result.half}</p>
+                              {!result.played ? (
+                                <p className="text-sm text-gray-300 font-medium">–</p>
+                              ) : result.tied ? (
+                                <p className="text-sm text-gray-500 font-medium">Tie — Washes</p>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</p>
+                                  {vpStr && <p className="text-xs text-gray-400">{vpStr}</p>}
+                                </>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Team Net */}
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
                 <h3 className="font-semibold text-gray-900 text-sm">Team Net</h3>
                 <p className="text-xs text-gray-500">Based on scores entered so far</p>
               </div>
-              {teams.map((team) => {
-                const net = netMap[team.id] ?? 0
+              {[...teams].sort((a, b) => (net[b.id] ?? 0) - (net[a.id] ?? 0)).map((team) => {
+                const teamNet = net[team.id] ?? 0
                 return (
                   <div key={team.id} className="flex items-center px-4 py-2.5 border-b border-gray-100 last:border-0">
                     <span className="flex-1 font-medium text-gray-900 text-sm">{team.name}</span>
-                    <span className="font-bold text-base" style={{ color: net > 0 ? '#16a34a' : net < 0 ? '#dc2626' : '#6b7280' }}>
-                      {net === 0 ? 'Even' : net > 0 ? `+$${net}` : `-$${Math.abs(net)}`}
+                    <span className="font-bold text-base" style={{ color: teamNet > 0 ? '#16a34a' : teamNet < 0 ? '#dc2626' : '#6b7280' }}>
+                      {teamNet === 0 ? 'Even' : teamNet > 0 ? `+$${teamNet}` : `-$${Math.abs(teamNet)}`}
                     </span>
                   </div>
                 )
               })}
             </div>
 
+            {/* Settlement */}
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
                 <h3 className="font-semibold text-gray-900 text-sm">Settlement</h3>
                 <p className="text-xs text-gray-500">Who pays who</p>
               </div>
-              {payouts.length === 0 ? (
+              {settlements.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-6">No payouts yet.</p>
-              ) : payouts.map((p, i) => (
+              ) : settlements.map((s, i) => (
                 <div key={i} className="flex items-center px-4 py-2.5 border-b border-gray-100 last:border-0 gap-2">
                   <span className="flex-1 text-sm text-gray-900">
-                    <span className="font-semibold text-red-600">{p.fromTeamName}</span>
+                    <span className="font-semibold text-red-600">{s.fromName}</span>
                     {' pays '}
-                    <span className="font-semibold text-green-700">{p.toTeamName}</span>
+                    <span className="font-semibold text-green-700">{s.toName}</span>
                   </span>
-                  <span className="font-bold text-gray-900">${p.amount}</span>
+                  <span className="font-bold text-gray-900">${s.amount}</span>
                 </div>
               ))}
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-900 text-sm">Ball Breakdown</h3>
-              </div>
-              {Array.from({ length: ballsCount }, (_, bi) => {
-                const sorted = [...teams].sort((a, b) => {
-                  const av = summaryMap.get(a.id)?.ballVsPar[bi]
-                  const bv = summaryMap.get(b.id)?.ballVsPar[bi]
-                  if (av == null) return 1
-                  if (bv == null) return -1
-                  return av - bv
-                })
-                return (
-                  <div key={bi} className="px-4 py-3 border-b border-gray-100 last:border-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>
-                      {BALL_NAMES[bi]} — ${ballVals[bi + 1] ?? 0}/team
-                    </p>
-                    {sorted.map((team, rank) => {
-                      const s = summaryMap.get(team.id)!
-                      const vp = s.ballVsPar[bi]
-                      return (
-                        <div key={team.id} className="flex items-center py-0.5">
-                          <span className="w-5 text-xs text-gray-400 mr-2">{rank + 1}</span>
-                          <span className="flex-1 text-sm text-gray-800">{team.name}</span>
-                          <span className="text-sm font-semibold"
-                            style={{ color: vp == null ? '#d1d5db' : vp < 0 ? '#2563eb' : vp > 0 ? '#dc2626' : '#6b7280' }}>
-                            {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })}
             </div>
           </div>
         )}
