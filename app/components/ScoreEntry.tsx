@@ -190,7 +190,7 @@ export default function ScoreEntry({
                     return (
                       <div key={i} className="text-center">
                         <p className="text-xs" style={{ color: gold }}>{i + 1}B</p>
-                        <p className="font-bold text-sm" style={{ color: vp == null ? 'rgba(255,255,255,0.35)' : vp < 0 ? '#60a5fa' : vp > 0 ? '#f87171' : 'white' }}>
+                        <p className="font-bold text-sm" style={{ color: vp == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
                           {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
                         </p>
                       </div>
