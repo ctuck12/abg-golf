@@ -275,7 +275,9 @@ export default function AdminDashboard({
                         </button>
                         <button type="button" onClick={() => handleToggleAdmin(team.id, !team.is_admin)}
                           className="text-xs border px-2 py-1 rounded"
-                          style={{ borderColor: gold, color: team.is_admin ? '#92400e' : '#6b7280' }}>
+                          style={team.is_admin
+                            ? { background: gold, borderColor: gold, color: navy }
+                            : { borderColor: gold, color: '#6b7280' }}>
                           {team.is_admin ? 'Revoke Admin' : 'Make Admin'}
                         </button>
                         <button type="button" onClick={() => handleDeleteTeam(team.id)}
