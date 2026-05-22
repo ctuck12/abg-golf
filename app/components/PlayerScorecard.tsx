@@ -71,6 +71,15 @@ export default function PlayerScorecard({
   const frontComplete = frontNine.every((h) => scoreMap[h.hole_number] != null)
   const backComplete = backNine.length > 0 && backNine.every((h) => scoreMap[h.hole_number] != null)
 
+  const frontScored = frontNine.filter((h) => scoreMap[h.hole_number] != null)
+  const frontVp: number | null = frontScored.length > 0
+    ? frontScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0) - frontScored.reduce((s, h) => s + h.par, 0)
+    : null
+  const backScored = backNine.filter((h) => scoreMap[h.hole_number] != null)
+  const backVp: number | null = backScored.length > 0
+    ? backScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0) - backScored.reduce((s, h) => s + h.par, 0)
+    : null
+
   function vpStr(vp: number | null): string {
     if (vp === null) return '–'
     if (vp === 0) return 'E'
@@ -100,27 +109,13 @@ export default function PlayerScorecard({
 
       {/* Summary banner */}
       <div className="max-w-lg mx-auto px-4 pt-4">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-3 mb-4 flex items-center gap-6">
-          <div className="text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Score</p>
-            <p className="text-2xl font-bold text-gray-900">{thru > 0 ? totalStrokes : '–'}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-gray-500 mb-0.5">vs Par</p>
-            <p className="text-2xl font-bold" style={{ color: vpColor(vsParThru) }}>
-              {vpStr(vsParThru)}
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Thru</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {thru === 0 ? '–' : thru === 18 ? 'F' : thru}
-            </p>
-          </div>
-          <div className="text-center flex-1">
-            <p className="text-xs text-gray-500 mb-0.5">Par</p>
-            <p className="text-2xl font-bold text-gray-500">{totalPar}</p>
-          </div>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4 mb-4 flex items-center justify-around">
+          {([['Front', frontVp], ['Back', backVp], ['Total', vsParThru]] as [string, number | null][]).map(([label, vp]) => (
+            <div key={label} className="text-center">
+              <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+              <p className="text-2xl font-bold" style={{ color: vpColor(vp) }}>{vpStr(vp)}</p>
+            </div>
+          ))}
         </div>
 
         {/* Scorecard table */}
