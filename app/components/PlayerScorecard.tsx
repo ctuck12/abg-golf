@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ScoreNotation } from './ScoreNotation'
+import { computeHoleDaytonaWithSides, type DaytonaHoleAssignment } from '@/lib/scoring'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -11,6 +12,7 @@ const steelBlueBg = '#dbeafe'
 
 type Hole = { hole_number: number; par: number }
 type Score = { hole_number: number; strokes: number }
+type RoundScore = { player_id: string; hole_number: number; strokes: number }
 
 function vpStr(vp: number | null): string {
   if (vp === null) return '–'
@@ -24,16 +26,39 @@ function vpColor(vp: number | null): string {
   return '#111827'
 }
 
+function ptsStr(pts: number | null): string {
+  if (pts === null) return '–'
+  if (pts === 0) return '0'
+  return pts > 0 ? `+${pts}` : String(pts)
+}
+
+function ptsColor(pts: number | null): string {
+  if (pts === null) return '#d1d5db'
+  if (pts > 0) return '#16a34a'
+  if (pts < 0) return '#dc2626'
+  return '#374151'
+}
+
 export default function PlayerScorecard({
-  player, teamName, teamId, holes, scores: initialScores,
+  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData,
 }: {
   player: { id: string; name: string }
   teamName: string
   teamId: string
   holes: Hole[]
   scores: Score[]
+  format?: string
+  dtData?: {
+    roundId: string
+    allPlayerIds: string[]
+    assignments: DaytonaHoleAssignment[]
+    allRoundScores: RoundScore[]
+  }
 }) {
   const [scores, setScores] = useState(initialScores)
+  const [allRoundScores, setAllRoundScores] = useState<RoundScore[]>(dtData?.allRoundScores ?? [])
+  const isDaytona = format === 'daytona'
+  const assignments = dtData?.assignments ?? []
 
   useEffect(() => {
     const channel = supabase.channel(`player-${player.id}`)
@@ -47,6 +72,45 @@ export default function PlayerScorecard({
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [player.id])
+
+  useEffect(() => {
+    if (!isDaytona || !dtData) return
+    const allPlayerIds = dtData.allPlayerIds
+    const channel = supabase.channel(`player-dt-${player.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
+        const { data } = await supabase
+          .from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds)
+        if (data) setAllRoundScores(data)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [isDaytona, dtData?.roundId])
+
+  // Compute per-hole points for this player (Daytona only)
+  const holePointsMap = new Map<number, number>()
+  if (isDaytona) {
+    for (const hole of holes) {
+      const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
+      const leftIds = holeAssignments.filter((a) => a.side === 'left').map((a) => a.player_id)
+      const rightIds = holeAssignments.filter((a) => a.side === 'right').map((a) => a.player_id)
+      if (leftIds.length < 2 || rightIds.length < 2) continue
+      const isOnLeft = leftIds.includes(player.id)
+      const isOnRight = rightIds.includes(player.id)
+      if (!isOnLeft && !isOnRight) continue
+      const leftScores = leftIds.map((id) => allRoundScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+      const rightScores = rightIds.map((id) => allRoundScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+      if (leftScores.length < 2 || rightScores.length < 2) continue
+      const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftScores, rightScores, hole.par)
+      if (leftDt === null || rightDt === null) continue
+      const diff = Math.abs(leftDt - rightDt)
+      const leftWins = leftDt < rightDt
+      const rightWins = rightDt < leftDt
+      const pts = isOnLeft
+        ? (leftWins ? diff : rightWins ? -diff : 0)
+        : (rightWins ? diff : leftWins ? -diff : 0)
+      holePointsMap.set(hole.hole_number, pts)
+    }
+  }
 
   const scoreMap = Object.fromEntries(scores.map((s) => [s.hole_number, s.strokes]))
   const thru = scores.length
@@ -73,6 +137,19 @@ export default function PlayerScorecard({
 
   const frontScoredStrokes = frontScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0)
   const backScoredStrokes = backScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0)
+
+  // Points summary for Daytona
+  const frontPtsHoles = frontNine.filter((h) => holePointsMap.has(h.hole_number))
+  const frontPoints: number | null = frontPtsHoles.length > 0
+    ? frontPtsHoles.reduce((s, h) => s + holePointsMap.get(h.hole_number)!, 0)
+    : null
+  const backPtsHoles = backNine.filter((h) => holePointsMap.has(h.hole_number))
+  const backPoints: number | null = backPtsHoles.length > 0
+    ? backPtsHoles.reduce((s, h) => s + holePointsMap.get(h.hole_number)!, 0)
+    : null
+  const totalPoints: number | null = holePointsMap.size > 0
+    ? [...holePointsMap.values()].reduce((s, v) => s + v, 0)
+    : null
 
   const thStyle = (highlight?: boolean): React.CSSProperties => ({
     background: highlight ? steelBlue : navy,
@@ -122,13 +199,25 @@ export default function PlayerScorecard({
 
       <div className="max-w-4xl mx-auto px-4 pt-4">
         {/* Summary banner */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4 mb-4 flex items-center justify-around">
-          {([['Front', frontVp], ['Back', backVp], ['Total', vsParThru]] as [string, number | null][]).map(([label, vp]) => (
-            <div key={label} className="text-center">
-              <p className="text-xs text-gray-500 mb-0.5">{label}</p>
-              <p className="text-2xl font-bold" style={{ color: vpColor(vp) }}>{vpStr(vp)}</p>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4 mb-4">
+          <div className="flex items-center justify-around">
+            {([['Front', frontVp], ['Back', backVp], ['Total', vsParThru]] as [string, number | null][]).map(([label, vp]) => (
+              <div key={label} className="text-center">
+                <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+                <p className="text-2xl font-bold" style={{ color: vpColor(vp) }}>{vpStr(vp)}</p>
+              </div>
+            ))}
+          </div>
+          {isDaytona && (
+            <div className="flex items-center justify-around mt-3 pt-3 border-t border-gray-100">
+              {([['Front Pts', frontPoints], ['Back Pts', backPoints], ['Total Pts', totalPoints]] as [string, number | null][]).map(([label, pts]) => (
+                <div key={label} className="text-center">
+                  <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+                  <p className="text-xl font-bold" style={{ color: ptsColor(pts) }}>{ptsStr(pts)}</p>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
 
         {/* Horizontal scorecard */}
@@ -165,7 +254,7 @@ export default function PlayerScorecard({
                 <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
               </tr>
               {/* SCORE row */}
-              <tr>
+              <tr style={isDaytona ? { borderBottom: '1px solid #e5e7eb' } : {}}>
                 <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
@@ -199,6 +288,37 @@ export default function PlayerScorecard({
                   {thru > 0 ? totalStrokes : '–'}
                 </td>
               </tr>
+              {/* POINTS row — Daytona only */}
+              {isDaytona && (
+                <tr>
+                  <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
+                  {[1,2,3,4,5,6,7,8,9].map((n) => {
+                    const pts = holePointsMap.has(n) ? holePointsMap.get(n)! : null
+                    return (
+                      <td key={n} style={tdScore()}>
+                        <span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span>
+                      </td>
+                    )
+                  })}
+                  <td style={tdScore(true)}>
+                    <span style={{ fontWeight: 700, color: ptsColor(frontPoints) }}>{ptsStr(frontPoints)}</span>
+                  </td>
+                  {[10,11,12,13,14,15,16,17,18].map((n) => {
+                    const pts = holePointsMap.has(n) ? holePointsMap.get(n)! : null
+                    return (
+                      <td key={n} style={tdScore()}>
+                        <span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span>
+                      </td>
+                    )
+                  })}
+                  <td style={tdScore(true)}>
+                    <span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span>
+                  </td>
+                  <td style={{ ...tdScore(), fontWeight: 700, color: ptsColor(totalPoints) }}>
+                    {ptsStr(totalPoints)}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
