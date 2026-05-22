@@ -165,6 +165,7 @@ export default function LeaderboardClient({
                 style={{ width: `${ballsCount * 2}rem`, color: 'rgba(255,255,255,0.45)' }}>
                 Front 9
               </span>
+              <span className="flex-shrink-0" style={{ width: '0.75rem' }} />
               <span
                 className="inline-flex justify-center flex-shrink-0"
                 style={{ width: `${ballsCount * 2}rem`, color: 'rgba(255,255,255,0.45)' }}>
@@ -181,6 +182,7 @@ export default function LeaderboardClient({
               {Array.from({ length: ballsCount }, (_, i) => (
                 <span key={`fh${i}`} className="inline-flex justify-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
               ))}
+              <span className="flex-shrink-0" style={{ width: '0.75rem' }} />
               {Array.from({ length: ballsCount }, (_, i) => (
                 <span key={`bh${i}`} className="inline-flex justify-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
               ))}
@@ -214,6 +216,7 @@ export default function LeaderboardClient({
                       <ScoreCell vp={row.frontSummary.ballVsPar[bi]} />
                     </span>
                   ))}
+                  <span className="flex-shrink-0" style={{ width: '0.75rem' }} />
                   {Array.from({ length: ballsCount }, (_, bi) => (
                     <span key={`b${bi}`} className="inline-flex justify-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
                       <ScoreCell vp={row.backSummary.ballVsPar[bi]} />
