@@ -135,7 +135,7 @@ export default function AdminDashboard({
             <h1 className="font-bold text-lg">Anything But Golf Group</h1>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/" className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>Leaderboard</a>
+            <a href="/" className="text-sm underline" style={{ color: 'rgba(255,255,255,0.7)' }}>Leaderboard</a>
             {scorecardTeamId ? (
               <a href={`/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
