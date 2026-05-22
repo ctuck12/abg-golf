@@ -285,7 +285,7 @@ export default function LeaderboardClient({
                         <a key={player.id} href={`/player/${player.id}`}
                           className="w-full flex items-center py-1.5 pl-2 pr-0 rounded-lg hover:bg-white transition">
                           <span className="flex-1 text-sm text-gray-800">{player.name}</span>
-                          <span className="flex items-center text-xs flex-shrink-0" style={{ gap: '1.25rem', paddingRight: '0.5rem' }}>
+                          <span className="flex items-center text-xs flex-shrink-0" style={{ gap: '0.6rem', paddingRight: '0.5rem' }}>
                             {([['Front', frontVp], ['Back', backVp], ['Total', totalVp]] as [string, number | null][]).map(([label, vp]) => (
                               <span key={label} className="flex items-center gap-1">
                                 <span className="text-gray-400">{label}:</span>
