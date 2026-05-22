@@ -13,15 +13,6 @@ type Team = { id: string; name: string }
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
-function fmtScore(n: number | null, par: number | null) {
-  if (n === null || par === null) return { label: '–', color: '#9ca3af' }
-  const d = n - par
-  if (d < 0) return { label: String(d), color: '#2563eb' }
-  if (d > 0) return { label: `+${d}`, color: '#dc2626' }
-  return { label: 'E', color: '#6b7280' }
-}
-
-const BALL_NAMES = ['1-ball', '2-ball', '3-ball', '4-ball']
 
 export default function ScoreEntry({
   team, players, holes, initialScores, ballsCount,
@@ -126,7 +117,19 @@ export default function ScoreEntry({
   const frontSummary = computeTeamBallSummary(frontHoles, playerIds, savedScores, ballsCount)
   const backSummary = computeTeamBallSummary(backHoles, playerIds, savedScores, ballsCount)
   const savedCount = savedHoles.size
-  const parMap = Object.fromEntries(holes.map((h) => [h.hole_number, h.par]))
+
+  const frontBallTotals = Array.from({ length: ballsCount }, (_, bi) =>
+    frontHoles.reduce((sum, h) => {
+      const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
+      return sum + (computeHoleBallScores(hps, ballsCount)[bi] ?? h.par)
+    }, 0)
+  )
+  const backBallTotals = Array.from({ length: ballsCount }, (_, bi) =>
+    backHoles.reduce((sum, h) => {
+      const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
+      return sum + (computeHoleBallScores(hps, ballsCount)[bi] ?? h.par)
+    }, 0)
+  )
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -250,18 +253,18 @@ export default function ScoreEntry({
                   <p className="text-xs text-gray-400">Par</p>
                   <p className="font-semibold text-gray-600">{hole.par}</p>
                 </div>
-                <div className="flex-1 flex gap-2">
-                  {holeBalls.map((score, i) => {
-                    const { label, color } = fmtScore(score, hole.par)
-                    return (
+                <div className="flex-1" />
+                {isSaved && (
+                  <div className="flex items-center gap-3 mr-2">
+                    {holeBalls.map((score, i) => (
                       <div key={i} className="text-center">
                         <p className="text-xs text-gray-400">{i + 1}B</p>
-                        <p className="text-sm font-semibold" style={{ color }}>{label}</p>
+                        <ScoreNotation strokes={score} par={hole.par} size="sm" />
                       </div>
-                    )
-                  })}
-                </div>
-                <div className="flex items-center gap-2">
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {isSaved && <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>✓</span>}
                   <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>
                 </div>
@@ -300,6 +303,37 @@ export default function ScoreEntry({
                 </div>
               )}
             </div>
+
+              {hole.hole_number === 9 && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="flex items-center px-4 py-3 gap-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Front 9 Total</p>
+                    <div className="flex items-center gap-3 mr-8">
+                      {frontBallTotals.map((total, i) => (
+                        <div key={i} className="text-center">
+                          <p className="text-xs text-gray-400">{i + 1}B</p>
+                          <p className="font-bold text-sm text-gray-900">{total}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {hole.hole_number === 18 && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="flex items-center px-4 py-3 gap-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Back 9 Total</p>
+                    <div className="flex items-center gap-3 mr-8">
+                      {backBallTotals.map((total, i) => (
+                        <div key={i} className="text-center">
+                          <p className="text-xs text-gray-400">{i + 1}B</p>
+                          <p className="font-bold text-sm text-gray-900">{total}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </Fragment>
           )
         })}
