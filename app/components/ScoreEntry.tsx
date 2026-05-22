@@ -80,7 +80,6 @@ export default function ScoreEntry({
 
   function setStroke(playerId: string, hole: number, val: number) {
     setStrokes((s) => ({ ...s, [playerId]: { ...s[playerId], [hole]: Math.max(1, Math.min(20, val)) } }))
-    setSavedHoles((sh) => { const n = new Set(sh); n.delete(hole); return n })
   }
 
   async function saveHole(holeNumber: number) {
@@ -219,9 +218,12 @@ export default function ScoreEntry({
           const isExpanded = expandedHole === hole.hole_number
           const error = errors[hole.hole_number]
 
-          // Always include a score per player (default to par) so the ball row shows E immediately
-          const holePlayerScores = players.map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
-          const holeBalls = computeHoleBallScores(holePlayerScores, ballsCount)
+          // Collapsed ball scores use savedScores so they don't change until Save Hole is tapped
+          const savedHolePlayerScores = players.map((p) => {
+            const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
+            return sc?.strokes ?? hole.par
+          })
+          const holeBalls = computeHoleBallScores(savedHolePlayerScores, ballsCount)
 
           return (
             <Fragment key={hole.hole_number}>
