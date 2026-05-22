@@ -342,14 +342,11 @@ export default function ScoreEntry({
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center justify-between text-sm">
           <a href="/leaderboard" className="font-medium" style={{ color: navy }}>← Leaderboard</a>
-          <span className="text-xs text-gray-400">{savedCount} of 18 saved</span>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => { setShowAdminModal(true); setAdminError(''); setAdminPassword('') }}
-              className="text-xs text-gray-400 hover:text-gray-700 transition">
-              Admin Login
-            </button>
-            <a href="/" className="text-xs text-gray-400 hover:text-gray-600">Switch Team</a>
-          </div>
+          <button type="button" onClick={() => { setShowAdminModal(true); setAdminError(''); setAdminPassword('') }}
+            className="text-xs text-gray-400 hover:text-gray-700 transition">
+            Admin Login
+          </button>
+          <a href="/" className="text-xs text-gray-400 hover:text-gray-600">Switch Team</a>
         </div>
       </div>
     </div>
