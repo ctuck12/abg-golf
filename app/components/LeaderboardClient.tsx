@@ -113,7 +113,7 @@ export default function LeaderboardClient({
                     <a href={`/score/${scorecardTeamId}`}
                       className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                       style={{ background: gold, color: navy }}>
-                      Scorecard
+                      Enter Scores
                     </a>
                     {isAdmin && (
                       <a href="/admin/dashboard"
