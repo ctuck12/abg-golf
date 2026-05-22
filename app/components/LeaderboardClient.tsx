@@ -97,15 +97,37 @@ export default function LeaderboardClient({
                   {roundCourse && `${roundCourse} · `}{formattedDate}
                 </p>
               </div>
-              {scorecardTeamId && (
-                <a
-                  href={`/score/${scorecardTeamId}`}
-                  className="text-xs px-3 py-1.5 rounded-lg font-semibold mt-0.5 flex-shrink-0"
-                  style={{ background: gold, color: navy }}
-                >
-                  Scorecard
-                </a>
-              )}
+              <div className="flex flex-col items-end gap-1.5 mt-0.5 flex-shrink-0">
+                {scorecardTeamId ? (
+                  <>
+                    <a href={`/score/${scorecardTeamId}`}
+                      className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                      style={{ background: gold, color: navy }}>
+                      Scorecard
+                    </a>
+                    {isAdmin && (
+                      <a href="/admin/dashboard"
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                        style={{ background: navy, color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        Admin Hub
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => setShowPin(true)}
+                      className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                      style={{ background: gold, color: navy }}>
+                      Team Pin
+                    </button>
+                    <a href="/admin"
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
+                      style={{ borderColor: 'rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.3)' }}>
+                      Admin Login
+                    </a>
+                  </>
+                )}
+              </div>
             </div>
           ) : (
             <div>
