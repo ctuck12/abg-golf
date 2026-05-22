@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createServerClient } from '@/lib/supabase-server'
 import LeaderboardClient from '@/app/components/LeaderboardClient'
 
@@ -26,6 +27,10 @@ export default async function LeaderboardPage() {
     sb.from('scores').select('player_id, hole_number, strokes'),
   ])
 
+  // Detect if a team member is currently logged in (so we can show "Back to Scorecard")
+  const cookieStore = await cookies()
+  const authTeam = (teams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')
+
   return (
     <LeaderboardClient
       initialTeams={teams ?? []}
@@ -36,6 +41,7 @@ export default async function LeaderboardPage() {
       roundName={round.name}
       roundDate={round.date}
       roundCourse={round.course ?? ''}
+      scorecardTeamId={authTeam?.id ?? null}
     />
   )
 }

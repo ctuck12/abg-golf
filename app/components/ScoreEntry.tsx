@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { submitHoleScores } from '@/app/actions'
 import { computeHoleBallScores, computeTeamBallSummary } from '@/lib/scoring'
 
@@ -87,34 +87,45 @@ export default function ScoreEntry({
     }
   }
 
-  const summary = computeTeamBallSummary(holes, players.map((p) => p.id), allScores, ballsCount)
+  const frontHoles = holes.filter((h) => h.hole_number <= 9)
+  const backHoles = holes.filter((h) => h.hole_number >= 10)
+  const playerIds = players.map((p) => p.id)
+  const frontSummary = computeTeamBallSummary(frontHoles, playerIds, allScores, ballsCount)
+  const backSummary = computeTeamBallSummary(backHoles, playerIds, allScores, ballsCount)
   const savedCount = savedHoles.size
   const parMap = Object.fromEntries(holes.map((h) => [h.hole_number, h.par]))
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {/* Header */}
-      <header className="text-white px-4 py-4 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
-        <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
-            <h1 className="font-bold text-lg">{team.name}</h1>
-          </div>
-          <div className="text-right">
-            <p className="text-xs mb-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{savedCount}/18 holes</p>
-            <div className="flex gap-2">
-              {Array.from({ length: ballsCount }, (_, i) => {
-                const vp = summary.ballVsPar[i]
-                return (
-                  <div key={i} className="text-center">
-                    <p className="text-xs" style={{ color: gold }}>{i + 1}B</p>
-                    <p className="font-bold text-sm" style={{ color: vp == null ? 'rgba(255,255,255,0.4)' : vp < 0 ? '#60a5fa' : vp > 0 ? '#f87171' : 'white' }}>
-                      {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
-                    </p>
-                  </div>
-                )
-              })}
+      <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
+              <h1 className="font-bold text-lg">{team.name}</h1>
             </div>
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>{savedCount}/18 holes</p>
+          </div>
+          <div className="flex gap-3">
+            {([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
+              <div key={label} className="flex-1">
+                <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+                <div className="flex gap-3">
+                  {Array.from({ length: ballsCount }, (_, i) => {
+                    const vp = s.ballVsPar[i]
+                    return (
+                      <div key={i} className="text-center">
+                        <p className="text-xs" style={{ color: gold }}>{i + 1}B</p>
+                        <p className="font-bold text-sm" style={{ color: vp == null ? 'rgba(255,255,255,0.35)' : vp < 0 ? '#60a5fa' : vp > 0 ? '#f87171' : 'white' }}>
+                          {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </header>
@@ -144,7 +155,20 @@ export default function ScoreEntry({
             : []
 
           return (
-            <div key={hole.hole_number}
+            <Fragment key={hole.hole_number}>
+              {hole.hole_number === 1 && (
+                <div className="flex items-center gap-3 px-1 pt-1">
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Front 9</p>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+              )}
+              {hole.hole_number === 10 && (
+                <div className="flex items-center gap-3 px-1 pt-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Back 9</p>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+              )}
+            <div
               className="bg-white rounded-xl border overflow-hidden"
               style={{ borderColor: isSaved ? gold : '#e5e7eb' }}>
               {/* Hole row */}
@@ -208,6 +232,7 @@ export default function ScoreEntry({
                 </div>
               )}
             </div>
+            </Fragment>
           )
         })}
       </main>

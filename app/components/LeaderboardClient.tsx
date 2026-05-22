@@ -22,7 +22,7 @@ function ScoreCell({ vp }: { vp: number | null }) {
 }
 
 export default function LeaderboardClient({
-  initialTeams, players, holes, initialScores, ballsCount, roundName, roundDate, roundCourse, viewOnly = false,
+  initialTeams, players, holes, initialScores, ballsCount, roundName, roundDate, roundCourse, viewOnly = false, scorecardTeamId = null,
 }: {
   initialTeams: Team[]
   players: Player[]
@@ -33,6 +33,7 @@ export default function LeaderboardClient({
   roundDate: string
   roundCourse: string
   viewOnly?: boolean
+  scorecardTeamId?: string | null
 }) {
   const [scores, setScores] = useState<Score[]>(initialScores)
   const [lastUpdated, setLastUpdated] = useState(new Date())
@@ -108,14 +109,25 @@ export default function LeaderboardClient({
               </div>
             </div>
           ) : (
-            <div className="text-center">
-              <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
-                Anything But Golf Group
-              </p>
-              <h1 className="text-xl font-bold">{roundName}</h1>
-              <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                {roundCourse && `${roundCourse} · `}{formattedDate}
-              </p>
+            <div>
+              {scorecardTeamId && (
+                <a
+                  href={`/score/${scorecardTeamId}`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold mb-3 px-3 py-1.5 rounded-lg"
+                  style={{ background: gold, color: navy }}
+                >
+                  ← Back to Scorecard
+                </a>
+              )}
+              <div className="text-center">
+                <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
+                  Anything But Golf Group
+                </p>
+                <h1 className="text-xl font-bold">{roundName}</h1>
+                <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  {roundCourse && `${roundCourse} · `}{formattedDate}
+                </p>
+              </div>
             </div>
           )}
         </div>
@@ -222,9 +234,9 @@ export default function LeaderboardClient({
 
         <p className="text-center text-xs text-gray-400 mt-3">Tap a team to expand · tap a player for their scorecard</p>
 
-        {!viewOnly && (
+        {!viewOnly && scorecardTeamId && (
           <div className="mt-4 text-center">
-            <a href="/" className="text-sm font-medium" style={{ color: navy }}>← Enter Scores</a>
+            <a href={`/score/${scorecardTeamId}`} className="text-sm font-medium" style={{ color: navy }}>← Back to Scorecard</a>
           </div>
         )}
 
