@@ -161,16 +161,17 @@ export default function LeaderboardClient({
               <span className="w-5 mr-2 flex-shrink-0" />
               <span className="flex-1 min-w-0" />
               <span
-                className="text-center flex-shrink-0"
+                className="inline-flex justify-center flex-shrink-0"
                 style={{ width: `${ballsCount * 2}rem`, color: 'rgba(255,255,255,0.45)' }}>
                 Front 9
               </span>
               <span
-                className="text-center flex-shrink-0"
+                className="inline-flex justify-center flex-shrink-0"
                 style={{ width: `${ballsCount * 2}rem`, color: 'rgba(255,255,255,0.45)' }}>
                 Back 9
               </span>
               <span className="flex-shrink-0" style={{ width: '2.75rem' }} />
+              <span className="flex-shrink-0" style={{ width: '1.5rem' }} />
             </div>
             {/* Column labels row */}
             <div className="flex items-center px-4 pb-2 pt-0.5 text-xs font-semibold uppercase"
@@ -178,12 +179,13 @@ export default function LeaderboardClient({
               <span className="w-5 mr-2 flex-shrink-0">#</span>
               <span className="flex-1 min-w-0">Team</span>
               {Array.from({ length: ballsCount }, (_, i) => (
-                <span key={`fh${i}`} className="text-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
+                <span key={`fh${i}`} className="inline-flex justify-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
               ))}
               {Array.from({ length: ballsCount }, (_, i) => (
-                <span key={`bh${i}`} className="text-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
+                <span key={`bh${i}`} className="inline-flex justify-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
               ))}
-              <span className="text-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
+              <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
+              <span className="flex-shrink-0" style={{ width: '1.5rem' }} />
             </div>
           </div>
 
@@ -208,21 +210,21 @@ export default function LeaderboardClient({
                   </span>
                   <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.team.name}</span>
                   {Array.from({ length: ballsCount }, (_, bi) => (
-                    <span key={`f${bi}`} className="text-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
+                    <span key={`f${bi}`} className="inline-flex justify-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
                       <ScoreCell vp={row.frontSummary.ballVsPar[bi]} />
                     </span>
                   ))}
                   {Array.from({ length: ballsCount }, (_, bi) => (
-                    <span key={`b${bi}`} className="text-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
+                    <span key={`b${bi}`} className="inline-flex justify-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
                       <ScoreCell vp={row.backSummary.ballVsPar[bi]} />
                     </span>
                   ))}
-                  <span className="text-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>
+                  <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>
                     {row.summary.holesPerBall[0] === 0 ? '–'
                       : row.summary.holesPerBall[0] === 18 ? 'F'
                       : row.summary.holesPerBall[0]}
                   </span>
-                  <span className="ml-1 text-gray-400 text-xs flex-shrink-0">{isExpanded ? '▲' : '▼'}</span>
+                  <span className="inline-flex justify-center text-gray-400 text-xs flex-shrink-0" style={{ width: '1.5rem' }}>{isExpanded ? '▲' : '▼'}</span>
                 </button>
 
                 {isExpanded && (
