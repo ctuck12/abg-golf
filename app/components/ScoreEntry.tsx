@@ -113,7 +113,7 @@ export default function ScoreEntry({
               <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
               <h1 className="font-bold text-lg">{team.name}</h1>
             </div>
-            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard ↗</a>
+            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
           <div className="flex gap-3">
             {([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
