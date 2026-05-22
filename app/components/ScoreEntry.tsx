@@ -308,14 +308,16 @@ export default function ScoreEntry({
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Front 9 Total</p>
-                    <div className="flex items-center gap-3 mr-8">
-                      {frontBallTotals.map((total, i) => (
-                        <div key={i} className="text-center">
-                          <p className="text-xs text-gray-400">{i + 1}B</p>
-                          <p className="font-bold text-sm text-gray-900">{total}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {savedHoles.has(9) && (
+                      <div className="flex items-center gap-3 mr-8">
+                        {frontBallTotals.map((total, i) => (
+                          <div key={i} className="text-center">
+                            <p className="text-xs text-gray-400">{i + 1}B</p>
+                            <p className="font-bold text-sm text-gray-900">{total}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -323,14 +325,16 @@ export default function ScoreEntry({
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Back 9 Total</p>
-                    <div className="flex items-center gap-3 mr-8">
-                      {backBallTotals.map((total, i) => (
-                        <div key={i} className="text-center">
-                          <p className="text-xs text-gray-400">{i + 1}B</p>
-                          <p className="font-bold text-sm text-gray-900">{total}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {savedHoles.has(18) && (
+                      <div className="flex items-center gap-3 mr-8">
+                        {backBallTotals.map((total, i) => (
+                          <div key={i} className="text-center">
+                            <p className="text-xs text-gray-400">{i + 1}B</p>
+                            <p className="font-bold text-sm text-gray-900">{total}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
