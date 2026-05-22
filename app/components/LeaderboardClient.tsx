@@ -284,24 +284,9 @@ export default function LeaderboardClient({
           })}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-3 mb-16">Tap a team to expand · tap a player for their scorecard</p>
+        <p className="text-center text-xs text-gray-400 mt-3">Tap a team to expand · tap a player for their scorecard</p>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
-        <div className={`max-w-lg mx-auto flex items-center text-sm ${isAdmin ? 'justify-between' : 'justify-center'}`}>
-          {isAdmin && (
-            <a href="/admin/dashboard"
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-              style={{ background: navy, color: gold }}>
-              Admin Hub
-            </a>
-          )}
-          <button type="button" onClick={() => setShowPin(true)}
-            className="text-xs text-gray-400 hover:text-gray-600 transition">
-            Team Pin
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
