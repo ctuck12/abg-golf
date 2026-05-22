@@ -22,7 +22,7 @@ export default async function LeaderboardPage() {
   const teamIds = (teams ?? []).map((t) => t.id)
 
   const [{ data: players }, { data: holes }, { data: scores }] = await Promise.all([
-    sb.from('players').select('id, team_id, name').in('team_id', teamIds.length ? teamIds : ['']),
+    sb.from('players').select('id, team_id, name, position').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
   ])
