@@ -99,10 +99,11 @@ export default function MatchupClient({
     return { rows, p1Wins, p2Wins, ties, holesPlayed, p1VsPar, p2VsPar, p1TotalStrokes, p2TotalStrokes, finalDiff: runningDiff }
   }, [p1, p2, p1Id, p2Id, holes, scoreMap])
 
-  const leader = comparison
-    ? comparison.p1Wins > comparison.p2Wins ? p1
-    : comparison.p2Wins > comparison.p1Wins ? p2
-    : null
+  let leader: typeof p1 | null = null
+  if (comparison) {
+    if (comparison.p1Wins > comparison.p2Wins) leader = p1 ?? null
+    else if (comparison.p2Wins > comparison.p1Wins) leader = p2 ?? null
+  }
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
