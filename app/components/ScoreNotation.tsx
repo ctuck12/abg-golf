@@ -70,3 +70,41 @@ export function ScoreNotation({ strokes, par, size = 'md' }: Props) {
 
   return <span style={{ ...inner }}>{strokes}</span>
 }
+
+// Applies the same circle/square notation to a cumulative vs-par value.
+// Uses pill shapes for circles so multi-digit totals (e.g. "-8") fit cleanly.
+export function VsParNotation({ vp }: { vp: number | null }) {
+  if (vp === null) return <span style={{ color: '#d1d5db', fontWeight: 600 }}>–</span>
+  if (vp === 0) return <span style={{ color: '#6b7280', fontWeight: 600 }}>E</span>
+
+  const label = vp > 0 ? `+${vp}` : String(vp)
+  const isUnder = vp < 0
+  const color = isUnder ? '#dc2626' : '#374151'
+  const radius = isUnder ? '999px' : '2px'
+  const bw = '1.5px'
+  const abs = Math.abs(vp)
+
+  const textStyle: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: 700, color, fontSize: '0.8rem',
+    padding: '1px 4px', minHeight: '1.25rem', lineHeight: 1, flexShrink: 0,
+  }
+
+  if (abs >= 3) {
+    return (
+      <span style={{ display: 'inline-flex', borderRadius: radius, border: `${bw} solid ${color}`, padding: '1.5px' }}>
+        <span style={{ display: 'inline-flex', borderRadius: radius, border: `${bw} solid ${color}`, padding: '1.5px' }}>
+          <span style={{ ...textStyle, borderRadius: radius, border: `${bw} solid ${color}` }}>{label}</span>
+        </span>
+      </span>
+    )
+  }
+  if (abs === 2) {
+    return (
+      <span style={{ display: 'inline-flex', borderRadius: radius, border: `${bw} solid ${color}`, padding: '1.5px' }}>
+        <span style={{ ...textStyle, borderRadius: radius, border: `${bw} solid ${color}` }}>{label}</span>
+      </span>
+    )
+  }
+  return <span style={{ ...textStyle, borderRadius: radius, border: `${bw} solid ${color}` }}>{label}</span>
+}

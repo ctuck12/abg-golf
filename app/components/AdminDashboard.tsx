@@ -9,6 +9,7 @@ import {
 } from '@/app/actions'
 import { computeTeamBallSummary, calculateFrontBackPayouts } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
+import { VsParNotation } from './ScoreNotation'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -246,15 +247,11 @@ export default function AdminDashboard({
                     className="w-full flex items-center px-4 py-2.5 hover:bg-gray-50 transition text-left"
                   >
                     <span className="flex-1 font-semibold text-gray-900 text-sm truncate">{team.name}</span>
-                    {Array.from({ length: ballsCount }, (_, i) => {
-                      const vp = s.ballVsPar[i]
-                      return (
-                        <span key={i} className="w-12 text-center text-sm font-medium"
-                          style={{ color: vp == null ? '#d1d5db' : vp < 0 ? '#2563eb' : vp > 0 ? '#dc2626' : '#6b7280' }}>
-                          {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
-                        </span>
-                      )
-                    })}
+                    {Array.from({ length: ballsCount }, (_, i) => (
+                      <span key={i} className="w-12 flex items-center justify-center">
+                        <VsParNotation vp={s.ballVsPar[i]} />
+                      </span>
+                    ))}
                     <span className="w-10 text-center text-sm text-gray-500">
                       {s.holesPerBall[0] === 0 ? '–' : s.holesPerBall[0] === 18 ? 'F' : s.holesPerBall[0]}
                     </span>
@@ -277,10 +274,7 @@ export default function AdminDashboard({
                           <div key={player.id} className="flex items-center py-0.5">
                             <span className="flex-1 text-sm text-gray-700">{player.name}</span>
                             <span className="text-xs text-gray-400 mr-3">{thru > 0 ? `Thru ${thru}` : 'No scores'}</span>
-                            <span className="text-sm font-medium w-8 text-right"
-                              style={{ color: vp == null ? '#9ca3af' : vp < 0 ? '#2563eb' : vp > 0 ? '#dc2626' : '#6b7280' }}>
-                              {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
-                            </span>
+                            <VsParNotation vp={vp} />
                           </div>
                         )
                       })}
