@@ -6,7 +6,7 @@ import { computeTeamBallSummary } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 
 type Team = { id: string; name: string }
-type Player = { id: string; team_id: string; name: string }
+type Player = { id: string; team_id: string; name: string; position: number | null }
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 
@@ -257,23 +257,44 @@ export default function LeaderboardClient({
                     </div>
                     {teamPlayers.map((player) => {
                       const playerScores = scores.filter((s) => s.player_id === player.id)
-                      const thru = playerScores.length
-                      const total = playerScores.reduce((sum, s) => sum + s.strokes, 0)
-                      const parSoFar = holes
-                        .filter((h) => playerScores.some((s) => s.hole_number === h.hole_number))
-                        .reduce((sum, h) => sum + h.par, 0)
-                      const vp = thru > 0 ? total - parSoFar : null
+
+                      const frontScores = playerScores.filter((s) => s.hole_number <= 9)
+                      const frontStrokes = frontScores.reduce((sum, s) => sum + s.strokes, 0)
+                      const frontPar = holes.filter((h) => h.hole_number <= 9 && frontScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+                      const frontVp = frontScores.length > 0 ? frontStrokes - frontPar : null
+
+                      const backScores = playerScores.filter((s) => s.hole_number >= 10)
+                      const backStrokes = backScores.reduce((sum, s) => sum + s.strokes, 0)
+                      const backPar = holes.filter((h) => h.hole_number >= 10 && backScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+                      const backVp = backScores.length > 0 ? backStrokes - backPar : null
+
+                      const totalPar = holes.filter((h) => playerScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+                      const totalVp = playerScores.length > 0 ? playerScores.reduce((sum, s) => sum + s.strokes, 0) - totalPar : null
+
+                      function vpStr(vp: number | null) {
+                        if (vp === null) return '–'
+                        if (vp === 0) return 'E'
+                        return vp > 0 ? `+${vp}` : `${vp}`
+                      }
+                      function vpColor(vp: number | null) {
+                        return vp !== null && vp < 0 ? '#dc2626' : '#111827'
+                      }
+
                       return (
                         <a key={player.id} href={`/player/${player.id}`}
-                          className="flex items-center py-1.5 px-2 rounded-lg hover:bg-white transition">
+                          className="flex items-center py-1.5 px-2 rounded-lg hover:bg-white transition gap-3">
                           <span className="flex-1 text-sm text-gray-800">{player.name}</span>
-                          <span className="text-xs text-gray-400 mr-3">
-                            {thru === 0 ? 'No scores' : thru === 18 ? 'F' : `Thru ${thru}`}
-                          </span>
-                          <span className="text-sm font-semibold w-8 text-right"
-                            style={{ color: vp == null ? '#9ca3af' : vp < 0 ? '#2563eb' : vp > 0 ? '#dc2626' : '#6b7280' }}>
-                            {vp == null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : vp}
-                          </span>
+                          {(['Front', 'Back', 'Total'] as const).map((label, li) => {
+                            const vp = [frontVp, backVp, totalVp][li]
+                            return (
+                              <span key={label} className="flex items-center gap-1 text-xs flex-shrink-0">
+                                <span className="text-gray-400">{label}:</span>
+                                <span className="font-semibold" style={{ color: vp === null ? '#9ca3af' : vpColor(vp) }}>
+                                  {vpStr(vp)}
+                                </span>
+                              </span>
+                            )
+                          })}
                         </a>
                       )
                     })}
