@@ -259,7 +259,7 @@ export default function ScoreEntry({
                     {holeBalls.map((score, i) => (
                       <div key={i} className="text-center">
                         <p className="text-xs text-gray-400">{i + 1}B</p>
-                        <ScoreNotation strokes={score} par={hole.par} size="sm" />
+                        <ScoreNotation strokes={score ?? hole.par} par={hole.par} size="sm" />
                       </div>
                     ))}
                   </div>
