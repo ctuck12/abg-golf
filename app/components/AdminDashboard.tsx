@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   createRound, addTeam, addPlayer, deleteTeam, deletePlayer,
   toggleTeamAdmin, resetTeamScores, activateRound, updateHolePars, updateBallValues,
@@ -30,6 +31,7 @@ export default function AdminDashboard({
 }: {
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]
 }) {
+  const router = useRouter()
   const [tab, setTab] = useState<'overview' | 'teams' | 'setup' | 'payouts'>(!round ? 'setup' : 'overview')
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
@@ -42,6 +44,23 @@ export default function AdminDashboard({
   const [parState, parAction, parPending] = useActionState(updateHolePars, null)
   const [ballState, ballAction, ballPending] = useActionState(updateBallValues, null)
   const [renameState, renameAction, renamePending] = useActionState(renameTeam, null)
+
+  // Refresh server data after mutations so the UI updates without a manual reload
+  useEffect(() => {
+    if (createState?.success) { router.refresh(); setTab('teams') }
+  }, [createState?.success])
+  useEffect(() => {
+    if (addTeamState?.success) router.refresh()
+  }, [addTeamState?.success])
+  useEffect(() => {
+    if (addPlayerState?.success) router.refresh()
+  }, [addPlayerState?.success])
+  useEffect(() => {
+    if (renameState?.success) { router.refresh(); setRenamingTeam(null) }
+  }, [renameState?.success])
+  useEffect(() => {
+    if (parState?.success || ballState?.success) router.refresh()
+  }, [parState?.success, ballState?.success])
 
   const [pars, setPars] = useState<Record<number, number>>(
     Object.fromEntries(Array.from({ length: 18 }, (_, i) => [i + 1, holes.find((h) => h.hole_number === i + 1)?.par ?? 4]))
@@ -66,6 +85,23 @@ export default function AdminDashboard({
   for (const p of payouts) {
     netMap[p.fromTeamId] -= p.amount
     netMap[p.toTeamId] += p.amount
+  }
+
+  async function handleDeleteTeam(teamId: string) {
+    await deleteTeam(teamId)
+    router.refresh()
+  }
+  async function handleToggleAdmin(teamId: string, isAdmin: boolean) {
+    await toggleTeamAdmin(teamId, isAdmin)
+    router.refresh()
+  }
+  async function handleResetScores(teamId: string) {
+    await resetTeamScores(teamId)
+    router.refresh()
+  }
+  async function handleDeletePlayer(playerId: string) {
+    await deletePlayer(playerId)
+    router.refresh()
   }
 
   function toggleExpand(teamId: string) {
@@ -292,15 +328,15 @@ export default function AdminDashboard({
                           className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
                           {isSelected ? 'Close' : 'Players'}
                         </button>
-                        <form action={toggleTeamAdmin.bind(null, team.id, !team.is_admin)}>
-                          <button type="submit" className="text-xs border px-2 py-1 rounded"
-                            style={{ borderColor: gold, color: team.is_admin ? '#92400e' : '#6b7280' }}>
-                            {team.is_admin ? 'Revoke Admin' : 'Make Admin'}
-                          </button>
-                        </form>
-                        <form action={deleteTeam.bind(null, team.id)}>
-                          <button type="submit" className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">Remove</button>
-                        </form>
+                        <button type="button" onClick={() => handleToggleAdmin(team.id, !team.is_admin)}
+                          className="text-xs border px-2 py-1 rounded"
+                          style={{ borderColor: gold, color: team.is_admin ? '#92400e' : '#6b7280' }}>
+                          {team.is_admin ? 'Revoke Admin' : 'Make Admin'}
+                        </button>
+                        <button type="button" onClick={() => handleDeleteTeam(team.id)}
+                          className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
+                          Remove
+                        </button>
                       </div>
                     )}
                   </div>
@@ -314,9 +350,8 @@ export default function AdminDashboard({
                       {teamPlayers.map((p) => (
                         <div key={p.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-gray-100">
                           <span className="flex-1 text-sm text-gray-800 font-medium">{p.name}</span>
-                          <form action={deletePlayer.bind(null, p.id)}>
-                            <button type="submit" className="text-xs text-red-500 hover:text-red-700">Remove</button>
-                          </form>
+                          <button type="button" onClick={() => handleDeletePlayer(p.id)}
+                            className="text-xs text-red-500 hover:text-red-700">Remove</button>
                         </div>
                       ))}
                       <form action={addPlayerAction} className="flex gap-2 mt-2">
@@ -328,11 +363,10 @@ export default function AdminDashboard({
                           className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60"
                           style={{ background: navy }}>Add</button>
                       </form>
-                      <form action={resetTeamScores.bind(null, team.id)} className="mt-1">
-                        <button type="submit" className="text-xs text-orange-600 border border-orange-200 px-2 py-1 rounded hover:bg-orange-50">
-                          Reset All Scores
-                        </button>
-                      </form>
+                      <button type="button" onClick={() => handleResetScores(team.id)}
+                        className="text-xs text-orange-600 border border-orange-200 px-2 py-1 rounded hover:bg-orange-50 mt-1">
+                        Reset All Scores
+                      </button>
                     </div>
                   )}
                 </div>
