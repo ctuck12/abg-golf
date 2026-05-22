@@ -15,9 +15,9 @@ const gold = '#f59e0b'
 
 function ScoreCell({ vp }: { vp: number | null }) {
   if (vp === null) return <span className="text-gray-300">–</span>
-  if (vp === 0) return <span className="text-gray-500">E</span>
-  if (vp < 0) return <span className="font-semibold text-blue-600">{vp}</span>
-  return <span className="font-semibold text-red-500">+{vp}</span>
+  if (vp < 0) return <span className="font-semibold text-red-600">{vp}</span>
+  if (vp === 0) return <span className="font-semibold text-gray-900">E</span>
+  return <span className="font-semibold text-gray-900">+{vp}</span>
 }
 
 export default function LeaderboardClient({
