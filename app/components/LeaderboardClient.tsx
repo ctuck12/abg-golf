@@ -142,12 +142,10 @@ export default function LeaderboardClient({
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold text-gray-900">Leaderboard</h2>
           <div className="flex items-center gap-3">
-            {viewOnly && (
-              <a href="/matchup" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
-                style={{ borderColor: navy, color: navy }}>
-                Matchup ⚔
-              </a>
-            )}
+            <a href="/matchup" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
+              style={{ borderColor: navy, color: navy }}>
+              Matchup ⚔
+            </a>
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
               Live · {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -266,18 +264,6 @@ export default function LeaderboardClient({
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-3">Tap a team to expand · tap a player for their scorecard</p>
-
-        {!viewOnly && scorecardTeamId && (
-          <div className="mt-4 text-center">
-            <a href={`/score/${scorecardTeamId}`} className="text-sm font-medium" style={{ color: navy }}>← Back to Scorecard</a>
-          </div>
-        )}
-
-        {viewOnly && (
-          <div className="mt-4 text-center">
-            <a href="/matchup" className="text-sm font-medium" style={{ color: navy }}>Player Matchup →</a>
-          </div>
-        )}
       </div>
     </div>
   )
