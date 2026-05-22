@@ -276,12 +276,14 @@ export default function ScoreEntry({
                       <div key={player.id} className="flex items-center gap-3">
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate">{player.name}</span>
                         <button type="button" onClick={() => setStroke(player.id, hole.hole_number, val - 1)}
-                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition">
+                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition flex-shrink-0">
                           −
                         </button>
-                        <ScoreNotation strokes={val} par={hole.par} />
+                        <div className="w-11 flex items-center justify-center flex-shrink-0">
+                          <ScoreNotation strokes={val} par={hole.par} />
+                        </div>
                         <button type="button" onClick={() => setStroke(player.id, hole.hole_number, val + 1)}
-                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition">
+                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition flex-shrink-0">
                           +
                         </button>
                       </div>
