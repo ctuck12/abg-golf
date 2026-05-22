@@ -88,7 +88,7 @@ export default function PlayerScorecard({
 
   function vpColor(vp: number | null): string {
     if (vp === null) return '#9ca3af'
-    if (vp < 0) return '#2563eb'
+    if (vp < 0) return '#dc2626'
     if (vp > 0) return '#dc2626'
     return '#6b7280'
   }
