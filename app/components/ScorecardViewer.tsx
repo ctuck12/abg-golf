@@ -106,9 +106,9 @@ export default function ScorecardViewer({
           <thead>
             <tr>
               <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
-              {[1,2,3,4,5,6,7,8,9].map((n) => <th key={n} style={thStyle()}>{n}</th>)}
+              {[1,2,3,4,5,6,7,8,9].map((n) => <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>)}
               <th style={thStyle(true)}>Front</th>
-              {[10,11,12,13,14,15,16,17,18].map((n) => <th key={n} style={thStyle()}>{n}</th>)}
+              {[10,11,12,13,14,15,16,17,18].map((n) => <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>)}
               <th style={thStyle(true)}>Back</th>
               <th style={thStyle()}>TOTAL</th>
             </tr>
