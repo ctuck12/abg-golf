@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   createRound, addTeam, addPlayer, deleteTeam, deletePlayer,
   toggleTeamAdmin, resetTeamScores, activateRound, updateHolePars, updateBallValues,
-  adminLogout, renameTeam,
+  adminLogout, renameTeam, movePlayer,
 } from '@/app/actions'
 import { computeTeamBallSummary, calculatePayouts } from '@/lib/scoring'
 
@@ -21,7 +21,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
 
 type Round = { id: string; name: string; date: string; course: string; balls_count: number; is_started: boolean } | null
 type Team = { id: string; name: string; pin: string; is_admin: boolean }
-type Player = { id: string; team_id: string; name: string }
+type Player = { id: string; team_id: string; name: string; position: number | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -106,6 +106,10 @@ export default function AdminDashboard({
   }
   async function handleDeletePlayer(playerId: string) {
     await deletePlayer(playerId)
+    router.refresh()
+  }
+  async function handleMovePlayer(playerId: string, direction: 'up' | 'down') {
+    await movePlayer(playerId, direction)
     router.refresh()
   }
 
@@ -352,11 +356,25 @@ export default function AdminDashboard({
                       {teamPlayers.length === 0 && (
                         <p className="text-xs text-gray-400">No players added yet.</p>
                       )}
-                      {teamPlayers.map((p) => (
-                        <div key={p.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-gray-100">
+                      {teamPlayers.map((p, pi) => (
+                        <div key={p.id} className="flex items-center gap-1.5 bg-white rounded-lg px-3 py-2 border border-gray-100">
+                          <div className="flex flex-col gap-0.5 mr-1">
+                            <button
+                              type="button"
+                              disabled={pi === 0}
+                              onClick={() => handleMovePlayer(p.id, 'up')}
+                              className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none"
+                            >▲</button>
+                            <button
+                              type="button"
+                              disabled={pi === teamPlayers.length - 1}
+                              onClick={() => handleMovePlayer(p.id, 'down')}
+                              className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none"
+                            >▼</button>
+                          </div>
                           <span className="flex-1 text-sm text-gray-800 font-medium">{p.name}</span>
                           <button type="button" onClick={() => handleDeletePlayer(p.id)}
-                            className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                            className="text-xs text-red-500 hover:text-red-700 ml-1">Remove</button>
                         </div>
                       ))}
                       <form action={addPlayerAction} className="flex gap-2 mt-2">

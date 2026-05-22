@@ -192,7 +192,11 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
   if (!name || !teamId) return { error: 'Player name required.' }
 
   const supabase = createServerClient()
-  const { error } = await supabase.from('players').insert({ name, team_id: teamId })
+  // Place new player after all existing ones
+  const { data: existing } = await supabase
+    .from('players').select('position').eq('team_id', teamId).order('position', { ascending: false }).limit(1)
+  const nextPosition = existing?.[0]?.position != null ? existing[0].position + 1 : 0
+  const { error } = await supabase.from('players').insert({ name, team_id: teamId, position: nextPosition })
   if (error) return { error: error.message }
   return { success: true }
 }
@@ -200,4 +204,27 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
 export async function deletePlayer(playerId: string) {
   const supabase = createServerClient()
   await supabase.from('players').delete().eq('id', playerId)
+}
+
+export async function movePlayer(playerId: string, direction: 'up' | 'down') {
+  const supabase = createServerClient()
+
+  const { data: player } = await supabase
+    .from('players').select('id, team_id, position').eq('id', playerId).single()
+  if (!player) return
+
+  const { data: teammates } = await supabase
+    .from('players').select('id, position').eq('team_id', player.team_id)
+    .order('position', { ascending: true })
+  if (!teammates || teammates.length < 2) return
+
+  const idx = teammates.findIndex((p) => p.id === playerId)
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+  if (swapIdx < 0 || swapIdx >= teammates.length) return
+
+  const other = teammates[swapIdx]
+  await Promise.all([
+    supabase.from('players').update({ position: other.position }).eq('id', player.id),
+    supabase.from('players').update({ position: player.position }).eq('id', other.id),
+  ])
 }

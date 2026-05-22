@@ -20,7 +20,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
   if (!round || !round.is_active) redirect('/')
 
   const { data: players } = await sb
-    .from('players').select('id, name').eq('team_id', teamId).order('name')
+    .from('players').select('id, name').eq('team_id', teamId).order('position', { ascending: true })
 
   const playerIds = (players ?? []).map((p) => p.id)
 

@@ -36,7 +36,7 @@ export default async function AdminDashboardPage() {
 
   const [playersRes, scoresRes] = await Promise.all([
     teamIds.length
-      ? sb.from('players').select('id, team_id, name').in('team_id', teamIds).order('name')
+      ? sb.from('players').select('id, team_id, name, position').in('team_id', teamIds).order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
     roundId
       ? sb.from('scores').select('player_id, hole_number, strokes')
