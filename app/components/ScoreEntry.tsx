@@ -113,16 +113,7 @@ export default function ScoreEntry({
               <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
               <h1 className="font-bold text-lg">{team.name}</h1>
             </div>
-            <div className="flex items-center gap-2">
-              {isAdmin && (
-                <a href="/admin/dashboard"
-                  className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                  style={{ background: gold, color: navy }}>
-                  Admin Hub
-                </a>
-              )}
-              <a href="/" className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>Leaderboard ↗</a>
-            </div>
+            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard ↗</a>
           </div>
           <div className="flex gap-3">
             {([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
@@ -291,7 +282,14 @@ export default function ScoreEntry({
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
-        <div className="max-w-lg mx-auto flex items-center justify-center text-sm">
+        <div className="max-w-lg mx-auto flex items-center justify-between text-sm">
+          {isAdmin ? (
+            <a href="/admin/dashboard"
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+              style={{ background: navy, color: gold }}>
+              Admin Hub
+            </a>
+          ) : <div />}
           <p className="text-xs text-gray-400">{savedCount}/18 holes saved</p>
         </div>
       </div>
