@@ -6,11 +6,11 @@ import { createServerClient } from '@/lib/supabase-server'
 
 // ── Course presets ────────────────────────────────────────────────────────────
 
-export const COURSE_PARS: Record<string, number[]> = {
+const COURSE_PARS: Record<string, number[]> = {
   north: [4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4],
   south: [4, 4, 3, 5, 4, 3, 4, 5, 4, 4, 4, 3, 5, 4, 3, 4, 5, 4],
 }
-export const COURSE_NAMES: Record<string, string> = {
+const COURSE_NAMES: Record<string, string> = {
   north: 'North Course',
   south: 'South Course',
 }
