@@ -6,27 +6,22 @@ import { ScoreNotation } from './ScoreNotation'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
+const steelBlue = '#4a7fa5'
+const steelBlueBg = '#dbeafe'
 
 type Hole = { hole_number: number; par: number }
 type Score = { hole_number: number; strokes: number }
 
-function scoreColor(strokes: number, par: number): string {
-  const d = strokes - par
-  if (d <= -2) return '#7c3aed'
-  if (d === -1) return '#2563eb'
-  if (d === 0) return '#6b7280'
-  if (d === 1) return '#dc2626'
-  return '#7f1d1d'
+function vpStr(vp: number | null): string {
+  if (vp === null) return '–'
+  if (vp === 0) return 'E'
+  return vp > 0 ? `+${vp}` : String(vp)
 }
 
-function scoreLabel(strokes: number, par: number): string {
-  const d = strokes - par
-  if (d <= -2) return 'Eagle'
-  if (d === -1) return 'Birdie'
-  if (d === 0) return 'Par'
-  if (d === 1) return 'Bogey'
-  if (d === 2) return 'Double'
-  return `+${d}`
+function vpColor(vp: number | null): string {
+  if (vp === null) return '#9ca3af'
+  if (vp < 0) return '#dc2626'
+  return '#111827'
 }
 
 export default function PlayerScorecard({
@@ -66,10 +61,6 @@ export default function PlayerScorecard({
   const backNine = holes.filter((h) => h.hole_number >= 10)
   const frontPar = frontNine.reduce((s, h) => s + h.par, 0)
   const backPar = backNine.reduce((s, h) => s + h.par, 0)
-  const frontStrokes = frontNine.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
-  const backStrokes = backNine.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
-  const frontComplete = frontNine.every((h) => scoreMap[h.hole_number] != null)
-  const backComplete = backNine.length > 0 && backNine.every((h) => scoreMap[h.hole_number] != null)
 
   const frontScored = frontNine.filter((h) => scoreMap[h.hole_number] != null)
   const frontVp: number | null = frontScored.length > 0
@@ -80,23 +71,39 @@ export default function PlayerScorecard({
     ? backScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0) - backScored.reduce((s, h) => s + h.par, 0)
     : null
 
-  function vpStr(vp: number | null): string {
-    if (vp === null) return '–'
-    if (vp === 0) return 'E'
-    return vp > 0 ? `+${vp}` : String(vp)
-  }
+  const frontScoredStrokes = frontScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0)
+  const backScoredStrokes = backScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0)
 
-  function vpColor(vp: number | null): string {
-    if (vp === null) return '#9ca3af'
-    if (vp < 0) return '#dc2626'
-    if (vp > 0) return '#111827'
-    return '#111827'
-  }
+  const thStyle = (highlight?: boolean): React.CSSProperties => ({
+    background: highlight ? steelBlue : navy,
+    color: 'white',
+    fontWeight: 700,
+    fontSize: '0.65rem',
+    textAlign: 'center',
+    padding: '0.4rem 0.25rem',
+    whiteSpace: 'nowrap',
+  })
+  const tdPar = (highlight?: boolean): React.CSSProperties => ({
+    background: highlight ? steelBlueBg : 'white',
+    color: highlight ? '#1e40af' : '#6b7280',
+    fontWeight: highlight ? 700 : 400,
+    fontSize: '0.7rem',
+    textAlign: 'center',
+    padding: '0.35rem 0.25rem',
+  })
+  const tdScore = (highlight?: boolean): React.CSSProperties => ({
+    background: highlight ? steelBlueBg : 'white',
+    fontWeight: highlight ? 700 : 400,
+    color: highlight ? '#1e40af' : undefined,
+    fontSize: '0.7rem',
+    textAlign: 'center',
+    padding: '0.25rem 0.2rem',
+  })
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-4xl mx-auto">
           <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>
             Player Scorecard
           </p>
@@ -107,8 +114,8 @@ export default function PlayerScorecard({
         </div>
       </header>
 
-      {/* Summary banner */}
-      <div className="max-w-lg mx-auto px-4 pt-4">
+      <div className="max-w-4xl mx-auto px-4 pt-4">
+        {/* Summary banner */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4 mb-4 flex items-center justify-around">
           {([['Front', frontVp], ['Back', backVp], ['Total', vsParThru]] as [string, number | null][]).map(([label, vp]) => (
             <div key={label} className="text-center">
@@ -118,76 +125,72 @@ export default function PlayerScorecard({
           ))}
         </div>
 
-        {/* Scorecard table */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-4">
-          <table className="w-full text-sm border-collapse">
+        {/* Horizontal scorecard */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto mb-4">
+          <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
             <thead>
-              <tr style={{ background: navy }}>
-                <th className="px-3 py-2 text-left text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.7)' }}>Hole</th>
-                <th className="px-2 py-2 text-center text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.7)' }}>Par</th>
-                <th className="px-2 py-2 text-center text-xs font-semibold" style={{ color: gold }}>Score</th>
-                <th className="px-2 py-2 text-center text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.7)' }}>+/−</th>
+              <tr>
+                <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
+                {[1,2,3,4,5,6,7,8,9].map((n) => (
+                  <th key={n} style={thStyle()}>{n}</th>
+                ))}
+                <th style={thStyle(true)}>Front</th>
+                {[10,11,12,13,14,15,16,17,18].map((n) => (
+                  <th key={n} style={thStyle()}>{n}</th>
+                ))}
+                <th style={thStyle(true)}>Back</th>
+                <th style={thStyle()}>TOTAL</th>
               </tr>
             </thead>
             <tbody>
-              {holes.map((hole) => {
-                const strokes = scoreMap[hole.hole_number] ?? null
-                const vp = strokes != null ? strokes - hole.par : null
-                return (
-                  <tr key={hole.hole_number} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                    <td className="px-3 py-2.5 font-bold text-gray-900">{hole.hole_number}</td>
-                    <td className="px-2 py-2.5 text-center text-gray-500">{hole.par}</td>
-                    <td className="px-2 py-2.5 text-center">
-                      {strokes != null
-                        ? <ScoreNotation strokes={strokes} par={hole.par} />
-                        : <span className="text-gray-300">–</span>}
+              {/* PAR row */}
+              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PAR</td>
+                {[1,2,3,4,5,6,7,8,9].map((n) => {
+                  const hole = holes.find((h) => h.hole_number === n)
+                  return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
+                })}
+                <td style={tdPar(true)}>{frontNine.length > 0 ? frontPar : '–'}</td>
+                {[10,11,12,13,14,15,16,17,18].map((n) => {
+                  const hole = holes.find((h) => h.hole_number === n)
+                  return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
+                })}
+                <td style={tdPar(true)}>{backNine.length > 0 ? backPar : '–'}</td>
+                <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
+              </tr>
+              {/* SCORE row */}
+              <tr>
+                <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
+                {[1,2,3,4,5,6,7,8,9].map((n) => {
+                  const hole = holes.find((h) => h.hole_number === n)
+                  const strokes = scoreMap[n] ?? null
+                  return (
+                    <td key={n} style={tdScore()}>
+                      {strokes != null && hole
+                        ? <ScoreNotation strokes={strokes} par={hole.par} size="sm" />
+                        : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
-                    <td className="px-2 py-2.5 text-center">
-                      {vp != null ? (
-                        <span className="text-xs font-medium px-1.5 py-0.5 rounded"
-                          style={{
-                            background: vp < 0 ? '#eff6ff' : vp > 0 ? '#fef2f2' : '#f9fafb',
-                            color: scoreColor(strokes!, hole.par),
-                          }}>
-                          {scoreLabel(strokes!, hole.par)}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">–</span>
-                      )}
+                  )
+                })}
+                <td style={tdScore(true)}>
+                  {frontScored.length > 0 ? frontScoredStrokes : '–'}
+                </td>
+                {[10,11,12,13,14,15,16,17,18].map((n) => {
+                  const hole = holes.find((h) => h.hole_number === n)
+                  const strokes = scoreMap[n] ?? null
+                  return (
+                    <td key={n} style={tdScore()}>
+                      {strokes != null && hole
+                        ? <ScoreNotation strokes={strokes} par={hole.par} size="sm" />
+                        : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
-                  </tr>
-                )
-              })}
-
-              {/* Front nine subtotal */}
-              {frontComplete && (
-                <tr className="border-t border-gray-200 bg-gray-50">
-                  <td colSpan={2} className="px-3 py-1.5 text-xs font-semibold text-gray-500">Front 9</td>
-                  <td className="px-2 py-1.5 text-center text-xs font-bold text-gray-700">{frontStrokes}</td>
-                  <td className="px-2 py-1.5 text-center text-xs font-semibold"
-                    style={{ color: vpColor(frontStrokes - frontPar) }}>
-                    {vpStr(frontStrokes - frontPar)}
-                  </td>
-                </tr>
-              )}
-              {/* Back nine subtotal */}
-              {backComplete && (
-                <tr className="bg-gray-50">
-                  <td colSpan={2} className="px-3 py-1.5 text-xs font-semibold text-gray-500">Back 9</td>
-                  <td className="px-2 py-1.5 text-center text-xs font-bold text-gray-700">{backStrokes}</td>
-                  <td className="px-2 py-1.5 text-center text-xs font-semibold"
-                    style={{ color: vpColor(backStrokes - backPar) }}>
-                    {vpStr(backStrokes - backPar)}
-                  </td>
-                </tr>
-              )}
-
-              {/* Total row */}
-              <tr className="border-t-2 border-gray-300 font-bold" style={{ background: '#f9fafb' }}>
-                <td colSpan={2} className="px-3 py-2 text-gray-900">Total</td>
-                <td className="px-2 py-2 text-center text-gray-900">{thru > 0 ? totalStrokes : '–'}</td>
-                <td className="px-2 py-2 text-center font-bold" style={{ color: vpColor(vsParThru) }}>
-                  {vpStr(vsParThru)}
+                  )
+                })}
+                <td style={tdScore(true)}>
+                  {backScored.length > 0 ? backScoredStrokes : '–'}
+                </td>
+                <td style={{ ...tdScore(), fontWeight: 700, color: '#111827' }}>
+                  {thru > 0 ? totalStrokes : '–'}
                 </td>
               </tr>
             </tbody>
