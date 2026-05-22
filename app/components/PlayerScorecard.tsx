@@ -103,14 +103,20 @@ export default function PlayerScorecard({
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
-        <div className="max-w-4xl mx-auto">
-          <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>
-            Player Scorecard
-          </p>
-          <h1 className="font-bold text-xl">{player.name}</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
-            {teamName}
-          </p>
+        <div className="max-w-4xl mx-auto flex items-start justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>
+              Player Scorecard
+            </p>
+            <h1 className="font-bold text-xl">{player.name}</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
+              {teamName}
+            </p>
+          </div>
+          <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold mt-1 flex-shrink-0"
+            style={{ background: gold, color: navy }}>
+            Leaderboard
+          </a>
         </div>
       </header>
 
@@ -197,14 +203,7 @@ export default function PlayerScorecard({
           </table>
         </div>
 
-        <div className="flex justify-between text-sm pb-8">
-          <a href={`/scorecard/${teamId}`} className="font-medium" style={{ color: navy }}>
-            ← Team Scorecard
-          </a>
-          <a href="/" className="font-medium" style={{ color: navy }}>
-            Leaderboard →
-          </a>
-        </div>
+        <div className="pb-8" />
       </div>
     </div>
   )
