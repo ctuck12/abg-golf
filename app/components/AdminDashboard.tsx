@@ -14,8 +14,8 @@ const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
 // Match the server-side constants for course par preview
 const COURSE_PARS_CLIENT: Record<string, number[]> = {
-  north: [4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4],
-  south: [4, 4, 3, 5, 4, 3, 4, 5, 4, 4, 4, 3, 5, 4, 3, 4, 5, 4],
+  north: [4, 4, 4, 3, 4, 4, 5, 3, 5, 3, 4, 4, 5, 3, 5, 4, 3, 4],
+  south: [4, 4, 5, 3, 4, 4, 4, 3, 5, 4, 3, 4, 4, 5, 4, 3, 4, 5],
 }
 
 type Round = { id: string; name: string; date: string; course: string; balls_count: number; is_started: boolean } | null
@@ -385,7 +385,7 @@ export default function AdminDashboard({
                     onChange={(e) => handleCourseChange(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
                   >
-                    <option value="north">North Course (Par 72)</option>
+                    <option value="north">North Course (Par 71)</option>
                     <option value="south">South Course (Par 72)</option>
                   </select>
                   <p className="text-xs text-gray-400 mt-1">Course pars auto-load — edit them in the Par Per Hole section after creating.</p>

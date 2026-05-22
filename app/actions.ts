@@ -7,8 +7,8 @@ import { createServerClient } from '@/lib/supabase-server'
 // ── Course presets ────────────────────────────────────────────────────────────
 
 const COURSE_PARS: Record<string, number[]> = {
-  north: [4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4],
-  south: [4, 4, 3, 5, 4, 3, 4, 5, 4, 4, 4, 3, 5, 4, 3, 4, 5, 4],
+  north: [4, 4, 4, 3, 4, 4, 5, 3, 5, 3, 4, 4, 5, 3, 5, 4, 3, 4],
+  south: [4, 4, 5, 3, 4, 4, 4, 3, 5, 4, 3, 4, 4, 5, 4, 3, 4, 5],
 }
 const COURSE_NAMES: Record<string, string> = {
   north: 'North Course',
