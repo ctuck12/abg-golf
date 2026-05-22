@@ -12,7 +12,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
 
   const sb = createServerClient()
 
-  const { data: team } = await sb.from('teams').select('id, name, round_id').eq('id', teamId).single()
+  const { data: team } = await sb.from('teams').select('id, name, round_id, is_admin').eq('id', teamId).single()
   if (!team) redirect('/')
 
   const { data: round } = await sb
@@ -36,6 +36,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
       holes={holes ?? []}
       initialScores={scores ?? []}
       ballsCount={round.balls_count}
+      isAdmin={team.is_admin ?? false}
     />
   )
 }
