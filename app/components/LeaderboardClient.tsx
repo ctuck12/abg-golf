@@ -285,11 +285,11 @@ export default function LeaderboardClient({
                         <a key={player.id} href={`/player/${player.id}`}
                           className="w-full flex items-center py-1.5 pl-2 pr-0 rounded-lg hover:bg-white transition">
                           <span className="flex-1 text-sm text-gray-800">{player.name}</span>
-                          <span className="flex items-center text-xs flex-shrink-0" style={{ gap: '0.6rem', paddingRight: '0.5rem' }}>
-                            {([['Front', frontVp], ['Back', backVp], ['Total', totalVp]] as [string, number | null][]).map(([label, vp]) => (
+                          <span className="flex items-center text-xs flex-shrink-0" style={{ gap: '0.6rem' }}>
+                            {([['Front', frontVp], ['Back', backVp], ['Total', totalVp]] as [string, number | null][]).map(([label, vp], i) => (
                               <span key={label} className="flex items-center" style={{ gap: '0.15rem' }}>
                                 <span className="text-gray-400">{label}:</span>
-                                <span className="font-semibold" style={{ color: vp === null ? '#9ca3af' : vpColor(vp), display: 'inline-block', width: '2rem' }}>
+                                <span className="font-semibold" style={{ color: vp === null ? '#9ca3af' : vpColor(vp), display: 'inline-block', width: '2rem', textAlign: i === 2 ? 'right' : 'left' }}>
                                   {vpDisplay(vp)}
                                 </span>
                               </span>
