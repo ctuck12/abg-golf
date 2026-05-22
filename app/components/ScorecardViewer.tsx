@@ -92,12 +92,15 @@ export default function ScorecardViewer({
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-4xl mx-auto flex items-start justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
             <h1 className="font-bold text-lg">{teamName}</h1>
           </div>
-          <a href="/leaderboard" className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>← Leaderboard</a>
+          <a href="/leaderboard" className="text-xs px-3 py-1.5 rounded-lg font-semibold mt-0.5 flex-shrink-0"
+            style={{ background: gold, color: navy }}>
+            Leaderboard
+          </a>
         </div>
       </header>
 
@@ -209,9 +212,7 @@ export default function ScorecardViewer({
           </tbody>
         </table>
 
-        <div className="mt-4 text-center">
-          <a href="/leaderboard" className="text-sm font-medium" style={{ color: navy }}>← Back to Leaderboard</a>
-        </div>
+        <div className="pb-8" />
       </div>
     </div>
   )
