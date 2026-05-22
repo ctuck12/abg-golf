@@ -12,7 +12,6 @@ type Score = { player_id: string; hole_number: number; strokes: number }
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
-const BALL_LABELS = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
 function ScoreCell({ vp }: { vp: number | null }) {
   if (vp === null) return <span className="text-gray-300">–</span>
@@ -52,10 +51,16 @@ export default function LeaderboardClient({
     return () => { supabase.removeChannel(channel) }
   }, [players])
 
+  const frontHoles = holes.filter((h) => h.hole_number <= 9)
+  const backHoles = holes.filter((h) => h.hole_number >= 10)
+
   const rows = initialTeams.map((team) => {
     const teamPlayers = players.filter((p) => p.team_id === team.id)
-    const summary = computeTeamBallSummary(holes, teamPlayers.map((p) => p.id), scores, ballsCount)
-    return { team, summary }
+    const playerIds = teamPlayers.map((p) => p.id)
+    const summary = computeTeamBallSummary(holes, playerIds, scores, ballsCount)
+    const frontSummary = computeTeamBallSummary(frontHoles, playerIds, scores, ballsCount)
+    const backSummary = computeTeamBallSummary(backHoles, playerIds, scores, ballsCount)
+    return { team, summary, frontSummary, backSummary }
   }).sort((a, b) => {
     for (let i = 0; i < ballsCount; i++) {
       const av = a.summary.ballVsPar[i]
@@ -72,7 +77,7 @@ export default function LeaderboardClient({
     month: 'long', day: 'numeric', year: 'numeric',
   })
 
-  const colWidth = ballsCount <= 3 ? '4rem' : '3.5rem'
+  const scoreColW = '2rem'
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -151,14 +156,37 @@ export default function LeaderboardClient({
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase"
-            style={{ background: navy, color: 'rgba(255,255,255,0.6)' }}>
-            <span className="w-6 mr-3">#</span>
-            <span className="flex-1">Team</span>
-            {Array.from({ length: ballsCount }, (_, i) => (
-              <span key={i} className="text-center" style={{ width: colWidth }}>{BALL_LABELS[i]}</span>
-            ))}
-            <span className="text-center" style={{ width: '3rem' }}>Thru</span>
+          {/* Two-row grouped header */}
+          <div style={{ background: navy }}>
+            {/* Group labels row */}
+            <div className="flex items-center px-4 pt-2 pb-0 text-xs font-semibold uppercase tracking-wide">
+              <span className="w-5 mr-2 flex-shrink-0" />
+              <span className="flex-1 min-w-0" />
+              <span
+                className="text-center flex-shrink-0"
+                style={{ width: `${ballsCount * 2}rem`, color: 'rgba(255,255,255,0.45)' }}>
+                Front 9
+              </span>
+              <span
+                className="text-center flex-shrink-0"
+                style={{ width: `${ballsCount * 2}rem`, color: 'rgba(255,255,255,0.45)' }}>
+                Back 9
+              </span>
+              <span className="flex-shrink-0" style={{ width: '2.75rem' }} />
+            </div>
+            {/* Column labels row */}
+            <div className="flex items-center px-4 pb-2 pt-0.5 text-xs font-semibold uppercase"
+              style={{ color: 'rgba(255,255,255,0.6)' }}>
+              <span className="w-5 mr-2 flex-shrink-0">#</span>
+              <span className="flex-1 min-w-0">Team</span>
+              {Array.from({ length: ballsCount }, (_, i) => (
+                <span key={`fh${i}`} className="text-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
+              ))}
+              {Array.from({ length: ballsCount }, (_, i) => (
+                <span key={`bh${i}`} className="text-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
+              ))}
+              <span className="text-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
+            </div>
           </div>
 
           {rows.length === 0 && (
@@ -177,21 +205,26 @@ export default function LeaderboardClient({
                   onClick={() => setExpandedTeam(isExpanded ? null : row.team.id)}
                   className="w-full flex items-center px-4 py-3 hover:bg-gray-50 transition text-left"
                   style={isLeader ? { background: '#fef9e7' } : {}}>
-                  <span className="w-6 mr-3 text-sm font-bold flex-shrink-0" style={{ color: isLeader ? gold : '#9ca3af' }}>
+                  <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: isLeader ? gold : '#9ca3af' }}>
                     {hasScores ? i + 1 : '–'}
                   </span>
-                  <span className="flex-1 font-semibold text-gray-900 text-sm truncate">{row.team.name}</span>
+                  <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.team.name}</span>
                   {Array.from({ length: ballsCount }, (_, bi) => (
-                    <span key={bi} className="text-center text-sm flex-shrink-0" style={{ width: colWidth }}>
-                      <ScoreCell vp={row.summary.ballVsPar[bi]} />
+                    <span key={`f${bi}`} className="text-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
+                      <ScoreCell vp={row.frontSummary.ballVsPar[bi]} />
                     </span>
                   ))}
-                  <span className="text-center text-sm text-gray-500 flex-shrink-0" style={{ width: '3rem' }}>
+                  {Array.from({ length: ballsCount }, (_, bi) => (
+                    <span key={`b${bi}`} className="text-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
+                      <ScoreCell vp={row.backSummary.ballVsPar[bi]} />
+                    </span>
+                  ))}
+                  <span className="text-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>
                     {row.summary.holesPerBall[0] === 0 ? '–'
                       : row.summary.holesPerBall[0] === 18 ? 'F'
                       : row.summary.holesPerBall[0]}
                   </span>
-                  <span className="ml-2 text-gray-400 text-xs flex-shrink-0">{isExpanded ? '▲' : '▼'}</span>
+                  <span className="ml-1 text-gray-400 text-xs flex-shrink-0">{isExpanded ? '▲' : '▼'}</span>
                 </button>
 
                 {isExpanded && (
