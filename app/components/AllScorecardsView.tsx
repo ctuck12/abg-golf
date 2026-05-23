@@ -46,19 +46,24 @@ export default function AllScorecardsView({
   const is5Man = daytonaVariant.startsWith('5man')
 
   useEffect(() => {
+    async function refetchScores() {
+      const { data } = await supabase
+        .from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds)
+      if (data) setScores(data)
+    }
     const ch1 = supabase.channel('all-sc-scores')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
-        const { data } = await supabase
-          .from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds)
-        if (data) setScores(data)
-      }).subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores)
+      .subscribe()
     const ch2 = supabase.channel('all-sc-assignments')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daytona_hole_assignments' }, async () => {
         const { data } = await supabase
           .from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
         if (data) setAssignments(data as DaytonaHoleAssignment[])
       }).subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
+    const ch3 = supabase.channel('score-updates')
+      .on('broadcast', { event: 'refresh' }, refetchScores)
+      .subscribe()
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3) }
   }, [roundId, allPlayerIds])
 
   // Pre-compute per-hole points maps once

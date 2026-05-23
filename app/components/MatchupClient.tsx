@@ -174,11 +174,16 @@ export default function MatchupClient({
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
     if (!playerIds.length) return
+    async function refetchScores() {
+      const { data } = await supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
+      if (data) setScores(data)
+    }
     const ch1 = supabase.channel('matchup-scores')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
-        const { data } = await supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
-        if (data) setScores(data)
-      }).subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores)
+      .subscribe()
+    const ch4 = supabase.channel('score-updates')
+      .on('broadcast', { event: 'refresh' }, refetchScores)
+      .subscribe()
     const ch2 = supabase.channel('matchup-matchups')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matchups' }, async () => {
         const { data } = await supabase.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', roundId).order('created_at')
@@ -191,7 +196,7 @@ export default function MatchupClient({
           .eq('round_id', roundId).order('created_at')
         if (data) setBestBallMatchups(data)
       }).subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3) }
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3); supabase.removeChannel(ch4) }
   }, [players, roundId])
 
   const scoreMap = useMemo(() => {

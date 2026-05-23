@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, Fragment } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { submitHoleScores, saveDaytonaAssignments } from '@/app/actions'
+import { supabase } from '@/lib/supabase'
 import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
@@ -73,6 +74,14 @@ export default function ScoreEntry({
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
   const [expandedHole, setExpandedHole] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
+
+  const broadcastChannel = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  useEffect(() => {
+    const ch = supabase.channel('score-updates')
+    ch.subscribe()
+    broadcastChannel.current = ch
+    return () => { supabase.removeChannel(ch); broadcastChannel.current = null }
+  }, [])
 
   // Daytona Left/Right assignments per hole
   const [assignments, setAssignments] = useState<AssignmentMap>(() => {
@@ -150,6 +159,7 @@ export default function ScoreEntry({
       })
       setErrors((e) => { const n = { ...e }; delete n[holeNumber]; return n })
       setExpandedHole(null)
+      broadcastChannel.current?.send({ type: 'broadcast', event: 'refresh', payload: {} })
     }
   }
 
