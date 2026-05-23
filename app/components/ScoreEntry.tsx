@@ -80,19 +80,34 @@ export default function ScoreEntry({
     const playerIds = players.map((p) => p.id)
     const ch = supabase.channel('score-updates')
       .on('broadcast', { event: 'refresh' }, async () => {
-        const { data } = await supabase
-          .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
-        if (!data) return
-        setSavedScores(data)
-        setSavedHoles(() => {
-          const saved = new Set<number>()
-          for (let h = 1; h <= 18; h++) {
-            if (players.every((p) => data.some((s) => s.player_id === p.id && s.hole_number === h))) {
-              saved.add(h)
+        const [scoresRes, assignRes] = await Promise.all([
+          supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds),
+          isDaytona && roundId
+            ? supabase.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
+            : Promise.resolve({ data: null }),
+        ])
+        if (scoresRes.data) {
+          setSavedScores(scoresRes.data)
+          setSavedHoles(() => {
+            const saved = new Set<number>()
+            for (let h = 1; h <= 18; h++) {
+              if (players.every((p) => scoresRes.data!.some((s) => s.player_id === p.id && s.hole_number === h))) {
+                saved.add(h)
+              }
             }
-          }
-          return saved
-        })
+            return saved
+          })
+        }
+        if (assignRes.data) {
+          setAssignments(() => {
+            const m: AssignmentMap = {}
+            for (const a of assignRes.data!) {
+              if (!m[a.hole_number]) m[a.hole_number] = {}
+              m[a.hole_number][a.player_id] = a.side as DaytonaSide
+            }
+            return m
+          })
+        }
       })
       .subscribe()
     broadcastChannel.current = ch
