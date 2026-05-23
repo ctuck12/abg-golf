@@ -19,16 +19,18 @@ export default async function MatchupPage() {
     .from('teams').select('id, name').eq('round_id', round.id).order('name')
   const teamIds = (teams ?? []).map((t) => t.id)
 
-  const [{ data: playersRaw }, { data: holes }, { data: scores }, { data: savedMatchups }] = await Promise.all([
+  const [{ data: playersRaw }, { data: holes }, { data: scores }, { data: savedMatchups }, { data: savedBestBall }] = await Promise.all([
     teamIds.length
       ? sb.from('players').select('id, name, team_id').in('team_id', teamIds).order('name')
       : Promise.resolve({ data: [] }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
     sb.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', round.id).order('created_at'),
+    sb.from('best_ball_matchups')
+      .select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet')
+      .eq('round_id', round.id).order('created_at'),
   ])
 
-  // Attach team name to each player
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t.name]))
   const players = (playersRaw ?? []).map((p) => ({
     id: p.id,
@@ -44,6 +46,7 @@ export default async function MatchupPage() {
       scores={scores ?? []}
       roundName={round.name}
       initialMatchups={savedMatchups ?? []}
+      initialBestBallMatchups={savedBestBall ?? []}
     />
   )
 }

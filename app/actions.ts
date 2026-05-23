@@ -254,6 +254,46 @@ export async function deleteMatchup(id: string) {
   return {}
 }
 
+export async function updateMatchupBet(id: string, bet: string) {
+  const sb = createServerClient()
+  const { error } = await sb.from('matchups').update({ bet: bet.trim() }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
+export async function saveBestBallMatchup(
+  roundId: string,
+  team1Player1Id: string, team1Player2Id: string,
+  team2Player1Id: string, team2Player2Id: string,
+  bet: string
+) {
+  const sb = createServerClient()
+  const { data, error } = await sb.from('best_ball_matchups').insert({
+    round_id: roundId,
+    team1_player1_id: team1Player1Id,
+    team1_player2_id: team1Player2Id,
+    team2_player1_id: team2Player1Id,
+    team2_player2_id: team2Player2Id,
+    bet: bet.trim(),
+  }).select('id').single()
+  if (error) return { error: error.message }
+  return { id: data.id }
+}
+
+export async function deleteBestBallMatchup(id: string) {
+  const sb = createServerClient()
+  const { error } = await sb.from('best_ball_matchups').delete().eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
+export async function updateBestBallBet(id: string, bet: string) {
+  const sb = createServerClient()
+  const { error } = await sb.from('best_ball_matchups').update({ bet: bet.trim() }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function saveDaytonaAssignments(
   roundId: string,
   holeNumber: number,
