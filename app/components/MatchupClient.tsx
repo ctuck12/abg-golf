@@ -27,11 +27,8 @@ const gold = '#f59e0b'
 function scoreColor(strokes: number | null, par: number): string {
   if (strokes == null) return '#9ca3af'
   const d = strokes - par
-  if (d <= -2) return '#7c3aed'
-  if (d === -1) return '#2563eb'
-  if (d === 0) return '#6b7280'
-  if (d === 1) return '#dc2626'
-  return '#7f1d1d'
+  if (d < 0) return '#dc2626'
+  return '#111827'
 }
 
 function fmtVsPar(n: number | null): string {
