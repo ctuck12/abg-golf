@@ -177,7 +177,7 @@ export default function AllScorecardsView({
           return (
             <div key={player.id} className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               {/* Player card header */}
-              <div className="flex items-center gap-3 px-4 py-2" style={{ background: navy }}>
+              <div className="flex items-center gap-3 px-4 py-1.5" style={{ background: navy }}>
                 <span className="text-base font-bold w-8 flex-shrink-0"
                   style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                   {thru > 0 ? `#${rank + 1}` : '–'}
@@ -188,7 +188,7 @@ export default function AllScorecardsView({
               {/* Scorecard table */}
               <div className="overflow-x-auto bg-white">
                 <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
-                  <thead>
+                  <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
                       <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
                       {[1,2,3,4,5,6,7,8,9].map((n) => <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>)}
