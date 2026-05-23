@@ -588,35 +588,7 @@ export default function MatchupClient({
                     return (
                       <div key={m.id}>
                         <div className="px-4 py-3">
-                          {/* Team names row */}
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2 text-sm font-semibold min-w-0 flex-wrap">
-                              <button
-                                onClick={() => setShowScorecardFor({ type: 'bestball', p1Id: m.team1_player1_id, p2Id: m.team1_player2_id, teamName: t1Name })}
-                                className="hover:underline font-semibold text-left" style={{ color: '#2563eb' }}>
-                                {t1Name}
-                              </button>
-                              <span className="text-gray-400 font-normal flex-shrink-0">vs</span>
-                              <button
-                                onClick={() => setShowScorecardFor({ type: 'bestball', p1Id: m.team2_player1_id, p2Id: m.team2_player2_id, teamName: t2Name })}
-                                className="hover:underline font-semibold text-left" style={{ color: '#92400e' }}>
-                                {t2Name}
-                              </button>
-                              {isFinal && (
-                                <span className="px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0"
-                                  style={{ background: '#fef3c7', color: '#92400e' }}>FINAL</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                              <button onClick={() => setExpandedBB(isExpanded ? null : m.id)}
-                                className="text-xs text-gray-400 hover:text-gray-700">
-                                {isExpanded ? '▲' : '▼'}
-                              </button>
-                              <button onClick={() => handleDeleteBB(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
-                            </div>
-                          </div>
-
-                          {/* Bet + status */}
+                          {/* Bet + status + controls row */}
                           <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
                             {isEditingBB ? (
                               <div className="flex items-center gap-1.5">
@@ -635,20 +607,22 @@ export default function MatchupClient({
                                   className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
                               </span>
                             )}
-                            {stats.holesPlayed > 0 ? (
+                            {stats.holesPlayed > 0 && (
                               <>
-                                <span className="text-gray-300">·</span>
-                                <span className="font-mono font-bold text-gray-700">{stats.t1Wins}–{stats.t2Wins}–{stats.ties}</span>
                                 <span className="text-gray-300">·</span>
                                 <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
                                   {isFinal
                                     ? (leader === 'team1' ? `${t1Name} wins` : leader === 'team2' ? `${t2Name} wins` : 'Tied')
                                     : (leader === 'team1' ? `${t1Name} leads` : leader === 'team2' ? `${t2Name} leads` : 'All square')}
                                 </span>
-                                <span className="text-gray-300">·</span>
-                                <span>Thru {stats.holesPlayed}</span>
                               </>
-                            ) : <span className="text-gray-400">No scores yet</span>}
+                            )}
+                            <span className="flex-1" />
+                            <button onClick={() => setExpandedBB(isExpanded ? null : m.id)}
+                              className="text-xs text-gray-400 hover:text-gray-700">
+                              {isExpanded ? '▲' : '▼'}
+                            </button>
+                            <button onClick={() => handleDeleteBB(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
 
                           {/* 5-column summary table */}
