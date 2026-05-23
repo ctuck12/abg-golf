@@ -605,13 +605,11 @@ export default function MatchupClient({
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
                             </button>
-                            {stats.holesPlayed > 0 && (
+                            {h2hHole18 && (
                               <>
                                 <span className="text-gray-300">·</span>
                                 <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
-                                  {isFinal
-                                    ? (leader ? `${leader.name.split(' ')[0]} wins` : 'All square')
-                                    : (leader ? `${leader.name.split(' ')[0]} leads` : 'All square')}
+                                  {leader ? `${leader.name.split(' ')[0]} wins` : (isMatchPlay ? 'All square' : 'Tied')}
                                 </span>
                               </>
                             )}
@@ -843,13 +841,11 @@ export default function MatchupClient({
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
                             </button>
-                            {stats.holesPlayed > 0 && (
+                            {bbHole18 && (
                               <>
                                 <span className="text-gray-300">·</span>
                                 <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
-                                  {isFinal
-                                    ? (leader === 'team1' ? `${t1Name} wins` : leader === 'team2' ? `${t2Name} wins` : 'Tied')
-                                    : (leader === 'team1' ? `${t1Name} leads` : leader === 'team2' ? `${t2Name} leads` : 'All square')}
+                                  {leader === 'team1' ? `${t1Name} wins` : leader === 'team2' ? `${t2Name} wins` : (isBBMatchPlay ? 'All square' : 'Tied')}
                                 </span>
                               </>
                             )}
