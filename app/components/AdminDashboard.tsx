@@ -91,6 +91,7 @@ export default function AdminDashboard({
   const parTotal = Object.values(pars).reduce((a, b) => a + b, 0)
   const ballsCount = round?.balls_count ?? 3
   const isDaytona = round?.format === 'daytona'
+  const isComplete = players.length > 0 && holes.length > 0 && players.every((p) => scores.filter((s) => s.player_id === p.id).length === holes.length)
 
   // Standard ball payouts
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
@@ -196,7 +197,9 @@ export default function AdminDashboard({
                 <div className="flex items-center gap-2 mb-0.5">
                   <p className="font-semibold text-gray-900 truncate">{round.name}</p>
                   {round.is_started ? (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: '#dcfce7', color: '#15803d' }}>● Active</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={isComplete ? { background: '#fee2e2', color: '#dc2626' } : { background: '#dcfce7', color: '#15803d' }}>
+                      {isComplete ? '● Complete' : '● Active'}
+                    </span>
                   ) : (
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>Setup</span>
                   )}
@@ -289,7 +292,7 @@ export default function AdminDashboard({
                           className="text-gray-500 px-3 py-1.5 rounded-lg text-sm border border-gray-300">Cancel</button>
                       </form>
                     ) : (
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-start gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-900 text-sm">{team.name}</p>
                           <p className="text-xs text-gray-500">
@@ -298,25 +301,27 @@ export default function AdminDashboard({
                             {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
                           </p>
                         </div>
-                        <button onClick={() => setRenamingTeam(team.id)}
-                          className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
-                          Rename
-                        </button>
-                        <button onClick={() => setSelectedTeam(isSelected ? null : team.id)}
-                          className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
-                          {isSelected ? 'Close' : 'Players'}
-                        </button>
-                        <button type="button" onClick={() => handleToggleAdmin(team.id, !team.is_admin)}
-                          className="text-xs border px-2 py-1 rounded"
-                          style={team.is_admin
-                            ? { background: gold, borderColor: gold, color: navy }
-                            : { borderColor: gold, color: '#6b7280' }}>
-                          {team.is_admin ? 'Revoke Admin' : 'Make Admin'}
-                        </button>
-                        <button type="button" onClick={() => handleDeleteTeam(team.id)}
-                          className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
-                          Remove
-                        </button>
+                        <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 flex-shrink-0">
+                          <button onClick={() => setRenamingTeam(team.id)}
+                            className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
+                            Rename
+                          </button>
+                          <button onClick={() => setSelectedTeam(isSelected ? null : team.id)}
+                            className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
+                            {isSelected ? 'Close' : 'Players'}
+                          </button>
+                          <button type="button" onClick={() => handleToggleAdmin(team.id, !team.is_admin)}
+                            className="text-xs border px-2 py-1 rounded"
+                            style={team.is_admin
+                              ? { background: gold, borderColor: gold, color: navy }
+                              : { borderColor: gold, color: '#6b7280' }}>
+                            {team.is_admin ? 'Revoke Admin' : 'Make Admin'}
+                          </button>
+                          <button type="button" onClick={() => handleDeleteTeam(team.id)}
+                            className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -407,7 +412,7 @@ export default function AdminDashboard({
                   <input type="text" name="name" placeholder="e.g. Saturday Scramble" required
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
                     <input type="date" name="date" required
