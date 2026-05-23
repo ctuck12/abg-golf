@@ -32,7 +32,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 }
 
 export default function ScoreEntry({
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, roundId = '', initialAssignments = [],
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, roundId = '', initialAssignments = [], roundPlayerIds = [],
 }: {
   team: Team
   players: Player[]
@@ -44,6 +44,7 @@ export default function ScoreEntry({
   isAdmin: boolean
   roundId?: string
   initialAssignments?: DaytonaHoleAssignment[]
+  roundPlayerIds?: string[]
 }) {
   const isDaytona = format === 'daytona'
   const is5Man = isDaytona && daytonaVariant.startsWith('5man')
@@ -74,6 +75,16 @@ export default function ScoreEntry({
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
   const [expandedHole, setExpandedHole] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
+  const [roundComplete, setRoundComplete] = useState(false)
+
+  async function checkRoundComplete() {
+    if (roundPlayerIds.length === 0) return
+    const { count } = await supabase
+      .from('scores')
+      .select('*', { count: 'exact', head: true })
+      .in('player_id', roundPlayerIds)
+    setRoundComplete(count !== null && count >= roundPlayerIds.length * 18)
+  }
 
   const broadcastChannel = useRef<ReturnType<typeof supabase.channel> | null>(null)
   useEffect(() => {
@@ -108,12 +119,17 @@ export default function ScoreEntry({
             return m
           })
         }
+        checkRoundComplete()
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') broadcastChannel.current = ch
       })
     return () => { supabase.removeChannel(ch); broadcastChannel.current = null }
   }, [players])
+
+  useEffect(() => {
+    checkRoundComplete()
+  }, [])
 
   // Daytona Left/Right assignments per hole
   const [assignments, setAssignments] = useState<AssignmentMap>(() => {
@@ -299,7 +315,7 @@ export default function ScoreEntry({
           <div className="bg-white rounded-xl border-2 px-4 py-3 text-center" style={{ borderColor: gold }}>
             <p className="font-semibold" style={{ color: navy }}>All 18 holes submitted! ⛳</p>
             <a href="/leaderboard" className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
-              View Payouts →
+              {roundComplete ? 'Final Payouts →' : 'View Payouts →'}
             </a>
           </div>
         )}

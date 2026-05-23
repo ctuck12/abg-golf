@@ -26,6 +26,12 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
 
   const isDaytona = (round.format ?? 'standard') === 'daytona'
 
+  const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', team.round_id)
+  const allTeamIds = (allTeams ?? []).map((t) => t.id)
+  const { data: allRoundPlayers } = await sb
+    .from('players').select('id').in('team_id', allTeamIds.length ? allTeamIds : [''])
+  const roundPlayerIds = (allRoundPlayers ?? []).map((p) => p.id)
+
   const [{ data: holes }, { data: scores }, { data: assignments }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
@@ -46,6 +52,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
       isAdmin={team.is_admin ?? false}
       roundId={round.id}
       initialAssignments={assignments ?? []}
+      roundPlayerIds={roundPlayerIds}
     />
   )
 }
