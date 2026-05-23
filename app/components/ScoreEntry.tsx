@@ -201,32 +201,9 @@ export default function ScoreEntry({
             </div>
             <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
-          <div className="flex gap-3">
-            {isDaytona ? (
-              ([
-                { label: 'Front 9', leftTotal: dtSummary?.leftFront ?? null, rightTotal: dtSummary?.rightFront ?? null },
-                { label: 'Back 9', leftTotal: dtSummary?.leftBack ?? null, rightTotal: dtSummary?.rightBack ?? null },
-              ]).map(({ label, leftTotal, rightTotal }) => (
-                <div key={label} className="flex-1">
-                  <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
-                  <div className="flex gap-3">
-                    <div className="text-center">
-                      <p className="text-xs" style={{ color: '#60a5fa' }}>{leftLabel}</p>
-                      <p className="font-bold text-sm" style={{ color: leftTotal == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
-                        {leftTotal ?? '–'}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs" style={{ color: gold }}>{rightLabel}</p>
-                      <p className="font-bold text-sm" style={{ color: rightTotal == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
-                        {rightTotal ?? '–'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              ([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
+          {!isDaytona && (
+            <div className="flex gap-3">
+              {([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
                 <div key={label} className="flex-1">
                   <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
                   <div className="flex gap-3">
@@ -243,9 +220,9 @@ export default function ScoreEntry({
                     })}
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Player running point totals — Daytona only */}
           {isDaytona && playerPointTotals.size > 0 && (
