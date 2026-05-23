@@ -103,10 +103,10 @@ function formatBet(bet: string): string {
   if (!bet.startsWith('nassau:') && !bet.startsWith('straight:') && !bet.startsWith('score:')) return bet // legacy free text
   const { betType, amount, scoringType } = parseBet(bet)
   const scoringLabel = scoringType === 'match' ? 'Match Play' : 'Stroke Play'
-  if (betType === 'nassau' && amount) return `Nassau $${amount}/$${amount}/$${amount} · ${scoringLabel}`
-  if (betType === 'nassau') return `Nassau · ${scoringLabel}`
-  if (betType === 'straight' && amount) return `$${amount} · ${scoringLabel}`
-  if (betType === 'straight') return `Straight Up · ${scoringLabel}`
+  if (betType === 'nassau' && amount) return `$${amount} Nassau ${scoringLabel}`
+  if (betType === 'nassau') return `Nassau ${scoringLabel}`
+  if (betType === 'straight' && amount) return `$${amount} Straight Up ${scoringLabel}`
+  if (betType === 'straight') return `Straight Up ${scoringLabel}`
   return scoringLabel
 }
 
