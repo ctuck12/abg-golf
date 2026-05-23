@@ -356,7 +356,7 @@ export default function MatchupClient({
             <div className="px-4 py-4 overflow-x-auto">
               {showScorecardFor.type === 'player' ? (
                 <HorizontalScorecardTable
-                  rows={[{ label: showScorecardFor.name, scoreMap: scoreMap[showScorecardFor.id] ?? {} }]}
+                  rows={[{ label: 'Score', scoreMap: scoreMap[showScorecardFor.id] ?? {} }]}
                   holes={holes}
                 />
               ) : (() => {
