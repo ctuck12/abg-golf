@@ -21,6 +21,7 @@ type ScorecardTarget =
   | { type: 'player'; id: string; name: string }
   | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string }
   | { type: 'bestball'; p1Id: string; p2Id: string; teamName: string }
+  | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string }
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -234,7 +235,6 @@ export default function MatchupClient({
   const [bbScoringType, setBbScoringType] = useState<ScoringType>('stroke')
   const [savingBB, setSavingBB] = useState(false)
 
-  const [expandedBB, setExpandedBB] = useState<string | null>(null)
   const [editingBB, setEditingBB] = useState<string | null>(null)
   const [editBBBetType, setEditBBBetType] = useState<BetType | ''>('')
   const [editBBBetAmount, setEditBBBetAmount] = useState('')
@@ -324,7 +324,6 @@ export default function MatchupClient({
 
   async function handleDeleteBB(id: string) {
     setBestBallMatchups((prev) => prev.filter((m) => m.id !== id))
-    if (expandedBB === id) setExpandedBB(null)
     await deleteBestBallMatchup(id)
   }
 
@@ -351,6 +350,7 @@ export default function MatchupClient({
               <h3 className="font-bold text-gray-900 text-base">
                 {showScorecardFor.type === 'player' ? showScorecardFor.name
                   : showScorecardFor.type === 'h2h' ? `${showScorecardFor.p1Name} vs ${showScorecardFor.p2Name}`
+                  : showScorecardFor.type === 'bb-scorecards' ? `${showScorecardFor.t1Name} vs ${showScorecardFor.t2Name}`
                   : showScorecardFor.teamName}
               </h3>
               <button onClick={() => setShowScorecardFor(null)}
@@ -369,6 +369,19 @@ export default function MatchupClient({
                     rows={[
                       { label: target.p1Name, scoreMap: scoreMap[target.p1Id] ?? {} },
                       { label: target.p2Name, scoreMap: scoreMap[target.p2Id] ?? {} },
+                    ]}
+                    holes={holes}
+                  />
+                )
+              })() : showScorecardFor.type === 'bb-scorecards' ? (() => {
+                const target = showScorecardFor
+                return (
+                  <HorizontalScorecardTable
+                    rows={[
+                      { label: target.t1p1Name, scoreMap: scoreMap[target.t1p1Id] ?? {} },
+                      { label: target.t1p2Name, scoreMap: scoreMap[target.t1p2Id] ?? {} },
+                      { label: target.t2p1Name, scoreMap: scoreMap[target.t2p1Id] ?? {} },
+                      { label: target.t2p2Name, scoreMap: scoreMap[target.t2p2Id] ?? {} },
                     ]}
                     holes={holes}
                   />
@@ -733,7 +746,6 @@ export default function MatchupClient({
                     const leader = stats.t1Wins > stats.t2Wins ? 'team1' : stats.t2Wins > stats.t1Wins ? 'team2' : null
                     const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
                     const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
-                    const isExpanded = expandedBB === m.id
                     const isEditingBB = editingBB === m.id
 
                     return (
@@ -772,6 +784,18 @@ export default function MatchupClient({
                                   className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
                               </span>
                             )}
+                            <button
+                              onClick={() => setShowScorecardFor({
+                                type: 'bb-scorecards',
+                                t1p1Id: m.team1_player1_id, t1p2Id: m.team1_player2_id,
+                                t2p1Id: m.team2_player1_id, t2p2Id: m.team2_player2_id,
+                                t1p1Name: t1p1.name.split(' ')[0], t1p2Name: t1p2.name.split(' ')[0],
+                                t2p1Name: t2p1.name.split(' ')[0], t2p2Name: t2p2.name.split(' ')[0],
+                                t1Name, t2Name,
+                              })}
+                              className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
+                              Scorecards
+                            </button>
                             {stats.holesPlayed > 0 && (
                               <>
                                 <span className="text-gray-300">·</span>
@@ -783,10 +807,6 @@ export default function MatchupClient({
                               </>
                             )}
                             <span className="flex-1" />
-                            <button onClick={() => setExpandedBB(isExpanded ? null : m.id)}
-                              className="text-xs text-gray-400 hover:text-gray-700">
-                              {isExpanded ? '▲' : '▼'}
-                            </button>
                             <button onClick={() => handleDeleteBB(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
 
@@ -833,12 +853,6 @@ export default function MatchupClient({
                           </div>
                         </div>
 
-                        {/* Expanded match table */}
-                        {isExpanded && (
-                          <div className="border-t border-gray-100">
-                            <BBMatchTable stats={stats} t1Name={t1Name} t2Name={t2Name} holes={holes} />
-                          </div>
-                        )}
                       </div>
                     )
                   })}
