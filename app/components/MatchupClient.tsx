@@ -242,6 +242,8 @@ export default function MatchupClient({
 
   const [showScorecardFor, setShowScorecardFor] = useState<ScorecardTarget | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showH2HForm, setShowH2HForm] = useState(false)
+  const [showBBForm, setShowBBForm] = useState(false)
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -422,9 +424,18 @@ export default function MatchupClient({
 
         {/* ── Head to Head ── */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Head to Head</p>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Head to Head</p>
+            {!showH2HForm && (
+              <button onClick={() => setShowH2HForm(true)}
+                className="text-xs font-semibold px-3 py-1 rounded-lg"
+                style={{ background: navy, color: 'white' }}>
+                + Add
+              </button>
+            )}
+          </div>
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+            {showH2HForm && <div className="px-4 pt-4 pb-3 border-b border-gray-100">
               <div className="space-y-2">
                 <div className="flex gap-2">
                   <div className="flex-1">
@@ -477,7 +488,7 @@ export default function MatchupClient({
                   </button>
                 </div>
               </div>
-            </div>
+            </div>}
 
             {(() => {
               const filtered = searchLower
@@ -615,9 +626,18 @@ export default function MatchupClient({
 
         {/* ── 2 v 2 Best Ball ── */}
         <div>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">2 v 2 Best Ball</p>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">2 v 2 Best Ball</p>
+            {!showBBForm && (
+              <button onClick={() => setShowBBForm(true)}
+                className="text-xs font-semibold px-3 py-1 rounded-lg"
+                style={{ background: navy, color: 'white' }}>
+                + Add
+              </button>
+            )}
+          </div>
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-4 pt-4 pb-3 border-b border-gray-100">
+            {showBBForm && <div className="px-4 pt-4 pb-3 border-b border-gray-100">
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <div>
                   <p className="text-xs font-semibold text-blue-600 mb-1">Team 1</p>
@@ -687,7 +707,7 @@ export default function MatchupClient({
                   {savingBB ? 'Saving…' : 'Save'}
                 </button>
               </div>
-            </div>
+            </div>}
 
             {(() => {
               const filtered = searchLower
