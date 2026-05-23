@@ -600,7 +600,7 @@ export default function ScoreEntry({
                           <div className="text-center">
                             <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
                             <p className="font-bold text-sm text-gray-900">
-                              {savedRightPairDts.map((dt) => dt ?? '–').join('/')}
+                              {[...savedRightPairDts].sort((a, b) => (a ?? Infinity) - (b ?? Infinity)).map((dt) => dt ?? '–').join('/')}
                             </p>
                           </div>
                         ) : (
@@ -687,7 +687,7 @@ export default function ScoreEntry({
                           {' · '}
                           <span style={{ color: '#92400e' }}>
                             {is5Man
-                              ? `R ${liveRightPairDts.map((dt) => dt ?? '–').join(' / ')}`
+                              ? `R ${[...liveRightPairDts].sort((a, b) => (a ?? Infinity) - (b ?? Infinity)).map((dt) => dt ?? '–').join(' / ')}`
                               : `R ${liveRightDt}`}
                           </span>
                         </span>
