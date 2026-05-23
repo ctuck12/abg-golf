@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
+  computeHoleDaytonaPointsFiveMan,
   calculateFrontBackPayouts, settleDaytonaPlayerPoints,
   type DaytonaHoleAssignment, type DaytonaSide,
 } from '@/lib/scoring'
@@ -545,6 +546,28 @@ export default function ScoreEntry({
             })
           })()
 
+          // Per-player points for this hole (saved only)
+          const holePlayerPoints: Map<string, number> = (() => {
+            if (!isDaytona || !isSaved) return new Map()
+            const leftIds = players.filter((p) => holeAssignments[p.id] === 'left').map((p) => p.id)
+            const rightIds = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => p.id)
+            if (is5Man) {
+              if (leftIds.length < 2 || rightIds.length < 3) return new Map()
+              return computeHoleDaytonaPointsFiveMan(leftIds, rightIds, savedScores, hole.hole_number, hole.par)
+            }
+            const lScores = leftIds.map((id) => savedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+            const rScores = rightIds.map((id) => savedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+            if (lScores.length < 2 || rScores.length < 2) return new Map()
+            const { leftDt, rightDt } = computeHoleDaytonaWithSides(lScores, rScores, hole.par)
+            if (leftDt === null || rightDt === null) return new Map()
+            const diff = Math.abs(leftDt - rightDt)
+            const leftPts = leftDt < rightDt ? diff : leftDt > rightDt ? -diff : 0
+            const map = new Map<string, number>()
+            for (const id of leftIds) map.set(id, leftPts)
+            for (const id of rightIds) map.set(id, -leftPts)
+            return map
+          })()
+
           // Live preview during edit
           const editLeftScores = players
             .filter((p) => holeAssignments[p.id] === 'left')
@@ -658,7 +681,18 @@ export default function ScoreEntry({
                             {side === 'left' ? leftLabel : rightLabel}
                           </button>
                         )}
-                        <span className="flex-1 text-sm font-medium text-gray-800 truncate">{player.name}</span>
+                        <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
+                          {player.name}
+                          {isDaytona && isSaved && (() => {
+                            const pts = holePlayerPoints.get(player.id)
+                            if (!pts) return null
+                            return (
+                              <span className="ml-1.5 text-xs font-semibold" style={{ color: pts > 0 ? '#16a34a' : '#dc2626' }}>
+                                {pts > 0 ? `+${pts}` : pts}
+                              </span>
+                            )
+                          })()}
+                        </span>
                         <button type="button" onClick={() => setStroke(player.id, hole.hole_number, val - 1)}
                           className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition flex-shrink-0">
                           −
