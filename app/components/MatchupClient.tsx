@@ -336,6 +336,7 @@ export default function MatchupClient({
 
   const searchLower = searchQuery.toLowerCase().trim()
   const bbSelected = [bbT1P1, bbT1P2, bbT2P1, bbT2P2].filter(Boolean)
+  const isComplete = holes.length > 0 && players.every((p) => Object.keys(scoreMap[p.id] ?? {}).length >= holes.length)
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -418,8 +419,8 @@ export default function MatchupClient({
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
-              Live
+              <span className={`w-2 h-2 rounded-full inline-block ${isComplete ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`} />
+              {isComplete ? 'Complete' : 'Live'}
             </div>
             <a href="/leaderboard" className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
@@ -536,6 +537,14 @@ export default function MatchupClient({
                     const isEditing = editingH2H === m.id
                     const p1First = mp1.name.split(' ')[0]
                     const p2First = mp2.name.split(' ')[0]
+                    const h2hHole9 = (scoreMap[m.player1_id]?.[9] != null) && (scoreMap[m.player2_id]?.[9] != null)
+                    const h2hHole18 = (scoreMap[m.player1_id]?.[18] != null) && (scoreMap[m.player2_id]?.[18] != null)
+                    const p1WinsFront = stats.p1Front !== null && stats.p2Front !== null && stats.p1Front < stats.p2Front
+                    const p2WinsFront = stats.p1Front !== null && stats.p2Front !== null && stats.p2Front < stats.p1Front
+                    const p1WinsBack = stats.p1Back !== null && stats.p2Back !== null && stats.p1Back < stats.p2Back
+                    const p2WinsBack = stats.p1Back !== null && stats.p2Back !== null && stats.p2Back < stats.p1Back
+                    const p1WinsTotal = stats.p1Total !== null && stats.p2Total !== null && stats.p1Total < stats.p2Total
+                    const p2WinsTotal = stats.p1Total !== null && stats.p2Total !== null && stats.p2Total < stats.p1Total
 
                     return (
                       <div key={m.id}>
@@ -606,18 +615,18 @@ export default function MatchupClient({
                               </thead>
                               <tbody>
                                 {([
-                                  { player: mp1, front: stats.p1Front, back: stats.p1Back, total: stats.p1Total },
-                                  { player: mp2, front: stats.p2Front, back: stats.p2Back, total: stats.p2Total },
-                                ] as const).map(({ player, front, back, total }) => {
+                                  { player: mp1, front: stats.p1Front, back: stats.p1Back, total: stats.p1Total, wFront: p1WinsFront, wBack: p1WinsBack, wTotal: p1WinsTotal },
+                                  { player: mp2, front: stats.p2Front, back: stats.p2Back, total: stats.p2Total, wFront: p2WinsFront, wBack: p2WinsBack, wTotal: p2WinsTotal },
+                                ] as const).map(({ player, front, back, total, wFront, wBack, wTotal }) => {
                                   const thru = Object.keys(scoreMap[player.id] ?? {}).length
                                   return (
                                     <tr key={player.id} className="border-t border-gray-100">
                                       <td className="px-3 py-2">
                                         <span className="text-xs font-semibold text-gray-800">{player.name}</span>
                                       </td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(front) }}>{fmtVsPar(front)}</td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(back) }}>{fmtVsPar(back)}</td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(total) }}>{fmtVsPar(total)}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(front) }}>{fmtVsPar(front)}{h2hHole9 && wFront && <span className="ml-0.5 text-green-600">✓</span>}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(back) }}>{fmtVsPar(back)}{h2hHole18 && wBack && <span className="ml-0.5 text-green-600">✓</span>}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(total) }}>{fmtVsPar(total)}{h2hHole18 && wTotal && <span className="ml-0.5 text-green-600">✓</span>}</td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                     </tr>
                                   )
@@ -747,6 +756,14 @@ export default function MatchupClient({
                     const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
                     const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
                     const isEditingBB = editingBB === m.id
+                    const bbHole9 = (scoreMap[m.team1_player1_id]?.[9] != null || scoreMap[m.team1_player2_id]?.[9] != null) && (scoreMap[m.team2_player1_id]?.[9] != null || scoreMap[m.team2_player2_id]?.[9] != null)
+                    const bbHole18 = (scoreMap[m.team1_player1_id]?.[18] != null || scoreMap[m.team1_player2_id]?.[18] != null) && (scoreMap[m.team2_player1_id]?.[18] != null || scoreMap[m.team2_player2_id]?.[18] != null)
+                    const t1WinsFront = stats.t1Front !== null && stats.t2Front !== null && stats.t1Front < stats.t2Front
+                    const t2WinsFront = stats.t1Front !== null && stats.t2Front !== null && stats.t2Front < stats.t1Front
+                    const t1WinsBack = stats.t1Back !== null && stats.t2Back !== null && stats.t1Back < stats.t2Back
+                    const t2WinsBack = stats.t1Back !== null && stats.t2Back !== null && stats.t2Back < stats.t1Back
+                    const t1WinsTotal = stats.t1Total !== null && stats.t2Total !== null && stats.t1Total < stats.t2Total
+                    const t2WinsTotal = stats.t1Total !== null && stats.t2Total !== null && stats.t2Total < stats.t1Total
 
                     return (
                       <div key={m.id}>
@@ -824,9 +841,9 @@ export default function MatchupClient({
                               </thead>
                               <tbody>
                                 {([
-                                  { tName: t1Name, front: stats.t1Front, back: stats.t1Back, total: stats.t1Total, p1Id: m.team1_player1_id, p2Id: m.team1_player2_id, color: '#2563eb' },
-                                  { tName: t2Name, front: stats.t2Front, back: stats.t2Back, total: stats.t2Total, p1Id: m.team2_player1_id, p2Id: m.team2_player2_id, color: '#92400e' },
-                                ] as const).map(({ tName, front, back, total, p1Id, p2Id, color }) => {
+                                  { tName: t1Name, front: stats.t1Front, back: stats.t1Back, total: stats.t1Total, p1Id: m.team1_player1_id, p2Id: m.team1_player2_id, color: '#2563eb', wFront: t1WinsFront, wBack: t1WinsBack, wTotal: t1WinsTotal },
+                                  { tName: t2Name, front: stats.t2Front, back: stats.t2Back, total: stats.t2Total, p1Id: m.team2_player1_id, p2Id: m.team2_player2_id, color: '#92400e', wFront: t2WinsFront, wBack: t2WinsBack, wTotal: t2WinsTotal },
+                                ] as const).map(({ tName, front, back, total, p1Id, p2Id, color, wFront, wBack, wTotal }) => {
                                   const thru = holes.filter((h) =>
                                     (scoreMap[p1Id]?.[h.hole_number] != null) ||
                                     (scoreMap[p2Id]?.[h.hole_number] != null)
@@ -841,9 +858,9 @@ export default function MatchupClient({
                                           {tName}
                                         </button>
                                       </td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(front) }}>{fmtVsPar(front)}</td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(back) }}>{fmtVsPar(back)}</td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(total) }}>{fmtVsPar(total)}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(front) }}>{fmtVsPar(front)}{bbHole9 && wFront && <span className="ml-0.5 text-green-600">✓</span>}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(back) }}>{fmtVsPar(back)}{bbHole18 && wBack && <span className="ml-0.5 text-green-600">✓</span>}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(total) }}>{fmtVsPar(total)}{bbHole18 && wTotal && <span className="ml-0.5 text-green-600">✓</span>}</td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                     </tr>
                                   )
