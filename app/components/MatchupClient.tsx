@@ -24,11 +24,37 @@ type ScorecardTarget =
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
-function scoreColor(strokes: number | null, par: number): string {
-  if (strokes == null) return '#9ca3af'
-  const d = strokes - par
-  if (d < 0) return '#dc2626'
-  return '#111827'
+function ScoreCell({ strokes, par }: { strokes: number; par: number }) {
+  const diff = strokes - par
+  const base: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: 700, color: '#111827', minWidth: '1.5em', height: '1.5em',
+    lineHeight: 1, fontSize: 'inherit',
+  }
+  // Par – no decoration
+  if (diff === 0) return <span style={{ fontWeight: 700, color: '#111827' }}>{strokes}</span>
+  // Under par → circles
+  if (diff === -1) // birdie – 1 circle
+    return <span style={{ ...base, border: '1.5px solid #111827', borderRadius: '50%' }}>{strokes}</span>
+  if (diff === -2) // eagle – 2 circles
+    return <span style={{ ...base, border: '1.5px solid #111827', borderRadius: '50%', outline: '1.5px solid #111827', outlineOffset: '2px' }}>{strokes}</span>
+  if (diff <= -3) // albatross+ – 3 circles
+    return (
+      <span style={{ display: 'inline-flex', border: '1.5px solid #111827', borderRadius: '50%', padding: '2px' }}>
+        <span style={{ ...base, border: '1.5px solid #111827', borderRadius: '50%', outline: '1.5px solid #111827', outlineOffset: '1.5px' }}>{strokes}</span>
+      </span>
+    )
+  // Over par → squares
+  if (diff === 1) // bogey – 1 square
+    return <span style={{ ...base, border: '1.5px solid #111827' }}>{strokes}</span>
+  if (diff === 2) // double bogey – 2 squares
+    return <span style={{ ...base, border: '1.5px solid #111827', outline: '1.5px solid #111827', outlineOffset: '2px' }}>{strokes}</span>
+  // triple bogey+ – 3 squares
+  return (
+    <span style={{ display: 'inline-flex', border: '1.5px solid #111827', padding: '2px' }}>
+      <span style={{ ...base, border: '1.5px solid #111827', outline: '1.5px solid #111827', outlineOffset: '1.5px' }}>{strokes}</span>
+    </span>
+  )
 }
 
 function fmtVsPar(n: number | null): string {
@@ -888,7 +914,7 @@ function HorizontalScorecardTable({
                 return (
                   <td key={n} style={cell()}>
                     {s != null && hole
-                      ? <span style={{ fontWeight: 700, color: scoreColor(s, hole.par) }}>{s}</span>
+                      ? <ScoreCell strokes={s} par={hole.par} />
                       : <span style={{ color: '#d1d5db' }}>–</span>}
                   </td>
                 )
@@ -900,7 +926,7 @@ function HorizontalScorecardTable({
                 return (
                   <td key={n} style={cell()}>
                     {s != null && hole
-                      ? <span style={{ fontWeight: 700, color: scoreColor(s, hole.par) }}>{s}</span>
+                      ? <ScoreCell strokes={s} par={hole.par} />
                       : <span style={{ color: '#d1d5db' }}>–</span>}
                   </td>
                 )
@@ -908,7 +934,7 @@ function HorizontalScorecardTable({
               <td style={cell(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>
               <td style={{ ...cell(), fontWeight: 700 }}>
                 {anyScored
-                  ? <span style={{ color: scoreColor(totalStrokes, totalPar) }}>{totalStrokes}</span>
+                  ? <span style={{ fontWeight: 700, color: '#111827' }}>{totalStrokes}</span>
                   : '–'}
               </td>
             </tr>
@@ -943,7 +969,7 @@ function H2HHoleTable({ stats, p1, p2, holes }: {
               <td className="px-3 py-2.5 font-bold text-gray-900">{hole.hole_number}</td>
               <td className="px-2 py-2.5 text-center text-gray-400">{hole.par}</td>
               <td className="px-3 py-2.5 text-center">
-                {s1 != null ? <span className="font-bold" style={{ color: scoreColor(s1, hole.par) }}>{s1}</span> : <span className="text-gray-300">–</span>}
+                {s1 != null ? <ScoreCell strokes={s1} par={hole.par} /> : <span className="text-gray-300">–</span>}
               </td>
               <td className="px-2 py-2.5 text-center text-xs font-bold">
                 {result === 'win' && <span className="text-green-600">W</span>}
@@ -952,7 +978,7 @@ function H2HHoleTable({ stats, p1, p2, holes }: {
                 {result === null && <span className="text-gray-200">–</span>}
               </td>
               <td className="px-3 py-2.5 text-center">
-                {s2 != null ? <span className="font-bold" style={{ color: scoreColor(s2, hole.par) }}>{s2}</span> : <span className="text-gray-300">–</span>}
+                {s2 != null ? <ScoreCell strokes={s2} par={hole.par} /> : <span className="text-gray-300">–</span>}
               </td>
             </tr>
           )
@@ -1003,7 +1029,7 @@ function BBMatchTable({ stats, t1Name, t2Name, holes }: {
               <td className="px-3 py-2.5 font-bold text-gray-900">{hole.hole_number}</td>
               <td className="px-2 py-2.5 text-center text-gray-400">{hole.par}</td>
               <td className="px-3 py-2.5 text-center">
-                {t1Best != null ? <span className="font-bold" style={{ color: scoreColor(t1Best, hole.par) }}>{t1Best}</span> : <span className="text-gray-300">–</span>}
+                {t1Best != null ? <ScoreCell strokes={t1Best} par={hole.par} /> : <span className="text-gray-300">–</span>}
               </td>
               <td className="px-2 py-2.5 text-center text-xs font-bold">
                 {result === 'team1' && <span className="text-green-600">W</span>}
@@ -1012,7 +1038,7 @@ function BBMatchTable({ stats, t1Name, t2Name, holes }: {
                 {result === null && <span className="text-gray-200">–</span>}
               </td>
               <td className="px-3 py-2.5 text-center">
-                {t2Best != null ? <span className="font-bold" style={{ color: scoreColor(t2Best, hole.par) }}>{t2Best}</span> : <span className="text-gray-300">–</span>}
+                {t2Best != null ? <ScoreCell strokes={t2Best} par={hole.par} /> : <span className="text-gray-300">–</span>}
               </td>
             </tr>
           )
