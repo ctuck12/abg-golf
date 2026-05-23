@@ -77,11 +77,27 @@ export default function ScoreEntry({
 
   const broadcastChannel = useRef<ReturnType<typeof supabase.channel> | null>(null)
   useEffect(() => {
+    const playerIds = players.map((p) => p.id)
     const ch = supabase.channel('score-updates')
-    ch.subscribe()
+      .on('broadcast', { event: 'refresh' }, async () => {
+        const { data } = await supabase
+          .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
+        if (!data) return
+        setSavedScores(data)
+        setSavedHoles(() => {
+          const saved = new Set<number>()
+          for (let h = 1; h <= 18; h++) {
+            if (players.every((p) => data.some((s) => s.player_id === p.id && s.hole_number === h))) {
+              saved.add(h)
+            }
+          }
+          return saved
+        })
+      })
+      .subscribe()
     broadcastChannel.current = ch
     return () => { supabase.removeChannel(ch); broadcastChannel.current = null }
-  }, [])
+  }, [players])
 
   // Daytona Left/Right assignments per hole
   const [assignments, setAssignments] = useState<AssignmentMap>(() => {
