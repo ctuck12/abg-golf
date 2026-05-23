@@ -105,8 +105,8 @@ function formatBet(bet: string): string {
   const scoringLabel = scoringType === 'match' ? 'Match Play' : 'Stroke Play'
   if (betType === 'nassau' && amount) return `$${amount} Nassau · ${scoringLabel}`
   if (betType === 'nassau') return `Nassau · ${scoringLabel}`
-  if (betType === 'straight' && amount) return `$${amount} Straight Up · ${scoringLabel}`
-  if (betType === 'straight') return `Straight Up · ${scoringLabel}`
+  if (betType === 'straight' && amount) return `$${amount} Overall · ${scoringLabel}`
+  if (betType === 'straight') return `Overall · ${scoringLabel}`
   return scoringLabel
 }
 
@@ -492,7 +492,7 @@ export default function MatchupClient({
                       className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                       <option value="">No bet</option>
                       <option value="nassau">Nassau</option>
-                      <option value="straight">Straight Up</option>
+                      <option value="straight">Overall</option>
                     </select>
                   </div>
                   {newBetType && (
@@ -562,7 +562,7 @@ export default function MatchupClient({
                                   className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none">
                                   <option value="">No bet</option>
                                   <option value="nassau">Nassau</option>
-                                  <option value="straight">Straight Up</option>
+                                  <option value="straight">Overall</option>
                                 </select>
                                 {editH2HBetType && (
                                   <input autoFocus type="number" min="0" step="1" placeholder="amt"
@@ -781,7 +781,7 @@ export default function MatchupClient({
                                   className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none">
                                   <option value="">No bet</option>
                                   <option value="nassau">Nassau</option>
-                                  <option value="straight">Straight Up</option>
+                                  <option value="straight">Overall</option>
                                 </select>
                                 {editBBBetType && (
                                   <input autoFocus type="number" min="0" step="1" placeholder="amt"
