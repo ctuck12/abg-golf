@@ -299,7 +299,7 @@ export default function ScoreEntry({
           <div className="bg-white rounded-xl border-2 px-4 py-3 text-center" style={{ borderColor: gold }}>
             <p className="font-semibold" style={{ color: navy }}>All 18 holes submitted! ⛳</p>
             <a href="/leaderboard" className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
-              View Live Leaderboard →
+              View Payouts →
             </a>
           </div>
         )}
