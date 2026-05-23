@@ -708,25 +708,8 @@ export default function ScoreEntry({
                     )
                   })}
 
-                  {isDaytona && (
-                    <div className="flex items-center gap-4 pt-1 pb-1">
-                      <span className="text-xs text-gray-400">
-                        {leftLabel}: <strong>{leftCount}</strong> · {rightLabel}: <strong>{players.length - leftCount}</strong>
-                        {leftCount !== 2 && <span className="text-red-500 ml-1">(need exactly 2 on {leftLabel})</span>}
-                      </span>
-                      <div className="flex-1" />
-                      {liveLeftDt != null && (is5Man ? liveRightPairDts.length === 3 : liveRightDt != null) && (
-                        <span className="text-xs text-gray-500">
-                          Preview: <span style={{ color: '#2563eb' }}>L {liveLeftDt}</span>
-                          {' · '}
-                          <span style={{ color: '#92400e' }}>
-                            {is5Man
-                              ? `R ${[...liveRightPairDts].sort((a, b) => (a ?? Infinity) - (b ?? Infinity)).map((dt) => dt ?? '–').join(' / ')}`
-                              : `R ${liveRightDt}`}
-                          </span>
-                        </span>
-                      )}
-                    </div>
+                  {isDaytona && leftCount !== 2 && (
+                    <p className="text-xs text-red-500">Need exactly 2 on {leftLabel}</p>
                   )}
 
                   {error && <p className="text-xs text-red-500">{error}</p>}
