@@ -164,7 +164,6 @@ export default function AdminDashboard({
             <h1 className="font-bold text-lg">Anything But Golf Group</h1>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/" className="text-sm underline" style={{ color: 'rgba(255,255,255,0.7)' }}>Leaderboard</a>
             {scorecardTeamId ? (
               <a href={`/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
@@ -180,6 +179,7 @@ export default function AdminDashboard({
                 Team Pin
               </button>
             )}
+            <a href="/" className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10 text-white">Leaderboard</a>
             <form action={adminLogout}>
               <button type="submit" className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10">Sign out</button>
             </form>
