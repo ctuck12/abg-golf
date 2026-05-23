@@ -24,7 +24,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   south: [4, 4, 5, 3, 4, 4, 4, 3, 5, 4, 3, 4, 4, 5, 4, 3, 4, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; is_started: boolean } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean } | null
 type Team = { id: string; name: string; pin: string; is_admin: boolean }
 type Player = { id: string; team_id: string; name: string; position: number | null }
 type Hole = { hole_number: number; par: number }
@@ -43,6 +43,11 @@ export default function AdminDashboard({
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [selectedCourse, setSelectedCourse] = useState('north')
   const [selectedFormat, setSelectedFormat] = useState('standard')
+  const [selectedDaytonaCount, setSelectedDaytonaCount] = useState('4')
+  const [selectedDaytonaSubVariant, setSelectedDaytonaSubVariant] = useState('normal')
+  const computedDaytonaVariant = selectedDaytonaCount === '5'
+    ? `5man-${selectedDaytonaSubVariant}`
+    : '4man'
 
   const [createState, createAction, createPending] = useActionState(createRound, null)
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
@@ -195,7 +200,11 @@ export default function AdminDashboard({
                   {round.course && `${round.course} · `}
                   {new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   {' · '}{teams.length} teams · Par {parTotal}
-                  {' · '}{isDaytona ? 'Daytona' : `${ballsCount}-ball`}
+                  {' · '}{isDaytona
+                    ? round?.daytona_variant === '5man-normal' ? 'Daytona 5-Man Normal'
+                      : round?.daytona_variant === '5man-flares' ? 'Daytona 5-Man Flares'
+                      : 'Daytona 4-Man'
+                    : `${ballsCount}-ball`}
                 </p>
               </div>
               {!round.is_started && (
@@ -391,6 +400,29 @@ export default function AdminDashboard({
                     </select>
                   </div>
                 </div>
+                {selectedFormat === 'daytona' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Daytona Type</label>
+                      <select value={selectedDaytonaCount} onChange={(e) => setSelectedDaytonaCount(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                        <option value="4">4-Man</option>
+                        <option value="5">5-Man</option>
+                      </select>
+                    </div>
+                    {selectedDaytonaCount === '5' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">5-Man Variant</label>
+                        <select value={selectedDaytonaSubVariant} onChange={(e) => setSelectedDaytonaSubVariant(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                          <option value="normal">Normal</option>
+                          <option value="flares">Flares</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <input type="hidden" name="daytona_variant" value={computedDaytonaVariant} />
                 {selectedFormat !== 'daytona' && (
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Balls in Play</label>
@@ -523,7 +555,7 @@ export default function AdminDashboard({
                   const teamPlayerIds = teamPlayers.map((p) => p.id)
                   const teamAssignments = dtAssignments.filter((a) => teamPlayerIds.includes(a.player_id))
                   const teamScores = scores.filter((s) => teamPlayerIds.includes(s.player_id))
-                  const pointTotals = computePlayerDaytonaPoints(holes, teamScores, teamAssignments)
+                  const pointTotals = computePlayerDaytonaPoints(holes, teamScores, teamAssignments, round?.daytona_variant ?? '4man')
                   const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(
                     teamPlayers, pointTotals, dtPayoutValue
                   )

@@ -18,7 +18,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
   if (!team) redirect('/')
 
   const { data: round } = await sb
-    .from('rounds').select('id, is_started, format').eq('id', team.round_id).single()
+    .from('rounds').select('id, is_started, format, daytona_variant').eq('id', team.round_id).single()
   if (!round || !round.is_started) redirect('/')
 
   const [{ data: holes }, { data: scores }] = await Promise.all([
@@ -31,6 +31,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
     allPlayerIds: string[]
     assignments: DaytonaHoleAssignment[]
     allRoundScores: { player_id: string; hole_number: number; strokes: number }[]
+    daytonaVariant?: string
   } | undefined
 
   if ((round.format ?? 'standard') === 'daytona') {
@@ -47,6 +48,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
       allPlayerIds,
       assignments: (assignmentsData ?? []) as DaytonaHoleAssignment[],
       allRoundScores: allScoresData ?? [],
+      daytonaVariant: round.daytona_variant ?? '4man',
     }
   }
 

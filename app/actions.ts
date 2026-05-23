@@ -83,6 +83,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
   const date = formData.get('date') as string
   const courseKey = (formData.get('course') as string) || 'north'
   const format = (formData.get('format') as string) || 'standard'
+  const daytonaVariant = format === 'daytona' ? ((formData.get('daytona_variant') as string) || '4man') : null
   const ballsCount = format === 'daytona' ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
 
   if (!name || !date) return { error: 'Round name and date are required.' }
@@ -95,7 +96,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
   const { data: round, error } = await supabase
     .from('rounds')
-    .insert({ name, date, course: courseName, balls_count: ballsCount, format, is_active: true, is_started: false })
+    .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, is_active: true, is_started: false })
     .select().single()
 
   if (error || !round) return { error: error?.message ?? 'Failed to create round.' }

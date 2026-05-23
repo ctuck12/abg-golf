@@ -31,7 +31,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 }
 
 export default function ScoreEntry({
-  team, players, holes, initialScores, ballsCount, format = 'standard', isAdmin, roundId = '', initialAssignments = [],
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, roundId = '', initialAssignments = [],
 }: {
   team: Team
   players: Player[]
@@ -39,11 +39,15 @@ export default function ScoreEntry({
   initialScores: Score[]
   ballsCount: number
   format?: string
+  daytonaVariant?: string
   isAdmin: boolean
   roundId?: string
   initialAssignments?: DaytonaHoleAssignment[]
 }) {
   const isDaytona = format === 'daytona'
+  const isFlares = daytonaVariant === '5man-flares'
+  const leftLabel = isFlares ? 'Outside' : 'Left'
+  const rightLabel = isFlares ? 'Inside' : 'Right'
 
   const [strokes, setStrokes] = useState<Record<string, Record<number, number>>>(() => {
     const s: Record<string, Record<number, number>> = {}
@@ -163,7 +167,7 @@ export default function ScoreEntry({
     : []
 
   const dtSummary = isDaytona ? computeDaytonaSidesSummary(holes, savedScores, flatAssignments) : null
-  const playerPointTotals = isDaytona ? computePlayerDaytonaPoints(holes, savedScores, flatAssignments) : new Map<string, number>()
+  const playerPointTotals = isDaytona ? computePlayerDaytonaPoints(holes, savedScores, flatAssignments, daytonaVariant) : new Map<string, number>()
 
   const frontBallTotals = !isDaytona
     ? Array.from({ length: ballsCount }, (_, bi) =>
@@ -206,13 +210,13 @@ export default function ScoreEntry({
                   <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
                   <div className="flex gap-3">
                     <div className="text-center">
-                      <p className="text-xs" style={{ color: '#60a5fa' }}>Left</p>
+                      <p className="text-xs" style={{ color: '#60a5fa' }}>{leftLabel}</p>
                       <p className="font-bold text-sm" style={{ color: leftTotal == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
                         {leftTotal ?? '–'}
                       </p>
                     </div>
                     <div className="text-center">
-                      <p className="text-xs" style={{ color: gold }}>Right</p>
+                      <p className="text-xs" style={{ color: gold }}>{rightLabel}</p>
                       <p className="font-bold text-sm" style={{ color: rightTotal == null ? 'rgba(255,255,255,0.35)' : 'white' }}>
                         {rightTotal ?? '–'}
                       </p>
@@ -334,18 +338,18 @@ export default function ScoreEntry({
                     {isDaytona ? (
                       <>
                         <div className="text-center">
-                          <p className="text-xs" style={{ color: '#2563eb' }}>Left</p>
+                          <p className="text-xs" style={{ color: '#2563eb' }}>{leftLabel}</p>
                           <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-xs" style={{ color: '#92400e' }}>Right</p>
+                          <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
                           <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
                         </div>
                         {leftDt != null && rightDt != null && leftDt !== rightDt && (
                           <div className="text-center">
                             <p className="text-xs text-gray-400">Pts</p>
                             <p className="font-bold text-sm" style={{ color: leftDt < rightDt ? '#16a34a' : '#dc2626' }}>
-                              {leftDt < rightDt ? `L +${rightDt - leftDt}` : `R +${leftDt - rightDt}`}
+                              {leftDt < rightDt ? `${leftLabel[0]} +${rightDt - leftDt}` : `${rightLabel[0]} +${leftDt - rightDt}`}
                             </p>
                           </div>
                         )}
@@ -383,9 +387,9 @@ export default function ScoreEntry({
                               background: side === 'left' ? '#2563eb' : '#f3f4f6',
                               color: side === 'left' ? 'white' : '#6b7280',
                               borderColor: side === 'left' ? '#2563eb' : '#e5e7eb',
-                              minWidth: '2.5rem',
+                              minWidth: '3rem',
                             }}>
-                            {side === 'left' ? 'Left' : 'Right'}
+                            {side === 'left' ? leftLabel : rightLabel}
                           </button>
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate">{player.name}</span>
@@ -407,8 +411,8 @@ export default function ScoreEntry({
                   {isDaytona && (
                     <div className="flex items-center gap-4 pt-1 pb-1">
                       <span className="text-xs text-gray-400">
-                        Left: <strong>{leftCount}</strong> · Right: <strong>{players.length - leftCount}</strong>
-                        {leftCount !== 2 && <span className="text-red-500 ml-1">(need exactly 2 on Left)</span>}
+                        {leftLabel}: <strong>{leftCount}</strong> · {rightLabel}: <strong>{players.length - leftCount}</strong>
+                        {leftCount !== 2 && <span className="text-red-500 ml-1">(need exactly 2 on {leftLabel})</span>}
                       </span>
                       <div className="flex-1" />
                       {liveLeftDt != null && liveRightDt != null && (
@@ -442,11 +446,11 @@ export default function ScoreEntry({
                         {isDaytona ? (
                           <>
                             <div className="text-center">
-                              <p className="text-xs" style={{ color: '#2563eb' }}>Left</p>
+                              <p className="text-xs" style={{ color: '#2563eb' }}>{leftLabel}</p>
                               <p className="font-bold text-sm text-gray-900">{dtSummary?.leftFront ?? '–'}</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-xs" style={{ color: '#92400e' }}>Right</p>
+                              <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
                               <p className="font-bold text-sm text-gray-900">{dtSummary?.rightFront ?? '–'}</p>
                             </div>
                           </>
@@ -472,11 +476,11 @@ export default function ScoreEntry({
                         {isDaytona ? (
                           <>
                             <div className="text-center">
-                              <p className="text-xs" style={{ color: '#2563eb' }}>Left</p>
+                              <p className="text-xs" style={{ color: '#2563eb' }}>{leftLabel}</p>
                               <p className="font-bold text-sm text-gray-900">{dtSummary?.leftBack ?? '–'}</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-xs" style={{ color: '#92400e' }}>Right</p>
+                              <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
                               <p className="font-bold text-sm text-gray-900">{dtSummary?.rightBack ?? '–'}</p>
                             </div>
                           </>

@@ -42,7 +42,7 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 })
 
 export default function ScorecardViewer({
-  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', dtAssignments = [],
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [],
 }: {
   teamName: string
   players: Player[]
@@ -50,10 +50,14 @@ export default function ScorecardViewer({
   scores: Score[]
   ballsCount: number
   format?: string
+  daytonaVariant?: string
   dtAssignments?: DaytonaHoleAssignment[]
 }) {
   const [scores, setScores] = useState(initialScores)
   const isDaytona = format === 'daytona'
+  const isFlares = daytonaVariant === '5man-flares'
+  const leftLabel = isFlares ? 'Outside' : 'Left'
+  const rightLabel = isFlares ? 'Inside' : 'Right'
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -195,7 +199,7 @@ export default function ScorecardViewer({
             {isDaytona ? (
               <>
                 {(['left', 'right'] as const).map((side) => {
-                  const label = side === 'left' ? 'Left' : 'Right'
+                  const label = side === 'left' ? leftLabel : rightLabel
                   const color = side === 'left' ? '#2563eb' : '#92400e'
                   const getDt = (d: typeof holeData[0]) => side === 'left' ? d.leftDt : d.rightDt
                   return (

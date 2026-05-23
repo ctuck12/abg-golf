@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ScoreNotation } from './ScoreNotation'
-import { computeHoleDaytonaWithSides, type DaytonaHoleAssignment } from '@/lib/scoring'
+import { computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, type DaytonaHoleAssignment } from '@/lib/scoring'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -53,6 +53,7 @@ export default function PlayerScorecard({
     allPlayerIds: string[]
     assignments: DaytonaHoleAssignment[]
     allRoundScores: RoundScore[]
+    daytonaVariant?: string
   }
 }) {
   const [scores, setScores] = useState(initialScores)
@@ -87,28 +88,37 @@ export default function PlayerScorecard({
   }, [isDaytona, dtData?.roundId])
 
   // Compute per-hole points for this player (Daytona only)
+  const daytonaVariant = dtData?.daytonaVariant ?? '4man'
+  const is5Man = daytonaVariant === '5man-normal' || daytonaVariant === '5man-flares'
   const holePointsMap = new Map<number, number>()
   if (isDaytona) {
     for (const hole of holes) {
       const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
       const leftIds = holeAssignments.filter((a) => a.side === 'left').map((a) => a.player_id)
       const rightIds = holeAssignments.filter((a) => a.side === 'right').map((a) => a.player_id)
-      if (leftIds.length < 2 || rightIds.length < 2) continue
-      const isOnLeft = leftIds.includes(player.id)
-      const isOnRight = rightIds.includes(player.id)
-      if (!isOnLeft && !isOnRight) continue
-      const leftScores = leftIds.map((id) => allRoundScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-      const rightScores = rightIds.map((id) => allRoundScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-      if (leftScores.length < 2 || rightScores.length < 2) continue
-      const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftScores, rightScores, hole.par)
-      if (leftDt === null || rightDt === null) continue
-      const diff = Math.abs(leftDt - rightDt)
-      const leftWins = leftDt < rightDt
-      const rightWins = rightDt < leftDt
-      const pts = isOnLeft
-        ? (leftWins ? diff : rightWins ? -diff : 0)
-        : (rightWins ? diff : leftWins ? -diff : 0)
-      holePointsMap.set(hole.hole_number, pts)
+      if (is5Man) {
+        if (leftIds.length < 2 || rightIds.length < 3) continue
+        const holePoints = computeHoleDaytonaPointsFiveMan(leftIds, rightIds, allRoundScores, hole.hole_number, hole.par)
+        const pts = holePoints.get(player.id)
+        if (pts !== undefined) holePointsMap.set(hole.hole_number, pts)
+      } else {
+        if (leftIds.length < 2 || rightIds.length < 2) continue
+        const isOnLeft = leftIds.includes(player.id)
+        const isOnRight = rightIds.includes(player.id)
+        if (!isOnLeft && !isOnRight) continue
+        const leftScores = leftIds.map((id) => allRoundScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+        const rightScores = rightIds.map((id) => allRoundScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+        if (leftScores.length < 2 || rightScores.length < 2) continue
+        const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftScores, rightScores, hole.par)
+        if (leftDt === null || rightDt === null) continue
+        const diff = Math.abs(leftDt - rightDt)
+        const leftWins = leftDt < rightDt
+        const rightWins = rightDt < leftDt
+        const pts = isOnLeft
+          ? (leftWins ? diff : rightWins ? -diff : 0)
+          : (rightWins ? diff : leftWins ? -diff : 0)
+        holePointsMap.set(hole.hole_number, pts)
+      }
     }
   }
 

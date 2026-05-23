@@ -13,7 +13,7 @@ export default async function AdminDashboardPage() {
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, is_started')
+    .select('id, name, date, course, balls_count, format, daytona_variant, is_started')
     .eq('is_active', true)
     .single()
 

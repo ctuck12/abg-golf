@@ -16,7 +16,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
   if (!team) redirect('/')
 
   const { data: round } = await sb
-    .from('rounds').select('id, balls_count, format, is_active').eq('id', team.round_id).single()
+    .from('rounds').select('id, balls_count, format, daytona_variant, is_active').eq('id', team.round_id).single()
   if (!round || !round.is_active) redirect('/')
 
   const { data: players } = await sb
@@ -42,6 +42,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
       initialScores={scores ?? []}
       ballsCount={round.balls_count}
       format={round.format ?? 'standard'}
+      daytonaVariant={round.daytona_variant ?? '4man'}
       isAdmin={team.is_admin ?? false}
       roundId={round.id}
       initialAssignments={assignments ?? []}

@@ -31,7 +31,7 @@ function vpColor(vp: number | null): string {
 }
 
 export default function LeaderboardClient({
-  initialTeams, players, holes, initialScores, ballsCount, roundName, roundDate, roundCourse, format = 'standard', viewOnly = false, scorecardTeamId = null, isAdmin = false, roundId = '', initialAssignments = [],
+  initialTeams, players, holes, initialScores, ballsCount, roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId = null, isAdmin = false, roundId = '', initialAssignments = [],
 }: {
   initialTeams: Team[]
   players: Player[]
@@ -42,6 +42,7 @@ export default function LeaderboardClient({
   roundDate: string
   roundCourse: string
   format?: string
+  daytonaVariant?: string
   viewOnly?: boolean
   scorecardTeamId?: string | null
   isAdmin?: boolean
@@ -102,7 +103,7 @@ export default function LeaderboardClient({
     return a.team.name.localeCompare(b.team.name)
   })
 
-  const pointsMap = isDaytona ? computePlayerDaytonaPoints(holes, scores, assignments) : new Map<string, number>()
+  const pointsMap = isDaytona ? computePlayerDaytonaPoints(holes, scores, assignments, daytonaVariant) : new Map<string, number>()
   const dtPlayerRows = isDaytona ? players.map((p) => ({
     player: p,
     points: pointsMap.get(p.id) ?? 0,
