@@ -177,23 +177,12 @@ export default function AllScorecardsView({
           return (
             <div key={player.id} className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               {/* Player card header */}
-              <div className="flex items-center justify-between px-4 py-3" style={{ background: navy }}>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold w-8 flex-shrink-0"
-                    style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
-                    {thru > 0 ? `#${rank + 1}` : '–'}
-                  </span>
-                  <div>
-                    <p className="font-bold text-white text-sm leading-tight">{player.name}</p>
-                    <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.5)' }}>{player.teamName}</p>
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>Points</p>
-                  <p className="font-bold text-sm" style={{ color: ptsColor(totalPoints) }}>
-                    {ptsStr(totalPoints)}
-                  </p>
-                </div>
+              <div className="flex items-center gap-3 px-4 py-2" style={{ background: navy }}>
+                <span className="text-base font-bold w-8 flex-shrink-0"
+                  style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
+                  {thru > 0 ? `#${rank + 1}` : '–'}
+                </span>
+                <p className="font-bold text-white text-sm">{player.name}</p>
               </div>
 
               {/* Scorecard table */}
