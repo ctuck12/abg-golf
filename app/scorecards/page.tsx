@@ -10,8 +10,8 @@ export default async function AllScorecardsPage() {
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, format, daytona_variant, is_started')
-    .eq('is_started', true)
+    .select('id, format, daytona_variant')
+    .eq('is_active', true)
     .single()
 
   if (!round || round.format !== 'daytona') redirect('/')
