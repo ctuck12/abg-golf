@@ -45,6 +45,7 @@ export default function ScoreEntry({
   initialAssignments?: DaytonaHoleAssignment[]
 }) {
   const isDaytona = format === 'daytona'
+  const is5Man = isDaytona && daytonaVariant.startsWith('5man')
   const isFlares = daytonaVariant === '5man-flares'
   const leftLabel = isFlares ? 'Outside' : 'Left'
   const rightLabel = isFlares ? 'Inside' : 'Right'
@@ -301,6 +302,19 @@ export default function ScoreEntry({
             ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par)
             : { leftDt: null, rightDt: null }
 
+          // For 5-man: compute DT for each of the 3 right-side pairs
+          const savedRightPairDts: (number | null)[] = (() => {
+            if (!is5Man) return []
+            const rightPlayers = players.filter((p) => holeAssignments[p.id] === 'right')
+            if (rightPlayers.length !== 3) return []
+            return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
+              const pScores = [rightPlayers[a], rightPlayers[b]]
+                .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
+                .filter((s): s is number => s !== undefined)
+              return computeHoleDaytonaWithSides(savedLeftScores, pScores, hole.par).rightDt
+            })
+          })()
+
           // Live preview during edit
           const editLeftScores = players
             .filter((p) => holeAssignments[p.id] === 'left')
@@ -311,6 +325,17 @@ export default function ScoreEntry({
           const { leftDt: liveLeftDt, rightDt: liveRightDt } = isDaytona
             ? computeHoleDaytonaWithSides(editLeftScores, editRightScores, hole.par)
             : { leftDt: null, rightDt: null }
+
+          const liveRightPairDts: (number | null)[] = (() => {
+            if (!is5Man) return []
+            const rightPlayers = players.filter((p) => holeAssignments[p.id] === 'right')
+            if (rightPlayers.length !== 3) return []
+            return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
+              const pScores = [rightPlayers[a], rightPlayers[b]]
+                .map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
+              return computeHoleDaytonaWithSides(editLeftScores, pScores, hole.par).rightDt
+            })
+          })()
 
           const leftCount = Object.values(holeAssignments).filter((s) => s === 'left').length
 
@@ -341,17 +366,30 @@ export default function ScoreEntry({
                           <p className="text-xs" style={{ color: '#2563eb' }}>{leftLabel}</p>
                           <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
-                          <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
-                        </div>
-                        {leftDt != null && rightDt != null && leftDt !== rightDt && (
+                        {is5Man && savedRightPairDts.length === 3 ? (
                           <div className="text-center">
-                            <p className="text-xs text-gray-400">Pts</p>
-                            <p className="font-bold text-sm" style={{ color: leftDt < rightDt ? '#16a34a' : '#dc2626' }}>
-                              {leftDt < rightDt ? `${leftLabel[0]} +${rightDt - leftDt}` : `${rightLabel[0]} +${leftDt - rightDt}`}
-                            </p>
+                            <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
+                            <div className="flex gap-2">
+                              {savedRightPairDts.map((dt, i) => (
+                                <p key={i} className="font-bold text-sm text-gray-900">{dt ?? '–'}</p>
+                              ))}
+                            </div>
                           </div>
+                        ) : (
+                          <>
+                            <div className="text-center">
+                              <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
+                              <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
+                            </div>
+                            {leftDt != null && rightDt != null && leftDt !== rightDt && (
+                              <div className="text-center">
+                                <p className="text-xs text-gray-400">Pts</p>
+                                <p className="font-bold text-sm" style={{ color: leftDt < rightDt ? '#16a34a' : '#dc2626' }}>
+                                  {leftDt < rightDt ? `${leftLabel[0]} +${rightDt - leftDt}` : `${rightLabel[0]} +${leftDt - rightDt}`}
+                                </p>
+                              </div>
+                            )}
+                          </>
                         )}
                       </>
                     ) : (
@@ -415,9 +453,15 @@ export default function ScoreEntry({
                         {leftCount !== 2 && <span className="text-red-500 ml-1">(need exactly 2 on {leftLabel})</span>}
                       </span>
                       <div className="flex-1" />
-                      {liveLeftDt != null && liveRightDt != null && (
+                      {liveLeftDt != null && (is5Man ? liveRightPairDts.length === 3 : liveRightDt != null) && (
                         <span className="text-xs text-gray-500">
-                          Preview: <span style={{ color: '#2563eb' }}>L {liveLeftDt}</span> · <span style={{ color: '#92400e' }}>R {liveRightDt}</span>
+                          Preview: <span style={{ color: '#2563eb' }}>L {liveLeftDt}</span>
+                          {' · '}
+                          <span style={{ color: '#92400e' }}>
+                            {is5Man
+                              ? `R ${liveRightPairDts.map((dt) => dt ?? '–').join(' / ')}`
+                              : `R ${liveRightDt}`}
+                          </span>
                         </span>
                       )}
                     </div>
