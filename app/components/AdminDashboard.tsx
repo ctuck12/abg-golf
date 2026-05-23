@@ -514,7 +514,7 @@ export default function AdminDashboard({
                   {isDaytona ? (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Value Per Point ($)</label>
-                      <input type="number" name="ball_1" min="0" step="0.5"
+                      <input type="number" name="ball_1" min="0" step="0.25"
                         value={ballVals[1] ?? 1}
                         onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
