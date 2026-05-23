@@ -43,13 +43,6 @@ function vpColor(n: number | null): string {
   return '#374151'
 }
 
-function nassauStatus(p1Up: number, played: number, complete: boolean, p1Name: string, p2Name: string) {
-  if (played === 0) return { text: '–', color: '#9ca3af' }
-  if (p1Up > 0) return { text: `${p1Name} ${p1Up}up${complete ? ' ✓' : ''}`, color: '#16a34a' }
-  if (p1Up < 0) return { text: `${p2Name} ${-p1Up}up${complete ? ' ✓' : ''}`, color: '#16a34a' }
-  return { text: complete ? 'Tied' : 'AS', color: '#6b7280' }
-}
-
 function computeStats(
   p1Id: string, p2Id: string,
   scoreMap: Record<string, Record<number, number>>,
@@ -59,8 +52,6 @@ function computeStats(
   let p1F = 0, p2F = 0, fPar = 0, fPlayed = 0
   let p1B = 0, p2B = 0, bPar = 0, bPlayed = 0
   let p1T = 0, p2T = 0, tPar = 0, tPlayed = 0
-  let frontP1W = 0, frontP2W = 0, frontPlayed = 0
-  let backP1W = 0, backP2W = 0, backPlayed = 0
   const rows: { hole: Hole; s1: number | null; s2: number | null; result: 'win' | 'loss' | 'tie' | null }[] = []
 
   for (const hole of holes) {
@@ -69,15 +60,8 @@ function computeStats(
     let result: 'win' | 'loss' | 'tie' | null = null
     if (s1 !== null && s2 !== null) {
       tPlayed++; p1T += s1; p2T += s2; tPar += hole.par
-      if (hole.hole_number <= 9) {
-        fPlayed++; p1F += s1; p2F += s2; fPar += hole.par
-        frontPlayed++
-        if (s1 < s2) frontP1W++; else if (s1 > s2) frontP2W++
-      } else {
-        bPlayed++; p1B += s1; p2B += s2; bPar += hole.par
-        backPlayed++
-        if (s1 < s2) backP1W++; else if (s1 > s2) backP2W++
-      }
+      if (hole.hole_number <= 9) { fPlayed++; p1F += s1; p2F += s2; fPar += hole.par }
+      else { bPlayed++; p1B += s1; p2B += s2; bPar += hole.par }
       if (s1 < s2) { result = 'win'; p1Wins++ }
       else if (s1 > s2) { result = 'loss'; p2Wins++ }
       else { result = 'tie'; ties++ }
@@ -94,9 +78,6 @@ function computeStats(
     p1Total: tPlayed > 0 ? p1T - tPar : null,
     p2Total: tPlayed > 0 ? p2T - tPar : null,
     p1TotalStrokes: p1T, p2TotalStrokes: p2T,
-    nassauFront: { p1Up: frontP1W - frontP2W, played: frontPlayed, complete: frontPlayed === 9 },
-    nassauBack: { p1Up: backP1W - backP2W, played: backPlayed, complete: backPlayed === 9 },
-    nassauOverall: { p1Up: p1Wins - p2Wins, played: tPlayed, complete: tPlayed === holes.length },
   }
 }
 
@@ -283,6 +264,10 @@ export default function MatchupClient({
     await updateBestBallBet(id, editBBBet)
   }
 
+  // Search
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchLower = searchQuery.toLowerCase().trim()
+
   // All selected BB player ids for mutual exclusion
   const bbSelected = [bbT1P1, bbT1P2, bbT2P1, bbT2P2].filter(Boolean)
 
@@ -336,6 +321,21 @@ export default function MatchupClient({
           <p className="text-center text-sm text-gray-400 py-1">Select two players above to compare</p>
         )}
 
+        {/* ── Search ── */}
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+          <input
+            type="text"
+            placeholder="Search by player name…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+          )}
+        </div>
+
         {/* ── Head to Head ── */}
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Head to Head</p>
@@ -371,11 +371,22 @@ export default function MatchupClient({
               </div>
             </div>
 
-            {matchups.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-6">No head to head matchups saved yet</p>
-            ) : (
+            {(() => {
+              const filtered = searchLower
+                ? matchups.filter((m) => {
+                    const mp1 = players.find((p) => p.id === m.player1_id)
+                    const mp2 = players.find((p) => p.id === m.player2_id)
+                    return mp1?.name.toLowerCase().includes(searchLower) || mp2?.name.toLowerCase().includes(searchLower)
+                  })
+                : matchups
+              if (filtered.length === 0) return (
+                <p className="text-center text-sm text-gray-400 py-6">
+                  {searchLower ? 'No matchups found for that player' : 'No head to head matchups saved yet'}
+                </p>
+              )
+              return (
               <div className="divide-y divide-gray-100">
-                {matchups.map((m) => {
+                {filtered.map((m) => {
                   const mp1 = players.find((p) => p.id === m.player1_id)
                   const mp2 = players.find((p) => p.id === m.player2_id)
                   if (!mp1 || !mp2) return null
@@ -445,22 +456,6 @@ export default function MatchupClient({
                           ) : <span className="text-gray-400">No scores yet</span>}
                         </div>
 
-                        {/* Nassau */}
-                        {stats.holesPlayed > 0 && (
-                          <div className="flex gap-1.5 text-xs mb-2">
-                            {(['Front', 'Back', 'Overall'] as const).map((leg) => {
-                              const ns = leg === 'Front' ? stats.nassauFront : leg === 'Back' ? stats.nassauBack : stats.nassauOverall
-                              const { text, color } = nassauStatus(ns.p1Up, ns.played, ns.complete, p1Short, p2Short)
-                              return (
-                                <div key={leg} className="flex-1 rounded-md px-1.5 py-1 text-center" style={{ background: '#f8fafc', border: '1px solid #e5e7eb' }}>
-                                  <p className="text-gray-400 text-xs leading-none mb-0.5">{leg}</p>
-                                  <p className="font-semibold leading-none" style={{ color, fontSize: '0.65rem' }}>{text}</p>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-
                         {/* Front / Back / Total vs par */}
                         {stats.holesPlayed > 0 && (
                           <div className="grid grid-cols-3 gap-1 text-xs">
@@ -493,7 +488,8 @@ export default function MatchupClient({
                   )
                 })}
               </div>
-            )}
+            )
+            })()}
           </div>
         </div>
 
@@ -553,11 +549,22 @@ export default function MatchupClient({
               </div>
             </div>
 
-            {bestBallMatchups.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-6">No best ball matchups saved yet</p>
-            ) : (
+            {(() => {
+              const filtered = searchLower
+                ? bestBallMatchups.filter((m) => {
+                    const names = [m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id]
+                      .map((id) => players.find((p) => p.id === id)?.name.toLowerCase() ?? '')
+                    return names.some((n) => n.includes(searchLower))
+                  })
+                : bestBallMatchups
+              if (filtered.length === 0) return (
+                <p className="text-center text-sm text-gray-400 py-6">
+                  {searchLower ? 'No matchups found for that player' : 'No best ball matchups saved yet'}
+                </p>
+              )
+              return (
               <div className="divide-y divide-gray-100">
-                {bestBallMatchups.map((m) => {
+                {filtered.map((m) => {
                   const t1p1 = players.find((p) => p.id === m.team1_player1_id)
                   const t1p2 = players.find((p) => p.id === m.team1_player2_id)
                   const t2p1 = players.find((p) => p.id === m.team2_player1_id)
@@ -691,7 +698,8 @@ export default function MatchupClient({
                   )
                 })}
               </div>
-            )}
+            )
+            })()}
           </div>
         </div>
       </div>
@@ -911,8 +919,6 @@ function MatchupDetail({ p1, p2, stats, holes }: {
 }) {
   const leader = stats.p1Wins > stats.p2Wins ? p1 : stats.p2Wins > stats.p1Wins ? p2 : null
   const isFinal = stats.holesPlayed === holes.length && holes.length > 0
-  const p1Short = p1.name.split(' ')[0]
-  const p2Short = p2.name.split(' ')[0]
 
   return (
     <>
@@ -943,23 +949,6 @@ function MatchupDetail({ p1, p2, stats, holes }: {
             <p className="text-xs text-gray-400">holes won</p>
           </div>
         </div>
-
-        {/* Nassau */}
-        {stats.holesPlayed > 0 && (
-          <div className="border-t border-gray-100 grid grid-cols-3 divide-x divide-gray-100">
-            {(['nassauFront', 'nassauBack', 'nassauOverall'] as const).map((key, i) => {
-              const ns = stats[key]
-              const { text, color } = nassauStatus(ns.p1Up, ns.played, ns.complete, p1Short, p2Short)
-              const label = ['Front', 'Back', 'Overall'][i]
-              return (
-                <div key={key} className="px-2 py-2 text-center">
-                  <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-                  <p className="text-xs font-semibold" style={{ color }}>{text}</p>
-                </div>
-              )
-            })}
-          </div>
-        )}
 
         {/* Front / Back / Total */}
         {stats.holesPlayed > 0 && (
