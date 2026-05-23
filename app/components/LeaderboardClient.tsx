@@ -321,7 +321,7 @@ export default function LeaderboardClient({
         </div>
       )}
 
-      <header className="text-white py-5 px-4 shadow-md" style={{ background: navy }}>
+      <header className="text-white py-4 px-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
           {viewOnly ? (
             <div className="flex items-start justify-between mb-2">
@@ -367,28 +367,9 @@ export default function LeaderboardClient({
               </div>
             </div>
           ) : (
-            <div>
-              {(scorecardTeamId || isAdmin) && (
-                <div className="flex flex-col items-start gap-1.5 mb-3">
-                  {scorecardTeamId && (
-                    <a
-                      href={`/score/${scorecardTeamId}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg"
-                      style={{ background: gold, color: navy }}
-                    >
-                      {isComplete ? 'Edit Scores' : 'Enter Scores'}
-                    </a>
-                  )}
-                  {isAdmin && (
-                    <a href="/admin/dashboard"
-                      className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                      style={{ background: navy, color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
-                      Admin Hub
-                    </a>
-                  )}
-                </div>
-              )}
-              <div className="text-center">
+            <div className="flex items-start justify-between">
+              <div className="flex-1" />
+              <div className="text-center flex-1">
                 <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
                   Anything But Golf Group
                 </p>
@@ -396,6 +377,22 @@ export default function LeaderboardClient({
                 <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
                   {roundCourse && `${roundCourse} · `}{formattedDate}
                 </p>
+              </div>
+              <div className="flex flex-col items-end gap-1.5 flex-1">
+                {scorecardTeamId && (
+                  <a href={`/score/${scorecardTeamId}`}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                    style={{ background: gold, color: navy }}>
+                    {isComplete ? 'Edit Scores' : 'Enter Scores'}
+                  </a>
+                )}
+                {isAdmin && (
+                  <a href="/admin/dashboard"
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                    style={{ background: navy, color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
+                    Admin Hub
+                  </a>
+                )}
               </div>
             </div>
           )}
