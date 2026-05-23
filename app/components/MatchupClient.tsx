@@ -560,8 +560,9 @@ export default function MatchupClient({
                     const p2WinsBack = stats.p1Back !== null && stats.p2Back !== null && stats.p2Back < stats.p1Back
                     const p1WinsTotal = stats.p1Total !== null && stats.p2Total !== null && stats.p1Total < stats.p2Total
                     const p2WinsTotal = stats.p1Total !== null && stats.p2Total !== null && stats.p2Total < stats.p1Total
-                    const { scoringType: h2hScoringType } = parseBet(m.bet)
+                    const { scoringType: h2hScoringType, betType: h2hBetType } = parseBet(m.bet)
                     const isMatchPlay = h2hScoringType === 'match'
+                    const isOverallBet = h2hBetType === 'straight'
 
                     return (
                       <div key={m.id}>
@@ -624,8 +625,8 @@ export default function MatchupClient({
                               <thead>
                                 <tr style={{ background: '#f9fafb' }}>
                                   <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-500">Player</th>
-                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Front</th>
-                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Back</th>
+                                  {!isOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Front</th>}
+                                  {!isOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Back</th>}
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Total</th>
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Thru</th>
                                 </tr>
@@ -641,14 +642,14 @@ export default function MatchupClient({
                                       <td className="px-3 py-2">
                                         <span className="text-xs font-semibold text-gray-800">{player.name}</span>
                                       </td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isMatchPlay ? matchDiffColor(mFront) : vpColor(front) }}>
+                                      {!isOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isMatchPlay ? matchDiffColor(mFront) : vpColor(front) }}>
                                         {isMatchPlay ? (front !== null ? fmtMatchDiff(mFront) : '–') : fmtVsPar(front)}
                                         {!isMatchPlay && h2hHole9 && wFront && <span className="ml-0.5 text-green-600">✓</span>}
-                                      </td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isMatchPlay ? matchDiffColor(mBack) : vpColor(back) }}>
+                                      </td>}
+                                      {!isOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isMatchPlay ? matchDiffColor(mBack) : vpColor(back) }}>
                                         {isMatchPlay ? (back !== null ? fmtMatchDiff(mBack) : '–') : fmtVsPar(back)}
                                         {!isMatchPlay && h2hHole18 && wBack && <span className="ml-0.5 text-green-600">✓</span>}
-                                      </td>
+                                      </td>}
                                       <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isMatchPlay ? matchDiffColor(mTotal) : vpColor(total) }}>
                                         {isMatchPlay ? (total !== null ? fmtMatchDiff(mTotal) : '–') : fmtVsPar(total)}
                                         {!isMatchPlay && h2hHole18 && wTotal && <span className="ml-0.5 text-green-600">✓</span>}
@@ -790,8 +791,9 @@ export default function MatchupClient({
                     const t2WinsBack = stats.t1Back !== null && stats.t2Back !== null && stats.t2Back < stats.t1Back
                     const t1WinsTotal = stats.t1Total !== null && stats.t2Total !== null && stats.t1Total < stats.t2Total
                     const t2WinsTotal = stats.t1Total !== null && stats.t2Total !== null && stats.t2Total < stats.t1Total
-                    const { scoringType: bbScoringTypeParsed } = parseBet(m.bet)
+                    const { scoringType: bbScoringTypeParsed, betType: bbBetTypeParsed } = parseBet(m.bet)
                     const isBBMatchPlay = bbScoringTypeParsed === 'match'
+                    const isBBOverallBet = bbBetTypeParsed === 'straight'
 
                     return (
                       <div key={m.id}>
@@ -861,8 +863,8 @@ export default function MatchupClient({
                               <thead>
                                 <tr style={{ background: '#f9fafb' }}>
                                   <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-500">Team</th>
-                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Front</th>
-                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Back</th>
+                                  {!isBBOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Front</th>}
+                                  {!isBBOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Back</th>}
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Total</th>
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Thru</th>
                                 </tr>
@@ -886,14 +888,14 @@ export default function MatchupClient({
                                           {tName}
                                         </button>
                                       </td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isBBMatchPlay ? matchDiffColor(mFront) : vpColor(front) }}>
+                                      {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isBBMatchPlay ? matchDiffColor(mFront) : vpColor(front) }}>
                                         {isBBMatchPlay ? (front !== null ? fmtMatchDiff(mFront) : '–') : fmtVsPar(front)}
                                         {!isBBMatchPlay && bbHole9 && wFront && <span className="ml-0.5 text-green-600">✓</span>}
-                                      </td>
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isBBMatchPlay ? matchDiffColor(mBack) : vpColor(back) }}>
+                                      </td>}
+                                      {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isBBMatchPlay ? matchDiffColor(mBack) : vpColor(back) }}>
                                         {isBBMatchPlay ? (back !== null ? fmtMatchDiff(mBack) : '–') : fmtVsPar(back)}
                                         {!isBBMatchPlay && bbHole18 && wBack && <span className="ml-0.5 text-green-600">✓</span>}
-                                      </td>
+                                      </td>}
                                       <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isBBMatchPlay ? matchDiffColor(mTotal) : vpColor(total) }}>
                                         {isBBMatchPlay ? (total !== null ? fmtMatchDiff(mTotal) : '–') : fmtVsPar(total)}
                                         {!isBBMatchPlay && bbHole18 && wTotal && <span className="ml-0.5 text-green-600">✓</span>}
