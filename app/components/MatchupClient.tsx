@@ -421,21 +421,6 @@ export default function MatchupClient({
                 </div>
                 <div className="flex gap-2 items-end">
                   <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Bet</label>
-                    <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-                      <button type="button" onClick={() => setNewBetType('nassau')}
-                        className="flex-1 py-2 text-xs font-semibold transition"
-                        style={newBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
-                        Nassau
-                      </button>
-                      <button type="button" onClick={() => setNewBetType('straight')}
-                        className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
-                        style={newBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
-                        Straight Up
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex-1">
                     <label className="block text-xs text-gray-500 mb-1">Scoring</label>
                     <div className="flex rounded-lg border border-gray-300 overflow-hidden">
                       <button type="button" onClick={() => setNewScoringType('stroke')}
@@ -447,6 +432,21 @@ export default function MatchupClient({
                         className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
                         style={newScoringType === 'match' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
                         Match Play
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Bet</label>
+                    <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                      <button type="button" onClick={() => setNewBetType('nassau')}
+                        className="flex-1 py-2 text-xs font-semibold transition"
+                        style={newBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                        Nassau
+                      </button>
+                      <button type="button" onClick={() => setNewBetType('straight')}
+                        className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
+                        style={newBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                        Straight Up
                       </button>
                     </div>
                   </div>
@@ -498,18 +498,6 @@ export default function MatchupClient({
                             {isEditing ? (
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <div className="flex rounded border border-gray-300 overflow-hidden">
-                                  <button type="button" onClick={() => setEditH2HBetType('nassau')}
-                                    className="px-2 py-1 text-xs font-semibold transition"
-                                    style={editH2HBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
-                                    Nassau
-                                  </button>
-                                  <button type="button" onClick={() => setEditH2HBetType('straight')}
-                                    className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
-                                    style={editH2HBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
-                                    Straight Up
-                                  </button>
-                                </div>
-                                <div className="flex rounded border border-gray-300 overflow-hidden">
                                   <button type="button" onClick={() => setEditH2HScoringType('stroke')}
                                     className="px-2 py-1 text-xs font-semibold transition"
                                     style={editH2HScoringType === 'stroke' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
@@ -519,6 +507,18 @@ export default function MatchupClient({
                                     className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
                                     style={editH2HScoringType === 'match' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
                                     Match
+                                  </button>
+                                </div>
+                                <div className="flex rounded border border-gray-300 overflow-hidden">
+                                  <button type="button" onClick={() => setEditH2HBetType('nassau')}
+                                    className="px-2 py-1 text-xs font-semibold transition"
+                                    style={editH2HBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Nassau
+                                  </button>
+                                  <button type="button" onClick={() => setEditH2HBetType('straight')}
+                                    className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
+                                    style={editH2HBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Straight Up
                                   </button>
                                 </div>
                                 <input autoFocus type="number" min="0" step="1" placeholder="amt"
@@ -653,21 +653,6 @@ export default function MatchupClient({
               </div>
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">Bet</label>
-                  <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-                    <button type="button" onClick={() => setBbBetType('nassau')}
-                      className="flex-1 py-2 text-xs font-semibold transition"
-                      style={bbBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
-                      Nassau
-                    </button>
-                    <button type="button" onClick={() => setBbBetType('straight')}
-                      className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
-                      style={bbBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
-                      Straight Up
-                    </button>
-                  </div>
-                </div>
-                <div className="flex-1">
                   <label className="block text-xs text-gray-500 mb-1">Scoring</label>
                   <div className="flex rounded-lg border border-gray-300 overflow-hidden">
                     <button type="button" onClick={() => setBbScoringType('stroke')}
@@ -679,6 +664,21 @@ export default function MatchupClient({
                       className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
                       style={bbScoringType === 'match' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
                       Match Play
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">Bet</label>
+                  <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                    <button type="button" onClick={() => setBbBetType('nassau')}
+                      className="flex-1 py-2 text-xs font-semibold transition"
+                      style={bbBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                      Nassau
+                    </button>
+                    <button type="button" onClick={() => setBbBetType('straight')}
+                      className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
+                      style={bbBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                      Straight Up
                     </button>
                   </div>
                 </div>
@@ -734,18 +734,6 @@ export default function MatchupClient({
                             {isEditingBB ? (
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <div className="flex rounded border border-gray-300 overflow-hidden">
-                                  <button type="button" onClick={() => setEditBBBetType('nassau')}
-                                    className="px-2 py-1 text-xs font-semibold transition"
-                                    style={editBBBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
-                                    Nassau
-                                  </button>
-                                  <button type="button" onClick={() => setEditBBBetType('straight')}
-                                    className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
-                                    style={editBBBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
-                                    Straight Up
-                                  </button>
-                                </div>
-                                <div className="flex rounded border border-gray-300 overflow-hidden">
                                   <button type="button" onClick={() => setEditBBScoringType('stroke')}
                                     className="px-2 py-1 text-xs font-semibold transition"
                                     style={editBBScoringType === 'stroke' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
@@ -755,6 +743,18 @@ export default function MatchupClient({
                                     className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
                                     style={editBBScoringType === 'match' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
                                     Match
+                                  </button>
+                                </div>
+                                <div className="flex rounded border border-gray-300 overflow-hidden">
+                                  <button type="button" onClick={() => setEditBBBetType('nassau')}
+                                    className="px-2 py-1 text-xs font-semibold transition"
+                                    style={editBBBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Nassau
+                                  </button>
+                                  <button type="button" onClick={() => setEditBBBetType('straight')}
+                                    className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
+                                    style={editBBBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Straight Up
                                   </button>
                                 </div>
                                 <input autoFocus type="number" min="0" step="1" placeholder="amt"
