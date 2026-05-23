@@ -161,6 +161,9 @@ export default function LeaderboardClient({
     ? calculateFrontBackPayouts(initialTeams, frontSummaries, backSummaries, ballValueArr, ballsCount)
     : { results: [], net: {} as Record<string, number>, settlements: [] }
 
+  const isComplete = players.length > 0 && holes.length > 0 &&
+    players.every((p) => scores.filter((s) => s.player_id === p.id).length === holes.length)
+
   const formattedDate = new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
@@ -410,8 +413,8 @@ export default function LeaderboardClient({
             </a>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
-            Live
+            <span className={`w-2 h-2 rounded-full inline-block${isComplete ? ' bg-red-500' : ' bg-green-500 animate-pulse'}`} />
+            {isComplete ? 'Complete' : 'Live'}
           </div>
         </div>
 
