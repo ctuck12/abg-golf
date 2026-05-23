@@ -17,6 +17,9 @@ type BestBallMatchup = {
   team2_player1_id: string; team2_player2_id: string
   bet: string
 }
+type ScorecardTarget =
+  | { type: 'player'; id: string; name: string }
+  | { type: 'bestball'; p1Id: string; p2Id: string; teamName: string }
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -147,18 +150,15 @@ export default function MatchupClient({
   const [matchups, setMatchups] = useState(initialMatchups)
   const [bestBallMatchups, setBestBallMatchups] = useState(initialBestBallMatchups)
 
-  // H2H create
   const [newP1, setNewP1] = useState('')
   const [newP2, setNewP2] = useState('')
   const [newBet, setNewBet] = useState('')
   const [savingH2H, setSavingH2H] = useState(false)
 
-  // H2H expand / edit
   const [expandedH2H, setExpandedH2H] = useState<string | null>(null)
   const [editingH2H, setEditingH2H] = useState<string | null>(null)
   const [editH2HBet, setEditH2HBet] = useState('')
 
-  // BB create
   const [bbT1P1, setBbT1P1] = useState('')
   const [bbT1P2, setBbT1P2] = useState('')
   const [bbT2P1, setBbT2P1] = useState('')
@@ -166,10 +166,12 @@ export default function MatchupClient({
   const [bbBet, setBbBet] = useState('')
   const [savingBB, setSavingBB] = useState(false)
 
-  // BB expand / edit
-  const [expandedBB, setExpandedBB] = useState<{ id: string; view: 'match' | 'team1' | 'team2' } | null>(null)
+  const [expandedBB, setExpandedBB] = useState<string | null>(null)
   const [editingBB, setEditingBB] = useState<string | null>(null)
   const [editBBBet, setEditBBBet] = useState('')
+
+  const [showScorecardFor, setShowScorecardFor] = useState<ScorecardTarget | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -248,7 +250,7 @@ export default function MatchupClient({
 
   async function handleDeleteBB(id: string) {
     setBestBallMatchups((prev) => prev.filter((m) => m.id !== id))
-    if (expandedBB?.id === id) setExpandedBB(null)
+    if (expandedBB === id) setExpandedBB(null)
     await deleteBestBallMatchup(id)
   }
 
@@ -258,15 +260,61 @@ export default function MatchupClient({
     await updateBestBallBet(id, editBBBet)
   }
 
-  // Search
-  const [searchQuery, setSearchQuery] = useState('')
   const searchLower = searchQuery.toLowerCase().trim()
-
-  // All selected BB player ids for mutual exclusion
   const bbSelected = [bbT1P1, bbT1P2, bbT2P1, bbT2P2].filter(Boolean)
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+
+      {/* ── Scorecard Modal ── */}
+      {showScorecardFor && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowScorecardFor(null)}>
+          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white">
+              <h3 className="font-bold text-gray-900 text-base">
+                {showScorecardFor.type === 'player' ? showScorecardFor.name : showScorecardFor.teamName}
+              </h3>
+              <button onClick={() => setShowScorecardFor(null)}
+                className="text-gray-400 text-2xl font-bold leading-none">×</button>
+            </div>
+            <div className="px-4 py-4 overflow-x-auto">
+              {showScorecardFor.type === 'player' ? (
+                <HorizontalScorecardTable
+                  rows={[{ label: showScorecardFor.name, scoreMap: scoreMap[showScorecardFor.id] ?? {} }]}
+                  holes={holes}
+                />
+              ) : (() => {
+                const target = showScorecardFor
+                const p1Map = scoreMap[target.p1Id] ?? {}
+                const p2Map = scoreMap[target.p2Id] ?? {}
+                const bestMap: Record<number, number> = {}
+                for (const hole of holes) {
+                  const s1: number | undefined = p1Map[hole.hole_number]
+                  const s2: number | undefined = p2Map[hole.hole_number]
+                  const arr = [s1, s2].filter((s): s is number => s !== undefined)
+                  if (arr.length > 0) bestMap[hole.hole_number] = Math.min(...arr)
+                }
+                const p1 = players.find((p) => p.id === target.p1Id)
+                const p2 = players.find((p) => p.id === target.p2Id)
+                return (
+                  <HorizontalScorecardTable
+                    rows={[
+                      { label: p1?.name.split(' ')[0] ?? 'P1', scoreMap: p1Map },
+                      { label: p2?.name.split(' ')[0] ?? 'P2', scoreMap: p2Map },
+                      { label: 'Best', scoreMap: bestMap },
+                    ]}
+                    holes={holes}
+                  />
+                )
+              })()}
+            </div>
+            <div className="h-6" />
+          </div>
+        </div>
+      )}
+
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
@@ -349,110 +397,134 @@ export default function MatchupClient({
                 </p>
               )
               return (
-              <div className="divide-y divide-gray-100">
-                {filtered.map((m) => {
-                  const mp1 = players.find((p) => p.id === m.player1_id)
-                  const mp2 = players.find((p) => p.id === m.player2_id)
-                  if (!mp1 || !mp2) return null
-                  const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
-                  const isFinal = stats.holesPlayed === holes.length && holes.length > 0
-                  const leader = stats.p1Wins > stats.p2Wins ? mp1 : stats.p2Wins > stats.p1Wins ? mp2 : null
-                  const isExpanded = expandedH2H === m.id
-                  const isEditing = editingH2H === m.id
-                  const p1Short = mp1.name.split(' ')[0]
-                  const p2Short = mp2.name.split(' ')[0]
+                <div className="divide-y divide-gray-100">
+                  {filtered.map((m) => {
+                    const mp1 = players.find((p) => p.id === m.player1_id)
+                    const mp2 = players.find((p) => p.id === m.player2_id)
+                    if (!mp1 || !mp2) return null
+                    const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
+                    const isFinal = stats.holesPlayed === holes.length && holes.length > 0
+                    const leader = stats.p1Wins > stats.p2Wins ? mp1 : stats.p2Wins > stats.p1Wins ? mp2 : null
+                    const isExpanded = expandedH2H === m.id
+                    const isEditing = editingH2H === m.id
 
-                  return (
-                    <div key={m.id}>
-                      <div className="px-4 py-3">
-                        {/* Names row */}
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2 text-sm font-semibold min-w-0">
-                            <a href={`/player/${mp1.id}`} className="hover:underline truncate" style={{ color: navy }}>{mp1.name}</a>
-                            <span className="text-gray-400 font-normal flex-shrink-0">vs</span>
-                            <a href={`/player/${mp2.id}`} className="hover:underline truncate" style={{ color: navy }}>{mp2.name}</a>
-                            {isFinal && (
-                              <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0"
-                                style={{ background: '#fef3c7', color: '#92400e' }}>FINAL</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                            <button onClick={() => { setExpandedH2H(isExpanded ? null : m.id) }}
-                              className="text-xs text-gray-400 hover:text-gray-700">
-                              {isExpanded ? '▲' : '▼'}
-                            </button>
-                            <button onClick={() => handleDeleteH2H(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
-                          </div>
-                        </div>
-
-                        {/* Bet row */}
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
-                          {isEditing ? (
-                            <div className="flex items-center gap-1.5">
-                              <input autoFocus value={editH2HBet} onChange={(e) => setEditH2HBet(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveH2HBet(m.id); if (e.key === 'Escape') setEditingH2H(null) }}
-                                className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-28" />
-                              <button onClick={() => handleSaveH2HBet(m.id)} className="text-xs font-semibold text-green-600">Save</button>
-                              <button onClick={() => setEditingH2H(null)} className="text-xs text-gray-400">Cancel</button>
+                    return (
+                      <div key={m.id}>
+                        <div className="px-4 py-3">
+                          {/* Names row */}
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2 text-sm font-semibold min-w-0">
+                              <button
+                                onClick={() => setShowScorecardFor({ type: 'player', id: mp1.id, name: mp1.name })}
+                                className="hover:underline truncate text-left" style={{ color: navy }}>
+                                {mp1.name}
+                              </button>
+                              <span className="text-gray-400 font-normal flex-shrink-0">vs</span>
+                              <button
+                                onClick={() => setShowScorecardFor({ type: 'player', id: mp2.id, name: mp2.name })}
+                                className="hover:underline truncate text-left" style={{ color: navy }}>
+                                {mp2.name}
+                              </button>
+                              {isFinal && (
+                                <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0"
+                                  style={{ background: '#fef3c7', color: '#92400e' }}>FINAL</span>
+                              )}
                             </div>
-                          ) : (
-                            <span className="flex items-center gap-1">
-                              {m.bet
-                                ? <span className="font-medium" style={{ color: gold }}>Bet: {m.bet}</span>
-                                : <span className="text-gray-300">No bet</span>}
-                              <button onClick={() => { setEditingH2H(m.id); setEditH2HBet(m.bet) }}
-                                className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
-                            </span>
-                          )}
-                          {stats.holesPlayed > 0 ? (
-                            <>
-                              <span className="text-gray-300">·</span>
-                              <span className="font-mono font-bold text-gray-700">{stats.p1Wins}–{stats.p2Wins}–{stats.ties}</span>
-                              <span className="text-gray-300">·</span>
-                              <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
-                                {isFinal
-                                  ? (leader ? `${leader.name.split(' ')[0]} wins` : 'All square')
-                                  : (leader ? `${leader.name.split(' ')[0]} leads` : 'All square')}
+                            <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                              <button onClick={() => setExpandedH2H(isExpanded ? null : m.id)}
+                                className="text-xs text-gray-400 hover:text-gray-700">
+                                {isExpanded ? '▲' : '▼'}
+                              </button>
+                              <button onClick={() => handleDeleteH2H(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                            </div>
+                          </div>
+
+                          {/* Bet + status row */}
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
+                            {isEditing ? (
+                              <div className="flex items-center gap-1.5">
+                                <input autoFocus value={editH2HBet} onChange={(e) => setEditH2HBet(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveH2HBet(m.id); if (e.key === 'Escape') setEditingH2H(null) }}
+                                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-28" />
+                                <button onClick={() => handleSaveH2HBet(m.id)} className="text-xs font-semibold text-green-600">Save</button>
+                                <button onClick={() => setEditingH2H(null)} className="text-xs text-gray-400">Cancel</button>
+                              </div>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                {m.bet
+                                  ? <span className="font-medium" style={{ color: gold }}>Bet: {m.bet}</span>
+                                  : <span className="text-gray-300">No bet</span>}
+                                <button onClick={() => { setEditingH2H(m.id); setEditH2HBet(m.bet) }}
+                                  className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
                               </span>
-                              <span className="text-gray-300">·</span>
-                              <span className="text-gray-500">Thru {stats.holesPlayed}</span>
-                            </>
-                          ) : <span className="text-gray-400">No scores yet</span>}
+                            )}
+                            {stats.holesPlayed > 0 ? (
+                              <>
+                                <span className="text-gray-300">·</span>
+                                <span className="font-mono font-bold text-gray-700">{stats.p1Wins}–{stats.p2Wins}–{stats.ties}</span>
+                                <span className="text-gray-300">·</span>
+                                <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
+                                  {isFinal
+                                    ? (leader ? `${leader.name.split(' ')[0]} wins` : 'All square')
+                                    : (leader ? `${leader.name.split(' ')[0]} leads` : 'All square')}
+                                </span>
+                                <span className="text-gray-300">·</span>
+                                <span className="text-gray-500">Thru {stats.holesPlayed}</span>
+                              </>
+                            ) : <span className="text-gray-400">No scores yet</span>}
+                          </div>
+
+                          {/* 5-column summary table */}
+                          <div className="rounded-lg border border-gray-100 overflow-hidden">
+                            <table className="w-full border-collapse">
+                              <thead>
+                                <tr style={{ background: '#f9fafb' }}>
+                                  <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-500">Player</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Front</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Back</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Total</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Thru</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {([
+                                  { player: mp1, front: stats.p1Front, back: stats.p1Back, total: stats.p1Total },
+                                  { player: mp2, front: stats.p2Front, back: stats.p2Back, total: stats.p2Total },
+                                ] as const).map(({ player, front, back, total }) => {
+                                  const thru = Object.keys(scoreMap[player.id] ?? {}).length
+                                  return (
+                                    <tr key={player.id} className="border-t border-gray-100">
+                                      <td className="px-3 py-2">
+                                        <button
+                                          onClick={() => setShowScorecardFor({ type: 'player', id: player.id, name: player.name })}
+                                          className="text-xs font-semibold hover:underline text-left"
+                                          style={{ color: navy }}>
+                                          {player.name}
+                                        </button>
+                                      </td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(front) }}>{fmtVsPar(front)}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(back) }}>{fmtVsPar(back)}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(total) }}>{fmtVsPar(total)}</td>
+                                      <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
 
-                        {/* Front / Back / Total vs par */}
-                        {stats.holesPlayed > 0 && (
-                          <div className="grid grid-cols-3 gap-1 text-xs">
-                            {(['Front', 'Back', 'Total'] as const).map((label) => {
-                              const v1 = label === 'Front' ? stats.p1Front : label === 'Back' ? stats.p1Back : stats.p1Total
-                              const v2 = label === 'Front' ? stats.p2Front : label === 'Back' ? stats.p2Back : stats.p2Total
-                              return (
-                                <div key={label} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
-                                  <p className="text-gray-400 mb-0.5">{label}</p>
-                                  <div className="flex justify-around">
-                                    <span className="font-bold" style={{ color: vpColor(v1) }}>{fmtVsPar(v1)}</span>
-                                    <span className="text-gray-300">|</span>
-                                    <span className="font-bold" style={{ color: vpColor(v2) }}>{fmtVsPar(v2)}</span>
-                                  </div>
-                                  <p className="text-gray-400 mt-0.5" style={{ fontSize: '0.65rem' }}>{p1Short} | {p2Short}</p>
-                                </div>
-                              )
-                            })}
+                        {/* Expanded hole-by-hole */}
+                        {isExpanded && (
+                          <div className="border-t border-gray-100">
+                            <H2HHoleTable stats={stats} p1={mp1} p2={mp2} holes={holes} />
                           </div>
                         )}
                       </div>
-
-                      {/* Expanded hole-by-hole */}
-                      {isExpanded && (
-                        <div className="border-t border-gray-100">
-                          <H2HHoleTable stats={stats} p1={mp1} p2={mp2} holes={holes} />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )
+                    )
+                  })}
+                </div>
+              )
             })()}
           </div>
         </div>
@@ -527,142 +599,141 @@ export default function MatchupClient({
                 </p>
               )
               return (
-              <div className="divide-y divide-gray-100">
-                {filtered.map((m) => {
-                  const t1p1 = players.find((p) => p.id === m.team1_player1_id)
-                  const t1p2 = players.find((p) => p.id === m.team1_player2_id)
-                  const t2p1 = players.find((p) => p.id === m.team2_player1_id)
-                  const t2p2 = players.find((p) => p.id === m.team2_player2_id)
-                  if (!t1p1 || !t1p2 || !t2p1 || !t2p2) return null
-                  const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
-                  const isFinal = stats.holesPlayed === holes.length && holes.length > 0
-                  const leader = stats.t1Wins > stats.t2Wins ? 'team1' : stats.t2Wins > stats.t1Wins ? 'team2' : null
-                  const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
-                  const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
-                  const isExpanded = expandedBB?.id === m.id
-                  const expandView = expandedBB?.view ?? 'match'
-                  const isEditingBB = editingBB === m.id
+                <div className="divide-y divide-gray-100">
+                  {filtered.map((m) => {
+                    const t1p1 = players.find((p) => p.id === m.team1_player1_id)
+                    const t1p2 = players.find((p) => p.id === m.team1_player2_id)
+                    const t2p1 = players.find((p) => p.id === m.team2_player1_id)
+                    const t2p2 = players.find((p) => p.id === m.team2_player2_id)
+                    if (!t1p1 || !t1p2 || !t2p1 || !t2p2) return null
+                    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
+                    const isFinal = stats.holesPlayed === holes.length && holes.length > 0
+                    const leader = stats.t1Wins > stats.t2Wins ? 'team1' : stats.t2Wins > stats.t1Wins ? 'team2' : null
+                    const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
+                    const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
+                    const isExpanded = expandedBB === m.id
+                    const isEditingBB = editingBB === m.id
 
-                  return (
-                    <div key={m.id}>
-                      <div className="px-4 py-3">
-                        {/* Team names row */}
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2 text-sm font-semibold min-w-0 flex-wrap">
-                            <button onClick={() => setExpandedBB(isExpanded && expandView === 'team1' ? null : { id: m.id, view: 'team1' })}
-                              className="hover:underline font-semibold text-left" style={{ color: '#2563eb' }}>{t1Name}</button>
-                            <span className="text-gray-400 font-normal flex-shrink-0">vs</span>
-                            <button onClick={() => setExpandedBB(isExpanded && expandView === 'team2' ? null : { id: m.id, view: 'team2' })}
-                              className="hover:underline font-semibold text-left" style={{ color: '#92400e' }}>{t2Name}</button>
-                            {isFinal && (
-                              <span className="px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0"
-                                style={{ background: '#fef3c7', color: '#92400e' }}>FINAL</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                            <button onClick={() => setExpandedBB(isExpanded && expandView === 'match' ? null : { id: m.id, view: 'match' })}
-                              className="text-xs text-gray-400 hover:text-gray-700">
-                              {isExpanded ? '▲' : '▼'}
-                            </button>
-                            <button onClick={() => handleDeleteBB(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
-                          </div>
-                        </div>
-
-                        {/* Bet + status */}
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
-                          {isEditingBB ? (
-                            <div className="flex items-center gap-1.5">
-                              <input autoFocus value={editBBBet} onChange={(e) => setEditBBBet(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveBBBet(m.id); if (e.key === 'Escape') setEditingBB(null) }}
-                                className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-28" />
-                              <button onClick={() => handleSaveBBBet(m.id)} className="text-xs font-semibold text-green-600">Save</button>
-                              <button onClick={() => setEditingBB(null)} className="text-xs text-gray-400">Cancel</button>
+                    return (
+                      <div key={m.id}>
+                        <div className="px-4 py-3">
+                          {/* Team names row */}
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2 text-sm font-semibold min-w-0 flex-wrap">
+                              <button
+                                onClick={() => setShowScorecardFor({ type: 'bestball', p1Id: m.team1_player1_id, p2Id: m.team1_player2_id, teamName: t1Name })}
+                                className="hover:underline font-semibold text-left" style={{ color: '#2563eb' }}>
+                                {t1Name}
+                              </button>
+                              <span className="text-gray-400 font-normal flex-shrink-0">vs</span>
+                              <button
+                                onClick={() => setShowScorecardFor({ type: 'bestball', p1Id: m.team2_player1_id, p2Id: m.team2_player2_id, teamName: t2Name })}
+                                className="hover:underline font-semibold text-left" style={{ color: '#92400e' }}>
+                                {t2Name}
+                              </button>
+                              {isFinal && (
+                                <span className="px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0"
+                                  style={{ background: '#fef3c7', color: '#92400e' }}>FINAL</span>
+                              )}
                             </div>
-                          ) : (
-                            <span className="flex items-center gap-1">
-                              {m.bet
-                                ? <span className="font-medium" style={{ color: gold }}>Bet: {m.bet}</span>
-                                : <span className="text-gray-300">No bet</span>}
-                              <button onClick={() => { setEditingBB(m.id); setEditBBBet(m.bet) }}
-                                className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
-                            </span>
-                          )}
-                          {stats.holesPlayed > 0 ? (
-                            <>
-                              <span className="text-gray-300">·</span>
-                              <span className="font-mono font-bold text-gray-700">{stats.t1Wins}–{stats.t2Wins}–{stats.ties}</span>
-                              <span className="text-gray-300">·</span>
-                              <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
-                                {isFinal
-                                  ? (leader === 'team1' ? `${t1Name} wins` : leader === 'team2' ? `${t2Name} wins` : 'Tied')
-                                  : (leader === 'team1' ? `${t1Name} leads` : leader === 'team2' ? `${t2Name} leads` : 'All square')}
+                            <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                              <button onClick={() => setExpandedBB(isExpanded ? null : m.id)}
+                                className="text-xs text-gray-400 hover:text-gray-700">
+                                {isExpanded ? '▲' : '▼'}
+                              </button>
+                              <button onClick={() => handleDeleteBB(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                            </div>
+                          </div>
+
+                          {/* Bet + status */}
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
+                            {isEditingBB ? (
+                              <div className="flex items-center gap-1.5">
+                                <input autoFocus value={editBBBet} onChange={(e) => setEditBBBet(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveBBBet(m.id); if (e.key === 'Escape') setEditingBB(null) }}
+                                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-28" />
+                                <button onClick={() => handleSaveBBBet(m.id)} className="text-xs font-semibold text-green-600">Save</button>
+                                <button onClick={() => setEditingBB(null)} className="text-xs text-gray-400">Cancel</button>
+                              </div>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                {m.bet
+                                  ? <span className="font-medium" style={{ color: gold }}>Bet: {m.bet}</span>
+                                  : <span className="text-gray-300">No bet</span>}
+                                <button onClick={() => { setEditingBB(m.id); setEditBBBet(m.bet) }}
+                                  className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
                               </span>
-                              <span className="text-gray-300">·</span>
-                              <span>Thru {stats.holesPlayed}</span>
-                            </>
-                          ) : <span className="text-gray-400">No scores yet</span>}
+                            )}
+                            {stats.holesPlayed > 0 ? (
+                              <>
+                                <span className="text-gray-300">·</span>
+                                <span className="font-mono font-bold text-gray-700">{stats.t1Wins}–{stats.t2Wins}–{stats.ties}</span>
+                                <span className="text-gray-300">·</span>
+                                <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
+                                  {isFinal
+                                    ? (leader === 'team1' ? `${t1Name} wins` : leader === 'team2' ? `${t2Name} wins` : 'Tied')
+                                    : (leader === 'team1' ? `${t1Name} leads` : leader === 'team2' ? `${t2Name} leads` : 'All square')}
+                                </span>
+                                <span className="text-gray-300">·</span>
+                                <span>Thru {stats.holesPlayed}</span>
+                              </>
+                            ) : <span className="text-gray-400">No scores yet</span>}
+                          </div>
+
+                          {/* 5-column summary table */}
+                          <div className="rounded-lg border border-gray-100 overflow-hidden">
+                            <table className="w-full border-collapse">
+                              <thead>
+                                <tr style={{ background: '#f9fafb' }}>
+                                  <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-500">Team</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Front</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Back</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Total</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-gray-500">Thru</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {([
+                                  { tName: t1Name, front: stats.t1Front, back: stats.t1Back, total: stats.t1Total, p1Id: m.team1_player1_id, p2Id: m.team1_player2_id, color: '#2563eb' },
+                                  { tName: t2Name, front: stats.t2Front, back: stats.t2Back, total: stats.t2Total, p1Id: m.team2_player1_id, p2Id: m.team2_player2_id, color: '#92400e' },
+                                ] as const).map(({ tName, front, back, total, p1Id, p2Id, color }) => {
+                                  const thru = holes.filter((h) =>
+                                    (scoreMap[p1Id]?.[h.hole_number] != null) ||
+                                    (scoreMap[p2Id]?.[h.hole_number] != null)
+                                  ).length
+                                  return (
+                                    <tr key={tName} className="border-t border-gray-100">
+                                      <td className="px-3 py-2">
+                                        <button
+                                          onClick={() => setShowScorecardFor({ type: 'bestball', p1Id, p2Id, teamName: tName })}
+                                          className="text-xs font-semibold hover:underline text-left"
+                                          style={{ color }}>
+                                          {tName}
+                                        </button>
+                                      </td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(front) }}>{fmtVsPar(front)}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(back) }}>{fmtVsPar(back)}</td>
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(total) }}>{fmtVsPar(total)}</td>
+                                      <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
 
-                        {/* Front / Back / Total */}
-                        {stats.holesPlayed > 0 && (
-                          <div className="grid grid-cols-3 gap-1 text-xs">
-                            {(['Front', 'Back', 'Total'] as const).map((label) => {
-                              const v1 = label === 'Front' ? stats.t1Front : label === 'Back' ? stats.t1Back : stats.t1Total
-                              const v2 = label === 'Front' ? stats.t2Front : label === 'Back' ? stats.t2Back : stats.t2Total
-                              return (
-                                <div key={label} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
-                                  <p className="text-gray-400 mb-0.5">{label}</p>
-                                  <div className="flex justify-around">
-                                    <span className="font-bold" style={{ color: vpColor(v1) }}>{fmtVsPar(v1)}</span>
-                                    <span className="text-gray-300">|</span>
-                                    <span className="font-bold" style={{ color: vpColor(v2) }}>{fmtVsPar(v2)}</span>
-                                  </div>
-                                  <p className="text-gray-400 mt-0.5" style={{ fontSize: '0.65rem' }}>T1 | T2</p>
-                                </div>
-                              )
-                            })}
+                        {/* Expanded match table */}
+                        {isExpanded && (
+                          <div className="border-t border-gray-100">
+                            <BBMatchTable stats={stats} t1Name={t1Name} t2Name={t2Name} holes={holes} />
                           </div>
                         )}
                       </div>
-
-                      {/* Expanded view */}
-                      {isExpanded && (
-                        <div className="border-t border-gray-100">
-                          {/* Tab switcher */}
-                          <div className="flex border-b border-gray-100">
-                            {([
-                              { key: 'match', label: 'Match' },
-                              { key: 'team1', label: t1Name },
-                              { key: 'team2', label: t2Name },
-                            ] as const).map(({ key, label }) => (
-                              <button key={key}
-                                onClick={() => setExpandedBB({ id: m.id, view: key })}
-                                className="flex-1 py-2 text-xs font-semibold border-b-2 transition-colors"
-                                style={{
-                                  borderColor: expandView === key ? navy : 'transparent',
-                                  color: expandView === key ? navy : '#9ca3af',
-                                }}>
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-
-                          {expandView === 'match' && (
-                            <BBMatchTable stats={stats} t1Name={t1Name} t2Name={t2Name} holes={holes} />
-                          )}
-                          {expandView === 'team1' && (
-                            <BBTeamTable rows={stats.rows} p1={t1p1} p2={t1p2} teamKey="team1" holes={holes} />
-                          )}
-                          {expandView === 'team2' && (
-                            <BBTeamTable rows={stats.rows} p1={t2p1} p2={t2p2} teamKey="team2" holes={holes} />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )
+                    )
+                  })}
+                </div>
+              )
             })()}
           </div>
         </div>
@@ -672,6 +743,113 @@ export default function MatchupClient({
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
+
+function HorizontalScorecardTable({
+  rows, holes,
+}: {
+  rows: { label: string; scoreMap: Partial<Record<number, number>> }[]
+  holes: Hole[]
+}) {
+  const frontNine = holes.filter((h) => h.hole_number <= 9)
+  const backNine = holes.filter((h) => h.hole_number >= 10)
+  const frontPar = frontNine.reduce((s, h) => s + h.par, 0)
+  const backPar = backNine.reduce((s, h) => s + h.par, 0)
+  const totalPar = frontPar + backPar
+
+  const hdr = (highlight?: boolean): React.CSSProperties => ({
+    background: highlight ? '#4a7fa5' : navy,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: 700,
+    fontSize: '0.6rem',
+    textAlign: 'center',
+    padding: '0.35rem 0.2rem',
+    minWidth: '1.8rem',
+    whiteSpace: 'nowrap',
+  })
+  const cell = (highlight?: boolean): React.CSSProperties => ({
+    textAlign: 'center',
+    padding: '0.3rem 0.2rem',
+    fontSize: '0.72rem',
+    borderTop: '1px solid #e5e7eb',
+    background: highlight ? '#dbeafe' : 'white',
+    color: highlight ? '#1e40af' : undefined,
+    fontWeight: highlight ? 700 : undefined,
+    minWidth: '1.8rem',
+  })
+
+  return (
+    <table style={{ borderCollapse: 'collapse', minWidth: '540px', width: '100%' }}>
+      <thead>
+        <tr>
+          <th style={{ ...hdr(), textAlign: 'left', paddingLeft: '0.5rem', minWidth: '5rem' }}>HOLE</th>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <th key={n} style={hdr()}>{n}</th>)}
+          <th style={hdr(true)}>F</th>
+          {[10, 11, 12, 13, 14, 15, 16, 17, 18].map((n) => <th key={n} style={hdr()}>{n}</th>)}
+          <th style={hdr(true)}>B</th>
+          <th style={hdr()}>Tot</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style={{ ...cell(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>Par</td>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
+            const hole = holes.find((h) => h.hole_number === n)
+            return <td key={n} style={{ ...cell(), color: '#6b7280' }}>{hole?.par ?? '–'}</td>
+          })}
+          <td style={cell(true)}>{frontNine.length > 0 ? frontPar : '–'}</td>
+          {[10, 11, 12, 13, 14, 15, 16, 17, 18].map((n) => {
+            const hole = holes.find((h) => h.hole_number === n)
+            return <td key={n} style={{ ...cell(), color: '#6b7280' }}>{hole?.par ?? '–'}</td>
+          })}
+          <td style={cell(true)}>{backNine.length > 0 ? backPar : '–'}</td>
+          <td style={{ ...cell(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
+        </tr>
+        {rows.map(({ label, scoreMap }) => {
+          const frontScored = frontNine.filter((h) => scoreMap[h.hole_number] != null)
+          const backScored = backNine.filter((h) => scoreMap[h.hole_number] != null)
+          const frontStrokes = frontScored.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
+          const backStrokes = backScored.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
+          const totalStrokes = frontStrokes + backStrokes
+          const anyScored = frontScored.length + backScored.length > 0
+          return (
+            <tr key={label}>
+              <td style={{ ...cell(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{label}</td>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
+                const hole = holes.find((h) => h.hole_number === n)
+                const s = scoreMap[n] ?? null
+                return (
+                  <td key={n} style={cell()}>
+                    {s != null && hole
+                      ? <span style={{ fontWeight: 700, color: scoreColor(s, hole.par) }}>{s}</span>
+                      : <span style={{ color: '#d1d5db' }}>–</span>}
+                  </td>
+                )
+              })}
+              <td style={cell(true)}>{frontScored.length > 0 ? frontStrokes : '–'}</td>
+              {[10, 11, 12, 13, 14, 15, 16, 17, 18].map((n) => {
+                const hole = holes.find((h) => h.hole_number === n)
+                const s = scoreMap[n] ?? null
+                return (
+                  <td key={n} style={cell()}>
+                    {s != null && hole
+                      ? <span style={{ fontWeight: 700, color: scoreColor(s, hole.par) }}>{s}</span>
+                      : <span style={{ color: '#d1d5db' }}>–</span>}
+                  </td>
+                )
+              })}
+              <td style={cell(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>
+              <td style={{ ...cell(), fontWeight: 700 }}>
+                {anyScored
+                  ? <span style={{ color: scoreColor(totalStrokes, totalPar) }}>{totalStrokes}</span>
+                  : '–'}
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
 
 function H2HHoleTable({ stats, p1, p2, holes }: {
   stats: ReturnType<typeof computeStats>
@@ -684,13 +862,9 @@ function H2HHoleTable({ stats, p1, p2, holes }: {
         <tr style={{ background: navy }}>
           <th className="px-3 py-2 text-left text-xs font-semibold w-10" style={{ color: 'rgba(255,255,255,0.6)' }}>Hole</th>
           <th className="px-2 py-2 text-center text-xs font-semibold w-8" style={{ color: 'rgba(255,255,255,0.6)' }}>Par</th>
-          <th className="px-3 py-2 text-center text-xs font-semibold" style={{ color: gold }}>
-            <a href={`/player/${p1.id}`} className="hover:underline">{p1.name.split(' ')[0]}</a>
-          </th>
+          <th className="px-3 py-2 text-center text-xs font-semibold" style={{ color: gold }}>{p1.name.split(' ')[0]}</th>
           <th className="px-2 py-2 w-8" />
-          <th className="px-3 py-2 text-center text-xs font-semibold" style={{ color: gold }}>
-            <a href={`/player/${p2.id}`} className="hover:underline">{p2.name.split(' ')[0]}</a>
-          </th>
+          <th className="px-3 py-2 text-center text-xs font-semibold" style={{ color: gold }}>{p2.name.split(' ')[0]}</th>
         </tr>
       </thead>
       <tbody>
@@ -701,9 +875,7 @@ function H2HHoleTable({ stats, p1, p2, holes }: {
               <td className="px-3 py-2.5 font-bold text-gray-900">{hole.hole_number}</td>
               <td className="px-2 py-2.5 text-center text-gray-400">{hole.par}</td>
               <td className="px-3 py-2.5 text-center">
-                {s1 != null
-                  ? <span className="font-bold" style={{ color: scoreColor(s1, hole.par) }}>{s1}</span>
-                  : <span className="text-gray-300">–</span>}
+                {s1 != null ? <span className="font-bold" style={{ color: scoreColor(s1, hole.par) }}>{s1}</span> : <span className="text-gray-300">–</span>}
               </td>
               <td className="px-2 py-2.5 text-center text-xs font-bold">
                 {result === 'win' && <span className="text-green-600">W</span>}
@@ -712,9 +884,7 @@ function H2HHoleTable({ stats, p1, p2, holes }: {
                 {result === null && <span className="text-gray-200">–</span>}
               </td>
               <td className="px-3 py-2.5 text-center">
-                {s2 != null
-                  ? <span className="font-bold" style={{ color: scoreColor(s2, hole.par) }}>{s2}</span>
-                  : <span className="text-gray-300">–</span>}
+                {s2 != null ? <span className="font-bold" style={{ color: scoreColor(s2, hole.par) }}>{s2}</span> : <span className="text-gray-300">–</span>}
               </td>
             </tr>
           )
@@ -765,9 +935,7 @@ function BBMatchTable({ stats, t1Name, t2Name, holes }: {
               <td className="px-3 py-2.5 font-bold text-gray-900">{hole.hole_number}</td>
               <td className="px-2 py-2.5 text-center text-gray-400">{hole.par}</td>
               <td className="px-3 py-2.5 text-center">
-                {t1Best != null
-                  ? <span className="font-bold" style={{ color: scoreColor(t1Best, hole.par) }}>{t1Best}</span>
-                  : <span className="text-gray-300">–</span>}
+                {t1Best != null ? <span className="font-bold" style={{ color: scoreColor(t1Best, hole.par) }}>{t1Best}</span> : <span className="text-gray-300">–</span>}
               </td>
               <td className="px-2 py-2.5 text-center text-xs font-bold">
                 {result === 'team1' && <span className="text-green-600">W</span>}
@@ -776,168 +944,21 @@ function BBMatchTable({ stats, t1Name, t2Name, holes }: {
                 {result === null && <span className="text-gray-200">–</span>}
               </td>
               <td className="px-3 py-2.5 text-center">
-                {t2Best != null
-                  ? <span className="font-bold" style={{ color: scoreColor(t2Best, hole.par) }}>{t2Best}</span>
-                  : <span className="text-gray-300">–</span>}
+                {t2Best != null ? <span className="font-bold" style={{ color: scoreColor(t2Best, hole.par) }}>{t2Best}</span> : <span className="text-gray-300">–</span>}
               </td>
             </tr>
           )
         })}
         <tr className="border-t-2 border-gray-200 font-bold" style={{ background: '#f9fafb' }}>
           <td colSpan={2} className="px-3 py-2.5 text-gray-700">Total</td>
-          <td className="px-3 py-2.5 text-center">
-            <span style={{ color: vpColor(stats.t1Total) }}>{fmtVsPar(stats.t1Total)}</span>
-          </td>
+          <td className="px-3 py-2.5 text-center"><span style={{ color: vpColor(stats.t1Total) }}>{fmtVsPar(stats.t1Total)}</span></td>
           <td className="px-2 py-2.5 text-center text-xs"
             style={{ color: stats.t1Wins > stats.t2Wins ? '#16a34a' : stats.t2Wins > stats.t1Wins ? '#dc2626' : '#6b7280' }}>
             {stats.t1Wins}–{stats.t2Wins}–{stats.ties}
           </td>
-          <td className="px-3 py-2.5 text-center">
-            <span style={{ color: vpColor(stats.t2Total) }}>{fmtVsPar(stats.t2Total)}</span>
-          </td>
+          <td className="px-3 py-2.5 text-center"><span style={{ color: vpColor(stats.t2Total) }}>{fmtVsPar(stats.t2Total)}</span></td>
         </tr>
       </tbody>
     </table>
-  )
-}
-
-function BBTeamTable({ rows, p1, p2, teamKey, holes }: {
-  rows: BBRow[]
-  p1: Player; p2: Player
-  teamKey: 'team1' | 'team2'
-  holes: Hole[]
-}) {
-  const totalPar = holes.reduce((s, h) => s + h.par, 0)
-  let totalP1 = 0, totalP2 = 0, totalBest = 0, anyScore = false
-
-  return (
-    <table className="w-full text-sm border-collapse">
-      <thead>
-        <tr style={{ background: navy }}>
-          <th className="px-3 py-2 text-left text-xs font-semibold w-10" style={{ color: 'rgba(255,255,255,0.6)' }}>Hole</th>
-          <th className="px-2 py-2 text-center text-xs w-8" style={{ color: 'rgba(255,255,255,0.6)' }}>Par</th>
-          <th className="px-3 py-2 text-center text-xs font-semibold" style={{ color: gold }}>
-            <a href={`/player/${p1.id}`} className="hover:underline">{p1.name.split(' ')[0]}</a>
-          </th>
-          <th className="px-3 py-2 text-center text-xs font-semibold" style={{ color: gold }}>
-            <a href={`/player/${p2.id}`} className="hover:underline">{p2.name.split(' ')[0]}</a>
-          </th>
-          <th className="px-3 py-2 text-center text-xs font-semibold text-white">Best</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => {
-          const s1 = teamKey === 'team1' ? row.t1p1 : row.t2p1
-          const s2 = teamKey === 'team1' ? row.t1p2 : row.t2p2
-          const best = teamKey === 'team1' ? row.t1Best : row.t2Best
-          if (s1 != null) totalP1 += s1
-          if (s2 != null) totalP2 += s2
-          if (best != null) { totalBest += best; anyScore = true }
-          const p1IsBest = best != null && s1 === best
-          const p2IsBest = best != null && s2 === best
-          return (
-            <tr key={row.hole.hole_number} className="border-b border-gray-100 last:border-0">
-              <td className="px-3 py-2.5 font-bold text-gray-900">{row.hole.hole_number}</td>
-              <td className="px-2 py-2.5 text-center text-gray-400">{row.hole.par}</td>
-              <td className="px-3 py-2.5 text-center">
-                {s1 != null
-                  ? <span className="font-bold" style={{ color: scoreColor(s1, row.hole.par) }}>
-                      {s1}{p1IsBest && !p2IsBest ? ' ★' : ''}
-                    </span>
-                  : <span className="text-gray-300">–</span>}
-              </td>
-              <td className="px-3 py-2.5 text-center">
-                {s2 != null
-                  ? <span className="font-bold" style={{ color: scoreColor(s2, row.hole.par) }}>
-                      {s2}{p2IsBest && !p1IsBest ? ' ★' : ''}
-                    </span>
-                  : <span className="text-gray-300">–</span>}
-              </td>
-              <td className="px-3 py-2.5 text-center">
-                {best != null
-                  ? <span className="font-bold" style={{ color: scoreColor(best, row.hole.par) }}>{best}</span>
-                  : <span className="text-gray-300">–</span>}
-              </td>
-            </tr>
-          )
-        })}
-        <tr className="border-t-2 border-gray-200 font-bold" style={{ background: '#f9fafb' }}>
-          <td colSpan={2} className="px-3 py-2.5 text-gray-700">Total</td>
-          <td className="px-3 py-2.5 text-center text-gray-500 text-xs">{totalP1 > 0 ? totalP1 : '–'}</td>
-          <td className="px-3 py-2.5 text-center text-gray-500 text-xs">{totalP2 > 0 ? totalP2 : '–'}</td>
-          <td className="px-3 py-2.5 text-center">
-            {anyScore
-              ? <span style={{ color: vpColor(totalBest - totalPar) }}>{totalBest} ({fmtVsPar(totalBest - totalPar)})</span>
-              : '–'}
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  )
-}
-
-function MatchupDetail({ p1, p2, stats, holes }: {
-  p1: Player; p2: Player
-  stats: ReturnType<typeof computeStats>
-  holes: Hole[]
-}) {
-  const leader = stats.p1Wins > stats.p2Wins ? p1 : stats.p2Wins > stats.p1Wins ? p2 : null
-  const isFinal = stats.holesPlayed === holes.length && holes.length > 0
-
-  return (
-    <>
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-3 divide-x divide-gray-100">
-          <div className="px-4 py-3 text-center">
-            <a href={`/player/${p1.id}`} className="text-xs font-semibold text-gray-500 mb-1 block hover:underline">{p1.name}</a>
-            <p className="text-3xl font-bold" style={{ color: stats.p1Wins > stats.p2Wins ? '#16a34a' : '#374151' }}>{stats.p1Wins}</p>
-            <p className="text-xs text-gray-400">holes won</p>
-          </div>
-          <div className="px-4 py-3 text-center flex flex-col items-center justify-center">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">VS</p>
-            <p className="text-sm text-gray-500">{stats.ties} tied</p>
-            {stats.holesPlayed > 0 && (
-              <p className="text-xs mt-1 font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
-                {isFinal
-                  ? (leader ? `${leader.name.split(' ')[0]} wins` : 'Tied')
-                  : (leader ? `${leader.name.split(' ')[0]} leads` : 'All square')}
-              </p>
-            )}
-            <p className="text-xs text-gray-400 mt-0.5">
-              {isFinal ? 'Final' : `Thru ${stats.holesPlayed}`}
-            </p>
-          </div>
-          <div className="px-4 py-3 text-center">
-            <a href={`/player/${p2.id}`} className="text-xs font-semibold text-gray-500 mb-1 block hover:underline">{p2.name}</a>
-            <p className="text-3xl font-bold" style={{ color: stats.p2Wins > stats.p1Wins ? '#16a34a' : '#374151' }}>{stats.p2Wins}</p>
-            <p className="text-xs text-gray-400">holes won</p>
-          </div>
-        </div>
-
-        {/* Front / Back / Total */}
-        {stats.holesPlayed > 0 && (
-          <div className="border-t border-gray-100 grid grid-cols-3 divide-x divide-gray-100">
-            {(['Front', 'Back', 'Total'] as const).map((label) => {
-              const v1 = label === 'Front' ? stats.p1Front : label === 'Back' ? stats.p1Back : stats.p1Total
-              const v2 = label === 'Front' ? stats.p2Front : label === 'Back' ? stats.p2Back : stats.p2Total
-              return (
-                <div key={label} className="px-3 py-2 text-center">
-                  <p className="text-xs text-gray-400 mb-1">{label}</p>
-                  <div className="flex justify-around items-center">
-                    <span className="font-bold text-sm" style={{ color: vpColor(v1) }}>{fmtVsPar(v1)}</span>
-                    <span className="text-gray-200 text-xs">|</span>
-                    <span className="font-bold text-sm" style={{ color: vpColor(v2) }}>{fmtVsPar(v2)}</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-        <H2HHoleTable stats={stats} p1={p1} p2={p2} holes={holes} />
-      </div>
-    </>
   )
 }
