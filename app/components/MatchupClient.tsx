@@ -147,10 +147,6 @@ export default function MatchupClient({
   const [matchups, setMatchups] = useState(initialMatchups)
   const [bestBallMatchups, setBestBallMatchups] = useState(initialBestBallMatchups)
 
-  // On-the-fly
-  const [p1Id, setP1Id] = useState('')
-  const [p2Id, setP2Id] = useState('')
-
   // H2H create
   const [newP1, setNewP1] = useState('')
   const [newP2, setNewP2] = useState('')
@@ -206,13 +202,6 @@ export default function MatchupClient({
     }
     return m
   }, [scores])
-
-  const p1 = players.find((p) => p.id === p1Id)
-  const p2 = players.find((p) => p.id === p2Id)
-  const comparison = useMemo(() => {
-    if (!p1 || !p2) return null
-    return computeStats(p1Id, p2Id, scoreMap, holes)
-  }, [p1, p2, p1Id, p2Id, holes, scoreMap])
 
   async function handleCreateH2H() {
     if (!newP1 || !newP2 || newP1 === newP2) return
@@ -290,36 +279,6 @@ export default function MatchupClient({
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-5">
-
-        {/* ── On-the-fly comparison ── */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">On-the-Fly Comparison</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Player 1</label>
-              <select value={p1Id} onChange={(e) => { setP1Id(e.target.value); if (e.target.value === p2Id) setP2Id('') }}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none">
-                <option value="">Select player…</option>
-                {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === p2Id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Player 2</label>
-              <select value={p2Id} onChange={(e) => setP2Id(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none">
-                <option value="">Select player…</option>
-                {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === p1Id}>{p.name}</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {p1Id && p2Id && comparison && p1 && p2 && (
-          <MatchupDetail p1={p1} p2={p2} stats={comparison} holes={holes} />
-        )}
-        {(!p1Id || !p2Id) && (
-          <p className="text-center text-sm text-gray-400 py-1">Select two players above to compare</p>
-        )}
 
         {/* ── Search ── */}
         <div className="relative">
