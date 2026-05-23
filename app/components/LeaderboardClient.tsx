@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { computeTeamBallSummary, computeDaytonaSidesSummary, computePlayerDaytonaPoints, type DaytonaHoleAssignment } from '@/lib/scoring'
+import {
+  computeTeamBallSummary, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
+  calculateFrontBackPayouts, settleDaytonaPlayerPoints,
+  type DaytonaHoleAssignment,
+} from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 
 type Team = { id: string; name: string }
 type Player = { id: string; team_id: string; name: string; position: number | null }
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
+type BallValue = { ball_number: number; value_dollars: number }
+
+const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -31,13 +38,14 @@ function vpColor(vp: number | null): string {
 }
 
 export default function LeaderboardClient({
-  initialTeams, players, holes, initialScores, ballsCount, roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId = null, isAdmin = false, roundId = '', initialAssignments = [],
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId = null, isAdmin = false, roundId = '', initialAssignments = [],
 }: {
   initialTeams: Team[]
   players: Player[]
   holes: Hole[]
   initialScores: Score[]
   ballsCount: number
+  ballValues?: BallValue[]
   roundName: string
   roundDate: string
   roundCourse: string
@@ -54,6 +62,7 @@ export default function LeaderboardClient({
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [showPin, setShowPin] = useState(false)
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
+  const [showPayouts, setShowPayouts] = useState(false)
 
   const isDaytona = format === 'daytona'
 
@@ -70,7 +79,20 @@ export default function LeaderboardClient({
     const ch2 = supabase.channel('score-updates')
       .on('broadcast', { event: 'refresh' }, refetchScores)
       .subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
+
+    const interval = setInterval(refetchScores, 10000)
+
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') refetchScores()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      supabase.removeChannel(ch1)
+      supabase.removeChannel(ch2)
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [players])
 
   useEffect(() => {
@@ -121,6 +143,31 @@ export default function LeaderboardClient({
     return b.points - a.points
   }) : []
 
+  // Payout computations (mirrors AdminDashboard)
+  const frontHolesForPayouts = holes.filter((h) => h.hole_number <= 9)
+  const backHolesForPayouts = holes.filter((h) => h.hole_number >= 10)
+  const ballValueArr = Array.from({ length: ballsCount }, (_, i) => ballValues.find((bv) => bv.ball_number === i + 1)?.value_dollars ?? 0)
+  const dtPayoutValue = ballValues.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
+
+  const frontSummaries = !isDaytona ? new Map(initialTeams.map((team) => {
+    const tp = players.filter((p) => p.team_id === team.id)
+    return [team.id, computeTeamBallSummary(frontHolesForPayouts, tp.map((p) => p.id), scores, ballsCount)]
+  })) : new Map()
+  const backSummaries = !isDaytona ? new Map(initialTeams.map((team) => {
+    const tp = players.filter((p) => p.team_id === team.id)
+    return [team.id, computeTeamBallSummary(backHolesForPayouts, tp.map((p) => p.id), scores, ballsCount)]
+  })) : new Map()
+  const { results: ballResults, net: payoutNet, settlements: payoutSettlements } = !isDaytona
+    ? calculateFrontBackPayouts(initialTeams, frontSummaries, backSummaries, ballValueArr, ballsCount)
+    : { results: [], net: {} as Record<string, number>, settlements: [] }
+
+  const dtSummaries = isDaytona ? new Map(initialTeams.map((team) => {
+    const tp = players.filter((p) => p.team_id === team.id)
+    const teamPlayerIds = tp.map((p) => p.id)
+    const teamAssignments = assignments.filter((a) => teamPlayerIds.includes(a.player_id))
+    return [team.id, computeDaytonaSidesSummary(holes, scores, teamAssignments)]
+  })) : new Map()
+
   const formattedDate = new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
@@ -131,6 +178,171 @@ export default function LeaderboardClient({
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} />}
+
+      {showPayouts && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayouts(false)}>
+          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white">
+              <h3 className="font-bold text-gray-900 text-base">Payouts</h3>
+              <button onClick={() => setShowPayouts(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
+            </div>
+            <div className="px-4 py-4 space-y-4">
+              {isDaytona ? (
+                <>
+                  {initialTeams.map((team) => {
+                    const teamPlayers = players.filter((p) => p.team_id === team.id)
+                    const teamPlayerIds = teamPlayers.map((p) => p.id)
+                    const teamAssignments = assignments.filter((a) => teamPlayerIds.includes(a.player_id))
+                    const teamScores = scores.filter((s) => teamPlayerIds.includes(s.player_id))
+                    const pointTotals = computePlayerDaytonaPoints(holes, teamScores, teamAssignments, daytonaVariant)
+                    const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, pointTotals, dtPayoutValue)
+                    return (
+                      <div key={team.id} className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-100">
+                          <h4 className="font-semibold text-gray-900 text-sm">{team.name}</h4>
+                          <p className="text-xs text-gray-500">${dtPayoutValue}/point · lower DT wins each hole</p>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                          {teamPlayers.map((p) => {
+                            const pts = pointTotals.get(p.id) ?? 0
+                            const dollars = playerNet[p.id] ?? 0
+                            return (
+                              <div key={p.id} className="flex items-center px-4 py-2.5 gap-2 bg-white">
+                                <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                <span className="text-sm font-semibold tabular-nums w-16 text-right"
+                                  style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>
+                                  {pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts
+                                </span>
+                                <span className="text-sm font-bold tabular-nums w-16 text-right"
+                                  style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>
+                                  {dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {(() => {
+                          const summary = dtSummaries.get(team.id)
+                          return summary && (summary.leftFront != null || summary.leftBack != null) ? (
+                            <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                              <div className="flex gap-4 text-xs">
+                                {summary.leftFront != null && (
+                                  <span className="text-gray-500">
+                                    Front: <span style={{ color: '#2563eb' }}>L {summary.leftFront}</span>{' vs '}<span style={{ color: '#92400e' }}>R {summary.rightFront}</span>
+                                  </span>
+                                )}
+                                {summary.leftBack != null && (
+                                  <span className="text-gray-500">
+                                    Back: <span style={{ color: '#2563eb' }}>L {summary.leftBack}</span>{' vs '}<span style={{ color: '#92400e' }}>R {summary.rightBack}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ) : null
+                        })()}
+                        {playerSettlements.length > 0 && (
+                          <div className="border-t border-gray-200 px-4 py-3">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>
+                            {playerSettlements.map((s, i) => (
+                              <div key={i} className="flex items-center py-1 gap-2 text-sm">
+                                <span className="flex-1">
+                                  <span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span>
+                                </span>
+                                <span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {playerSettlements.length === 0 && teamPlayers.length > 0 && (
+                          <p className="text-xs text-gray-400 text-center py-3">
+                            {[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </>
+              ) : (
+                <>
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
+                      <p className="text-xs text-gray-500">Ties wash · winner takes ${ballValueArr[0] ?? 0}/team per half</p>
+                    </div>
+                    <div className="px-4 py-4 space-y-4">
+                      {Array.from({ length: ballsCount }, (_, bi) => {
+                        const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
+                        const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
+                        return (
+                          <div key={bi}>
+                            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>{BALL_NAMES[bi]}</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {[front, back].map((result, hi) => {
+                                if (!result) return <div key={hi} />
+                                const vp = result.winnerVsPar
+                                const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                                return (
+                                  <div key={hi} className="bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                    <p className="text-xs text-gray-500 mb-0.5">{result.half}</p>
+                                    {!result.played ? (
+                                      <p className="text-sm text-gray-300 font-medium">–</p>
+                                    ) : result.tied ? (
+                                      <p className="text-sm text-gray-500 font-medium">Tie — Washes</p>
+                                    ) : (
+                                      <>
+                                        <p className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</p>
+                                        {vpStr && <p className="text-xs text-gray-400">{vpStr}</p>}
+                                      </>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <h4 className="font-semibold text-gray-900 text-sm">Team Net</h4>
+                      <p className="text-xs text-gray-500">Based on scores entered so far</p>
+                    </div>
+                    {[...initialTeams].sort((a, b) => (payoutNet[b.id] ?? 0) - (payoutNet[a.id] ?? 0)).map((team) => {
+                      const teamNet = payoutNet[team.id] ?? 0
+                      return (
+                        <div key={team.id} className="flex items-center px-4 py-2.5 border-b border-gray-100 last:border-0 bg-white">
+                          <span className="flex-1 font-medium text-gray-900 text-sm">{team.name}</span>
+                          <span className="font-bold text-base" style={{ color: teamNet > 0 ? '#16a34a' : teamNet < 0 ? '#dc2626' : '#6b7280' }}>
+                            {teamNet === 0 ? 'Even' : teamNet > 0 ? `+$${teamNet}` : `-$${Math.abs(teamNet)}`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <h4 className="font-semibold text-gray-900 text-sm">Settlement</h4>
+                      <p className="text-xs text-gray-500">Who pays who</p>
+                    </div>
+                    {payoutSettlements.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-6 bg-white">No payouts yet.</p>
+                    ) : payoutSettlements.map((s, i) => (
+                      <div key={i} className="flex items-center px-4 py-2.5 border-b border-gray-100 last:border-0 gap-2 bg-white">
+                        <span className="flex-1 text-sm text-gray-900">
+                          <span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span>
+                        </span>
+                        <span className="font-bold text-gray-900">${s.amount}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="h-6" />
+          </div>
+        </div>
+      )}
 
       <header className="text-white py-5 px-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
@@ -203,9 +415,15 @@ export default function LeaderboardClient({
       </header>
 
       <div className="max-w-lg mx-auto px-4 pt-5">
+        <h2 className="text-lg font-bold text-gray-900 mb-2">Leaderboard</h2>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-gray-900">Leaderboard</h2>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPayouts(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
+              style={{ borderColor: navy, color: navy }}>
+              Payouts
+            </button>
             {isDaytona && (
               <a href="/scorecards" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
                 style={{ borderColor: navy, color: navy }}>
@@ -216,10 +434,10 @@ export default function LeaderboardClient({
               style={{ borderColor: navy, color: navy }}>
               Matchups
             </a>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
-              Live · {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
+            Live
           </div>
         </div>
 

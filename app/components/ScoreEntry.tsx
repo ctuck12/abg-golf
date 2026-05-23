@@ -109,8 +109,9 @@ export default function ScoreEntry({
           })
         }
       })
-      .subscribe()
-    broadcastChannel.current = ch
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') broadcastChannel.current = ch
+      })
     return () => { supabase.removeChannel(ch); broadcastChannel.current = null }
   }, [players])
 
