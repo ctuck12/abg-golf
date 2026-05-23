@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
-  computeTeamBallSummary, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
+  computeTeamBallSummary, computePlayerDaytonaPoints,
   calculateFrontBackPayouts, settleDaytonaPlayerPoints,
   type DaytonaHoleAssignment,
 } from '@/lib/scoring'
@@ -161,13 +161,6 @@ export default function LeaderboardClient({
     ? calculateFrontBackPayouts(initialTeams, frontSummaries, backSummaries, ballValueArr, ballsCount)
     : { results: [], net: {} as Record<string, number>, settlements: [] }
 
-  const dtSummaries = isDaytona ? new Map(initialTeams.map((team) => {
-    const tp = players.filter((p) => p.team_id === team.id)
-    const teamPlayerIds = tp.map((p) => p.id)
-    const teamAssignments = assignments.filter((a) => teamPlayerIds.includes(a.player_id))
-    return [team.id, computeDaytonaSidesSummary(holes, scores, teamAssignments)]
-  })) : new Map()
-
   const formattedDate = new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
@@ -221,25 +214,6 @@ export default function LeaderboardClient({
                             )
                           })}
                         </div>
-                        {(() => {
-                          const summary = dtSummaries.get(team.id)
-                          return summary && (summary.leftFront != null || summary.leftBack != null) ? (
-                            <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
-                              <div className="flex gap-4 text-xs">
-                                {summary.leftFront != null && (
-                                  <span className="text-gray-500">
-                                    Front: <span style={{ color: '#2563eb' }}>L {summary.leftFront}</span>{' vs '}<span style={{ color: '#92400e' }}>R {summary.rightFront}</span>
-                                  </span>
-                                )}
-                                {summary.leftBack != null && (
-                                  <span className="text-gray-500">
-                                    Back: <span style={{ color: '#2563eb' }}>L {summary.leftBack}</span>{' vs '}<span style={{ color: '#92400e' }}>R {summary.rightBack}</span>
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ) : null
-                        })()}
                         {playerSettlements.length > 0 && (
                           <div className="border-t border-gray-200 px-4 py-3">
                             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>
