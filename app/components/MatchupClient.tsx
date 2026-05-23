@@ -43,6 +43,44 @@ function vpColor(n: number | null): string {
   return '#374151'
 }
 
+type BetType = 'nassau' | 'straight'
+type ScoringType = 'stroke' | 'match'
+
+function parseBet(bet: string): { betType: BetType; amount: string; scoringType: ScoringType } {
+  if (!bet) return { betType: 'nassau', amount: '', scoringType: 'stroke' }
+  const parts = bet.split(':')
+  if (parts.length >= 2 && (parts[0] === 'nassau' || parts[0] === 'straight')) {
+    return {
+      betType: parts[0] as BetType,
+      amount: parts[1] ?? '',
+      scoringType: parts[2] === 'match' ? 'match' : 'stroke',
+    }
+  }
+  // Legacy free text — pass through as-is
+  return { betType: 'straight', amount: bet, scoringType: 'stroke' }
+}
+
+function composeBet(betType: BetType, amount: string, scoringType: ScoringType): string {
+  return `${betType}:${amount.trim()}:${scoringType}`
+}
+
+function formatBet(bet: string): string {
+  if (!bet) return ''
+  // Legacy free text — not in structured format
+  if (!bet.startsWith('nassau:') && !bet.startsWith('straight:')) return bet
+  const { betType, amount, scoringType } = parseBet(bet)
+  const scoringLabel = scoringType === 'match' ? 'Match Play' : 'Stroke Play'
+  let betLabel = ''
+  if (betType === 'nassau' && amount) {
+    betLabel = `Nassau $${amount}/$${amount}/$${amount}`
+  } else if (betType === 'nassau') {
+    betLabel = 'Nassau'
+  } else if (amount) {
+    betLabel = `$${amount}`
+  }
+  return betLabel ? `${betLabel} · ${scoringLabel}` : scoringLabel
+}
+
 function computeStats(
   p1Id: string, p2Id: string,
   scoreMap: Record<string, Record<number, number>>,
@@ -149,23 +187,31 @@ export default function MatchupClient({
 
   const [newP1, setNewP1] = useState('')
   const [newP2, setNewP2] = useState('')
-  const [newBet, setNewBet] = useState('')
+  const [newBetType, setNewBetType] = useState<BetType>('nassau')
+  const [newBetAmount, setNewBetAmount] = useState('')
+  const [newScoringType, setNewScoringType] = useState<ScoringType>('stroke')
   const [savingH2H, setSavingH2H] = useState(false)
 
   const [expandedH2H, setExpandedH2H] = useState<string | null>(null)
   const [editingH2H, setEditingH2H] = useState<string | null>(null)
-  const [editH2HBet, setEditH2HBet] = useState('')
+  const [editH2HBetType, setEditH2HBetType] = useState<BetType>('nassau')
+  const [editH2HBetAmount, setEditH2HBetAmount] = useState('')
+  const [editH2HScoringType, setEditH2HScoringType] = useState<ScoringType>('stroke')
 
   const [bbT1P1, setBbT1P1] = useState('')
   const [bbT1P2, setBbT1P2] = useState('')
   const [bbT2P1, setBbT2P1] = useState('')
   const [bbT2P2, setBbT2P2] = useState('')
-  const [bbBet, setBbBet] = useState('')
+  const [bbBetType, setBbBetType] = useState<BetType>('nassau')
+  const [bbBetAmount, setBbBetAmount] = useState('')
+  const [bbScoringType, setBbScoringType] = useState<ScoringType>('stroke')
   const [savingBB, setSavingBB] = useState(false)
 
   const [expandedBB, setExpandedBB] = useState<string | null>(null)
   const [editingBB, setEditingBB] = useState<string | null>(null)
-  const [editBBBet, setEditBBBet] = useState('')
+  const [editBBBetType, setEditBBBetType] = useState<BetType>('nassau')
+  const [editBBBetAmount, setEditBBBetAmount] = useState('')
+  const [editBBScoringType, setEditBBScoringType] = useState<ScoringType>('stroke')
 
   const [showScorecardFor, setShowScorecardFor] = useState<ScorecardTarget | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -210,10 +256,11 @@ export default function MatchupClient({
   async function handleCreateH2H() {
     if (!newP1 || !newP2 || newP1 === newP2) return
     setSavingH2H(true)
-    const result = await saveMatchup(roundId, newP1, newP2, newBet)
+    const bet = composeBet(newBetType, newBetAmount, newScoringType)
+    const result = await saveMatchup(roundId, newP1, newP2, bet)
     if (!result.error && result.id) {
-      setMatchups((prev) => [...prev, { id: result.id!, player1_id: newP1, player2_id: newP2, bet: newBet.trim() }])
-      setNewP1(''); setNewP2(''); setNewBet('')
+      setMatchups((prev) => [...prev, { id: result.id!, player1_id: newP1, player2_id: newP2, bet }])
+      setNewP1(''); setNewP2(''); setNewBetAmount('')
     }
     setSavingH2H(false)
   }
@@ -225,22 +272,24 @@ export default function MatchupClient({
   }
 
   async function handleSaveH2HBet(id: string) {
-    setMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet: editH2HBet.trim() } : m))
+    const bet = composeBet(editH2HBetType, editH2HBetAmount, editH2HScoringType)
+    setMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet } : m))
     setEditingH2H(null)
-    await updateMatchupBet(id, editH2HBet)
+    await updateMatchupBet(id, bet)
   }
 
   async function handleCreateBB() {
     const ids = [bbT1P1, bbT1P2, bbT2P1, bbT2P2]
     if (ids.some((id) => !id) || new Set(ids).size !== 4) return
     setSavingBB(true)
-    const result = await saveBestBallMatchup(roundId, bbT1P1, bbT1P2, bbT2P1, bbT2P2, bbBet)
+    const bet = composeBet(bbBetType, bbBetAmount, bbScoringType)
+    const result = await saveBestBallMatchup(roundId, bbT1P1, bbT1P2, bbT2P1, bbT2P2, bet)
     if (!result.error && result.id) {
       setBestBallMatchups((prev) => [...prev, {
         id: result.id!, team1_player1_id: bbT1P1, team1_player2_id: bbT1P2,
-        team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet: bbBet.trim(),
+        team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet,
       }])
-      setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBet('')
+      setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetAmount('')
     }
     setSavingBB(false)
   }
@@ -252,9 +301,10 @@ export default function MatchupClient({
   }
 
   async function handleSaveBBBet(id: string) {
-    setBestBallMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet: editBBBet.trim() } : m))
+    const bet = composeBet(editBBBetType, editBBBetAmount, editBBScoringType)
+    setBestBallMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet } : m))
     setEditingBB(null)
-    await updateBestBallBet(id, editBBBet)
+    await updateBestBallBet(id, bet)
   }
 
   const searchLower = searchQuery.toLowerCase().trim()
@@ -350,33 +400,68 @@ export default function MatchupClient({
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Head to Head</p>
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-              <div className="flex flex-wrap gap-2 items-end">
-                <div className="flex-1 min-w-[110px]">
-                  <label className="block text-xs text-gray-500 mb-1">Player 1</label>
-                  <select value={newP1} onChange={(e) => { setNewP1(e.target.value); if (e.target.value === newP2) setNewP2('') }}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                    <option value="">Select…</option>
-                    {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === newP2}>{p.name}</option>)}
-                  </select>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Player 1</label>
+                    <select value={newP1} onChange={(e) => { setNewP1(e.target.value); if (e.target.value === newP2) setNewP2('') }}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                      <option value="">Select…</option>
+                      {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === newP2}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Player 2</label>
+                    <select value={newP2} onChange={(e) => setNewP2(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                      <option value="">Select…</option>
+                      {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === newP1}>{p.name}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-[110px]">
-                  <label className="block text-xs text-gray-500 mb-1">Player 2</label>
-                  <select value={newP2} onChange={(e) => setNewP2(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                    <option value="">Select…</option>
-                    {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === newP1}>{p.name}</option>)}
-                  </select>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Bet</label>
+                    <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                      <button type="button" onClick={() => setNewBetType('nassau')}
+                        className="flex-1 py-2 text-xs font-semibold transition"
+                        style={newBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                        Nassau
+                      </button>
+                      <button type="button" onClick={() => setNewBetType('straight')}
+                        className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
+                        style={newBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                        Straight Up
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Scoring</label>
+                    <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                      <button type="button" onClick={() => setNewScoringType('stroke')}
+                        className="flex-1 py-2 text-xs font-semibold transition"
+                        style={newScoringType === 'stroke' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                        Stroke Play
+                      </button>
+                      <button type="button" onClick={() => setNewScoringType('match')}
+                        className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
+                        style={newScoringType === 'match' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                        Match Play
+                      </button>
+                    </div>
+                  </div>
+                  <div className="w-20 flex-shrink-0">
+                    <label className="block text-xs text-gray-500 mb-1">Amount ($)</label>
+                    <input type="number" min="0" step="1" placeholder="10"
+                      value={newBetAmount} onChange={(e) => setNewBetAmount(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none" />
+                  </div>
+                  <button onClick={handleCreateH2H} disabled={!newP1 || !newP2 || newP1 === newP2 || savingH2H}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 flex-shrink-0"
+                    style={{ background: navy, color: 'white' }}>
+                    {savingH2H ? 'Saving…' : 'Save'}
+                  </button>
                 </div>
-                <div className="flex-1 min-w-[90px]">
-                  <label className="block text-xs text-gray-500 mb-1">Bet</label>
-                  <input type="text" placeholder="e.g. $5…" value={newBet} onChange={(e) => setNewBet(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none" />
-                </div>
-                <button onClick={handleCreateH2H} disabled={!newP1 || !newP2 || newP1 === newP2 || savingH2H}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 flex-shrink-0"
-                  style={{ background: navy, color: 'white' }}>
-                  {savingH2H ? 'Saving…' : 'Save'}
-                </button>
               </div>
             </div>
 
@@ -411,19 +496,44 @@ export default function MatchupClient({
                           {/* Bet + status + controls row */}
                           <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
                             {isEditing ? (
-                              <div className="flex items-center gap-1.5">
-                                <input autoFocus value={editH2HBet} onChange={(e) => setEditH2HBet(e.target.value)}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <div className="flex rounded border border-gray-300 overflow-hidden">
+                                  <button type="button" onClick={() => setEditH2HBetType('nassau')}
+                                    className="px-2 py-1 text-xs font-semibold transition"
+                                    style={editH2HBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Nassau
+                                  </button>
+                                  <button type="button" onClick={() => setEditH2HBetType('straight')}
+                                    className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
+                                    style={editH2HBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Straight Up
+                                  </button>
+                                </div>
+                                <div className="flex rounded border border-gray-300 overflow-hidden">
+                                  <button type="button" onClick={() => setEditH2HScoringType('stroke')}
+                                    className="px-2 py-1 text-xs font-semibold transition"
+                                    style={editH2HScoringType === 'stroke' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Stroke
+                                  </button>
+                                  <button type="button" onClick={() => setEditH2HScoringType('match')}
+                                    className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
+                                    style={editH2HScoringType === 'match' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Match
+                                  </button>
+                                </div>
+                                <input autoFocus type="number" min="0" step="1" placeholder="amt"
+                                  value={editH2HBetAmount} onChange={(e) => setEditH2HBetAmount(e.target.value)}
                                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveH2HBet(m.id); if (e.key === 'Escape') setEditingH2H(null) }}
-                                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-28" />
+                                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-14" />
                                 <button onClick={() => handleSaveH2HBet(m.id)} className="text-xs font-semibold text-green-600">Save</button>
                                 <button onClick={() => setEditingH2H(null)} className="text-xs text-gray-400">Cancel</button>
                               </div>
                             ) : (
                               <span className="flex items-center gap-1">
                                 {m.bet
-                                  ? <span className="font-medium" style={{ color: gold }}>Bet: {m.bet}</span>
+                                  ? <span className="font-medium" style={{ color: gold }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300">No bet</span>}
-                                <button onClick={() => { setEditingH2H(m.id); setEditH2HBet(m.bet) }}
+                                <button onClick={() => { setEditingH2H(m.id); const p = parseBet(m.bet); setEditH2HBetType(p.betType); setEditH2HBetAmount(p.amount); setEditH2HScoringType(p.scoringType) }}
                                   className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
                               </span>
                             )}
@@ -544,7 +654,38 @@ export default function MatchupClient({
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
                   <label className="block text-xs text-gray-500 mb-1">Bet</label>
-                  <input type="text" placeholder="e.g. $10…" value={bbBet} onChange={(e) => setBbBet(e.target.value)}
+                  <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                    <button type="button" onClick={() => setBbBetType('nassau')}
+                      className="flex-1 py-2 text-xs font-semibold transition"
+                      style={bbBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                      Nassau
+                    </button>
+                    <button type="button" onClick={() => setBbBetType('straight')}
+                      className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
+                      style={bbBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                      Straight Up
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">Scoring</label>
+                  <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                    <button type="button" onClick={() => setBbScoringType('stroke')}
+                      className="flex-1 py-2 text-xs font-semibold transition"
+                      style={bbScoringType === 'stroke' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                      Stroke Play
+                    </button>
+                    <button type="button" onClick={() => setBbScoringType('match')}
+                      className="flex-1 py-2 text-xs font-semibold border-l border-gray-300 transition"
+                      style={bbScoringType === 'match' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                      Match Play
+                    </button>
+                  </div>
+                </div>
+                <div className="w-20 flex-shrink-0">
+                  <label className="block text-xs text-gray-500 mb-1">Amount ($)</label>
+                  <input type="number" min="0" step="1" placeholder="10"
+                    value={bbBetAmount} onChange={(e) => setBbBetAmount(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none" />
                 </div>
                 <button onClick={handleCreateBB}
@@ -591,19 +732,44 @@ export default function MatchupClient({
                           {/* Bet + status + controls row */}
                           <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
                             {isEditingBB ? (
-                              <div className="flex items-center gap-1.5">
-                                <input autoFocus value={editBBBet} onChange={(e) => setEditBBBet(e.target.value)}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <div className="flex rounded border border-gray-300 overflow-hidden">
+                                  <button type="button" onClick={() => setEditBBBetType('nassau')}
+                                    className="px-2 py-1 text-xs font-semibold transition"
+                                    style={editBBBetType === 'nassau' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Nassau
+                                  </button>
+                                  <button type="button" onClick={() => setEditBBBetType('straight')}
+                                    className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
+                                    style={editBBBetType === 'straight' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Straight Up
+                                  </button>
+                                </div>
+                                <div className="flex rounded border border-gray-300 overflow-hidden">
+                                  <button type="button" onClick={() => setEditBBScoringType('stroke')}
+                                    className="px-2 py-1 text-xs font-semibold transition"
+                                    style={editBBScoringType === 'stroke' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Stroke
+                                  </button>
+                                  <button type="button" onClick={() => setEditBBScoringType('match')}
+                                    className="px-2 py-1 text-xs font-semibold border-l border-gray-300 transition"
+                                    style={editBBScoringType === 'match' ? { background: navy, color: 'white' } : { background: 'white', color: '#6b7280' }}>
+                                    Match
+                                  </button>
+                                </div>
+                                <input autoFocus type="number" min="0" step="1" placeholder="amt"
+                                  value={editBBBetAmount} onChange={(e) => setEditBBBetAmount(e.target.value)}
                                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveBBBet(m.id); if (e.key === 'Escape') setEditingBB(null) }}
-                                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-28" />
+                                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-14" />
                                 <button onClick={() => handleSaveBBBet(m.id)} className="text-xs font-semibold text-green-600">Save</button>
                                 <button onClick={() => setEditingBB(null)} className="text-xs text-gray-400">Cancel</button>
                               </div>
                             ) : (
                               <span className="flex items-center gap-1">
                                 {m.bet
-                                  ? <span className="font-medium" style={{ color: gold }}>Bet: {m.bet}</span>
+                                  ? <span className="font-medium" style={{ color: gold }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300">No bet</span>}
-                                <button onClick={() => { setEditingBB(m.id); setEditBBBet(m.bet) }}
+                                <button onClick={() => { setEditingBB(m.id); const p = parseBet(m.bet); setEditBBBetType(p.betType); setEditBBBetAmount(p.amount); setEditBBScoringType(p.scoringType) }}
                                   className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
                               </span>
                             )}
