@@ -25,7 +25,7 @@ export function computeHoleDaytona(
     // Rule 2: any other team has a strictly better under-par score?
     flip = otherTeamsBestScores.some((ob) => ob < low && ob < par)
   }
-  return flip ? parseInt(`${high}${low}`) : parseInt(`${low}${high}`)
+  return flip ? high * 10 : low * 10
 }
 
 export type DaytonaSummary = {
