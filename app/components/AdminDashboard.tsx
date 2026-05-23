@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   createRound, addTeam, addPlayer, deleteTeam, deletePlayer,
   toggleTeamAdmin, resetTeamScores, activateRound, updateHolePars, updateBallValues,
-  adminLogout, renameTeam, movePlayer,
+  adminLogout, renameTeam, renamePlayer, movePlayer,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculateFrontBackPayouts,
@@ -41,6 +41,7 @@ export default function AdminDashboard({
   const [showPinModal, setShowPinModal] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
+  const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
   const [selectedCourse, setSelectedCourse] = useState('north')
   const [selectedFormat, setSelectedFormat] = useState('standard')
   const [selectedDaytonaCount, setSelectedDaytonaCount] = useState('4')
@@ -55,6 +56,7 @@ export default function AdminDashboard({
   const [parState, parAction, parPending] = useActionState(updateHolePars, null)
   const [ballState, ballAction, ballPending] = useActionState(updateBallValues, null)
   const [renameState, renameAction, renamePending] = useActionState(renameTeam, null)
+  const [renamePlayerState, renamePlayerAction, renamePlayerPending] = useActionState(renamePlayer, null)
 
   // Refresh server data after mutations so the UI updates without a manual reload.
   useEffect(() => {
@@ -69,6 +71,9 @@ export default function AdminDashboard({
   useEffect(() => {
     if (renameState?.success) { router.refresh(); setRenamingTeam(null) }
   }, [renameState])
+  useEffect(() => {
+    if (renamePlayerState?.success) { router.refresh(); setRenamingPlayer(null) }
+  }, [renamePlayerState])
   useEffect(() => {
     if (parState?.success) router.refresh()
   }, [parState])
@@ -323,24 +328,41 @@ export default function AdminDashboard({
                         <p className="text-xs text-gray-400">No players added yet.</p>
                       )}
                       {teamPlayers.map((p, pi) => (
-                        <div key={p.id} className="flex items-center gap-1.5 bg-white rounded-lg px-3 py-2 border border-gray-100">
-                          <div className="flex flex-col gap-0.5 mr-1">
-                            <button
-                              type="button"
-                              disabled={pi === 0}
-                              onClick={() => handleMovePlayer(p.id, 'up')}
-                              className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none"
-                            >▲</button>
-                            <button
-                              type="button"
-                              disabled={pi === teamPlayers.length - 1}
-                              onClick={() => handleMovePlayer(p.id, 'down')}
-                              className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none"
-                            >▼</button>
-                          </div>
-                          <span className="flex-1 text-sm text-gray-800 font-medium">{p.name}</span>
-                          <button type="button" onClick={() => handleDeletePlayer(p.id)}
-                            className="text-xs text-red-500 hover:text-red-700 ml-1">Remove</button>
+                        <div key={p.id} className="bg-white rounded-lg border border-gray-100">
+                          {renamingPlayer === p.id ? (
+                            <form action={renamePlayerAction} className="flex gap-2 px-3 py-2" onSubmit={() => setRenamingPlayer(null)}>
+                              <input type="hidden" name="playerId" value={p.id} />
+                              <input type="text" name="name" defaultValue={p.name} required autoFocus
+                                className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                              <button type="submit" disabled={renamePlayerPending}
+                                className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60"
+                                style={{ background: navy }}>Save</button>
+                              <button type="button" onClick={() => setRenamingPlayer(null)}
+                                className="text-xs text-gray-500 hover:text-gray-700 px-2">Cancel</button>
+                            </form>
+                          ) : (
+                            <div className="flex items-center gap-1.5 px-3 py-2">
+                              <div className="flex flex-col gap-0.5 mr-1">
+                                <button
+                                  type="button"
+                                  disabled={pi === 0}
+                                  onClick={() => handleMovePlayer(p.id, 'up')}
+                                  className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none"
+                                >▲</button>
+                                <button
+                                  type="button"
+                                  disabled={pi === teamPlayers.length - 1}
+                                  onClick={() => handleMovePlayer(p.id, 'down')}
+                                  className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none"
+                                >▼</button>
+                              </div>
+                              <span className="flex-1 text-sm text-gray-800 font-medium">{p.name}</span>
+                              <button type="button" onClick={() => setRenamingPlayer(p.id)}
+                                className="text-xs text-blue-500 hover:text-blue-700">Rename</button>
+                              <button type="button" onClick={() => handleDeletePlayer(p.id)}
+                                className="text-xs text-red-500 hover:text-red-700 ml-1">Remove</button>
+                            </div>
+                          )}
                         </div>
                       ))}
                       <form action={addPlayerAction} className="flex gap-2 mt-2">

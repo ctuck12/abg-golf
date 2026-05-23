@@ -168,6 +168,17 @@ export async function renameTeam(_prev: unknown, formData: FormData) {
   return { success: true }
 }
 
+export async function renamePlayer(_prev: unknown, formData: FormData) {
+  const playerId = formData.get('playerId') as string
+  const name = (formData.get('name') as string)?.trim()
+  if (!playerId || !name) return { error: 'Player name required.' }
+
+  const supabase = createServerClient()
+  const { error } = await supabase.from('players').update({ name }).eq('id', playerId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function deleteTeam(teamId: string) {
   const supabase = createServerClient()
   await supabase.from('teams').delete().eq('id', teamId)
