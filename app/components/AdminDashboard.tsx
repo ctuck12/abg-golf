@@ -163,7 +163,7 @@ export default function AdminDashboard({
               <a href={`/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                 style={{ background: gold, color: navy }}>
-                Team Scorecard
+                Enter Scores
               </a>
             ) : (
               <button
