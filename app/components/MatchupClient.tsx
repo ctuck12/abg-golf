@@ -408,35 +408,7 @@ export default function MatchupClient({
                     return (
                       <div key={m.id}>
                         <div className="px-4 py-3">
-                          {/* Names row */}
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2 text-sm font-semibold min-w-0">
-                              <button
-                                onClick={() => setShowScorecardFor({ type: 'player', id: mp1.id, name: mp1.name })}
-                                className="hover:underline truncate text-left" style={{ color: navy }}>
-                                {mp1.name}
-                              </button>
-                              <span className="text-gray-400 font-normal flex-shrink-0">vs</span>
-                              <button
-                                onClick={() => setShowScorecardFor({ type: 'player', id: mp2.id, name: mp2.name })}
-                                className="hover:underline truncate text-left" style={{ color: navy }}>
-                                {mp2.name}
-                              </button>
-                              {isFinal && (
-                                <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0"
-                                  style={{ background: '#fef3c7', color: '#92400e' }}>FINAL</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                              <button onClick={() => setExpandedH2H(isExpanded ? null : m.id)}
-                                className="text-xs text-gray-400 hover:text-gray-700">
-                                {isExpanded ? '▲' : '▼'}
-                              </button>
-                              <button onClick={() => handleDeleteH2H(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
-                            </div>
-                          </div>
-
-                          {/* Bet + status row */}
+                          {/* Bet + status + controls row */}
                           <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
                             {isEditing ? (
                               <div className="flex items-center gap-1.5">
@@ -455,20 +427,22 @@ export default function MatchupClient({
                                   className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
                               </span>
                             )}
-                            {stats.holesPlayed > 0 ? (
+                            {stats.holesPlayed > 0 && (
                               <>
-                                <span className="text-gray-300">·</span>
-                                <span className="font-mono font-bold text-gray-700">{stats.p1Wins}–{stats.p2Wins}–{stats.ties}</span>
                                 <span className="text-gray-300">·</span>
                                 <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
                                   {isFinal
                                     ? (leader ? `${leader.name.split(' ')[0]} wins` : 'All square')
                                     : (leader ? `${leader.name.split(' ')[0]} leads` : 'All square')}
                                 </span>
-                                <span className="text-gray-300">·</span>
-                                <span className="text-gray-500">Thru {stats.holesPlayed}</span>
                               </>
-                            ) : <span className="text-gray-400">No scores yet</span>}
+                            )}
+                            <span className="flex-1" />
+                            <button onClick={() => setExpandedH2H(isExpanded ? null : m.id)}
+                              className="text-xs text-gray-400 hover:text-gray-700">
+                              {isExpanded ? '▲' : '▼'}
+                            </button>
+                            <button onClick={() => handleDeleteH2H(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
 
                           {/* 5-column summary table */}
