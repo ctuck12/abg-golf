@@ -19,6 +19,7 @@ type BestBallMatchup = {
 }
 type ScorecardTarget =
   | { type: 'player'; id: string; name: string }
+  | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string }
   | { type: 'bestball'; p1Id: string; p2Id: string; teamName: string }
 
 const navy = '#0f172a'
@@ -219,7 +220,6 @@ export default function MatchupClient({
   const [newScoringType, setNewScoringType] = useState<ScoringType>('stroke')
   const [savingH2H, setSavingH2H] = useState(false)
 
-  const [expandedH2H, setExpandedH2H] = useState<string | null>(null)
   const [editingH2H, setEditingH2H] = useState<string | null>(null)
   const [editH2HBetType, setEditH2HBetType] = useState<BetType | ''>('')
   const [editH2HBetAmount, setEditH2HBetAmount] = useState('')
@@ -296,7 +296,6 @@ export default function MatchupClient({
 
   async function handleDeleteH2H(id: string) {
     setMatchups((prev) => prev.filter((m) => m.id !== id))
-    if (expandedH2H === id) setExpandedH2H(null)
     await deleteMatchup(id)
   }
 
@@ -350,7 +349,9 @@ export default function MatchupClient({
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white">
               <h3 className="font-bold text-gray-900 text-base">
-                {showScorecardFor.type === 'player' ? showScorecardFor.name : showScorecardFor.teamName}
+                {showScorecardFor.type === 'player' ? showScorecardFor.name
+                  : showScorecardFor.type === 'h2h' ? `${showScorecardFor.p1Name} vs ${showScorecardFor.p2Name}`
+                  : showScorecardFor.teamName}
               </h3>
               <button onClick={() => setShowScorecardFor(null)}
                 className="text-gray-400 text-2xl font-bold leading-none">×</button>
@@ -361,7 +362,18 @@ export default function MatchupClient({
                   rows={[{ label: 'Score', scoreMap: scoreMap[showScorecardFor.id] ?? {} }]}
                   holes={holes}
                 />
-              ) : (() => {
+              ) : showScorecardFor.type === 'h2h' ? (() => {
+                const target = showScorecardFor
+                return (
+                  <HorizontalScorecardTable
+                    rows={[
+                      { label: target.p1Name, scoreMap: scoreMap[target.p1Id] ?? {} },
+                      { label: target.p2Name, scoreMap: scoreMap[target.p2Id] ?? {} },
+                    ]}
+                    holes={holes}
+                  />
+                )
+              })() : (() => {
                 const target = showScorecardFor
                 const p1Map = scoreMap[target.p1Id] ?? {}
                 const p2Map = scoreMap[target.p2Id] ?? {}
@@ -372,13 +384,9 @@ export default function MatchupClient({
                   const arr = [s1, s2].filter((s): s is number => s !== undefined)
                   if (arr.length > 0) bestMap[hole.hole_number] = Math.min(...arr)
                 }
-                const p1 = players.find((p) => p.id === target.p1Id)
-                const p2 = players.find((p) => p.id === target.p2Id)
                 return (
                   <HorizontalScorecardTable
-                    rows={[
-                      { label: 'Score', scoreMap: bestMap },
-                    ]}
+                    rows={[{ label: 'Score', scoreMap: bestMap }]}
                     holes={holes}
                   />
                 )
@@ -512,8 +520,9 @@ export default function MatchupClient({
                     const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
                     const isFinal = stats.holesPlayed === holes.length && holes.length > 0
                     const leader = stats.p1Wins > stats.p2Wins ? mp1 : stats.p2Wins > stats.p1Wins ? mp2 : null
-                    const isExpanded = expandedH2H === m.id
                     const isEditing = editingH2H === m.id
+                    const p1First = mp1.name.split(' ')[0]
+                    const p2First = mp2.name.split(' ')[0]
 
                     return (
                       <div key={m.id}>
@@ -551,6 +560,11 @@ export default function MatchupClient({
                                   className="text-gray-300 hover:text-gray-500 ml-0.5">✎</button>
                               </span>
                             )}
+                            <button
+                              onClick={() => setShowScorecardFor({ type: 'h2h', p1Id: m.player1_id, p2Id: m.player2_id, p1Name: p1First, p2Name: p2First })}
+                              className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
+                              Scorecards
+                            </button>
                             {stats.holesPlayed > 0 && (
                               <>
                                 <span className="text-gray-300">·</span>
@@ -562,10 +576,6 @@ export default function MatchupClient({
                               </>
                             )}
                             <span className="flex-1" />
-                            <button onClick={() => setExpandedH2H(isExpanded ? null : m.id)}
-                              className="text-xs text-gray-400 hover:text-gray-700">
-                              {isExpanded ? '▲' : '▼'}
-                            </button>
                             <button onClick={() => handleDeleteH2H(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
 
@@ -590,12 +600,7 @@ export default function MatchupClient({
                                   return (
                                     <tr key={player.id} className="border-t border-gray-100">
                                       <td className="px-3 py-2">
-                                        <button
-                                          onClick={() => setShowScorecardFor({ type: 'player', id: player.id, name: player.name })}
-                                          className="text-xs font-semibold hover:underline text-left"
-                                          style={{ color: navy }}>
-                                          {player.name}
-                                        </button>
+                                        <span className="text-xs font-semibold text-gray-800">{player.name}</span>
                                       </td>
                                       <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(front) }}>{fmtVsPar(front)}</td>
                                       <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: vpColor(back) }}>{fmtVsPar(back)}</td>
@@ -608,13 +613,6 @@ export default function MatchupClient({
                             </table>
                           </div>
                         </div>
-
-                        {/* Expanded hole-by-hole */}
-                        {isExpanded && (
-                          <div className="border-t border-gray-100">
-                            <H2HHoleTable stats={stats} p1={mp1} p2={mp2} holes={holes} />
-                          </div>
-                        )}
                       </div>
                     )
                   })}
