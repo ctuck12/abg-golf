@@ -375,9 +375,7 @@ export default function MatchupClient({
                 return (
                   <HorizontalScorecardTable
                     rows={[
-                      { label: p1?.name.split(' ')[0] ?? 'P1', scoreMap: p1Map },
-                      { label: p2?.name.split(' ')[0] ?? 'P2', scoreMap: p2Map },
-                      { label: 'Best', scoreMap: bestMap },
+                      { label: target.teamName, scoreMap: bestMap },
                     ]}
                     holes={holes}
                   />
