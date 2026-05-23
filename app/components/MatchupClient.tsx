@@ -284,7 +284,7 @@ export default function MatchupClient({
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
               Live
             </div>
-            <a href="/" className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>← Back</a>
+            <a href="/leaderboard" className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>
