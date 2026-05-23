@@ -210,7 +210,7 @@ export default function LeaderboardClient({
             )}
             <a href="/matchup" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
               style={{ borderColor: navy, color: navy }}>
-              Matchup ⚔
+              Matchups
             </a>
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />

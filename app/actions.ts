@@ -233,6 +233,27 @@ export async function movePlayer(playerId: string, direction: 'up' | 'down') {
 
 // ── Daytona hole assignments ──────────────────────────────────────────────────
 
+// ── Matchups ──────────────────────────────────────────────────────────────────
+
+export async function saveMatchup(roundId: string, player1Id: string, player2Id: string, bet: string) {
+  const sb = createServerClient()
+  const { data, error } = await sb.from('matchups').insert({
+    round_id: roundId,
+    player1_id: player1Id,
+    player2_id: player2Id,
+    bet: bet.trim(),
+  }).select('id').single()
+  if (error) return { error: error.message }
+  return { id: data.id }
+}
+
+export async function deleteMatchup(id: string) {
+  const sb = createServerClient()
+  const { error } = await sb.from('matchups').delete().eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function saveDaytonaAssignments(
   roundId: string,
   holeNumber: number,
