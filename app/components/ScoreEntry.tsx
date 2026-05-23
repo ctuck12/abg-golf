@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
+  calculateFrontBackPayouts, settleDaytonaPlayerPoints,
   type DaytonaHoleAssignment, type DaytonaSide,
 } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
@@ -15,9 +16,14 @@ type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type Team = { id: string; name: string }
 type AssignmentMap = Record<number, Record<string, DaytonaSide>>
+type AllTeam = { id: string; name: string }
+type AllPlayer = { id: string; team_id: string; name: string; position: number | null }
+type BallValue = { ball_number: number; value_dollars: number }
+type PayoutsData = { teams: AllTeam[]; players: AllPlayer[]; scores: Score[]; ballValues: BallValue[]; assignments: DaytonaHoleAssignment[] }
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
+const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
 function defaultAssignmentForHole(players: Player[], holeNumber: number, existing: AssignmentMap): Record<string, DaytonaSide> {
   // Use most-recent saved hole's assignments as default
@@ -76,6 +82,33 @@ export default function ScoreEntry({
   const [expandedHole, setExpandedHole] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [roundComplete, setRoundComplete] = useState(false)
+  const [showPayoutsModal, setShowPayoutsModal] = useState(false)
+  const [payoutsData, setPayoutsData] = useState<PayoutsData | null>(null)
+  const [payoutsLoading, setPayoutsLoading] = useState(false)
+
+  async function openPayoutsModal() {
+    setShowPayoutsModal(true)
+    if (payoutsData) return
+    setPayoutsLoading(true)
+    const { data: teams } = await supabase.from('teams').select('id, name').eq('round_id', roundId)
+    const allTeamIds = (teams ?? []).map((t) => t.id)
+    const [{ data: allPlayers }, { data: allScores }, { data: ballValues }, { data: dtAssignments }] = await Promise.all([
+      supabase.from('players').select('id, team_id, name, position').in('team_id', allTeamIds.length ? allTeamIds : ['']).order('position', { ascending: true }),
+      supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', roundPlayerIds.length ? roundPlayerIds : ['']),
+      supabase.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number'),
+      isDaytona
+        ? supabase.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
+        : Promise.resolve({ data: [] }),
+    ])
+    setPayoutsData({
+      teams: teams ?? [],
+      players: allPlayers ?? [],
+      scores: allScores ?? [],
+      ballValues: ballValues ?? [],
+      assignments: (dtAssignments ?? []) as DaytonaHoleAssignment[],
+    })
+    setPayoutsLoading(false)
+  }
 
   async function checkRoundComplete() {
     if (roundPlayerIds.length === 0) return
@@ -310,13 +343,166 @@ export default function ScoreEntry({
         </div>
       </header>
 
+      {showPayoutsModal && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayoutsModal(false)}>
+          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white">
+              <h3 className="font-bold text-gray-900 text-base">{roundComplete ? 'Final Payouts' : 'Payouts'}</h3>
+              <button onClick={() => setShowPayoutsModal(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
+            </div>
+            <div className="px-4 py-4 space-y-4">
+              {payoutsLoading || !payoutsData ? (
+                <p className="text-center text-gray-500 text-sm py-8">Loading payouts…</p>
+              ) : isDaytona ? (
+                payoutsData.teams.map((team) => {
+                  const teamPlayers = payoutsData.players.filter((p) => p.team_id === team.id)
+                  const teamPlayerIds = teamPlayers.map((p) => p.id)
+                  const teamAssignments = payoutsData.assignments.filter((a) => teamPlayerIds.includes(a.player_id))
+                  const teamScores = payoutsData.scores.filter((s) => teamPlayerIds.includes(s.player_id))
+                  const dtPayoutValue = payoutsData.ballValues.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
+                  const pointTotals = computePlayerDaytonaPoints(holes, teamScores, teamAssignments, daytonaVariant)
+                  const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, pointTotals, dtPayoutValue)
+                  return (
+                    <div key={team.id} className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <h4 className="font-semibold text-gray-900 text-sm">{team.name}</h4>
+                        <p className="text-xs text-gray-500">${dtPayoutValue}/point</p>
+                      </div>
+                      <div className="divide-y divide-gray-100">
+                        {teamPlayers.map((p) => {
+                          const pts = pointTotals.get(p.id) ?? 0
+                          const dollars = playerNet[p.id] ?? 0
+                          return (
+                            <div key={p.id} className="flex items-center px-4 py-2.5 gap-2 bg-white">
+                              <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                              <span className="text-sm font-semibold tabular-nums w-16 text-right"
+                                style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>
+                                {pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts
+                              </span>
+                              <span className="text-sm font-bold tabular-nums w-16 text-right"
+                                style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>
+                                {dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {playerSettlements.length > 0 && (
+                        <div className="border-t border-gray-200 px-4 py-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>
+                          {playerSettlements.map((s, i) => (
+                            <div key={i} className="flex items-center py-1 gap-2 text-sm">
+                              <span className="flex-1">
+                                <span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span>
+                              </span>
+                              <span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {playerSettlements.length === 0 && teamPlayers.length > 0 && (
+                        <p className="text-xs text-gray-400 text-center py-3">
+                          {[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })
+              ) : (() => {
+                const frontHoles = holes.filter((h) => h.hole_number <= 9)
+                const backHoles = holes.filter((h) => h.hole_number >= 10)
+                const ballValueArr = Array.from({ length: ballsCount }, (_, i) => payoutsData.ballValues.find((bv) => bv.ball_number === i + 1)?.value_dollars ?? 0)
+                const frontSummaries = new Map(payoutsData.teams.map((t) => {
+                  const tp = payoutsData.players.filter((p) => p.team_id === t.id)
+                  return [t.id, computeTeamBallSummary(frontHoles, tp.map((p) => p.id), payoutsData.scores, ballsCount)]
+                }))
+                const backSummaries = new Map(payoutsData.teams.map((t) => {
+                  const tp = payoutsData.players.filter((p) => p.team_id === t.id)
+                  return [t.id, computeTeamBallSummary(backHoles, tp.map((p) => p.id), payoutsData.scores, ballsCount)]
+                }))
+                const { results: ballResults, net: payoutNet, settlements: payoutSettlements } = calculateFrontBackPayouts(payoutsData.teams, frontSummaries, backSummaries, ballValueArr, ballsCount)
+                return (
+                  <>
+                    <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
+                        <p className="text-xs text-gray-500">Ties wash · winner takes ${ballValueArr[0] ?? 0}/team per half</p>
+                      </div>
+                      <div className="px-4 py-4 space-y-4">
+                        {Array.from({ length: ballsCount }, (_, bi) => {
+                          const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
+                          const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
+                          return (
+                            <div key={bi}>
+                              <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>{BALL_NAMES[bi]}</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {[front, back].map((result, hi) => {
+                                  if (!result) return <div key={hi} />
+                                  const vp = result.winnerVsPar
+                                  const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                                  return (
+                                    <div key={hi} className="bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                      <p className="text-xs text-gray-500 mb-0.5">{result.half}</p>
+                                      {!result.played ? <p className="text-sm text-gray-300 font-medium">–</p>
+                                        : result.tied ? <p className="text-sm text-gray-500 font-medium">Tie — Washes</p>
+                                        : (<><p className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</p>{vpStr && <p className="text-xs text-gray-400">{vpStr}</p>}</>)}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <h4 className="font-semibold text-gray-900 text-sm">Team Net</h4>
+                      </div>
+                      {[...payoutsData.teams].sort((a, b) => (payoutNet[b.id] ?? 0) - (payoutNet[a.id] ?? 0)).map((t) => {
+                        const net = payoutNet[t.id] ?? 0
+                        return (
+                          <div key={t.id} className="flex items-center px-4 py-2.5 border-b border-gray-100 last:border-0 bg-white">
+                            <span className="flex-1 font-medium text-gray-900 text-sm">{t.name}</span>
+                            <span className="font-bold text-base" style={{ color: net > 0 ? '#16a34a' : net < 0 ? '#dc2626' : '#6b7280' }}>
+                              {net === 0 ? 'Even' : net > 0 ? `+$${net}` : `-$${Math.abs(net)}`}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <h4 className="font-semibold text-gray-900 text-sm">Settlement</h4>
+                        <p className="text-xs text-gray-500">Who pays who</p>
+                      </div>
+                      {payoutSettlements.length === 0
+                        ? <p className="text-sm text-gray-500 text-center py-6 bg-white">No payouts yet.</p>
+                        : payoutSettlements.map((s, i) => (
+                          <div key={i} className="flex items-center px-4 py-2.5 border-b border-gray-100 last:border-0 gap-2 bg-white">
+                            <span className="flex-1 text-sm text-gray-900">
+                              <span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span>
+                            </span>
+                            <span className="font-bold text-gray-900">${s.amount}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+            <div className="h-6" />
+          </div>
+        </div>
+      )}
+
       <main className="max-w-lg mx-auto px-3 py-4 space-y-2 pb-24">
         {savedCount === 18 && (
           <div className="bg-white rounded-xl border-2 px-4 py-3 text-center" style={{ borderColor: gold }}>
             <p className="font-semibold" style={{ color: navy }}>All 18 holes submitted! ⛳</p>
-            <a href="/leaderboard" className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
+            <button onClick={openPayoutsModal} className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
               {roundComplete ? 'Final Payouts →' : 'View Payouts →'}
-            </a>
+            </button>
           </div>
         )}
 
