@@ -225,7 +225,16 @@ export default function ScoreEntry({
               <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
               <h1 className="font-bold text-lg">{team.name}</h1>
             </div>
-            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <a href="/admin/dashboard"
+                  className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                  style={{ background: navy, color: '#d1d5db', borderColor: '#d1d5db' }}>
+                  Admin Hub
+                </a>
+              )}
+              <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+            </div>
           </div>
           {!isDaytona && (
             <div className="flex gap-3">
@@ -482,7 +491,7 @@ export default function ScoreEntry({
               )}
             </div>
 
-              {hole.hole_number === 9 && (
+              {hole.hole_number === 9 && !isDaytona && (
                 <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: navy }}>
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Front 9 Total</p>
@@ -512,7 +521,7 @@ export default function ScoreEntry({
                   </div>
                 </div>
               )}
-              {hole.hole_number === 18 && (
+              {hole.hole_number === 18 && !isDaytona && (
                 <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: navy }}>
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Back 9 Total</p>
@@ -548,14 +557,7 @@ export default function ScoreEntry({
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
-        <div className={`max-w-lg mx-auto flex items-center text-sm ${isAdmin ? 'justify-between' : 'justify-center'}`}>
-          {isAdmin && (
-            <a href="/admin/dashboard"
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-              style={{ background: navy, color: gold }}>
-              Admin Hub
-            </a>
-          )}
+        <div className="max-w-lg mx-auto flex items-center justify-center text-sm">
           <p className="text-xs text-gray-400">{savedCount}/18 holes saved</p>
         </div>
       </div>
