@@ -367,18 +367,15 @@ export default function LeaderboardClient({
               </div>
             </div>
           ) : (
-            <div className="flex items-start justify-between">
-              <div className="flex-1" />
-              <div className="text-center flex-1">
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
-                  Anything But Golf Group
-                </p>
-                <h1 className="text-2xl font-bold leading-tight">{roundName}</h1>
-                <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                  {roundCourse && `${roundCourse} · `}{formattedDate}
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1.5 flex-1">
+            <div className="relative text-center">
+              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
+                Anything But Golf Group
+              </p>
+              <h1 className="text-2xl font-bold leading-tight">{roundName}</h1>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                {roundCourse && `${roundCourse} · `}{formattedDate}
+              </p>
+              <div className="absolute right-0 top-0 flex flex-col items-end gap-1.5">
                 {scorecardTeamId && (
                   <a href={`/score/${scorecardTeamId}`}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
