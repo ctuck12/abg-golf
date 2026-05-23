@@ -31,9 +31,12 @@ export default async function LeaderboardPage() {
       : Promise.resolve({ data: [] }),
   ])
 
-  // Detect if a team member is currently logged in (so we can show "Back to Scorecard")
   const cookieStore = await cookies()
+  const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
   const authTeam = (teams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')
+
+  const { data: ballValuesRaw } = await sb
+    .from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number')
 
   return (
     <LeaderboardClient
@@ -42,6 +45,7 @@ export default async function LeaderboardPage() {
       holes={holes ?? []}
       initialScores={scores ?? []}
       ballsCount={round.balls_count}
+      ballValues={ballValuesRaw ?? []}
       format={round.format ?? 'standard'}
       daytonaVariant={round.daytona_variant ?? '4man'}
       roundId={round.id}
@@ -50,6 +54,7 @@ export default async function LeaderboardPage() {
       roundDate={round.date}
       roundCourse={round.course ?? ''}
       scorecardTeamId={authTeam?.id ?? null}
+      isAdmin={isAdmin}
     />
   )
 }

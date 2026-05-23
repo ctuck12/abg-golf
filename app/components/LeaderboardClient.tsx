@@ -340,7 +340,7 @@ export default function LeaderboardClient({
                     <a href={`/score/${scorecardTeamId}`}
                       className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                       style={{ background: gold, color: navy }}>
-                      Enter Scores
+                      {isComplete ? 'Edit Scores' : 'Enter Scores'}
                     </a>
                     {isAdmin && (
                       <a href="/admin/dashboard"
@@ -368,14 +368,25 @@ export default function LeaderboardClient({
             </div>
           ) : (
             <div>
-              {scorecardTeamId && (
-                <a
-                  href={`/score/${scorecardTeamId}`}
-                  className="inline-flex items-center gap-1 text-xs font-semibold mb-3 px-3 py-1.5 rounded-lg"
-                  style={{ background: gold, color: navy }}
-                >
-                  Enter Scores
-                </a>
+              {(scorecardTeamId || isAdmin) && (
+                <div className="flex flex-col items-start gap-1.5 mb-3">
+                  {scorecardTeamId && (
+                    <a
+                      href={`/score/${scorecardTeamId}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                      style={{ background: gold, color: navy }}
+                    >
+                      {isComplete ? 'Edit Scores' : 'Enter Scores'}
+                    </a>
+                  )}
+                  {isAdmin && (
+                    <a href="/admin/dashboard"
+                      className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                      style={{ background: navy, color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      Admin Hub
+                    </a>
+                  )}
+                </div>
               )}
               <div className="text-center">
                 <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
