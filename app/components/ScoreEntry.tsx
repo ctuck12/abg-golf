@@ -339,18 +339,16 @@ export default function ScoreEntry({
                   <div className="flex items-center gap-3 mr-2">
                     {isDaytona ? (
                       <>
-                        <div className="text-center">
+                        <div className="text-center mr-3">
                           <p className="text-xs" style={{ color: '#2563eb' }}>{leftLabel}</p>
                           <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
                         </div>
                         {is5Man && savedRightPairDts.length === 3 ? (
                           <div className="text-center">
                             <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
-                            <div className="flex gap-2">
-                              {savedRightPairDts.map((dt, i) => (
-                                <p key={i} className="font-bold text-sm text-gray-900">{dt ?? '–'}</p>
-                              ))}
-                            </div>
+                            <p className="font-bold text-sm text-gray-900">
+                              {savedRightPairDts.map((dt) => dt ?? '–').join('/')}
+                            </p>
                           </div>
                         ) : (
                           <>
