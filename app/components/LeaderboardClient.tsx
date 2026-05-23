@@ -193,7 +193,7 @@ export default function LeaderboardClient({
                       <div key={team.id} className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
                         <div className="px-4 py-3 border-b border-gray-100">
                           <h4 className="font-semibold text-gray-900 text-sm">{team.name}</h4>
-                          <p className="text-xs text-gray-500">${dtPayoutValue}/point · lower DT wins each hole</p>
+                          <p className="text-xs text-gray-500">${dtPayoutValue}/point</p>
                         </div>
                         <div className="divide-y divide-gray-100">
                           {teamPlayers.map((p) => {
