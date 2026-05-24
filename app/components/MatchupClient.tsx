@@ -21,7 +21,7 @@ type ScorecardTarget =
   | { type: 'player'; id: string; name: string }
   | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string; scoringType: ScoringType }
   | { type: 'bestball'; p1Id: string; p2Id: string; teamName: string }
-  | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string }
+  | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string; scoringType: ScoringType }
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -687,15 +687,28 @@ export default function MatchupClient({
                 )
               })() : showScorecardFor.type === 'bb-scorecards' ? (() => {
                 const target = showScorecardFor
+                // Build per-hole best-ball score map for each team
+                const t1Map: Record<number, number> = {}
+                const t2Map: Record<number, number> = {}
+                for (const hole of holes) {
+                  const t1s1 = scoreMap[target.t1p1Id]?.[hole.hole_number]
+                  const t1s2 = scoreMap[target.t1p2Id]?.[hole.hole_number]
+                  const t1Arr = ([t1s1, t1s2] as (number | undefined)[]).filter((s): s is number => s !== undefined)
+                  if (t1Arr.length > 0) t1Map[hole.hole_number] = Math.min(...t1Arr)
+
+                  const t2s1 = scoreMap[target.t2p1Id]?.[hole.hole_number]
+                  const t2s2 = scoreMap[target.t2p2Id]?.[hole.hole_number]
+                  const t2Arr = ([t2s1, t2s2] as (number | undefined)[]).filter((s): s is number => s !== undefined)
+                  if (t2Arr.length > 0) t2Map[hole.hole_number] = Math.min(...t2Arr)
+                }
                 return (
                   <HorizontalScorecardTable
                     rows={[
-                      { label: target.t1p1Name, scoreMap: scoreMap[target.t1p1Id] ?? {} },
-                      { label: target.t1p2Name, scoreMap: scoreMap[target.t1p2Id] ?? {} },
-                      { label: target.t2p1Name, scoreMap: scoreMap[target.t2p1Id] ?? {} },
-                      { label: target.t2p2Name, scoreMap: scoreMap[target.t2p2Id] ?? {} },
+                      { label: target.t1Name, scoreMap: t1Map },
+                      { label: target.t2Name, scoreMap: t2Map },
                     ]}
                     holes={holes}
+                    showMatchPlay={target.scoringType === 'match'}
                   />
                 )
               })() : (() => {
@@ -1140,6 +1153,7 @@ export default function MatchupClient({
                                 t1p1Name: t1p1.name.split(' ')[0], t1p2Name: t1p2.name.split(' ')[0],
                                 t2p1Name: t2p1.name.split(' ')[0], t2p2Name: t2p2.name.split(' ')[0],
                                 t1Name, t2Name,
+                                scoringType: bbScoringTypeParsed,
                               })}
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
@@ -1232,18 +1246,18 @@ export default function MatchupClient({
           </div>
         </div>
 
-        {/* ── Payouts & Settlements ── */}
+        {/* ── Matchup Results ── */}
         {payouts.rows.length > 0 && (
-          <div>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <button
               onClick={() => setShowPayouts((v) => !v)}
-              className="w-full flex items-center justify-between mb-2 px-1"
+              className="w-full flex items-center justify-between px-4 py-3"
             >
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">$ Payouts &amp; Settlements</p>
-              <span className="text-xs text-gray-400">{showPayouts ? '▲ Hide' : '▼ Show'}</span>
+              <span className="text-sm font-semibold text-gray-800">Matchup Results</span>
+              <span className="text-gray-400 text-xs">{showPayouts ? '▲ Hide' : '▼ Show'}</span>
             </button>
             {showPayouts && (
-              <div className="space-y-3">
+              <div className="border-t border-gray-100 space-y-3 p-3">
 
                 {/* Per-matchup breakdown */}
                 {payouts.rows.map((row) => {
