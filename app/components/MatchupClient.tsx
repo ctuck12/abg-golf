@@ -616,9 +616,6 @@ export default function MatchupClient({
         return false
       })
     : payouts.rows
-  // Auto-expand Matchup Results when there is an active search with hits.
-  const payoutsExpanded = showPayouts || (!!searchLower && filteredPayoutRows.length > 0)
-
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
 
@@ -1278,9 +1275,9 @@ export default function MatchupClient({
               className="w-full flex items-center justify-between px-4 py-3"
             >
               <span className="text-sm font-semibold text-gray-800">Matchup Results</span>
-              <span className="text-gray-400 text-xs">{payoutsExpanded ? '▲ Hide' : '▼ Show'}</span>
+              <span className="text-gray-400 text-xs">{showPayouts ? '▲ Hide' : '▼ Show'}</span>
             </button>
-            {payoutsExpanded && (
+            {showPayouts && (
               <div className="border-t border-gray-100 space-y-3 p-3">
 
                 {/* Empty state when search has no payout matches */}
