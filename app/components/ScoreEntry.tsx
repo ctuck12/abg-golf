@@ -395,6 +395,7 @@ export default function ScoreEntry({
       setErrors((e) => { const n = { ...e }; delete n[holeNumber]; return n })
       setExpandedHole(null)
       broadcastChannel.current?.send({ type: 'broadcast', event: 'refresh', payload: {} })
+      checkRoundComplete()
     }
   }
 
@@ -723,11 +724,11 @@ export default function ScoreEntry({
       )}
 
       <main className="max-w-lg mx-auto px-3 py-4 space-y-2 pb-24">
-        {savedCount === 18 && (
+        {roundComplete && (
           <div className="bg-white rounded-xl border-2 px-4 py-3 text-center" style={{ borderColor: gold }}>
             <p className="font-semibold" style={{ color: navy }}>All 18 holes submitted! ⛳</p>
             <button onClick={openPayoutsModal} className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
-              {roundComplete ? 'Final Payouts →' : 'View Payouts →'}
+              Final Payouts →
             </button>
           </div>
         )}
