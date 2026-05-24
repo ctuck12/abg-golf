@@ -212,6 +212,171 @@ function computeBestBall(
   }
 }
 
+// ── Payout types ─────────────────────────────────────────────────────────────
+type PayoutSegment = {
+  name: 'Front' | 'Back' | 'Total'
+  settled: boolean
+  winnerLabel: string | null   // player/team name, null = pending or tied
+  tied: boolean
+  amount: number               // bet amount per this segment (per-player for BB)
+  perPlayer: boolean           // true for BB (label shows "$X/player")
+}
+type PayoutRow = {
+  id: string
+  label: string
+  betLabel: string
+  segments: PayoutSegment[]
+}
+
+function computeMatchupPayouts(
+  matchups: SavedMatchup[],
+  bestBallMatchups: BestBallMatchup[],
+  players: Player[],
+  scoreMap: Record<string, Record<number, number>>,
+  holes: Hole[]
+): {
+  rows: PayoutRow[]
+  net: Record<string, number>
+  involvedIds: Set<string>
+  settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[]
+} {
+  const net: Record<string, number> = {}
+  for (const p of players) net[p.id] = 0
+  const rows: PayoutRow[] = []
+  const involvedIds = new Set<string>()
+
+  // ── Head to Head ─────────────────────────────────────────────────
+  for (const m of matchups) {
+    const { betType, amount, scoringType } = parseBet(m.bet)
+    if (!betType || !amount) continue
+    const betAmt = parseFloat(amount)
+    if (isNaN(betAmt) || betAmt <= 0) continue
+    const mp1 = players.find((p) => p.id === m.player1_id)
+    const mp2 = players.find((p) => p.id === m.player2_id)
+    if (!mp1 || !mp2) continue
+    involvedIds.add(m.player1_id); involvedIds.add(m.player2_id)
+
+    const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
+    const hole9 = scoreMap[m.player1_id]?.[9] != null && scoreMap[m.player2_id]?.[9] != null
+    const hole18 = scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null
+    const p1 = m.player1_id, p2 = m.player2_id
+
+    // Returns winner label and updates net; tri-state stroke leader avoids tie-as-win bug
+    const resolveH2H = (
+      settled: boolean,
+      sl: 'p1' | 'p2' | 'tie' | null,   // stroke leader
+      mpDiff: number                      // p1Wins - p2Wins in match play
+    ): { winnerLabel: string | null; tied: boolean } => {
+      if (!settled) return { winnerLabel: null, tied: false }
+      const p1Wins = scoringType === 'match' ? mpDiff > 0 : sl === 'p1'
+      const p2Wins = scoringType === 'match' ? mpDiff < 0 : sl === 'p2'
+      if (p1Wins) { net[p1] += betAmt; net[p2] -= betAmt; return { winnerLabel: mp1.name, tied: false } }
+      if (p2Wins) { net[p2] += betAmt; net[p1] -= betAmt; return { winnerLabel: mp2.name, tied: false } }
+      return { winnerLabel: null, tied: true }
+    }
+
+    const strokeLeader = (a: number | null, b: number | null): 'p1' | 'p2' | 'tie' | null =>
+      a === null || b === null ? null : a < b ? 'p1' : b < a ? 'p2' : 'tie'
+
+    const segments: PayoutSegment[] = []
+    if (betType === 'nassau') {
+      const fSett = hole9 && stats.p1Front !== null && stats.p2Front !== null
+      const { winnerLabel: fWL, tied: fT } = resolveH2H(fSett, strokeLeader(stats.p1Front, stats.p2Front), stats.p1FrontWins - stats.p2FrontWins)
+      segments.push({ name: 'Front', settled: fSett, winnerLabel: fWL, tied: fT, amount: betAmt, perPlayer: false })
+
+      const bSett = hole18 && stats.p1Back !== null && stats.p2Back !== null
+      const { winnerLabel: bWL, tied: bT } = resolveH2H(bSett, strokeLeader(stats.p1Back, stats.p2Back), stats.p1BackWins - stats.p2BackWins)
+      segments.push({ name: 'Back', settled: bSett, winnerLabel: bWL, tied: bT, amount: betAmt, perPlayer: false })
+    }
+    const tSett = hole18 && stats.p1Total !== null && stats.p2Total !== null
+    const { winnerLabel: tWL, tied: tT } = resolveH2H(tSett, strokeLeader(stats.p1Total, stats.p2Total), stats.p1Wins - stats.p2Wins)
+    segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: betAmt, perPlayer: false })
+
+    rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: formatBet(m.bet), segments })
+  }
+
+  // ── Best Ball ─────────────────────────────────────────────────────
+  for (const m of bestBallMatchups) {
+    const { betType, amount, scoringType } = parseBet(m.bet)
+    if (!betType || !amount) continue
+    const betAmt = parseFloat(amount)
+    if (isNaN(betAmt) || betAmt <= 0) continue
+    const t1p1 = players.find((p) => p.id === m.team1_player1_id)
+    const t1p2 = players.find((p) => p.id === m.team1_player2_id)
+    const t2p1 = players.find((p) => p.id === m.team2_player1_id)
+    const t2p2 = players.find((p) => p.id === m.team2_player2_id)
+    if (!t1p1 || !t1p2 || !t2p1 || !t2p2) continue
+    involvedIds.add(m.team1_player1_id); involvedIds.add(m.team1_player2_id)
+    involvedIds.add(m.team2_player1_id); involvedIds.add(m.team2_player2_id)
+
+    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
+    const t1Ids = [m.team1_player1_id, m.team1_player2_id]
+    const t2Ids = [m.team2_player1_id, m.team2_player2_id]
+    const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
+    const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
+    const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
+    const hole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
+
+    const strokeLeaderBB = (a: number | null, b: number | null): 't1' | 't2' | 'tie' | null =>
+      a === null || b === null ? null : a < b ? 't1' : b < a ? 't2' : 'tie'
+
+    const resolveBB = (
+      settled: boolean,
+      sl: 't1' | 't2' | 'tie' | null,
+      mpDiff: number
+    ): { winnerLabel: string | null; tied: boolean } => {
+      if (!settled) return { winnerLabel: null, tied: false }
+      const t1Wins = scoringType === 'match' ? mpDiff > 0 : sl === 't1'
+      const t2Wins = scoringType === 'match' ? mpDiff < 0 : sl === 't2'
+      if (t1Wins) {
+        for (const id of t1Ids) net[id] = (net[id] ?? 0) + betAmt
+        for (const id of t2Ids) net[id] = (net[id] ?? 0) - betAmt
+        return { winnerLabel: t1Name, tied: false }
+      }
+      if (t2Wins) {
+        for (const id of t2Ids) net[id] = (net[id] ?? 0) + betAmt
+        for (const id of t1Ids) net[id] = (net[id] ?? 0) - betAmt
+        return { winnerLabel: t2Name, tied: false }
+      }
+      return { winnerLabel: null, tied: true }
+    }
+
+    const segments: PayoutSegment[] = []
+    if (betType === 'nassau') {
+      const fSett = hole9 && stats.t1Front !== null && stats.t2Front !== null
+      const { winnerLabel: fWL, tied: fT } = resolveBB(fSett, strokeLeaderBB(stats.t1Front, stats.t2Front), stats.t1FrontWins - stats.t2FrontWins)
+      segments.push({ name: 'Front', settled: fSett, winnerLabel: fWL, tied: fT, amount: betAmt, perPlayer: true })
+
+      const bSett = hole18 && stats.t1Back !== null && stats.t2Back !== null
+      const { winnerLabel: bWL, tied: bT } = resolveBB(bSett, strokeLeaderBB(stats.t1Back, stats.t2Back), stats.t1BackWins - stats.t2BackWins)
+      segments.push({ name: 'Back', settled: bSett, winnerLabel: bWL, tied: bT, amount: betAmt, perPlayer: true })
+    }
+    const tSett = hole18 && stats.t1Total !== null && stats.t2Total !== null
+    const { winnerLabel: tWL, tied: tT } = resolveBB(tSett, strokeLeaderBB(stats.t1Total, stats.t2Total), stats.t1Wins - stats.t2Wins)
+    segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: betAmt, perPlayer: true })
+
+    rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: formatBet(m.bet), segments })
+  }
+
+  // ── Minimize settlements ──────────────────────────────────────────
+  const pw = players.map((p) => ({ id: p.id, name: p.name, bal: Math.round((net[p.id] ?? 0) * 100) / 100 }))
+    .filter((b) => b.bal > 0.005).sort((a, b) => b.bal - a.bal).map((b) => ({ ...b }))
+  const nw = players.map((p) => ({ id: p.id, name: p.name, bal: Math.round((net[p.id] ?? 0) * 100) / 100 }))
+    .filter((b) => b.bal < -0.005).sort((a, b) => a.bal - b.bal).map((b) => ({ ...b }))
+  const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
+  let wi = 0, li = 0
+  while (wi < pw.length && li < nw.length) {
+    const amount = Math.round(Math.min(pw[wi].bal, -nw[li].bal) * 100) / 100
+    if (amount > 0) settlements.push({ fromId: nw[li].id, fromName: nw[li].name, toId: pw[wi].id, toName: pw[wi].name, amount })
+    pw[wi].bal = Math.round((pw[wi].bal - amount) * 100) / 100
+    nw[li].bal = Math.round((nw[li].bal + amount) * 100) / 100
+    if (pw[wi].bal <= 0.005) wi++
+    if (nw[li].bal >= -0.005) li++
+  }
+
+  return { rows, net, involvedIds, settlements }
+}
+
 export default function MatchupClient({
   roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups,
 }: {
@@ -352,6 +517,11 @@ export default function MatchupClient({
   const searchLower = searchQuery.toLowerCase().trim()
   const bbSelected = [bbT1P1, bbT1P2, bbT2P1, bbT2P2].filter(Boolean)
   const isComplete = holes.length > 0 && players.every((p) => Object.keys(scoreMap[p.id] ?? {}).length >= holes.length)
+
+  const payouts = useMemo(
+    () => computeMatchupPayouts(matchups, bestBallMatchups, players, scoreMap, holes),
+    [matchups, bestBallMatchups, players, scoreMap, holes]
+  )
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -960,6 +1130,99 @@ export default function MatchupClient({
             })()}
           </div>
         </div>
+
+        {/* ── Payouts & Settlements ── */}
+        {payouts.rows.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-2 px-1">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">$ Payouts &amp; Settlements</p>
+              <span className="text-xs text-gray-400">Updates live</span>
+            </div>
+            <div className="space-y-3">
+
+              {/* Per-matchup breakdown */}
+              {payouts.rows.map((row) => (
+                <div key={row.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-4 pt-3 pb-1">
+                    <p className="text-xs font-bold text-gray-800">{row.label}</p>
+                    <p className="text-xs" style={{ color: gold }}>{row.betLabel}</p>
+                  </div>
+                  <table className="w-full border-collapse">
+                    <tbody>
+                      {row.segments.map((seg) => (
+                        <tr key={seg.name} className="border-t border-gray-100">
+                          <td className="px-4 py-2 text-xs font-semibold text-gray-500 w-14">{seg.name}</td>
+                          <td className="px-2 py-2 text-xs flex-1">
+                            {seg.settled
+                              ? seg.tied
+                                ? <span className="text-gray-400 italic">Tied — push</span>
+                                : <span className="font-semibold text-green-700">{seg.winnerLabel} ✓</span>
+                              : <span className="text-gray-300">Pending</span>}
+                          </td>
+                          <td className="px-4 py-2 text-xs font-bold text-right text-gray-700 whitespace-nowrap">
+                            {seg.settled && !seg.tied
+                              ? <>${seg.amount}{seg.perPlayer ? <span className="font-normal text-gray-400">/player</span> : ''}</>
+                              : <span className="font-normal text-gray-300">${seg.amount}{seg.perPlayer ? '/player' : ''}</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+
+              {/* Net positions + Settlements */}
+              {(() => {
+                const anySettled = payouts.rows.some((r) => r.segments.some((s) => s.settled))
+                if (!anySettled) return null
+                const involvedPlayers = players.filter((p) => payouts.involvedIds.has(p.id))
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    {/* Net positions */}
+                    <div className="px-4 pt-3 pb-2">
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Net Positions</p>
+                      <div className="space-y-1">
+                        {involvedPlayers.map((p) => {
+                          const v = Math.round((payouts.net[p.id] ?? 0) * 100) / 100
+                          return (
+                            <div key={p.id} className="flex items-center justify-between">
+                              <span className="text-xs text-gray-700">{p.name}</span>
+                              <span className={`text-xs font-bold ${v > 0 ? 'text-green-600' : v < 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                                {v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    {/* Settlements */}
+                    {payouts.settlements.length > 0 && (
+                      <div className="border-t border-gray-100 px-4 py-3">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Settlements</p>
+                        {payouts.settlements.map((s, i) => (
+                          <div key={i} className="flex items-center justify-between py-1">
+                            <span className="text-xs text-gray-800">
+                              <span className="font-semibold text-red-500">{s.fromName}</span>
+                              <span className="text-gray-400"> pays </span>
+                              <span className="font-semibold text-green-600">{s.toName}</span>
+                            </span>
+                            <span className="text-xs font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {payouts.settlements.length === 0 && (
+                      <div className="border-t border-gray-100 px-4 py-3">
+                        <p className="text-xs text-gray-400 text-center">All even — no payments needed</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
