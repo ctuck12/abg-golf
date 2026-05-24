@@ -230,7 +230,7 @@ export type PayoutEntry = {
 
 export type BallHalfResult = {
   ball: number            // 1-indexed
-  half: 'Front 9' | 'Back 9'
+  half: 'Front 9' | 'Back 9' | 'Total 18'
   winnerId: string | null
   winnerName: string | null
   winnerTotal: number | null
@@ -317,6 +317,112 @@ export function calculateFrontBackPayouts(
   }
 
   return { results, net, settlements }
+}
+
+// Pool format: one value per ball per player (e.g. $5). All players contribute that
+// amount for every decided (non-tied) result. Total pot per result = perBallValue × totalPlayers.
+// Winning team's players split that pot equally. Ties wash — no contribution, no payout.
+// Returns per-PLAYER net and minimized settlement list.
+export function calculatePoolPayouts(
+  teams: { id: string; name: string }[],
+  players: { id: string; team_id: string; name: string }[],
+  frontSummaries: Map<string, TeamBallSummary>,
+  backSummaries: Map<string, TeamBallSummary>,
+  perBallValue: number,
+  ballsCount: number,
+  totalSummaries?: Map<string, TeamBallSummary>   // optional — adds 18-hole totals as a 3rd segment
+): {
+  results: BallHalfResult[]
+  playerNet: Record<string, number>
+  potTotal: number
+  perBallResult: number
+  perPlayerContribution: number
+  numDecidedResults: number
+  settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[]
+} {
+  const totalPlayers = players.length
+  const playerNet: Record<string, number> = {}
+  for (const p of players) playerNet[p.id] = 0
+
+  const results: BallHalfResult[] = []
+  const halves: Array<['Front 9' | 'Back 9' | 'Total 18', Map<string, TeamBallSummary>]> = [
+    ['Front 9', frontSummaries],
+    ['Back 9', backSummaries],
+  ]
+  if (totalSummaries) halves.push(['Total 18', totalSummaries])
+
+  let numDecidedResults = 0
+
+  for (const [halfName, summaries] of halves) {
+    for (let bi = 0; bi < ballsCount; bi++) {
+      const ballNum = bi + 1
+
+      const teamScores = teams
+        .map((t) => ({
+          id: t.id,
+          name: t.name,
+          total: summaries.get(t.id)?.ballTotals[bi] ?? null,
+          vsPar: summaries.get(t.id)?.ballVsPar[bi] ?? null,
+        }))
+        .filter((s): s is typeof s & { total: number } => s.total !== null)
+
+      if (teamScores.length === 0) {
+        results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: null, winnerVsPar: null, tied: false, played: false })
+        continue
+      }
+
+      const minTotal = Math.min(...teamScores.map((s) => s.total))
+      const winners = teamScores.filter((s) => s.total === minTotal)
+      const tied = winners.length > 1
+
+      if (tied) {
+        results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: minTotal, winnerVsPar: null, tied: true, played: true })
+        // Ties wash — no money moves
+      } else {
+        const winner = winners[0]
+        results.push({ ball: ballNum, half: halfName, winnerId: winner.id, winnerName: winner.name, winnerTotal: winner.total, winnerVsPar: winner.vsPar, tied: false, played: true })
+
+        numDecidedResults++
+
+        if (perBallValue > 0 && totalPlayers > 0) {
+          const resultPot = perBallValue * totalPlayers
+          const winningPlayers = players.filter((p) => p.team_id === winner.id)
+          const numWinners = winningPlayers.length
+
+          // Every player contributes perBallValue
+          for (const p of players) playerNet[p.id] -= perBallValue
+          // Winning team's players split the pot
+          if (numWinners > 0) {
+            const share = resultPot / numWinners
+            for (const p of winningPlayers) playerNet[p.id] += share
+          }
+        }
+      }
+    }
+  }
+
+  const perPlayerContribution = perBallValue * numDecidedResults
+  const perBallResult = perBallValue * totalPlayers
+  const potTotal = perPlayerContribution * totalPlayers
+
+  // Minimize settlements using greedy matching of biggest winner vs biggest loser
+  const balances = players.map((p) => ({ id: p.id, name: p.name, bal: playerNet[p.id] ?? 0 }))
+  const pos = balances.filter((b) => b.bal > 0.001).sort((a, b) => b.bal - a.bal)
+  const neg = balances.filter((b) => b.bal < -0.001).sort((a, b) => a.bal - b.bal)
+  const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
+
+  let wi = 0, li = 0
+  while (wi < pos.length && li < neg.length) {
+    const w = pos[wi], l = neg[li]
+    const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
+    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    w.bal -= amount
+    l.bal += amount
+    if (w.bal < 0.001) wi++
+    if (l.bal > -0.001) li++
+  }
+
+  return { results, playerNet, potTotal, perBallResult, perPlayerContribution, numDecidedResults, settlements }
 }
 
 export type DaytonaSide = 'left' | 'right'

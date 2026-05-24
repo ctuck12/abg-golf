@@ -13,7 +13,7 @@ export default async function AdminDashboardPage() {
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, daytona_variant, is_started')
+    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total')
     .eq('is_active', true)
     .single()
 
@@ -37,7 +37,7 @@ export default async function AdminDashboardPage() {
 
   const isDaytona = (round?.format ?? 'standard') === 'daytona'
 
-  const [playersRes, scoresRes, assignmentsRes] = await Promise.all([
+  const [playersRes, scoresRes, assignmentsRes, matchupsRes, bestBallRes] = await Promise.all([
     teamIds.length
       ? sb.from('players').select('id, team_id, name, position').in('team_id', teamIds).order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
@@ -46,6 +46,12 @@ export default async function AdminDashboardPage() {
       : Promise.resolve({ data: [] }),
     roundId && isDaytona
       ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
+      : Promise.resolve({ data: [] }),
+    roundId
+      ? sb.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', roundId).order('created_at')
+      : Promise.resolve({ data: [] }),
+    roundId
+      ? sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', roundId).order('created_at')
       : Promise.resolve({ data: [] }),
   ])
 
@@ -59,6 +65,8 @@ export default async function AdminDashboardPage() {
       scores={scoresRes.data ?? []}
       scorecardTeamId={scorecardTeamId}
       dtAssignments={assignmentsRes.data ?? []}
+      matchups={matchupsRes.data ?? []}
+      bestBallMatchups={bestBallRes.data ?? []}
     />
   )
 }

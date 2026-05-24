@@ -65,6 +65,24 @@ function fmtVsPar(n: number | null): string {
   return n > 0 ? `+${n}` : String(n)
 }
 
+// Two-slot inline-flex: a fixed 1ch sign slot + the value.
+// Every value has the same total width, so they all center under the column
+// header identically. tabular-nums keeps multi-digit values aligned too.
+function VsParDisplay({ n }: { n: number | null }) {
+  if (n === null) return <span>–</span>
+  const sign  = n > 0 ? '+' : n < 0 ? '-' : ''
+  const value = n === 0 ? 'E' : String(Math.abs(n))
+  return (
+    <span style={{ display: 'inline-flex', fontVariantNumeric: 'tabular-nums' }}>
+      {/* sign slot — always 1ch wide so +3 / -2 / E share the same indent */}
+      <span style={{ display: 'inline-block', width: '1ch', textAlign: 'right', flexShrink: 0 }}>
+        {sign}
+      </span>
+      <span>{value}</span>
+    </span>
+  )
+}
+
 function vpColor(n: number | null): string {
   if (n === null) return '#9ca3af'
   if (n < 0) return '#dc2626'
@@ -226,6 +244,12 @@ type PayoutRow = {
   label: string
   betLabel: string
   segments: PayoutSegment[]
+  nassauResult?: {
+    winnerLabel: string | null   // net winner name, or null if tied/no data
+    amount: number               // absolute net amount
+    perPlayer: boolean
+    anySettled: boolean
+  }
 }
 
 function computeMatchupPayouts(
@@ -297,7 +321,20 @@ function computeMatchupPayouts(
     const { winnerLabel: tWL, tied: tT } = resolveH2H(tSett, strokeLeader(stats.p1Total, stats.p2Total), stats.p1Wins - stats.p2Wins)
     segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: betAmt, perPlayer: false })
 
-    rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: formatBet(m.bet), segments })
+    let nassauResult: PayoutRow['nassauResult']
+    if (betType === 'nassau') {
+      const p1Net = segments.reduce((sum, s) => {
+        if (!s.settled || s.tied || s.winnerLabel === null) return sum
+        return sum + (s.winnerLabel === mp1.name ? s.amount : -s.amount)
+      }, 0)
+      nassauResult = {
+        winnerLabel: p1Net > 0 ? mp1.name : p1Net < 0 ? mp2.name : null,
+        amount: Math.abs(p1Net),
+        perPlayer: false,
+        anySettled: segments.some((s) => s.settled),
+      }
+    }
+    rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: formatBet(m.bet), segments, nassauResult })
   }
 
   // ── Best Ball ─────────────────────────────────────────────────────
@@ -365,7 +402,20 @@ function computeMatchupPayouts(
     const { winnerLabel: tWL, tied: tT } = resolveBB(tSett, strokeLeaderBB(stats.t1Total, stats.t2Total), stats.t1Wins - stats.t2Wins)
     segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: betAmt, perPlayer: true })
 
-    rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: formatBet(m.bet), segments })
+    let nassauResult: PayoutRow['nassauResult']
+    if (betType === 'nassau') {
+      const t1Net = segments.reduce((sum, s) => {
+        if (!s.settled || s.tied || s.winnerLabel === null) return sum
+        return sum + (s.winnerLabel === t1Name ? s.amount : -s.amount)
+      }, 0)
+      nassauResult = {
+        winnerLabel: t1Net > 0 ? t1Name : t1Net < 0 ? t2Name : null,
+        amount: Math.abs(t1Net),
+        perPlayer: true,
+        anySettled: segments.some((s) => s.settled),
+      }
+    }
+    rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: formatBet(m.bet), segments, nassauResult })
   }
 
   // ── Minimize settlements ──────────────────────────────────────────
@@ -432,7 +482,9 @@ export default function MatchupClient({
   const [searchQuery, setSearchQuery] = useState('')
   const [showH2HForm, setShowH2HForm] = useState(false)
   const [showBBForm, setShowBBForm] = useState(false)
+  const [showPayouts, setShowPayouts] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' } | null>(null)
+  const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -473,12 +525,18 @@ export default function MatchupClient({
 
   async function handleCreateH2H() {
     if (!newP1 || !newP2 || newP1 === newP2 || !newBetType || !newBetAmount.trim()) return
+    const isDuplicateH2H = matchups.some((m) =>
+      (m.player1_id === newP1 && m.player2_id === newP2) ||
+      (m.player1_id === newP2 && m.player2_id === newP1)
+    )
+    if (isDuplicateH2H) { setShowDuplicateAlert(true); return }
     setSavingH2H(true)
     const bet = composeBet(newBetType, newBetAmount, newScoringType)
     const result = await saveMatchup(roundId, newP1, newP2, bet)
     if (!result.error && result.id) {
       setMatchups((prev) => [...prev, { id: result.id!, player1_id: newP1, player2_id: newP2, bet }])
       setNewP1(''); setNewP2(''); setNewBetAmount('')
+      setShowH2HForm(false)
     }
     setSavingH2H(false)
   }
@@ -499,6 +557,12 @@ export default function MatchupClient({
   async function handleCreateBB() {
     const ids = [bbT1P1, bbT1P2, bbT2P1, bbT2P2]
     if (ids.some((id) => !id) || new Set(ids).size !== 4 || !bbBetType || !bbBetAmount.trim()) return
+    const newSet = new Set(ids)
+    const isDuplicateBB = bestBallMatchups.some((m) => {
+      const ex = new Set([m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id])
+      return ex.size === newSet.size && [...newSet].every((id) => ex.has(id))
+    })
+    if (isDuplicateBB) { setShowDuplicateAlert(true); return }
     setSavingBB(true)
     const bet = composeBet(bbBetType, bbBetAmount, bbScoringType)
     const result = await saveBestBallMatchup(roundId, bbT1P1, bbT1P2, bbT2P1, bbT2P2, bet)
@@ -508,6 +572,7 @@ export default function MatchupClient({
         team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet,
       }])
       setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetAmount('')
+      setShowBBForm(false)
     }
     setSavingBB(false)
   }
@@ -560,6 +625,26 @@ export default function MatchupClient({
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
                 style={{ background: '#ef4444' }}>
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Duplicate Matchup Alert ── */}
+      {showDuplicateAlert && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowDuplicateAlert(false)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-1">Matchup Already Exists</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              A matchup with these players already exists. Remove the existing one first if you'd like to change it.
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowDuplicateAlert(false)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
+                Cancel
               </button>
             </div>
           </div>
@@ -674,13 +759,10 @@ export default function MatchupClient({
         <div>
           <div className="flex items-center justify-between mb-2 px-1">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Head to Head</p>
-            {!showH2HForm && (
-              <button onClick={() => setShowH2HForm(true)}
-                className="text-xs font-semibold px-3 py-1 rounded-lg"
-                style={{ background: navy, color: 'white' }}>
-                + Add
-              </button>
-            )}
+            {showH2HForm
+              ? <button onClick={() => setShowH2HForm(false)} className="text-xs font-semibold text-gray-400 hover:text-gray-600 px-2 py-1">✕ Cancel</button>
+              : <button onClick={() => setShowH2HForm(true)} className="text-xs font-semibold px-3 py-1 rounded-lg" style={{ background: navy, color: 'white' }}>+ Add</button>
+            }
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             {showH2HForm && <div className="px-4 pt-4 pb-3 border-b border-gray-100">
@@ -838,38 +920,44 @@ export default function MatchupClient({
                                 ] as const).map(({ player, front, back, total, wFront, wBack, wTotal, mFront, mBack, mTotal }, rowIdx) => {
                                   const thru = Object.keys(scoreMap[player.id] ?? {}).length
                                   const isFirstRow = rowIdx === 0
-                                  const asStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap' }
                                   const mpCol = (diff: number, hasData: boolean) => {
                                     if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
                                     if (diff > 0) return <span style={{ color: '#16a34a' }}>{diff}UP</span>
                                     if (diff < 0) return null
-                                    return isFirstRow ? null : <span style={asStyle}>AS</span>
+                                    return null
                                   }
+                                  const asLabelStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1 }
                                   return (
                                     <tr key={player.id} className="border-t border-gray-100">
                                       <td className="px-3 py-2">
                                         <span className="text-xs font-semibold text-gray-800">{player.name}</span>
                                       </td>
                                       {!isOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isMatchPlay ? undefined : vpColor(front) }}>
-                                        {isMatchPlay ? mpCol(mFront, front !== null)
-                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
-                                              {fmtVsPar(front)}
-                                              {h2hHole9 && wFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
-                                            </span>}
+                                        {isMatchPlay && !isFirstRow && mFront === 0 && front !== null && <span style={asLabelStyle}>AS</span>}
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          {isMatchPlay ? mpCol(mFront, front !== null) : <VsParDisplay n={front} />}
+                                          {isMatchPlay
+                                            ? (h2hHole9 && mFront > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            : (h2hHole9 && wFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
+                                        </span>
                                       </td>}
                                       {!isOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isMatchPlay ? undefined : vpColor(back) }}>
-                                        {isMatchPlay ? mpCol(mBack, back !== null)
-                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
-                                              {fmtVsPar(back)}
-                                              {h2hHole18 && wBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
-                                            </span>}
+                                        {isMatchPlay && !isFirstRow && mBack === 0 && back !== null && <span style={asLabelStyle}>AS</span>}
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          {isMatchPlay ? mpCol(mBack, back !== null) : <VsParDisplay n={back} />}
+                                          {isMatchPlay
+                                            ? (h2hHole18 && mBack > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            : (h2hHole18 && wBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
+                                        </span>
                                       </td>}
                                       <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isMatchPlay ? undefined : vpColor(total) }}>
-                                        {isMatchPlay ? mpCol(mTotal, total !== null)
-                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
-                                              {fmtVsPar(total)}
-                                              {h2hHole18 && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
-                                            </span>}
+                                        {isMatchPlay && !isFirstRow && mTotal === 0 && total !== null && <span style={asLabelStyle}>AS</span>}
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          {isMatchPlay ? mpCol(mTotal, total !== null) : <VsParDisplay n={total} />}
+                                          {isMatchPlay
+                                            ? (h2hHole18 && mTotal > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            : (h2hHole18 && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
+                                        </span>
                                       </td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                     </tr>
@@ -892,13 +980,10 @@ export default function MatchupClient({
         <div>
           <div className="flex items-center justify-between mb-2 px-1">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">2 v 2 Best Ball</p>
-            {!showBBForm && (
-              <button onClick={() => setShowBBForm(true)}
-                className="text-xs font-semibold px-3 py-1 rounded-lg"
-                style={{ background: navy, color: 'white' }}>
-                + Add
-              </button>
-            )}
+            {showBBForm
+              ? <button onClick={() => setShowBBForm(false)} className="text-xs font-semibold text-gray-400 hover:text-gray-600 px-2 py-1">✕ Cancel</button>
+              : <button onClick={() => setShowBBForm(true)} className="text-xs font-semibold px-3 py-1 rounded-lg" style={{ background: navy, color: 'white' }}>+ Add</button>
+            }
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             {showBBForm && <div className="px-4 pt-4 pb-3 border-b border-gray-100">
@@ -1085,13 +1170,13 @@ export default function MatchupClient({
                                     (scoreMap[p2Id]?.[h.hole_number] != null)
                                   ).length
                                   const isFirstRow = rowIdx === 0
-                                  const asStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap' }
                                   const mpCol = (diff: number, hasData: boolean) => {
                                     if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
                                     if (diff > 0) return <span style={{ color: '#16a34a' }}>{diff}UP</span>
                                     if (diff < 0) return null
-                                    return isFirstRow ? null : <span style={asStyle}>AS</span>
+                                    return null
                                   }
+                                  const asLabelStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1 }
                                   return (
                                     <tr key={tName} className="border-t border-gray-100">
                                       <td className="px-3 py-2">
@@ -1103,25 +1188,31 @@ export default function MatchupClient({
                                         </button>
                                       </td>
                                       {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isBBMatchPlay ? undefined : vpColor(front) }}>
-                                        {isBBMatchPlay ? mpCol(mFront, front !== null)
-                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
-                                              {fmtVsPar(front)}
-                                              {bbHole9 && wFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
-                                            </span>}
+                                        {isBBMatchPlay && !isFirstRow && mFront === 0 && front !== null && <span style={asLabelStyle}>AS</span>}
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          {isBBMatchPlay ? mpCol(mFront, front !== null) : <VsParDisplay n={front} />}
+                                          {isBBMatchPlay
+                                            ? (bbHole9 && mFront > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            : (bbHole9 && wFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
+                                        </span>
                                       </td>}
                                       {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isBBMatchPlay ? undefined : vpColor(back) }}>
-                                        {isBBMatchPlay ? mpCol(mBack, back !== null)
-                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
-                                              {fmtVsPar(back)}
-                                              {bbHole18 && wBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
-                                            </span>}
+                                        {isBBMatchPlay && !isFirstRow && mBack === 0 && back !== null && <span style={asLabelStyle}>AS</span>}
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          {isBBMatchPlay ? mpCol(mBack, back !== null) : <VsParDisplay n={back} />}
+                                          {isBBMatchPlay
+                                            ? (bbHole18 && mBack > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            : (bbHole18 && wBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
+                                        </span>
                                       </td>}
                                       <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isBBMatchPlay ? undefined : vpColor(total) }}>
-                                        {isBBMatchPlay ? mpCol(mTotal, total !== null)
-                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
-                                              {fmtVsPar(total)}
-                                              {bbHole18 && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
-                                            </span>}
+                                        {isBBMatchPlay && !isFirstRow && mTotal === 0 && total !== null && <span style={asLabelStyle}>AS</span>}
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          {isBBMatchPlay ? mpCol(mTotal, total !== null) : <VsParDisplay n={total} />}
+                                          {isBBMatchPlay
+                                            ? (bbHole18 && mTotal > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            : (bbHole18 && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
+                                        </span>
                                       </td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                     </tr>
@@ -1144,100 +1235,95 @@ export default function MatchupClient({
         {/* ── Payouts & Settlements ── */}
         {payouts.rows.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-2 px-1">
+            <button
+              onClick={() => setShowPayouts((v) => !v)}
+              className="w-full flex items-center justify-between mb-2 px-1"
+            >
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">$ Payouts &amp; Settlements</p>
-              <span className="text-xs text-gray-400">Updates live</span>
-            </div>
-            <div className="space-y-3">
+              <span className="text-xs text-gray-400">{showPayouts ? '▲ Hide' : '▼ Show'}</span>
+            </button>
+            {showPayouts && (
+              <div className="space-y-3">
 
-              {/* Per-matchup breakdown */}
-              {payouts.rows.map((row) => (
-                <div key={row.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-4 pt-3 pb-1 border-b border-gray-100">
-                    <p className="text-xs font-bold text-gray-800">{row.label}</p>
-                    <p className="text-xs" style={{ color: row.segments.length === 0 ? '#9ca3af' : gold }}>
-                      {row.betLabel}
-                    </p>
-                  </div>
-                  {row.segments.length === 0 ? (
-                    <div className="px-4 py-3 text-xs text-gray-400">
-                      No bet amount set — use the ✎ button above to add one.
-                    </div>
-                  ) : (
-                    <table className="w-full border-collapse">
-                      <tbody>
-                        {row.segments.map((seg) => (
-                          <tr key={seg.name} className="border-t border-gray-100">
-                            <td className="px-4 py-2 text-xs font-semibold text-gray-500 w-14">{seg.name}</td>
-                            <td className="px-2 py-2 text-xs flex-1">
-                              {seg.settled
-                                ? seg.tied
-                                  ? <span className="text-gray-400 italic">Tied — push</span>
-                                  : <span className="font-semibold text-green-700">{seg.winnerLabel} ✓</span>
-                                : <span className="text-gray-300">Pending</span>}
-                            </td>
-                            <td className="px-4 py-2 text-xs font-bold text-right text-gray-700 whitespace-nowrap">
-                              {seg.settled && !seg.tied
-                                ? <>${seg.amount}{seg.perPlayer ? <span className="font-normal text-gray-400">/player</span> : ''}</>
-                                : <span className="font-normal text-gray-300">${seg.amount}{seg.perPlayer ? '/player' : ''}</span>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              ))}
+                {/* Per-matchup breakdown */}
+                {payouts.rows.map((row) => {
+                  const h2hMatch = matchups.find((m) => m.id === row.id)
+                  const bbMatch = bestBallMatchups.find((m) => m.id === row.id)
+                  const involvedPlayerIds = h2hMatch
+                    ? [h2hMatch.player1_id, h2hMatch.player2_id]
+                    : bbMatch
+                      ? [bbMatch.team1_player1_id, bbMatch.team1_player2_id, bbMatch.team2_player1_id, bbMatch.team2_player2_id]
+                      : []
+                  const allFinished = involvedPlayerIds.length > 0 && holes.length > 0 &&
+                    involvedPlayerIds.every((id) => Object.keys(scoreMap[id] ?? {}).length >= holes.length)
 
-              {/* Net positions + Settlements */}
-              {(() => {
-                const anySettled = payouts.rows.some((r) => r.segments.some((s) => s.settled))
-                if (!anySettled) return null
-                const involvedPlayers = players.filter((p) => payouts.involvedIds.has(p.id))
-                return (
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    {/* Net positions */}
-                    <div className="px-4 pt-3 pb-2">
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Net Positions</p>
-                      <div className="space-y-1">
-                        {involvedPlayers.map((p) => {
-                          const v = Math.round((payouts.net[p.id] ?? 0) * 100) / 100
-                          return (
-                            <div key={p.id} className="flex items-center justify-between">
-                              <span className="text-xs text-gray-700">{p.name}</span>
-                              <span className={`text-xs font-bold ${v > 0 ? 'text-green-600' : v < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                                {v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}
-                              </span>
-                            </div>
-                          )
-                        })}
+                  return (
+                    <div key={row.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="px-4 pt-3 pb-1 border-b border-gray-100">
+                        <p className="text-xs font-bold text-gray-800">{row.label}</p>
+                        <p className="text-xs" style={{ color: row.segments.length === 0 ? '#9ca3af' : gold }}>
+                          {row.betLabel}
+                        </p>
                       </div>
+                      {row.segments.length === 0 ? (
+                        <div className="px-4 py-3 text-xs text-gray-400">
+                          No bet amount set — use the ✎ button above to add one.
+                        </div>
+                      ) : !allFinished ? (
+                        <div className="px-4 py-3 text-xs text-gray-400 italic">
+                          Round in progress — result pending
+                        </div>
+                      ) : (
+                        <table className="w-full border-collapse">
+                          <tbody>
+                            {/* For Nassau bets show only the Result summary row; for Overall show the single segment */}
+                            {!row.nassauResult && row.segments.map((seg) => (
+                              <tr key={seg.name} className="border-t border-gray-100 bg-gray-50">
+                                <td className="px-4 py-2 text-xs font-semibold text-gray-500 w-14">Result</td>
+                                <td className="px-2 py-2 text-xs flex-1">
+                                  {seg.settled
+                                    ? seg.tied
+                                      ? <span className="text-gray-400 italic">Tied — push</span>
+                                      : <span className="font-semibold text-green-700">{seg.winnerLabel}</span>
+                                    : <span className="text-gray-300">Pending</span>}
+                                </td>
+                                <td className="px-4 py-2 text-xs font-bold text-right whitespace-nowrap">
+                                  {seg.settled && !seg.tied
+                                    ? <span className="text-green-600">+${seg.amount}{seg.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span>
+                                    : <span className="font-normal text-gray-300">${seg.amount}{seg.perPlayer ? '/player' : ''}</span>}
+                                </td>
+                              </tr>
+                            ))}
+                            {row.nassauResult && (() => {
+                              const nr = row.nassauResult!
+                              const fmtAmt = nr.amount % 1 === 0 ? String(nr.amount) : nr.amount.toFixed(2)
+                              return (
+                                <tr className="border-t border-gray-100 bg-gray-50">
+                                  <td className="px-4 py-2 text-xs font-bold text-gray-500 w-14">Result</td>
+                                  <td className="px-2 py-2 text-xs font-semibold">
+                                    {!nr.anySettled
+                                      ? <span className="text-gray-300">Pending</span>
+                                      : nr.winnerLabel === null
+                                        ? <span className="text-gray-400 italic">Tied — push</span>
+                                        : <span className="text-green-700 font-semibold">{nr.winnerLabel}</span>}
+                                  </td>
+                                  <td className="px-4 py-2 text-xs font-bold text-right whitespace-nowrap">
+                                    {nr.anySettled && nr.winnerLabel !== null
+                                      ? <span className="text-green-600">+${fmtAmt}{nr.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span>
+                                      : null}
+                                  </td>
+                                </tr>
+                              )
+                            })()}
+                          </tbody>
+                        </table>
+                      )}
                     </div>
-                    {/* Settlements */}
-                    {payouts.settlements.length > 0 && (
-                      <div className="border-t border-gray-100 px-4 py-3">
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Settlements</p>
-                        {payouts.settlements.map((s, i) => (
-                          <div key={i} className="flex items-center justify-between py-1">
-                            <span className="text-xs text-gray-800">
-                              <span className="font-semibold text-red-500">{s.fromName}</span>
-                              <span className="text-gray-400"> pays </span>
-                              <span className="font-semibold text-green-600">{s.toName}</span>
-                            </span>
-                            <span className="text-xs font-bold text-gray-900">${s.amount.toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {payouts.settlements.length === 0 && (
-                      <div className="border-t border-gray-100 px-4 py-3">
-                        <p className="text-xs text-gray-400 text-center">All even — no payments needed</p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
+                  )
+                })}
+
+              </div>
+            )}
           </div>
         )}
 
