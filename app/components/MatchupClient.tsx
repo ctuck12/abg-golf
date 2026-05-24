@@ -1378,6 +1378,38 @@ function HorizontalScorecardTable({
     }
   }
 
+  // Pre-compute per-row stroke totals so we can mark section winners (2-row comparisons only)
+  const _rowStrokeStats = rows.map(({ scoreMap }) => {
+    const fScored = frontNine.filter((h) => scoreMap[h.hole_number] != null)
+    const bScored = backNine.filter((h) => scoreMap[h.hole_number] != null)
+    const fStrokes = fScored.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
+    const bStrokes = bScored.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
+    return { fScored, bScored, fStrokes, bStrokes }
+  })
+  let frontWinnerIdx: number | null = null
+  let backWinnerIdx: number | null = null
+  let totalWinnerIdx: number | null = null
+  if (rows.length === 2) {
+    const [s0, s1] = _rowStrokeStats
+    if (showMatchPlay) {
+      const hasFrontData = Object.keys(matchHole).some((k) => Number(k) <= 9)
+      const hasBackData  = Object.keys(matchHole).some((k) => Number(k) >= 10)
+      const hasAnyData   = Object.keys(matchHole).length > 0
+      if (hasFrontData && frontMatchCum !== 0) frontWinnerIdx = frontMatchCum > 0 ? 0 : 1
+      if (hasBackData  && backMatchCum  !== 0) backWinnerIdx  = backMatchCum  > 0 ? 0 : 1
+      if (hasAnyData   && totalMatchCum !== 0) totalWinnerIdx = totalMatchCum > 0 ? 0 : 1
+    } else {
+      if (s0.fScored.length > 0 && s1.fScored.length > 0 && s0.fStrokes !== s1.fStrokes)
+        frontWinnerIdx = s0.fStrokes < s1.fStrokes ? 0 : 1
+      if (s0.bScored.length > 0 && s1.bScored.length > 0 && s0.bStrokes !== s1.bStrokes)
+        backWinnerIdx = s0.bStrokes < s1.bStrokes ? 0 : 1
+      const t0 = s0.fStrokes + s0.bStrokes, t1 = s1.fStrokes + s1.bStrokes
+      if ((s0.fScored.length + s0.bScored.length) > 0 && (s1.fScored.length + s1.bScored.length) > 0 && t0 !== t1)
+        totalWinnerIdx = t0 < t1 ? 0 : 1
+    }
+  }
+  const chk = <span style={{ color: '#16a34a', fontSize: '0.6rem', marginLeft: '1px', lineHeight: 1 }}>✓</span>
+
   const hdr = (highlight?: boolean): React.CSSProperties => ({
     background: highlight ? '#4a7fa5' : navy,
     color: 'rgba(255,255,255,0.85)',
@@ -1455,13 +1487,16 @@ function HorizontalScorecardTable({
             </tr>
           )
         })()}
-        {rows.map(({ label, scoreMap }) => {
+        {rows.map(({ label, scoreMap }, rowIdx) => {
           const frontScored = frontNine.filter((h) => scoreMap[h.hole_number] != null)
           const backScored = backNine.filter((h) => scoreMap[h.hole_number] != null)
           const frontStrokes = frontScored.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
           const backStrokes = backScored.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
           const totalStrokes = frontStrokes + backStrokes
           const anyScored = frontScored.length + backScored.length > 0
+          const wonFront = frontWinnerIdx === rowIdx
+          const wonBack  = backWinnerIdx  === rowIdx
+          const wonTotal = totalWinnerIdx === rowIdx
           return (
             <tr key={label}>
               <td style={{ ...cell(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{label}</td>
@@ -1476,7 +1511,7 @@ function HorizontalScorecardTable({
                   </td>
                 )
               })}
-              <td style={cell(true)}>{frontScored.length > 0 ? frontStrokes : '–'}</td>
+              <td style={cell(true)}>{frontScored.length > 0 ? <>{frontStrokes}{wonFront && chk}</> : '–'}</td>
               {[10, 11, 12, 13, 14, 15, 16, 17, 18].map((n) => {
                 const hole = holes.find((h) => h.hole_number === n)
                 const s = scoreMap[n] ?? null
@@ -1488,10 +1523,10 @@ function HorizontalScorecardTable({
                   </td>
                 )
               })}
-              <td style={cell(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>
+              <td style={cell(true)}>{backScored.length > 0 ? <>{backStrokes}{wonBack && chk}</> : '–'}</td>
               <td style={{ ...cell(), fontWeight: 700 }}>
                 {anyScored
-                  ? <span style={{ fontWeight: 700, color: '#111827' }}>{totalStrokes}</span>
+                  ? <span style={{ fontWeight: 700, color: '#111827' }}>{totalStrokes}{wonTotal && chk}</span>
                   : '–'}
               </td>
             </tr>
