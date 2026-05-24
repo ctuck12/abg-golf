@@ -605,14 +605,6 @@ export default function MatchupClient({
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
                             </button>
-                            {h2hHole18 && (
-                              <>
-                                <span className="text-gray-300">·</span>
-                                <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
-                                  {leader ? `${leader.name.split(' ')[0]} wins` : (isMatchPlay ? 'All square' : 'Tied')}
-                                </span>
-                              </>
-                            )}
                             <span className="flex-1" />
                             <button onClick={() => handleDeleteH2H(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
@@ -633,24 +625,41 @@ export default function MatchupClient({
                                 {([
                                   { player: mp1, front: stats.p1Front, back: stats.p1Back, total: stats.p1Total, wFront: p1WinsFront, wBack: p1WinsBack, wTotal: p1WinsTotal, mFront: stats.p1FrontWins - stats.p2FrontWins, mBack: stats.p1BackWins - stats.p2BackWins, mTotal: stats.p1Wins - stats.p2Wins },
                                   { player: mp2, front: stats.p2Front, back: stats.p2Back, total: stats.p2Total, wFront: p2WinsFront, wBack: p2WinsBack, wTotal: p2WinsTotal, mFront: stats.p2FrontWins - stats.p1FrontWins, mBack: stats.p2BackWins - stats.p1BackWins, mTotal: stats.p2Wins - stats.p1Wins },
-                                ] as const).map(({ player, front, back, total, wFront, wBack, wTotal, mFront, mBack, mTotal }) => {
+                                ] as const).map(({ player, front, back, total, wFront, wBack, wTotal, mFront, mBack, mTotal }, rowIdx) => {
                                   const thru = Object.keys(scoreMap[player.id] ?? {}).length
+                                  const isFirstRow = rowIdx === 0
+                                  const asStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap' }
+                                  const mpCol = (diff: number, hasData: boolean) => {
+                                    if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
+                                    if (diff > 0) return <span style={{ color: '#16a34a' }}>{diff} up</span>
+                                    if (diff < 0) return null
+                                    return isFirstRow ? null : <span style={asStyle}>AS</span>
+                                  }
                                   return (
                                     <tr key={player.id} className="border-t border-gray-100">
                                       <td className="px-3 py-2">
                                         <span className="text-xs font-semibold text-gray-800">{player.name}</span>
                                       </td>
-                                      {!isOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isMatchPlay ? matchDiffColor(mFront) : vpColor(front) }}>
-                                        {isMatchPlay ? (front !== null ? fmtMatchDiff(mFront) : '–') : fmtVsPar(front)}
-                                        {!isMatchPlay && h2hHole9 && wFront && <span className="ml-0.5 text-green-600">✓</span>}
+                                      {!isOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isMatchPlay ? undefined : vpColor(front) }}>
+                                        {isMatchPlay ? mpCol(mFront, front !== null)
+                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              {fmtVsPar(front)}
+                                              {h2hHole9 && wFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
+                                            </span>}
                                       </td>}
-                                      {!isOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isMatchPlay ? matchDiffColor(mBack) : vpColor(back) }}>
-                                        {isMatchPlay ? (back !== null ? fmtMatchDiff(mBack) : '–') : fmtVsPar(back)}
-                                        {!isMatchPlay && h2hHole18 && wBack && <span className="ml-0.5 text-green-600">✓</span>}
+                                      {!isOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isMatchPlay ? undefined : vpColor(back) }}>
+                                        {isMatchPlay ? mpCol(mBack, back !== null)
+                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              {fmtVsPar(back)}
+                                              {h2hHole18 && wBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
+                                            </span>}
                                       </td>}
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isMatchPlay ? matchDiffColor(mTotal) : vpColor(total) }}>
-                                        {isMatchPlay ? (total !== null ? fmtMatchDiff(mTotal) : '–') : fmtVsPar(total)}
-                                        {!isMatchPlay && h2hHole18 && wTotal && <span className="ml-0.5 text-green-600">✓</span>}
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isMatchPlay ? undefined : vpColor(total) }}>
+                                        {isMatchPlay ? mpCol(mTotal, total !== null)
+                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              {fmtVsPar(total)}
+                                              {h2hHole18 && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
+                                            </span>}
                                       </td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                     </tr>
@@ -841,14 +850,6 @@ export default function MatchupClient({
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
                             </button>
-                            {bbHole18 && (
-                              <>
-                                <span className="text-gray-300">·</span>
-                                <span className="font-semibold" style={{ color: leader ? '#16a34a' : '#6b7280' }}>
-                                  {leader === 'team1' ? `${t1Name} wins` : leader === 'team2' ? `${t2Name} wins` : (isBBMatchPlay ? 'All square' : 'Tied')}
-                                </span>
-                              </>
-                            )}
                             <span className="flex-1" />
                             <button onClick={() => handleDeleteBB(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
@@ -869,11 +870,19 @@ export default function MatchupClient({
                                 {([
                                   { tName: t1Name, front: stats.t1Front, back: stats.t1Back, total: stats.t1Total, p1Id: m.team1_player1_id, p2Id: m.team1_player2_id, color: '#2563eb', wFront: t1WinsFront, wBack: t1WinsBack, wTotal: t1WinsTotal, mFront: stats.t1FrontWins - stats.t2FrontWins, mBack: stats.t1BackWins - stats.t2BackWins, mTotal: stats.t1Wins - stats.t2Wins },
                                   { tName: t2Name, front: stats.t2Front, back: stats.t2Back, total: stats.t2Total, p1Id: m.team2_player1_id, p2Id: m.team2_player2_id, color: '#92400e', wFront: t2WinsFront, wBack: t2WinsBack, wTotal: t2WinsTotal, mFront: stats.t2FrontWins - stats.t1FrontWins, mBack: stats.t2BackWins - stats.t1BackWins, mTotal: stats.t2Wins - stats.t1Wins },
-                                ] as const).map(({ tName, front, back, total, p1Id, p2Id, color, wFront, wBack, wTotal, mFront, mBack, mTotal }) => {
+                                ] as const).map(({ tName, front, back, total, p1Id, p2Id, color, wFront, wBack, wTotal, mFront, mBack, mTotal }, rowIdx) => {
                                   const thru = holes.filter((h) =>
                                     (scoreMap[p1Id]?.[h.hole_number] != null) ||
                                     (scoreMap[p2Id]?.[h.hole_number] != null)
                                   ).length
+                                  const isFirstRow = rowIdx === 0
+                                  const asStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap' }
+                                  const mpCol = (diff: number, hasData: boolean) => {
+                                    if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
+                                    if (diff > 0) return <span style={{ color: '#16a34a' }}>{diff} up</span>
+                                    if (diff < 0) return null
+                                    return isFirstRow ? null : <span style={asStyle}>AS</span>
+                                  }
                                   return (
                                     <tr key={tName} className="border-t border-gray-100">
                                       <td className="px-3 py-2">
@@ -884,17 +893,26 @@ export default function MatchupClient({
                                           {tName}
                                         </button>
                                       </td>
-                                      {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isBBMatchPlay ? matchDiffColor(mFront) : vpColor(front) }}>
-                                        {isBBMatchPlay ? (front !== null ? fmtMatchDiff(mFront) : '–') : fmtVsPar(front)}
-                                        {!isBBMatchPlay && bbHole9 && wFront && <span className="ml-0.5 text-green-600">✓</span>}
+                                      {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isBBMatchPlay ? undefined : vpColor(front) }}>
+                                        {isBBMatchPlay ? mpCol(mFront, front !== null)
+                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              {fmtVsPar(front)}
+                                              {bbHole9 && wFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
+                                            </span>}
                                       </td>}
-                                      {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isBBMatchPlay ? matchDiffColor(mBack) : vpColor(back) }}>
-                                        {isBBMatchPlay ? (back !== null ? fmtMatchDiff(mBack) : '–') : fmtVsPar(back)}
-                                        {!isBBMatchPlay && bbHole18 && wBack && <span className="ml-0.5 text-green-600">✓</span>}
+                                      {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isBBMatchPlay ? undefined : vpColor(back) }}>
+                                        {isBBMatchPlay ? mpCol(mBack, back !== null)
+                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              {fmtVsPar(back)}
+                                              {bbHole18 && wBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
+                                            </span>}
                                       </td>}
-                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ color: isBBMatchPlay ? matchDiffColor(mTotal) : vpColor(total) }}>
-                                        {isBBMatchPlay ? (total !== null ? fmtMatchDiff(mTotal) : '–') : fmtVsPar(total)}
-                                        {!isBBMatchPlay && bbHole18 && wTotal && <span className="ml-0.5 text-green-600">✓</span>}
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isBBMatchPlay ? undefined : vpColor(total) }}>
+                                        {isBBMatchPlay ? mpCol(mTotal, total !== null)
+                                          : <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              {fmtVsPar(total)}
+                                              {bbHole18 && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
+                                            </span>}
                                       </td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                     </tr>
