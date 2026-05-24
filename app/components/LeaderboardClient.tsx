@@ -181,7 +181,7 @@ function vpColor(vp: number | null): string {
 }
 
 export default function LeaderboardClient({
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId = null, isAdmin = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [],
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [],
 }: {
   initialTeams: Team[]
   players: Player[]
@@ -211,8 +211,22 @@ export default function LeaderboardClient({
   const [showPayouts, setShowPayouts] = useState(false)
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showMatchupResults, setShowMatchupResults] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(isAdminProp)
+  const [scorecardTeamId, setScorecardTeamId] = useState(scorecardTeamIdProp)
 
   const isDaytona = format === 'daytona'
+
+  // Re-fetch auth state on mount so navigating back from another page
+  // doesn't serve stale RSC payload with missing admin/team cookies.
+  useEffect(() => {
+    fetch('/api/auth-status')
+      .then((r) => r.json())
+      .then(({ isAdmin: a, scorecardTeamId: t }: { isAdmin: boolean; scorecardTeamId: string | null }) => {
+        setIsAdmin(a)
+        setScorecardTeamId(t)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
