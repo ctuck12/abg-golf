@@ -73,8 +73,7 @@ function vpColor(n: number | null): string {
 
 function fmtMatchDiff(diff: number): string {
   if (diff === 0) return 'AS'
-  if (diff > 0) return `${diff} up`
-  return `${-diff} dn`
+  return `${Math.abs(diff)}UP`
 }
 function matchDiffColor(diff: number): string {
   if (diff === 0) return '#6b7280'
@@ -631,7 +630,7 @@ export default function MatchupClient({
                                   const asStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap' }
                                   const mpCol = (diff: number, hasData: boolean) => {
                                     if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
-                                    if (diff > 0) return <span style={{ color: '#16a34a' }}>{diff} up</span>
+                                    if (diff > 0) return <span style={{ color: '#16a34a' }}>{diff}UP</span>
                                     if (diff < 0) return null
                                     return isFirstRow ? null : <span style={asStyle}>AS</span>
                                   }
@@ -879,7 +878,7 @@ export default function MatchupClient({
                                   const asStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap' }
                                   const mpCol = (diff: number, hasData: boolean) => {
                                     if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
-                                    if (diff > 0) return <span style={{ color: '#16a34a' }}>{diff} up</span>
+                                    if (diff > 0) return <span style={{ color: '#16a34a' }}>{diff}UP</span>
                                     if (diff < 0) return null
                                     return isFirstRow ? null : <span style={asStyle}>AS</span>
                                   }
@@ -1016,6 +1015,35 @@ function HorizontalScorecardTable({
           <td style={cell(true)}>{backNine.length > 0 ? backPar : '–'}</td>
           <td style={{ ...cell(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
         </tr>
+        {showMatchPlay && rows.length === 2 && (() => {
+          const hasFront = Object.keys(matchHole).some((k) => Number(k) <= 9)
+          const hasBack = Object.keys(matchHole).some((k) => Number(k) >= 10)
+          const hasAny = Object.keys(matchHole).length > 0
+          const mpCell: React.CSSProperties = { textAlign: 'center', padding: '0.3rem 0.2rem', fontSize: '0.65rem', borderTop: '1px solid #e5e7eb', background: '#f9fafb', minWidth: '1.8rem' }
+          const upperHole = (n: number): React.ReactNode => {
+            if (!(n in matchHole)) return <span style={{ color: '#d1d5db' }}>–</span>
+            const d = matchHole[n]
+            if (d > 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{d}UP</span>
+            if (d === 0) return <span style={{ fontWeight: 700, color: '#6b7280' }}>AS</span>
+            return null
+          }
+          const upperSum = (cum: number, hasData: boolean): React.ReactNode => {
+            if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
+            if (cum > 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{cum}UP</span>
+            if (cum === 0) return <span style={{ fontWeight: 700, color: '#6b7280' }}>AS</span>
+            return null
+          }
+          return (
+            <tr>
+              <td style={{ textAlign: 'left', paddingLeft: '0.5rem', fontSize: '0.72rem', padding: '0.3rem 0.2rem 0.3rem 0.5rem', borderTop: '1px solid #e5e7eb', background: '#f9fafb', whiteSpace: 'nowrap', minWidth: '5rem' }}></td>
+              {[1,2,3,4,5,6,7,8,9].map((n) => <td key={n} style={mpCell}>{upperHole(n)}</td>)}
+              <td style={{ ...mpCell, background: '#dbeafe' }}>{upperSum(frontMatchCum, hasFront)}</td>
+              {[10,11,12,13,14,15,16,17,18].map((n) => <td key={n} style={mpCell}>{upperHole(n)}</td>)}
+              <td style={{ ...mpCell, background: '#dbeafe' }}>{upperSum(backMatchCum, hasBack)}</td>
+              <td style={{ ...mpCell, fontWeight: 700 }}>{upperSum(totalMatchCum, hasAny)}</td>
+            </tr>
+          )
+        })()}
         {rows.map(({ label, scoreMap }) => {
           const frontScored = frontNine.filter((h) => scoreMap[h.hole_number] != null)
           const backScored = backNine.filter((h) => scoreMap[h.hole_number] != null)
@@ -1062,36 +1090,26 @@ function HorizontalScorecardTable({
           const hasFront = Object.keys(matchHole).some((k) => Number(k) <= 9)
           const hasBack = Object.keys(matchHole).some((k) => Number(k) >= 10)
           const hasAny = Object.keys(matchHole).length > 0
-          const matchCell = (diff: number, exists: boolean): React.ReactNode =>
-            exists
-              ? <span style={{ fontWeight: 700, color: matchDiffColor(diff) }}>{fmtMatchDiff(diff)}</span>
-              : <span style={{ color: '#d1d5db' }}>–</span>
+          const mpCell: React.CSSProperties = { textAlign: 'center', padding: '0.3rem 0.2rem', fontSize: '0.65rem', borderTop: '1px solid #e5e7eb', background: '#f9fafb', minWidth: '1.8rem' }
+          const lowerHole = (n: number): React.ReactNode => {
+            if (!(n in matchHole)) return <span style={{ color: '#d1d5db' }}>–</span>
+            const d = matchHole[n]
+            if (d < 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{-d}UP</span>
+            return null
+          }
+          const lowerSum = (cum: number, hasData: boolean): React.ReactNode => {
+            if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
+            if (cum < 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{-cum}UP</span>
+            return null
+          }
           return (
             <tr>
-              <td style={{ textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', fontSize: '0.72rem', padding: '0.3rem 0.2rem', borderTop: '1px solid #e5e7eb', background: '#fafafa', whiteSpace: 'nowrap' }}>Match</td>
-              {[1,2,3,4,5,6,7,8,9].map((n) => (
-                <td key={n} style={{ textAlign: 'center', padding: '0.3rem 0.2rem', fontSize: '0.65rem', borderTop: '1px solid #e5e7eb', background: '#fafafa', minWidth: '1.8rem' }}>
-                  {n in matchHole
-                    ? <span style={{ fontWeight: 700, color: matchDiffColor(matchHole[n]) }}>{fmtMatchDiff(matchHole[n])}</span>
-                    : <span style={{ color: '#d1d5db' }}>–</span>}
-                </td>
-              ))}
-              <td style={{ textAlign: 'center', padding: '0.3rem 0.2rem', fontSize: '0.65rem', borderTop: '1px solid #e5e7eb', background: '#dbeafe', minWidth: '1.8rem' }}>
-                {matchCell(frontMatchCum, hasFront)}
-              </td>
-              {[10,11,12,13,14,15,16,17,18].map((n) => (
-                <td key={n} style={{ textAlign: 'center', padding: '0.3rem 0.2rem', fontSize: '0.65rem', borderTop: '1px solid #e5e7eb', background: '#fafafa', minWidth: '1.8rem' }}>
-                  {n in matchHole
-                    ? <span style={{ fontWeight: 700, color: matchDiffColor(matchHole[n]) }}>{fmtMatchDiff(matchHole[n])}</span>
-                    : <span style={{ color: '#d1d5db' }}>–</span>}
-                </td>
-              ))}
-              <td style={{ textAlign: 'center', padding: '0.3rem 0.2rem', fontSize: '0.65rem', borderTop: '1px solid #e5e7eb', background: '#dbeafe', minWidth: '1.8rem' }}>
-                {matchCell(backMatchCum, hasBack)}
-              </td>
-              <td style={{ textAlign: 'center', padding: '0.3rem 0.2rem', fontSize: '0.65rem', fontWeight: 700, borderTop: '1px solid #e5e7eb', background: '#fafafa', minWidth: '1.8rem' }}>
-                {matchCell(totalMatchCum, hasAny)}
-              </td>
+              <td style={{ textAlign: 'left', paddingLeft: '0.5rem', fontSize: '0.72rem', padding: '0.3rem 0.2rem 0.3rem 0.5rem', borderTop: '1px solid #e5e7eb', background: '#f9fafb', whiteSpace: 'nowrap', minWidth: '5rem' }}></td>
+              {[1,2,3,4,5,6,7,8,9].map((n) => <td key={n} style={mpCell}>{lowerHole(n)}</td>)}
+              <td style={{ ...mpCell, background: '#dbeafe' }}>{lowerSum(frontMatchCum, hasFront)}</td>
+              {[10,11,12,13,14,15,16,17,18].map((n) => <td key={n} style={mpCell}>{lowerHole(n)}</td>)}
+              <td style={{ ...mpCell, background: '#dbeafe' }}>{lowerSum(backMatchCum, hasBack)}</td>
+              <td style={{ ...mpCell, fontWeight: 700 }}>{lowerSum(totalMatchCum, hasAny)}</td>
             </tr>
           )
         })()}
