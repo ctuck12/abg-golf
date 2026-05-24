@@ -599,6 +599,26 @@ export default function MatchupClient({
     [matchups, bestBallMatchups, players, scoreMap, holes]
   )
 
+  // Filter payout rows by the current search query so search drives Matchup Results too.
+  const filteredPayoutRows = searchLower
+    ? payouts.rows.filter((row) => {
+        const h2h = matchups.find((m) => m.id === row.id)
+        if (h2h) {
+          const mp1 = players.find((p) => p.id === h2h.player1_id)
+          const mp2 = players.find((p) => p.id === h2h.player2_id)
+          return mp1?.name.toLowerCase().includes(searchLower) || mp2?.name.toLowerCase().includes(searchLower)
+        }
+        const bb = bestBallMatchups.find((m) => m.id === row.id)
+        if (bb) {
+          const ids = [bb.team1_player1_id, bb.team1_player2_id, bb.team2_player1_id, bb.team2_player2_id]
+          return ids.some((id) => players.find((p) => p.id === id)?.name.toLowerCase().includes(searchLower))
+        }
+        return false
+      })
+    : payouts.rows
+  // Auto-expand Matchup Results when there is an active search with hits.
+  const payoutsExpanded = showPayouts || (!!searchLower && filteredPayoutRows.length > 0)
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
 
@@ -1258,13 +1278,18 @@ export default function MatchupClient({
               className="w-full flex items-center justify-between px-4 py-3"
             >
               <span className="text-sm font-semibold text-gray-800">Matchup Results</span>
-              <span className="text-gray-400 text-xs">{showPayouts ? '▲ Hide' : '▼ Show'}</span>
+              <span className="text-gray-400 text-xs">{payoutsExpanded ? '▲ Hide' : '▼ Show'}</span>
             </button>
-            {showPayouts && (
+            {payoutsExpanded && (
               <div className="border-t border-gray-100 space-y-3 p-3">
 
+                {/* Empty state when search has no payout matches */}
+                {filteredPayoutRows.length === 0 && (
+                  <p className="text-center text-sm text-gray-400 py-4">No matchups found for that player</p>
+                )}
+
                 {/* Per-matchup breakdown */}
-                {payouts.rows.map((row) => {
+                {filteredPayoutRows.map((row) => {
                   const h2hMatch = matchups.find((m) => m.id === row.id)
                   const bbMatch = bestBallMatchups.find((m) => m.id === row.id)
                   const involvedPlayerIds = h2hMatch
