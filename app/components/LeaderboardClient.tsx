@@ -216,10 +216,11 @@ export default function LeaderboardClient({
 
   const isDaytona = format === 'daytona'
 
-  // Re-fetch auth state on mount so navigating back from another page
-  // doesn't serve stale RSC payload with missing admin/team cookies.
+  // Re-fetch auth state on mount so navigating back from another page doesn't
+  // show stale RSC props.  credentials:'include' + cache:'no-store' ensures the
+  // browser always sends cookies and never returns a cached response.
   useEffect(() => {
-    fetch('/api/auth-status')
+    fetch('/api/auth-status', { credentials: 'include', cache: 'no-store' })
       .then((r) => r.json())
       .then(({ isAdmin: a, scorecardTeamId: t }: { isAdmin: boolean; scorecardTeamId: string | null }) => {
         setIsAdmin(a)
