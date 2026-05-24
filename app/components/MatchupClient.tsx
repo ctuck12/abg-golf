@@ -1389,24 +1389,15 @@ function HorizontalScorecardTable({
   let frontWinnerIdx: number | null = null
   let backWinnerIdx: number | null = null
   let totalWinnerIdx: number | null = null
-  if (rows.length === 2) {
+  if (rows.length === 2 && !showMatchPlay) {
     const [s0, s1] = _rowStrokeStats
-    if (showMatchPlay) {
-      const hasFrontData = Object.keys(matchHole).some((k) => Number(k) <= 9)
-      const hasBackData  = Object.keys(matchHole).some((k) => Number(k) >= 10)
-      const hasAnyData   = Object.keys(matchHole).length > 0
-      if (hasFrontData && frontMatchCum !== 0) frontWinnerIdx = frontMatchCum > 0 ? 0 : 1
-      if (hasBackData  && backMatchCum  !== 0) backWinnerIdx  = backMatchCum  > 0 ? 0 : 1
-      if (hasAnyData   && totalMatchCum !== 0) totalWinnerIdx = totalMatchCum > 0 ? 0 : 1
-    } else {
-      if (s0.fScored.length > 0 && s1.fScored.length > 0 && s0.fStrokes !== s1.fStrokes)
-        frontWinnerIdx = s0.fStrokes < s1.fStrokes ? 0 : 1
-      if (s0.bScored.length > 0 && s1.bScored.length > 0 && s0.bStrokes !== s1.bStrokes)
-        backWinnerIdx = s0.bStrokes < s1.bStrokes ? 0 : 1
-      const t0 = s0.fStrokes + s0.bStrokes, t1 = s1.fStrokes + s1.bStrokes
-      if ((s0.fScored.length + s0.bScored.length) > 0 && (s1.fScored.length + s1.bScored.length) > 0 && t0 !== t1)
-        totalWinnerIdx = t0 < t1 ? 0 : 1
-    }
+    if (s0.fScored.length > 0 && s1.fScored.length > 0 && s0.fStrokes !== s1.fStrokes)
+      frontWinnerIdx = s0.fStrokes < s1.fStrokes ? 0 : 1
+    if (s0.bScored.length > 0 && s1.bScored.length > 0 && s0.bStrokes !== s1.bStrokes)
+      backWinnerIdx = s0.bStrokes < s1.bStrokes ? 0 : 1
+    const t0 = s0.fStrokes + s0.bStrokes, t1 = s1.fStrokes + s1.bStrokes
+    if ((s0.fScored.length + s0.bScored.length) > 0 && (s1.fScored.length + s1.bScored.length) > 0 && t0 !== t1)
+      totalWinnerIdx = t0 < t1 ? 0 : 1
   }
   const chk = <span style={{ color: '#16a34a', fontSize: '0.6rem', marginLeft: '1px', lineHeight: 1 }}>✓</span>
 
@@ -1472,7 +1463,7 @@ function HorizontalScorecardTable({
           }
           const upperSum = (cum: number, hasData: boolean): React.ReactNode => {
             if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
-            if (cum > 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{cum}UP</span>
+            if (cum > 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{cum}UP{chk}</span>
             if (cum === 0) return <span style={{ fontWeight: 700, color: '#6b7280' }}>AS</span>
             return null
           }
@@ -1545,7 +1536,7 @@ function HorizontalScorecardTable({
           }
           const lowerSum = (cum: number, hasData: boolean): React.ReactNode => {
             if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
-            if (cum < 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{-cum}UP</span>
+            if (cum < 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{-cum}UP{chk}</span>
             return null
           }
           return (
