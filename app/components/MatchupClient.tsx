@@ -1365,21 +1365,36 @@ function HorizontalScorecardTable({
   const backPar = backNine.reduce((s, h) => s + h.par, 0)
   const totalPar = frontPar + backPar
 
-  // Match play running standings (front-9 and back-9 cumulative separately; total across all 18)
+  // Match play running standings.
+  // Nassau: front-9 and back-9 reset independently; Overall: cumulative across all 18 holes.
   const matchHole: Record<number, number> = {}
   let frontMatchCum = 0, backMatchCum = 0, totalMatchCum = 0
   if (showMatchPlay && rows.length === 2) {
     const [r1, r2] = rows
+    const isOverall = betType === 'straight'
+    let runningFront = 0, runningBack = 0, frontSnapshot = 0
     for (const hole of [...holes].sort((a, b) => a.hole_number - b.hole_number)) {
       const s1 = r1.scoreMap[hole.hole_number] ?? null
       const s2 = r2.scoreMap[hole.hole_number] ?? null
       if (s1 !== null && s2 !== null) {
         const d = s1 < s2 ? 1 : s2 < s1 ? -1 : 0
         totalMatchCum += d
-        if (hole.hole_number <= 9) { frontMatchCum += d; matchHole[hole.hole_number] = frontMatchCum }
-        else { backMatchCum += d; matchHole[hole.hole_number] = backMatchCum }
+        if (hole.hole_number <= 9) {
+          runningFront += d
+          // Overall: per-hole cell shows running total across all 18; Nassau: front-only running total
+          matchHole[hole.hole_number] = isOverall ? totalMatchCum : runningFront
+          frontSnapshot = totalMatchCum  // capture standing at the turn for F summary
+        } else {
+          runningBack += d
+          // Overall: carry the front lead forward; Nassau: back-9 restarts from 0
+          matchHole[hole.hole_number] = isOverall ? totalMatchCum : runningBack
+        }
       }
     }
+    // F summary: overall standing at turn (Overall) or front-only (Nassau)
+    frontMatchCum = isOverall ? frontSnapshot : runningFront
+    // B summary: back-9 standalone in both cases (for Overall it's informational; no checkmark shown)
+    backMatchCum = runningBack
   }
 
   // Pre-compute per-row stroke totals so we can mark section winners (2-row comparisons only)
