@@ -19,9 +19,9 @@ type BestBallMatchup = {
 }
 type ScorecardTarget =
   | { type: 'player'; id: string; name: string }
-  | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string; scoringType: ScoringType }
+  | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string; scoringType: ScoringType; betType: BetType | '' }
   | { type: 'bestball'; p1Id: string; p2Id: string; teamName: string }
-  | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string; scoringType: ScoringType }
+  | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string; scoringType: ScoringType; betType: BetType | '' }
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -683,6 +683,7 @@ export default function MatchupClient({
                     ]}
                     holes={holes}
                     showMatchPlay={target.scoringType === 'match'}
+                    betType={target.betType}
                   />
                 )
               })() : showScorecardFor.type === 'bb-scorecards' ? (() => {
@@ -709,6 +710,7 @@ export default function MatchupClient({
                     ]}
                     holes={holes}
                     showMatchPlay={target.scoringType === 'match'}
+                    betType={target.betType}
                   />
                 )
               })() : (() => {
@@ -906,7 +908,7 @@ export default function MatchupClient({
                               </span>
                             )}
                             <button
-                              onClick={() => setShowScorecardFor({ type: 'h2h', p1Id: m.player1_id, p2Id: m.player2_id, p1Name: p1First, p2Name: p2First, scoringType: parseBet(m.bet).scoringType })}
+                              onClick={() => setShowScorecardFor({ type: 'h2h', p1Id: m.player1_id, p2Id: m.player2_id, p1Name: p1First, p2Name: p2First, scoringType: parseBet(m.bet).scoringType, betType: parseBet(m.bet).betType })}
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
                             </button>
@@ -1154,6 +1156,7 @@ export default function MatchupClient({
                                 t2p1Name: t2p1.name.split(' ')[0], t2p2Name: t2p2.name.split(' ')[0],
                                 t1Name, t2Name,
                                 scoringType: bbScoringTypeParsed,
+                                betType: bbBetTypeParsed,
                               })}
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
@@ -1349,11 +1352,12 @@ export default function MatchupClient({
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function HorizontalScorecardTable({
-  rows, holes, showMatchPlay = false,
+  rows, holes, showMatchPlay = false, betType = '',
 }: {
   rows: { label: string; scoreMap: Partial<Record<number, number>> }[]
   holes: Hole[]
   showMatchPlay?: boolean
+  betType?: BetType | ''
 }) {
   const frontNine = holes.filter((h) => h.hole_number <= 9)
   const backNine = holes.filter((h) => h.hole_number >= 10)
@@ -1391,9 +1395,10 @@ function HorizontalScorecardTable({
   let totalWinnerIdx: number | null = null
   if (rows.length === 2 && !showMatchPlay) {
     const [s0, s1] = _rowStrokeStats
-    if (s0.fScored.length > 0 && s1.fScored.length > 0 && s0.fStrokes !== s1.fStrokes)
+    const showSectionChk = betType !== 'straight'
+    if (showSectionChk && s0.fScored.length > 0 && s1.fScored.length > 0 && s0.fStrokes !== s1.fStrokes)
       frontWinnerIdx = s0.fStrokes < s1.fStrokes ? 0 : 1
-    if (s0.bScored.length > 0 && s1.bScored.length > 0 && s0.bStrokes !== s1.bStrokes)
+    if (showSectionChk && s0.bScored.length > 0 && s1.bScored.length > 0 && s0.bStrokes !== s1.bStrokes)
       backWinnerIdx = s0.bStrokes < s1.bStrokes ? 0 : 1
     const t0 = s0.fStrokes + s0.bStrokes, t1 = s1.fStrokes + s1.bStrokes
     if ((s0.fScored.length + s0.bScored.length) > 0 && (s1.fScored.length + s1.bScored.length) > 0 && t0 !== t1)
@@ -1461,9 +1466,9 @@ function HorizontalScorecardTable({
             if (d === 0) return <span style={{ fontWeight: 700, color: '#6b7280' }}>AS</span>
             return null
           }
-          const upperSum = (cum: number, hasData: boolean): React.ReactNode => {
+          const upperSum = (cum: number, hasData: boolean, showChk = true): React.ReactNode => {
             if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
-            if (cum > 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{cum}UP{chk}</span>
+            if (cum > 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{cum}UP{showChk && chk}</span>
             if (cum === 0) return <span style={{ fontWeight: 700, color: '#6b7280' }}>AS</span>
             return null
           }
@@ -1471,9 +1476,9 @@ function HorizontalScorecardTable({
             <tr>
               <td style={{ textAlign: 'left', paddingLeft: '0.5rem', fontSize: '0.72rem', padding: '0.3rem 0.2rem 0.3rem 0.5rem', borderTop: '1px solid #e5e7eb', background: '#f9fafb', whiteSpace: 'nowrap', minWidth: '5rem' }}></td>
               {[1,2,3,4,5,6,7,8,9].map((n) => <td key={n} style={mpCell}>{upperHole(n)}</td>)}
-              <td style={{ ...mpCell, background: '#dbeafe' }}>{upperSum(frontMatchCum, hasFront)}</td>
+              <td style={{ ...mpCell, background: '#dbeafe' }}>{upperSum(frontMatchCum, hasFront, betType !== 'straight')}</td>
               {[10,11,12,13,14,15,16,17,18].map((n) => <td key={n} style={mpCell}>{upperHole(n)}</td>)}
-              <td style={{ ...mpCell, background: '#dbeafe' }}>{upperSum(backMatchCum, hasBack)}</td>
+              <td style={{ ...mpCell, background: '#dbeafe' }}>{upperSum(backMatchCum, hasBack, betType !== 'straight')}</td>
               <td style={{ ...mpCell, fontWeight: 700 }}>{upperSum(totalMatchCum, hasAny)}</td>
             </tr>
           )
@@ -1551,18 +1556,18 @@ function HorizontalScorecardTable({
             if (d < 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{-d}UP</span>
             return null
           }
-          const lowerSum = (cum: number, hasData: boolean): React.ReactNode => {
+          const lowerSum = (cum: number, hasData: boolean, showChk = true): React.ReactNode => {
             if (!hasData) return <span style={{ color: '#d1d5db' }}>–</span>
-            if (cum < 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{-cum}UP{chk}</span>
+            if (cum < 0) return <span style={{ fontWeight: 700, color: '#16a34a' }}>{-cum}UP{showChk && chk}</span>
             return null
           }
           return (
             <tr>
               <td style={{ textAlign: 'left', paddingLeft: '0.5rem', fontSize: '0.72rem', padding: '0.3rem 0.2rem 0.3rem 0.5rem', borderTop: '1px solid #e5e7eb', background: '#f9fafb', whiteSpace: 'nowrap', minWidth: '5rem' }}></td>
               {[1,2,3,4,5,6,7,8,9].map((n) => <td key={n} style={mpCell}>{lowerHole(n)}</td>)}
-              <td style={{ ...mpCell, background: '#dbeafe' }}>{lowerSum(frontMatchCum, hasFront)}</td>
+              <td style={{ ...mpCell, background: '#dbeafe' }}>{lowerSum(frontMatchCum, hasFront, betType !== 'straight')}</td>
               {[10,11,12,13,14,15,16,17,18].map((n) => <td key={n} style={mpCell}>{lowerHole(n)}</td>)}
-              <td style={{ ...mpCell, background: '#dbeafe' }}>{lowerSum(backMatchCum, hasBack)}</td>
+              <td style={{ ...mpCell, background: '#dbeafe' }}>{lowerSum(backMatchCum, hasBack, betType !== 'straight')}</td>
               <td style={{ ...mpCell, fontWeight: 700 }}>{lowerSum(totalMatchCum, hasAny)}</td>
             </tr>
           )
