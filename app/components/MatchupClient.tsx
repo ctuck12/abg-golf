@@ -483,6 +483,7 @@ export default function MatchupClient({
   const [showH2HForm, setShowH2HForm] = useState(false)
   const [showBBForm, setShowBBForm] = useState(false)
   const [showPayouts, setShowPayouts] = useState(false)
+  const [showNetPositions, setShowNetPositions] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' } | null>(null)
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
 
@@ -1339,6 +1340,61 @@ export default function MatchupClient({
                   )
                 })}
 
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Net Positions & Settlements ── */}
+        {payouts.involvedIds.size > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <button
+              onClick={() => setShowNetPositions((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3"
+            >
+              <span className="text-sm font-semibold text-gray-800">Net Positions &amp; Settlements</span>
+              <span className="text-gray-400 text-xs">{showNetPositions ? '▲ Hide' : '▼ Show'}</span>
+            </button>
+            {showNetPositions && (
+              <div className="border-t border-gray-100">
+                {/* Net Positions */}
+                <div className="px-4 pt-3 pb-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Net Positions</p>
+                  <div>
+                    {players
+                      .filter((p) => payouts.involvedIds.has(p.id))
+                      .sort((a, b) => (payouts.net[b.id] ?? 0) - (payouts.net[a.id] ?? 0))
+                      .map((p) => {
+                        const v = Math.round((payouts.net[p.id] ?? 0) * 100) / 100
+                        return (
+                          <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0">
+                            <span className="text-sm text-gray-900">{p.name}</span>
+                            <span className="text-sm font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>
+                              {v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}
+                            </span>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+                {/* Settlements */}
+                <div className="border-t border-gray-200 px-4 py-3">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Settlements</p>
+                  {payouts.settlements.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p>
+                  ) : (
+                    payouts.settlements.map((s, i) => (
+                      <div key={i} className="flex items-center justify-between py-1">
+                        <span className="text-sm text-gray-800">
+                          <span className="font-semibold text-red-500">{s.fromName}</span>
+                          <span className="text-gray-500"> pays </span>
+                          <span className="font-semibold text-green-600">{s.toName}</span>
+                        </span>
+                        <span className="text-sm font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
