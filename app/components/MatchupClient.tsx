@@ -247,25 +247,30 @@ function computeMatchupPayouts(
 
   // ── Head to Head ─────────────────────────────────────────────────
   for (const m of matchups) {
-    const { betType, amount, scoringType } = parseBet(m.bet)
-    if (!betType || !amount) continue
-    const betAmt = parseFloat(amount)
-    if (isNaN(betAmt) || betAmt <= 0) continue
     const mp1 = players.find((p) => p.id === m.player1_id)
     const mp2 = players.find((p) => p.id === m.player2_id)
     if (!mp1 || !mp2) continue
     involvedIds.add(m.player1_id); involvedIds.add(m.player2_id)
+
+    const { betType, amount, scoringType } = parseBet(m.bet)
+    const betAmt = parseFloat(amount)
+    const hasBet = betType !== '' && !isNaN(betAmt) && betAmt > 0
+
+    if (!hasBet) {
+      // Old matchup with no bet configured — show it but skip payout math
+      rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: 'No bet configured', segments: [] })
+      continue
+    }
 
     const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
     const hole9 = scoreMap[m.player1_id]?.[9] != null && scoreMap[m.player2_id]?.[9] != null
     const hole18 = scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null
     const p1 = m.player1_id, p2 = m.player2_id
 
-    // Returns winner label and updates net; tri-state stroke leader avoids tie-as-win bug
     const resolveH2H = (
       settled: boolean,
-      sl: 'p1' | 'p2' | 'tie' | null,   // stroke leader
-      mpDiff: number                      // p1Wins - p2Wins in match play
+      sl: 'p1' | 'p2' | 'tie' | null,
+      mpDiff: number
     ): { winnerLabel: string | null; tied: boolean } => {
       if (!settled) return { winnerLabel: null, tied: false }
       const p1Wins = scoringType === 'match' ? mpDiff > 0 : sl === 'p1'
@@ -297,10 +302,6 @@ function computeMatchupPayouts(
 
   // ── Best Ball ─────────────────────────────────────────────────────
   for (const m of bestBallMatchups) {
-    const { betType, amount, scoringType } = parseBet(m.bet)
-    if (!betType || !amount) continue
-    const betAmt = parseFloat(amount)
-    if (isNaN(betAmt) || betAmt <= 0) continue
     const t1p1 = players.find((p) => p.id === m.team1_player1_id)
     const t1p2 = players.find((p) => p.id === m.team1_player2_id)
     const t2p1 = players.find((p) => p.id === m.team2_player1_id)
@@ -309,11 +310,20 @@ function computeMatchupPayouts(
     involvedIds.add(m.team1_player1_id); involvedIds.add(m.team1_player2_id)
     involvedIds.add(m.team2_player1_id); involvedIds.add(m.team2_player2_id)
 
+    const { betType, amount, scoringType } = parseBet(m.bet)
+    const betAmt = parseFloat(amount)
+    const hasBet = betType !== '' && !isNaN(betAmt) && betAmt > 0
+    const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
+    const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
+
+    if (!hasBet) {
+      rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: 'No bet configured', segments: [] })
+      continue
+    }
+
     const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id]
     const t2Ids = [m.team2_player1_id, m.team2_player2_id]
-    const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
-    const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
     const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
     const hole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
 
@@ -1143,31 +1153,39 @@ export default function MatchupClient({
               {/* Per-matchup breakdown */}
               {payouts.rows.map((row) => (
                 <div key={row.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-4 pt-3 pb-1">
+                  <div className="px-4 pt-3 pb-1 border-b border-gray-100">
                     <p className="text-xs font-bold text-gray-800">{row.label}</p>
-                    <p className="text-xs" style={{ color: gold }}>{row.betLabel}</p>
+                    <p className="text-xs" style={{ color: row.segments.length === 0 ? '#9ca3af' : gold }}>
+                      {row.betLabel}
+                    </p>
                   </div>
-                  <table className="w-full border-collapse">
-                    <tbody>
-                      {row.segments.map((seg) => (
-                        <tr key={seg.name} className="border-t border-gray-100">
-                          <td className="px-4 py-2 text-xs font-semibold text-gray-500 w-14">{seg.name}</td>
-                          <td className="px-2 py-2 text-xs flex-1">
-                            {seg.settled
-                              ? seg.tied
-                                ? <span className="text-gray-400 italic">Tied — push</span>
-                                : <span className="font-semibold text-green-700">{seg.winnerLabel} ✓</span>
-                              : <span className="text-gray-300">Pending</span>}
-                          </td>
-                          <td className="px-4 py-2 text-xs font-bold text-right text-gray-700 whitespace-nowrap">
-                            {seg.settled && !seg.tied
-                              ? <>${seg.amount}{seg.perPlayer ? <span className="font-normal text-gray-400">/player</span> : ''}</>
-                              : <span className="font-normal text-gray-300">${seg.amount}{seg.perPlayer ? '/player' : ''}</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {row.segments.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-gray-400">
+                      No bet amount set — use the ✎ button above to add one.
+                    </div>
+                  ) : (
+                    <table className="w-full border-collapse">
+                      <tbody>
+                        {row.segments.map((seg) => (
+                          <tr key={seg.name} className="border-t border-gray-100">
+                            <td className="px-4 py-2 text-xs font-semibold text-gray-500 w-14">{seg.name}</td>
+                            <td className="px-2 py-2 text-xs flex-1">
+                              {seg.settled
+                                ? seg.tied
+                                  ? <span className="text-gray-400 italic">Tied — push</span>
+                                  : <span className="font-semibold text-green-700">{seg.winnerLabel} ✓</span>
+                                : <span className="text-gray-300">Pending</span>}
+                            </td>
+                            <td className="px-4 py-2 text-xs font-bold text-right text-gray-700 whitespace-nowrap">
+                              {seg.settled && !seg.tied
+                                ? <>${seg.amount}{seg.perPlayer ? <span className="font-normal text-gray-400">/player</span> : ''}</>
+                                : <span className="font-normal text-gray-300">${seg.amount}{seg.perPlayer ? '/player' : ''}</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               ))}
 
