@@ -1502,7 +1502,14 @@ function HorizontalScorecardTable({
                   </td>
                 )
               })}
-              <td style={cell(true)}>{frontScored.length > 0 ? <>{frontStrokes}{wonFront && chk}</> : '–'}</td>
+              <td style={cell(true)}>
+                {frontScored.length > 0
+                  ? <span style={{ position: 'relative', display: 'inline-block' }}>
+                      {frontStrokes}
+                      {wonFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '1px', top: '50%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.6rem', lineHeight: 1 }}>✓</span>}
+                    </span>
+                  : '–'}
+              </td>
               {[10, 11, 12, 13, 14, 15, 16, 17, 18].map((n) => {
                 const hole = holes.find((h) => h.hole_number === n)
                 const s = scoreMap[n] ?? null
@@ -1514,10 +1521,20 @@ function HorizontalScorecardTable({
                   </td>
                 )
               })}
-              <td style={cell(true)}>{backScored.length > 0 ? <>{backStrokes}{wonBack && chk}</> : '–'}</td>
+              <td style={cell(true)}>
+                {backScored.length > 0
+                  ? <span style={{ position: 'relative', display: 'inline-block' }}>
+                      {backStrokes}
+                      {wonBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '1px', top: '50%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.6rem', lineHeight: 1 }}>✓</span>}
+                    </span>
+                  : '–'}
+              </td>
               <td style={{ ...cell(), fontWeight: 700 }}>
                 {anyScored
-                  ? <span style={{ fontWeight: 700, color: '#111827' }}>{totalStrokes}{wonTotal && chk}</span>
+                  ? <span style={{ position: 'relative', display: 'inline-block', fontWeight: 700, color: '#111827' }}>
+                      {totalStrokes}
+                      {wonTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '1px', top: '50%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.6rem', lineHeight: 1 }}>✓</span>}
+                    </span>
                   : '–'}
               </td>
             </tr>
