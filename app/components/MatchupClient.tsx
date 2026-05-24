@@ -257,6 +257,7 @@ export default function MatchupClient({
   const [searchQuery, setSearchQuery] = useState('')
   const [showH2HForm, setShowH2HForm] = useState(false)
   const [showBBForm, setShowBBForm] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' } | null>(null)
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -296,7 +297,7 @@ export default function MatchupClient({
   }, [scores])
 
   async function handleCreateH2H() {
-    if (!newP1 || !newP2 || newP1 === newP2) return
+    if (!newP1 || !newP2 || newP1 === newP2 || !newBetType || !newBetAmount.trim()) return
     setSavingH2H(true)
     const bet = composeBet(newBetType, newBetAmount, newScoringType)
     const result = await saveMatchup(roundId, newP1, newP2, bet)
@@ -312,6 +313,7 @@ export default function MatchupClient({
     await deleteMatchup(id)
   }
 
+
   async function handleSaveH2HBet(id: string) {
     const bet = composeBet(editH2HBetType, editH2HBetAmount, editH2HScoringType)
     setMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet } : m))
@@ -321,7 +323,7 @@ export default function MatchupClient({
 
   async function handleCreateBB() {
     const ids = [bbT1P1, bbT1P2, bbT2P1, bbT2P2]
-    if (ids.some((id) => !id) || new Set(ids).size !== 4) return
+    if (ids.some((id) => !id) || new Set(ids).size !== 4 || !bbBetType || !bbBetAmount.trim()) return
     setSavingBB(true)
     const bet = composeBet(bbBetType, bbBetAmount, bbScoringType)
     const result = await saveBestBallMatchup(roundId, bbT1P1, bbT1P2, bbT2P1, bbT2P2, bet)
@@ -353,6 +355,36 @@ export default function MatchupClient({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+
+      {/* ── Delete Confirmation Modal ── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setConfirmDelete(null)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-1">Delete Matchup</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-gray-800">&ldquo;{confirmDelete.label}&rdquo;</span>?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmDelete.type === 'h2h') handleDeleteH2H(confirmDelete.id)
+                  else handleDeleteBB(confirmDelete.id)
+                  setConfirmDelete(null)
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ background: '#ef4444' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Scorecard Modal ── */}
       {showScorecardFor && (
@@ -501,23 +533,22 @@ export default function MatchupClient({
                     </select>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Bet</label>
+                    <label className="block text-xs text-gray-500 mb-1">Bet <span className="text-red-400">*</span></label>
                     <select value={newBetType} onChange={(e) => setNewBetType(e.target.value as BetType | '')}
                       className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                      <option value="">No bet</option>
+                      <option value="" disabled>Select…</option>
                       <option value="nassau">Nassau</option>
                       <option value="straight">Overall</option>
                     </select>
                   </div>
-                  {newBetType && (
-                    <div className="w-20 flex-shrink-0">
-                      <label className="block text-xs text-gray-500 mb-1">Amount ($)</label>
-                      <input type="number" min="0" step="1" placeholder="10"
-                        value={newBetAmount} onChange={(e) => setNewBetAmount(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none" />
-                    </div>
-                  )}
-                  <button onClick={handleCreateH2H} disabled={!newP1 || !newP2 || newP1 === newP2 || savingH2H}
+                  <div className="w-20 flex-shrink-0">
+                    <label className="block text-xs text-gray-500 mb-1">Amount ($) <span className="text-red-400">*</span></label>
+                    <input type="number" min="0" step="1" placeholder="10"
+                      value={newBetAmount} onChange={(e) => setNewBetAmount(e.target.value)}
+                      disabled={!newBetType}
+                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none disabled:opacity-40" />
+                  </div>
+                  <button onClick={handleCreateH2H} disabled={!newP1 || !newP2 || newP1 === newP2 || !newBetType || !newBetAmount.trim() || savingH2H}
                     className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 flex-shrink-0"
                     style={{ background: navy, color: 'white' }}>
                     {savingH2H ? 'Saving…' : 'Save'}
@@ -605,7 +636,7 @@ export default function MatchupClient({
                               Scorecards
                             </button>
                             <span className="flex-1" />
-                            <button onClick={() => handleDeleteH2H(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                            <button onClick={() => setConfirmDelete({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, type: 'h2h' })} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
 
                           {/* 5-column summary table */}
@@ -737,24 +768,23 @@ export default function MatchupClient({
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">Bet</label>
+                  <label className="block text-xs text-gray-500 mb-1">Bet <span className="text-red-400">*</span></label>
                   <select value={bbBetType} onChange={(e) => setBbBetType(e.target.value as BetType | '')}
                     className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                    <option value="">No bet</option>
+                    <option value="" disabled>Select…</option>
                     <option value="nassau">Nassau</option>
-                    <option value="straight">Straight Up</option>
+                    <option value="straight">Overall</option>
                   </select>
                 </div>
-                {bbBetType && (
-                  <div className="w-20 flex-shrink-0">
-                    <label className="block text-xs text-gray-500 mb-1">Amount ($)</label>
-                    <input type="number" min="0" step="1" placeholder="10"
-                      value={bbBetAmount} onChange={(e) => setBbBetAmount(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none" />
-                  </div>
-                )}
+                <div className="w-20 flex-shrink-0">
+                  <label className="block text-xs text-gray-500 mb-1">Amount ($) <span className="text-red-400">*</span></label>
+                  <input type="number" min="0" step="1" placeholder="10"
+                    value={bbBetAmount} onChange={(e) => setBbBetAmount(e.target.value)}
+                    disabled={!bbBetType}
+                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none disabled:opacity-40" />
+                </div>
                 <button onClick={handleCreateBB}
-                  disabled={!bbT1P1 || !bbT1P2 || !bbT2P1 || !bbT2P2 || new Set([bbT1P1, bbT1P2, bbT2P1, bbT2P2]).size !== 4 || savingBB}
+                  disabled={!bbT1P1 || !bbT1P2 || !bbT2P1 || !bbT2P2 || new Set([bbT1P1, bbT1P2, bbT2P1, bbT2P2]).size !== 4 || !bbBetType || !bbBetAmount.trim() || savingBB}
                   className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 flex-shrink-0"
                   style={{ background: navy, color: 'white' }}>
                   {savingBB ? 'Saving…' : 'Save'}
@@ -850,7 +880,7 @@ export default function MatchupClient({
                               Scorecards
                             </button>
                             <span className="flex-1" />
-                            <button onClick={() => handleDeleteBB(m.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                            <button onClick={() => setConfirmDelete({ id: m.id, label: `${t1Name} vs ${t2Name}`, type: 'bb' })} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
 
                           {/* 5-column summary table */}
