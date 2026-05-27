@@ -1055,11 +1055,20 @@ export default function ScoreEntry({
                                 } else {
                                   holeMap[player.id] = side === 'left' ? 'right' : 'left'
                                 }
-                                // Once exactly 2 are on 'left' (Out), auto-assign all remaining unassigned to 'right' (In)
+                                // Once exactly 2 are on 'left' (Out/Close), auto-assign all remaining unassigned to 'right' (In/Far)
                                 const newLeftCount = Object.values(holeMap).filter(s => s === 'left').length
                                 if (newLeftCount === 2) {
                                   for (const p of players) {
                                     if (!(p.id in holeMap)) holeMap[p.id] = 'right'
+                                  }
+                                }
+                                // Once the right-side target is reached (3 for 5-man variants, 2 for 4-man),
+                                // auto-assign all remaining unassigned to 'left'
+                                const newRightCount = Object.values(holeMap).filter(s => s === 'right').length
+                                const rightTarget = is5Man ? 3 : 2
+                                if (newRightCount === rightTarget) {
+                                  for (const p of players) {
+                                    if (!(p.id in holeMap)) holeMap[p.id] = 'left'
                                   }
                                 }
                                 return { ...prev, [hole.hole_number]: holeMap }
