@@ -11,6 +11,7 @@ import {
 import {
   computeTeamBallSummary, calculatePoolPayouts,
   computeDaytonaSidesSummary, computePlayerDaytonaPoints, settleDaytonaPlayerPoints,
+  computePlayerDaytonaDollars,
   computeSkinsResults,
   type DaytonaHoleAssignment, type BallHalfResult, type SkinResult,
 } from '@/lib/scoring'
@@ -421,10 +422,10 @@ function computeAdminMatchupPayouts(
 
 export default function AdminDashboard({
   round, teams, players, holes, ballValues, scores, scorecardTeamId = null, dtAssignments = [],
-  matchups = [], bestBallMatchups = [],
+  matchups = [], bestBallMatchups = [], initialHoleValues = {},
 }: {
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
-  matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]
+  matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]; initialHoleValues?: Record<string, Record<number, number>>
 }) {
   const router = useRouter()
   const [showPinModal, setShowPinModal] = useState(false)
@@ -552,10 +553,13 @@ export default function AdminDashboard({
     }
   }, [selectedFormat])
 
+  const [liveHoleValues, setLiveHoleValues] = useState<Record<string, Record<number, number>>>(initialHoleValues)
+
   // Sync live state when server props refresh (router.refresh triggers re-render with new props)
   useEffect(() => { setLiveMatchups(matchups) }, [matchups])
   useEffect(() => { setLiveBestBallMatchups(bestBallMatchups) }, [bestBallMatchups])
   useEffect(() => { setLiveScores(scores) }, [scores])
+  useEffect(() => { setLiveHoleValues(initialHoleValues) }, [initialHoleValues])
 
 
   // Real-time subscriptions — auto-recalculate settlements on any matchup or score change
@@ -588,8 +592,19 @@ export default function AdminDashboard({
     const ch4 = supabase.channel('admin-score-updates')
       .on('broadcast', { event: 'refresh' }, async () => {
         if (!playerIds.length) return
-        const { data } = await supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
-        if (data) setLiveScores(data)
+        const [scoresRes, hvRes] = await Promise.all([
+          supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds),
+          supabase.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', rid),
+        ])
+        if (scoresRes.data) setLiveScores(scoresRes.data)
+        if (hvRes.data) {
+          const map: Record<string, Record<number, number>> = {}
+          for (const hv of hvRes.data as { team_id: string; hole_number: number; value_per_point: number }[]) {
+            if (!map[hv.team_id]) map[hv.team_id] = {}
+            map[hv.team_id][hv.hole_number] = hv.value_per_point
+          }
+          setLiveHoleValues(map)
+        }
       }).subscribe()
 
     return () => {
@@ -686,15 +701,16 @@ export default function AdminDashboard({
       const tpIds = tp.map((p) => p.id)
       const tAssign = dtAssignments.filter((a) => tpIds.includes(a.player_id))
       const tScores = liveScores.filter((s) => tpIds.includes(s.player_id))
-      const pts = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant ?? round?.daytona_variant ?? '4man')
-      const { net: pNet } = settleDaytonaPlayerPoints(tp, pts, dtPayoutValue)
+      const tHoleVals = liveHoleValues[team.id] ?? {}
+      const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, team.daytona_variant ?? round?.daytona_variant ?? '4man', dtPayoutValue, tHoleVals)
+      const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
       for (const [id, amt] of Object.entries(pNet)) allNet[id] = (allNet[id] ?? 0) + amt
     }
     for (const p of players) {
       allNet[p.id] = (allNet[p.id] ?? 0) + (matchupData.net[p.id] ?? 0) + (skinsResults.playerNet[p.id] ?? 0)
     }
     return allNet
-  }, [isDaytona, teams, players, dtAssignments, liveScores, holes, dtPayoutValue, matchupData, round, skinsResults])
+  }, [isDaytona, teams, players, dtAssignments, liveScores, holes, dtPayoutValue, liveHoleValues, matchupData, round, skinsResults])
 
   const combinedSettlements = useMemo(
     () => minimizeSettlements(players, combinedDaytonaNet),

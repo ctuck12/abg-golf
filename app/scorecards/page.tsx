@@ -34,11 +34,17 @@ export default async function AllScorecardsPage({ searchParams }: { searchParams
     .from('players').select('id, name, team_id').in('team_id', teamIds.length ? teamIds : [''])
   const playerIds = (players ?? []).map((p: { id: string }) => p.id)
 
-  const [{ data: holes }, { data: scores }, { data: assignments }] = await Promise.all([
+  const [{ data: holes }, { data: scores }, { data: assignments }, { data: holeValuesRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
     sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
+    sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id),
   ])
+  const teamHoleValues: Record<string, Record<number, number>> = {}
+  for (const hv of (holeValuesRaw ?? []) as { team_id: string; hole_number: number; value_per_point: number }[]) {
+    if (!teamHoleValues[hv.team_id]) teamHoleValues[hv.team_id] = {}
+    teamHoleValues[hv.team_id][hv.hole_number] = hv.value_per_point
+  }
 
   // Use the filtered team's variant, falling back to the round-level variant
   const daytonaVariant = (teams[0] as { daytona_variant?: string | null } | undefined)?.daytona_variant
@@ -59,6 +65,7 @@ export default async function AllScorecardsPage({ searchParams }: { searchParams
       id: p.id,
       name: p.name,
       teamName: teamNameMap[p.team_id] ?? '',
+      teamId: p.team_id,
       points: pointsMap.get(p.id) ?? 0,
       thru: (scores ?? []).filter((s: { player_id: string }) => s.player_id === p.id).length,
     }))
@@ -82,6 +89,7 @@ export default async function AllScorecardsPage({ searchParams }: { searchParams
       daytonaVariant={daytonaVariant}
       isAdmin={isAdmin}
       scorecardTeamId={scorecardTeamId}
+      teamHoleValues={teamHoleValues}
     />
   )
 }

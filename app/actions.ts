@@ -359,6 +359,31 @@ export async function updateBestBallBet(id: string, bet: string) {
   return {}
 }
 
+// Save per-hole Daytona payout value overrides for a specific group (team).
+// Pass valuePerPoint: null to clear a hole's override (revert to round default).
+export async function saveDaytonaHoleValues(
+  roundId: string,
+  teamId: string,
+  entries: { holeNumber: number; valuePerPoint: number | null }[]
+) {
+  const supabase = createServerClient()
+  const toDelete = entries.filter((e) => e.valuePerPoint === null).map((e) => e.holeNumber)
+  const toUpsert = entries.filter((e) => e.valuePerPoint !== null) as { holeNumber: number; valuePerPoint: number }[]
+  if (toDelete.length > 0) {
+    await supabase.from('daytona_hole_values')
+      .delete()
+      .eq('round_id', roundId)
+      .eq('team_id', teamId)
+      .in('hole_number', toDelete)
+  }
+  if (toUpsert.length > 0) {
+    await supabase.from('daytona_hole_values').upsert(
+      toUpsert.map((e) => ({ round_id: roundId, team_id: teamId, hole_number: e.holeNumber, value_per_point: e.valuePerPoint }))
+    )
+  }
+  return { success: true }
+}
+
 export async function saveDaytonaAssignments(
   roundId: string,
   holeNumber: number,

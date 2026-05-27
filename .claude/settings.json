@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd C:\\Users\\clayton.tucker.MILSOFT\\Desktop\\abg-golf && git add -A && git diff --cached --quiet || git commit -m \"Auto-commit: update from Claude session\" && npx vercel deploy --prod"
+          }
+        ]
+      }
+    ]
+  }
+}

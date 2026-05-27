@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef, Fragment } from 'react'
-import { submitHoleScores, saveDaytonaAssignments } from '@/app/actions'
+import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues } from '@/app/actions'
 import { supabase } from '@/lib/supabase'
 import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
-  computeHoleDaytonaPointsFiveMan,
+  computeHoleDaytonaPointsFiveMan, computePlayerDaytonaDollars,
   calculatePoolPayouts, settleDaytonaPlayerPoints,
   type DaytonaHoleAssignment, type DaytonaSide,
 } from '@/lib/scoring'
@@ -29,6 +29,7 @@ type MPayoutRow = { id: string; label: string; betLabel: string; segments: MPayo
 type PayoutsData = {
   teams: AllTeam[]; players: AllPlayer[]; scores: Score[]; ballValues: BallValue[]
   assignments: DaytonaHoleAssignment[]; matchups: SavedMatchup[]; bestBallMatchups: BestBallMatchup[]
+  holeValues: Record<string, Record<number, number>>
 }
 
 const navy = '#0f172a'
@@ -258,7 +259,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 }
 
 export default function ScoreEntry({
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false,
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25,
 }: {
   team: Team
   players: Player[]
@@ -272,6 +273,8 @@ export default function ScoreEntry({
   initialAssignments?: DaytonaHoleAssignment[]
   roundPlayerIds?: string[]
   includeTotal?: boolean
+  initialHoleValues?: Record<number, number>
+  defaultDtPayoutValue?: number
 }) {
   const isDaytona = format === 'daytona'
   const isFlares = daytonaVariant === '5man-flares'
@@ -327,7 +330,7 @@ export default function ScoreEntry({
     setPayoutsLoading(true)
     const { data: teams } = await supabase.from('teams').select('id, name, daytona_variant').eq('round_id', roundId)
     const allTeamIds = (teams ?? []).map((t) => t.id)
-    const [{ data: allPlayers }, { data: allScores }, { data: ballValues }, { data: dtAssignments }, { data: matchupsData }, { data: bbMatchupsData }] = await Promise.all([
+    const [{ data: allPlayers }, { data: allScores }, { data: ballValues }, { data: dtAssignments }, { data: matchupsData }, { data: bbMatchupsData }, { data: dtHoleValuesRaw }] = await Promise.all([
       supabase.from('players').select('id, team_id, name, position').in('team_id', allTeamIds.length ? allTeamIds : ['']).order('position', { ascending: true }),
       supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', roundPlayerIds.length ? roundPlayerIds : ['']),
       supabase.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number'),
@@ -336,7 +339,13 @@ export default function ScoreEntry({
         : Promise.resolve({ data: [] }),
       supabase.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', roundId),
       supabase.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', roundId),
+      isDaytona ? supabase.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId) : Promise.resolve({ data: [] }),
     ])
+    const payoutsHoleValues: Record<string, Record<number, number>> = {}
+    for (const hv of (dtHoleValuesRaw ?? []) as { team_id: string; hole_number: number; value_per_point: number }[]) {
+      if (!payoutsHoleValues[hv.team_id]) payoutsHoleValues[hv.team_id] = {}
+      payoutsHoleValues[hv.team_id][hv.hole_number] = hv.value_per_point
+    }
     setPayoutsData({
       teams: teams ?? [],
       players: allPlayers ?? [],
@@ -345,6 +354,7 @@ export default function ScoreEntry({
       assignments: (dtAssignments ?? []) as DaytonaHoleAssignment[],
       matchups: (matchupsData ?? []) as SavedMatchup[],
       bestBallMatchups: (bbMatchupsData ?? []) as BestBallMatchup[],
+      holeValues: payoutsHoleValues,
     })
     setPayoutsLoading(false)
   }
@@ -426,6 +436,12 @@ export default function ScoreEntry({
     }, 50)
   }, [expandedHole])
 
+  // Per-hole press (custom payout value) state
+  const [holeValues, setHoleValues] = useState<Record<number, number>>(initialHoleValues)
+  const [pressShowInput, setPressShowInput] = useState<Record<number, boolean>>({})
+  const [pressValueStr, setPressValueStr] = useState<Record<number, string>>({})
+  const [pressScope, setPressScope] = useState<Record<number, 'this' | 'forward'>>({})
+
   // Daytona Left/Right assignments per hole
   const [assignments, setAssignments] = useState<AssignmentMap>(() => {
     const m: AssignmentMap = {}
@@ -493,6 +509,20 @@ export default function ScoreEntry({
 
     setPendingHoles((p) => new Set([...p, holeNumber]))
 
+    // Determine press value entries to save alongside this hole
+    const pressEntries: { holeNumber: number; valuePerPoint: number | null }[] = []
+    if (isDaytona && roundId) {
+      if (pressShowInput[holeNumber]) {
+        const rawVal = parseFloat(pressValueStr[holeNumber] ?? '')
+        const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
+        const scope = pressScope[holeNumber] ?? 'this'
+        const affectedHoles = scope === 'forward'
+          ? holes.filter((h) => h.hole_number >= holeNumber && !savedHoles.has(h.hole_number)).map((h) => h.hole_number)
+          : [holeNumber]
+        for (const hn of affectedHoles) pressEntries.push({ holeNumber: hn, valuePerPoint: pressVal })
+      }
+    }
+
     const [result] = await Promise.all([
       submitHoleScores(team.id, holeNumber, playerScores),
       isDaytona && roundId
@@ -502,6 +532,9 @@ export default function ScoreEntry({
             Object.entries(holeAssignments).map(([playerId, side]) => ({ playerId, side }))
           )
         : Promise.resolve(),
+      isDaytona && roundId && pressEntries.length > 0
+        ? saveDaytonaHoleValues(roundId, team.id, pressEntries)
+        : Promise.resolve(),
     ])
 
     setPendingHoles((p) => { const n = new Set(p); n.delete(holeNumber); return n })
@@ -509,6 +542,20 @@ export default function ScoreEntry({
     if (result.error) {
       setErrors((e) => ({ ...e, [holeNumber]: result.error! }))
     } else {
+      // Commit press values to local state
+      if (pressEntries.length > 0) {
+        setHoleValues((prev) => {
+          const next = { ...prev }
+          for (const e of pressEntries) {
+            if (e.valuePerPoint === null) delete next[e.holeNumber]
+            else next[e.holeNumber] = e.valuePerPoint
+          }
+          return next
+        })
+        setPressShowInput((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
+        setPressValueStr((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
+        setPressScope((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
+      }
       setSavedHoles((s) => new Set([...s, holeNumber]))
       setSavedScores((prev) => {
         const ids = players.map((p) => p.id)
@@ -691,8 +738,9 @@ export default function ScoreEntry({
                     const tpIds = tp.map((p) => p.id)
                     const tAssign = payoutsData.assignments.filter((a) => tpIds.includes(a.player_id))
                     const tScores = payoutsData.scores.filter((s) => tpIds.includes(s.player_id))
-                    const pts = computePlayerDaytonaPoints(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant)
-                    const { net: pNet } = settleDaytonaPlayerPoints(tp, pts, dtPayoutValue)
+                    const tHoleVals = payoutsData.holeValues[t.id] ?? {}
+                    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant, dtPayoutValue, tHoleVals)
+                    const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
                     for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
                   }
                 }
@@ -714,11 +762,14 @@ export default function ScoreEntry({
                               const tpIds = teamPlayers.map((p) => p.id)
                               const tAssign = payoutsData.assignments.filter((a) => tpIds.includes(a.player_id))
                               const tScores = payoutsData.scores.filter((s) => tpIds.includes(s.player_id))
+                              const tHoleVals = payoutsData.holeValues[t.id] ?? {}
+                              const hasOverrides = Object.keys(tHoleVals).length > 0
                               const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant)
-                              const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, pointTotals, dtPayoutValue)
+                              const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant, dtPayoutValue, tHoleVals)
+                              const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, dollarTotals, 1)
                               return (
                                 <div key={t.id} className={ti > 0 ? 'border-t border-gray-100' : ''}>
-                                  <div className="px-4 py-2.5"><p className="font-semibold text-gray-900 text-sm">{t.name}</p><p className="text-xs text-gray-400">${dtPayoutValue}/point</p></div>
+                                  <div className="px-4 py-2.5"><p className="font-semibold text-gray-900 text-sm">{t.name}</p><p className="text-xs text-gray-400">{hasOverrides ? `$${dtPayoutValue}/pt (custom on some holes)` : `$${dtPayoutValue}/point`}</p></div>
                                   <div className="divide-y divide-gray-100">
                                     {teamPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                       <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
@@ -1021,6 +1072,11 @@ export default function ScoreEntry({
                   </div>
                 )}
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {isDaytona && isSaved && holeValues[hole.hole_number] !== undefined && (
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>
+                      ↑${holeValues[hole.hole_number]}
+                    </span>
+                  )}
                   {isSaved && <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>✓</span>}
                   {isLocked
                     ? <span className="text-gray-300 text-sm">🔒</span>
@@ -1135,6 +1191,82 @@ export default function ScoreEntry({
                       </div>
                     )
                   })}
+
+                  {/* ── Press (custom payout) UI ── */}
+                  {isDaytona && (() => {
+                    const isActive = !!pressShowInput[hole.hole_number]
+                    const existingVal = holeValues[hole.hole_number]
+                    const currentScope = pressScope[hole.hole_number] ?? 'this'
+                    return (
+                      <div className="mt-1 border-t border-gray-100 pt-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isActive) {
+                                // Toggle off — close input but don't clear committed value
+                                setPressShowInput((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
+                                setPressValueStr((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
+                              } else {
+                                // Toggle on — open input prefilled with current value or default
+                                const prefill = existingVal !== undefined ? String(existingVal) : String(defaultDtPayoutValue)
+                                setPressShowInput((p) => ({ ...p, [hole.hole_number]: true }))
+                                setPressValueStr((p) => ({ ...p, [hole.hole_number]: prefill }))
+                                setPressScope((p) => ({ ...p, [hole.hole_number]: 'this' }))
+                              }
+                            }}
+                            className="text-xs font-semibold px-2.5 py-1 rounded-lg border transition"
+                            style={isActive || existingVal !== undefined
+                              ? { background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }
+                              : { background: 'white', color: '#6b7280', borderColor: '#e5e7eb' }}>
+                            {existingVal !== undefined && !isActive ? `↑ Press $${existingVal}` : isActive ? '✕ Press' : '↑ Press'}
+                          </button>
+                          {existingVal !== undefined && !isActive && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!roundId) return
+                                await saveDaytonaHoleValues(roundId, team.id, [{ holeNumber: hole.hole_number, valuePerPoint: null }])
+                                setHoleValues((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
+                              }}
+                              className="text-xs text-gray-400 hover:text-red-500 transition">
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {isActive && (
+                          <div className="mt-2 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 flex-shrink-0">$/pt:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                value={pressValueStr[hole.hole_number] ?? ''}
+                                onChange={(e) => setPressValueStr((p) => ({ ...p, [hole.hole_number]: e.target.value }))}
+                                className="w-20 text-xs border border-gray-300 rounded px-2 py-1 text-center"
+                                placeholder={String(defaultDtPayoutValue)}
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              {(['this', 'forward'] as const).map((scope) => (
+                                <button
+                                  key={scope}
+                                  type="button"
+                                  onClick={() => setPressScope((p) => ({ ...p, [hole.hole_number]: scope }))}
+                                  className="text-xs px-2.5 py-1 rounded-lg border font-medium transition"
+                                  style={currentScope === scope
+                                    ? { background: navy, color: 'white', borderColor: navy }
+                                    : { background: 'white', color: '#374151', borderColor: '#d1d5db' }}>
+                                  {scope === 'this' ? 'Just this hole' : 'All going forward'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {(() => {
                     const allAssigned = !isDaytona || players.every((p) => p.id in holeAssignments)

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import {
   computeTeamBallSummary, computePlayerDaytonaPoints,
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
+  computePlayerDaytonaDollars,
   type DaytonaHoleAssignment, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
@@ -273,7 +274,7 @@ function vpColor(vp: number | null): string {
 }
 
 export default function LeaderboardClient({
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0,
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {},
 }: {
   initialTeams: Team[]
   players: Player[]
@@ -296,9 +297,11 @@ export default function LeaderboardClient({
   bestBallMatchups?: BestBallMatchup[]
   skinsEnabled?: boolean
   skinsAmount?: number
+  initialHoleValues?: Record<string, Record<number, number>>
 }) {
   const [scores, setScores] = useState<Score[]>(initialScores)
   const [assignments, setAssignments] = useState<DaytonaHoleAssignment[]>(initialAssignments)
+  const [liveHoleValues, setLiveHoleValues] = useState<Record<string, Record<number, number>>>(initialHoleValues)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [showPin, setShowPin] = useState(false)
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
@@ -337,6 +340,18 @@ export default function LeaderboardClient({
       const { data } = await supabase
         .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
       if (data) { setScores(data); setLastUpdated(new Date()) }
+      if (isDaytona && roundId) {
+        const { data: hvData } = await supabase
+          .from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId)
+        if (hvData) {
+          const newHoleValues: Record<string, Record<number, number>> = {}
+          for (const hv of hvData as { team_id: string; hole_number: number; value_per_point: number }[]) {
+            if (!newHoleValues[hv.team_id]) newHoleValues[hv.team_id] = {}
+            newHoleValues[hv.team_id][hv.hole_number] = hv.value_per_point
+          }
+          setLiveHoleValues(newHoleValues)
+        }
+      }
     }
     const ch1 = supabase.channel('leaderboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores)
@@ -497,8 +512,9 @@ export default function LeaderboardClient({
       const tpIds = tp.map((p) => p.id)
       const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
       const tScores = scores.filter((s) => tpIds.includes(s.player_id))
-      const pts = computePlayerDaytonaPoints(holes, tScores, tAssign, group.variant)
-      const { net: pNet } = settleDaytonaPlayerPoints(tp, pts, dtPayoutValue)
+      const tHoleVals = liveHoleValues[group.team.id] ?? {}
+      const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, group.variant, dtPayoutValue, tHoleVals)
+      const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
       for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
     }
   }
@@ -543,8 +559,11 @@ export default function LeaderboardClient({
                         const tpIds = teamPlayers.map((p) => p.id)
                         const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
                         const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+                        const tHoleVals2 = liveHoleValues[group.team.id] ?? {}
+                        const hasCustomHoleValues = Object.keys(tHoleVals2).length > 0
                         const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, group.variant)
-                        const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, pointTotals, dtPayoutValue)
+                        const dollarTotals2 = computePlayerDaytonaDollars(holes, tScores, tAssign, group.variant, dtPayoutValue, tHoleVals2)
+                        const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, dollarTotals2, 1)
                         const variantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares' : group.variant?.startsWith('5man') ? '5-Man Normal' : '4-Man'
                         return (
                           <div key={group.team.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
@@ -552,7 +571,7 @@ export default function LeaderboardClient({
                               <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{group.team.name}</span>
                               <span className="text-xs text-gray-400">· Daytona {variantLabel}</span>
                             </div>
-                            <div className="px-4 py-2"><p className="text-xs text-gray-400">${dtPayoutValue}/point</p></div>
+                            <div className="px-4 py-2"><p className="text-xs text-gray-400">${dtPayoutValue}/point{hasCustomHoleValues ? ' (custom on some holes)' : ''}</p></div>
                             <div className="divide-y divide-gray-100">
                               {teamPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                 <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">

@@ -22,7 +22,7 @@ export default async function LeaderboardPage() {
   const teamIds = (teams ?? []).map((t) => t.id)
   const isDaytona = (round.format ?? 'standard') === 'daytona'
 
-  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }] = await Promise.all([
+  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }] = await Promise.all([
     sb.from('players').select('id, team_id, name, position, skins_participant').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
@@ -31,7 +31,16 @@ export default async function LeaderboardPage() {
       : Promise.resolve({ data: [] }),
     sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', round.id).order('created_at'),
     sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', round.id).order('created_at'),
+    isDaytona
+      ? sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id)
+      : Promise.resolve({ data: [] }),
   ])
+
+  const initialHoleValues: Record<string, Record<number, number>> = {}
+  for (const hv of (holeValuesRaw ?? []) as { team_id: string; hole_number: number; value_per_point: number }[]) {
+    if (!initialHoleValues[hv.team_id]) initialHoleValues[hv.team_id] = {}
+    initialHoleValues[hv.team_id][hv.hole_number] = hv.value_per_point
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let matchups: { id: string; player1_id: string; player2_id: string; bet: string; press: any[] }[]
@@ -71,6 +80,7 @@ export default async function LeaderboardPage() {
       bestBallMatchups={bestBallMatchups ?? []}
       skinsEnabled={round.skins_enabled ?? false}
       skinsAmount={round.skins_amount ?? 0}
+      initialHoleValues={initialHoleValues}
     />
   )
 }

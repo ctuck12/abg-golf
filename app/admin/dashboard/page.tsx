@@ -37,7 +37,7 @@ export default async function AdminDashboardPage() {
 
   const isDaytona = (round?.format ?? 'standard') === 'daytona'
 
-  const [playersRes, scoresRes, assignmentsRes, matchupsRaw, bestBallRes] = await Promise.all([
+  const [playersRes, scoresRes, assignmentsRes, matchupsRaw, bestBallRes, holeValuesRes] = await Promise.all([
     teamIds.length
       ? sb.from('players').select('id, team_id, name, position, skins_participant').in('team_id', teamIds).order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
@@ -53,7 +53,15 @@ export default async function AdminDashboardPage() {
     roundId
       ? sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', roundId).order('created_at')
       : Promise.resolve({ data: [] }),
+    roundId && isDaytona
+      ? sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId)
+      : Promise.resolve({ data: [] }),
   ])
+  const initialHoleValues: Record<string, Record<number, number>> = {}
+  for (const hv of (holeValuesRes.data ?? []) as { team_id: string; hole_number: number; value_per_point: number }[]) {
+    if (!initialHoleValues[hv.team_id]) initialHoleValues[hv.team_id] = {}
+    initialHoleValues[hv.team_id][hv.hole_number] = hv.value_per_point
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let matchupsRes: { data: { id: string; player1_id: string; player2_id: string; bet: string; press: any[] }[] }
@@ -78,6 +86,7 @@ export default async function AdminDashboardPage() {
       dtAssignments={assignmentsRes.data ?? []}
       matchups={matchupsRes.data ?? []}
       bestBallMatchups={bestBallRes.data ?? []}
+      initialHoleValues={initialHoleValues}
     />
   )
 }

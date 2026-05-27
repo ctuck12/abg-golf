@@ -42,7 +42,7 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 })
 
 export default function ScorecardViewer({
-  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false,
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {},
 }: {
   teamName: string
   players: Player[]
@@ -53,6 +53,7 @@ export default function ScorecardViewer({
   daytonaVariant?: string
   dtAssignments?: DaytonaHoleAssignment[]
   isAdmin?: boolean
+  pressedHoles?: Record<number, number>
 }) {
   const [scores, setScores] = useState(initialScores)
   const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
@@ -155,9 +156,23 @@ export default function ScorecardViewer({
           <thead>
             <tr>
               <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
-              {[1,2,3,4,5,6,7,8,9].map((n) => <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>)}
+              {[1,2,3,4,5,6,7,8,9].map((n) => (
+                <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                  {n}
+                  {isDaytona && pressedHoles[n] !== undefined && (
+                    <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
+                  )}
+                </th>
+              ))}
               <th style={thStyle(true)}>Front</th>
-              {[10,11,12,13,14,15,16,17,18].map((n) => <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>)}
+              {[10,11,12,13,14,15,16,17,18].map((n) => (
+                <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                  {n}
+                  {isDaytona && pressedHoles[n] !== undefined && (
+                    <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
+                  )}
+                </th>
+              ))}
               <th style={thStyle(true)}>Back</th>
               <th style={thStyle()}>TOTAL</th>
             </tr>

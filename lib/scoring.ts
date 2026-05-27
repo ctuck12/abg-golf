@@ -575,6 +575,58 @@ export function computePlayerDaytonaPoints(
   return totals
 }
 
+// Compute per-player dollar totals where each hole may have its own value per point.
+// Falls back to defaultDollarPerPoint for holes not in holeValueOverrides.
+// Use settleDaytonaPlayerPoints(players, result, 1) to convert to net/settlements.
+export function computePlayerDaytonaDollars(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  assignments: DaytonaHoleAssignment[],
+  variant: string = '4man',
+  defaultDollarPerPoint: number,
+  holeValueOverrides: Record<number, number> = {}
+): Map<string, number> {
+  const dollarTotals = new Map<string, number>()
+  const is5Man = variant === '5man-normal' || variant === '5man-flares'
+
+  for (const hole of holes) {
+    const dollarPerPoint = holeValueOverrides[hole.hole_number] ?? defaultDollarPerPoint
+    const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
+    const leftIds = holeAssignments.filter((a) => a.side === 'left').map((a) => a.player_id)
+    const rightIds = holeAssignments.filter((a) => a.side === 'right').map((a) => a.player_id)
+    let holePoints: Map<string, number>
+
+    if (is5Man) {
+      if (leftIds.length < 2 || rightIds.length < 3) continue
+      holePoints = computeHoleDaytonaPointsFiveMan(leftIds, rightIds, scores, hole.hole_number, hole.par)
+    } else {
+      if (leftIds.length < 2 || rightIds.length < 2) continue
+      const leftScores = leftIds
+        .map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes)
+        .filter((s): s is number => s !== undefined)
+      const rightScores = rightIds
+        .map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes)
+        .filter((s): s is number => s !== undefined)
+      if (leftScores.length < 2 || rightScores.length < 2) continue
+      const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftScores, rightScores, hole.par)
+      if (leftDt === null || rightDt === null) continue
+      const diff = Math.abs(leftDt - rightDt)
+      const leftPts = leftDt < rightDt ? diff : leftDt > rightDt ? -diff : 0
+      holePoints = new Map<string, number>()
+      for (const id of leftIds) holePoints.set(id, leftPts)
+      for (const id of rightIds) holePoints.set(id, -leftPts)
+    }
+
+    for (const [id, pts] of holePoints) {
+      if (pts !== 0) {
+        dollarTotals.set(id, Math.round(((dollarTotals.get(id) ?? 0) + pts * dollarPerPoint) * 100) / 100)
+      }
+    }
+  }
+
+  return dollarTotals
+}
+
 export function settleDaytonaPlayerPoints(
   players: { id: string; name: string }[],
   pointTotals: Map<string, number>,

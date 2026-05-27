@@ -15,7 +15,7 @@ const steelBlueBg = '#dbeafe'
 
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
-type PlayerInfo = { id: string; name: string; teamName: string }
+type PlayerInfo = { id: string; name: string; teamName: string; teamId?: string }
 
 function ptsStr(pts: number | null): string {
   if (pts === null) return '–'
@@ -31,7 +31,7 @@ function ptsColor(pts: number | null): string {
 }
 
 export default function AllScorecardsView({
-  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null,
+  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {},
 }: {
   roundId: string
   players: PlayerInfo[]
@@ -42,6 +42,7 @@ export default function AllScorecardsView({
   daytonaVariant: string
   isAdmin?: boolean
   scorecardTeamId?: string | null
+  teamHoleValues?: Record<string, Record<number, number>>
 }) {
   const [scores, setScores] = useState(initialScores)
   const [assignments, setAssignments] = useState(initialAssignments)
@@ -212,9 +213,29 @@ export default function AllScorecardsView({
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
                       <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
-                      {[1,2,3,4,5,6,7,8,9].map((n) => <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>)}
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const pressed = player.teamId ? teamHoleValues[player.teamId]?.[n] : undefined
+                        return (
+                          <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                            {n}
+                            {pressed !== undefined && (
+                              <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
+                            )}
+                          </th>
+                        )
+                      })}
                       <th style={thStyle(true)}>Front</th>
-                      {[10,11,12,13,14,15,16,17,18].map((n) => <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>)}
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const pressed = player.teamId ? teamHoleValues[player.teamId]?.[n] : undefined
+                        return (
+                          <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                            {n}
+                            {pressed !== undefined && (
+                              <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
+                            )}
+                          </th>
+                        )
+                      })}
                       <th style={thStyle(true)}>Back</th>
                       <th style={thStyle()}>TOTAL</th>
                     </tr>
