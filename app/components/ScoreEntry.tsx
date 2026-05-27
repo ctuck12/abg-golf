@@ -17,7 +17,7 @@ type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type Team = { id: string; name: string }
 type AssignmentMap = Record<number, Record<string, DaytonaSide>>
-type AllTeam = { id: string; name: string }
+type AllTeam = { id: string; name: string; daytona_variant?: string | null }
 type AllPlayer = { id: string; team_id: string; name: string; position: number | null }
 type BallValue = { ball_number: number; value_dollars: number }
 type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string }
@@ -25,7 +25,7 @@ type BestBallMatchup = { id: string; team1_player1_id: string; team1_player2_id:
 type MatchupBetType = 'nassau' | 'straight'
 type MatchupScoringType = 'stroke' | 'match'
 type MPayoutSeg = { name: 'Front' | 'Back' | 'Total'; settled: boolean; winnerLabel: string | null; tied: boolean; amount: number; perPlayer: boolean }
-type MPayoutRow = { id: string; label: string; betLabel: string; segments: MPayoutSeg[]; nassauResult?: { winnerLabel: string | null; amount: number; perPlayer: boolean; anySettled: boolean } }
+type MPayoutRow = { id: string; label: string; betLabel: string; segments: MPayoutSeg[]; nassauResult?: { winnerLabel: string | null; amount: number; perPlayer: boolean; anySettled: boolean; swept?: boolean } }
 type PayoutsData = {
   teams: AllTeam[]; players: AllPlayer[]; scores: Score[]; ballValues: BallValue[]
   assignments: DaytonaHoleAssignment[]; matchups: SavedMatchup[]; bestBallMatchups: BestBallMatchup[]
@@ -36,17 +36,30 @@ const gold = '#f59e0b'
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
 // ── Matchup helpers (mirrors LeaderboardClient) ───────────────────────────────
-function parseMBet(bet: string): { betType: MatchupBetType | ''; amount: string; scoringType: MatchupScoringType } {
-  if (!bet) return { betType: '', amount: '', scoringType: 'stroke' }
+function parseMBetAmounts(raw: string): { frontAmount: number; backAmount: number; totalAmount: number } {
+  const p = raw.split('|')
+  if (p.length === 3) { const f = parseFloat(p[0]) || 0, b = parseFloat(p[1]) || 0, t = parseFloat(p[2]) || 0; return { frontAmount: f, backAmount: b, totalAmount: t } }
+  const a = parseFloat(raw) || 0; return { frontAmount: a, backAmount: a, totalAmount: a }
+}
+function parseMBet(bet: string): { betType: MatchupBetType | ''; amount: string; scoringType: MatchupScoringType; sweepAmount: string; handicapSide: string; handicapFront: string; handicapBack: string; handicapTotal: string; frontAmount: number; backAmount: number; totalAmount: number } {
+  const empty = { betType: '' as MatchupBetType | '', amount: '', scoringType: 'stroke' as MatchupScoringType, sweepAmount: '', handicapSide: '', handicapFront: '', handicapBack: '', handicapTotal: '', frontAmount: 0, backAmount: 0, totalAmount: 0 }
+  if (!bet) return empty
   const p = bet.split(':')
-  if (p.length >= 2 && (p[0] === 'nassau' || p[0] === 'straight')) return { betType: p[0] as MatchupBetType, amount: p[1] ?? '', scoringType: p[2] === 'match' ? 'match' : 'stroke' }
-  return { betType: '', amount: '', scoringType: 'stroke' }
+  if (p.length >= 2 && (p[0] === 'nassau' || p[0] === 'straight')) { const rawAmt = p[1] ?? ''; return { betType: p[0] as MatchupBetType, amount: rawAmt, scoringType: p[2] === 'match' ? 'match' : 'stroke', sweepAmount: p[3] ?? '', handicapSide: p[4] ?? '', handicapFront: p[5] ?? '', handicapBack: p[6] ?? '', handicapTotal: p[7] ?? '', ...parseMBetAmounts(rawAmt) } }
+  return empty
 }
 function formatMBet(bet: string): string {
-  const { betType, amount, scoringType } = parseMBet(bet)
+  const { betType, scoringType, sweepAmount, frontAmount, backAmount, totalAmount } = parseMBet(bet)
   const sl = scoringType === 'match' ? 'Match Play' : 'Stroke Play'
-  if (betType === 'nassau' && amount) return `$${amount} Nassau · ${sl}`
-  if (betType === 'straight' && amount) return `$${amount} Overall · ${sl}`
+  if (betType === 'nassau') {
+    const sweepLabel = sweepAmount ? ` · Sweep $${sweepAmount}` : ''
+    const allSame = frontAmount > 0 && frontAmount === backAmount && backAmount === totalAmount
+    const anyAmt = frontAmount > 0 || backAmount > 0 || totalAmount > 0
+    const amtLabel = allSame ? `$${frontAmount} ` : anyAmt ? `$${frontAmount}/$${backAmount}/$${totalAmount} ` : ''
+    return `${amtLabel}Nassau${sweepLabel} · ${sl}`
+  }
+  if (betType === 'straight' && totalAmount > 0) return `$${totalAmount} Overall · ${sl}`
+  if (betType === 'straight') return `Overall · ${sl}`
   return sl
 }
 function h2hStats(p1Id: string, p2Id: string, sm: Record<string, Record<number, number>>, holes: { hole_number: number; par: number }[]) {
@@ -103,34 +116,64 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
     const mp1 = players.find((p) => p.id === m.player1_id), mp2 = players.find((p) => p.id === m.player2_id)
     if (!mp1 || !mp2) continue
     involvedIds.add(m.player1_id); involvedIds.add(m.player2_id)
-    const { betType, amount, scoringType } = parseMBet(m.bet)
-    const betAmt = parseFloat(amount); const hasBet = betType !== '' && !isNaN(betAmt) && betAmt > 0
+    const { betType, scoringType, sweepAmount, handicapSide, handicapFront, handicapBack, handicapTotal, frontAmount: fBetAmt, backAmount: bBetAmt, totalAmount: tBetAmt } = parseMBet(m.bet)
+    const hasBet = betType !== '' && (fBetAmt > 0 || bBetAmt > 0 || tBetAmt > 0)
     if (!hasBet) { rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: 'No bet configured', segments: [] }); continue }
     const stats = h2hStats(m.player1_id, m.player2_id, scoreMap, holes)
     const hole9 = scoreMap[m.player1_id]?.[9] != null && scoreMap[m.player2_id]?.[9] != null
     const hole18 = scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null
     const p1 = m.player1_id, p2 = m.player2_id
-    const resolveH2H = (settled: boolean, sl: 'p1' | 'p2' | 'tie' | null, mpDiff: number): { winnerLabel: string | null; tied: boolean } => {
+    // Stroke handicap adjustments (stroke play only)
+    const hf = scoringType === 'stroke' ? (parseFloat(handicapFront) || 0) : 0
+    const hb = scoringType === 'stroke' ? (parseFloat(handicapBack) || 0) : 0
+    const ht = scoringType === 'stroke' ? (parseFloat(handicapTotal) || 0) : 0
+    const adjP1Front = stats.p1Front !== null ? stats.p1Front - (handicapSide === 'p1' ? hf : 0) : null
+    const adjP2Front = stats.p2Front !== null ? stats.p2Front - (handicapSide === 'p2' ? hf : 0) : null
+    const adjP1Back  = stats.p1Back  !== null ? stats.p1Back  - (handicapSide === 'p1' ? hb : 0) : null
+    const adjP2Back  = stats.p2Back  !== null ? stats.p2Back  - (handicapSide === 'p2' ? hb : 0) : null
+    const adjP1Total = stats.p1Total !== null ? stats.p1Total - (handicapSide === 'p1' ? ht : 0) : null
+    const adjP2Total = stats.p2Total !== null ? stats.p2Total - (handicapSide === 'p2' ? ht : 0) : null
+    const resolveH2H = (settled: boolean, sl: 'p1' | 'p2' | 'tie' | null, mpDiff: number, amt: number): { winnerLabel: string | null; tied: boolean } => {
       if (!settled) return { winnerLabel: null, tied: false }
       const p1w = scoringType === 'match' ? mpDiff > 0 : sl === 'p1', p2w = scoringType === 'match' ? mpDiff < 0 : sl === 'p2'
-      if (p1w) { net[p1] = (net[p1] ?? 0) + betAmt; net[p2] = (net[p2] ?? 0) - betAmt; return { winnerLabel: mp1.name, tied: false } }
-      if (p2w) { net[p2] = (net[p2] ?? 0) + betAmt; net[p1] = (net[p1] ?? 0) - betAmt; return { winnerLabel: mp2.name, tied: false } }
+      if (p1w) { net[p1] = (net[p1] ?? 0) + amt; net[p2] = (net[p2] ?? 0) - amt; return { winnerLabel: mp1.name, tied: false } }
+      if (p2w) { net[p2] = (net[p2] ?? 0) + amt; net[p1] = (net[p1] ?? 0) - amt; return { winnerLabel: mp2.name, tied: false } }
       return { winnerLabel: null, tied: true }
     }
     const segs: MPayoutSeg[] = []
     if (betType === 'nassau') {
       const fS = hole9 && stats.p1Front !== null && stats.p2Front !== null
-      const { winnerLabel: fWL, tied: fT } = resolveH2H(fS, slH2H(stats.p1Front, stats.p2Front), stats.p1FrontWins - stats.p2FrontWins)
-      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: betAmt, perPlayer: false })
+      const { winnerLabel: fWL, tied: fT } = resolveH2H(fS, slH2H(adjP1Front, adjP2Front), stats.p1FrontWins - stats.p2FrontWins, fBetAmt)
+      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: false })
       const bS = hole18 && stats.p1Back !== null && stats.p2Back !== null
-      const { winnerLabel: bWL, tied: bT } = resolveH2H(bS, slH2H(stats.p1Back, stats.p2Back), stats.p1BackWins - stats.p2BackWins)
-      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: betAmt, perPlayer: false })
+      const { winnerLabel: bWL, tied: bT } = resolveH2H(bS, slH2H(adjP1Back, adjP2Back), stats.p1BackWins - stats.p2BackWins, bBetAmt)
+      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: false })
     }
     const tS = hole18 && stats.p1Total !== null && stats.p2Total !== null
-    const { winnerLabel: tWL, tied: tT } = resolveH2H(tS, slH2H(stats.p1Total, stats.p2Total), stats.p1Wins - stats.p2Wins)
-    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: betAmt, perPlayer: false })
+    const { winnerLabel: tWL, tied: tT } = resolveH2H(tS, slH2H(adjP1Total, adjP2Total), stats.p1Wins - stats.p2Wins, tBetAmt)
+    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: false })
     let nassauResult: MPayoutRow['nassauResult']
-    if (betType === 'nassau') { const p1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === mp1.name ? seg.amount : -seg.amount) : 0), 0); nassauResult = { winnerLabel: p1Net > 0 ? mp1.name : p1Net < 0 ? mp2.name : null, amount: Math.abs(p1Net), perPlayer: false, anySettled: segs.some((s) => s.settled) } }
+    if (betType === 'nassau') {
+      const p1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === mp1.name ? seg.amount : -seg.amount) : 0), 0)
+      nassauResult = { winnerLabel: p1Net > 0 ? mp1.name : p1Net < 0 ? mp2.name : null, amount: Math.abs(p1Net), perPlayer: false, anySettled: segs.some((s) => s.settled) }
+      const sweepAmt = parseFloat(sweepAmount)
+      if (!isNaN(sweepAmt) && sweepAmt > 0 && segs.length === 3) {
+        const [fSeg, bSeg, tSeg] = segs
+        if (fSeg.settled && bSeg.settled && tSeg.settled) {
+          const p1Swept = fSeg.winnerLabel === mp1.name && bSeg.winnerLabel === mp1.name && tSeg.winnerLabel === mp1.name
+          const p2Swept = fSeg.winnerLabel === mp2.name && bSeg.winnerLabel === mp2.name && tSeg.winnerLabel === mp2.name
+          if (p1Swept || p2Swept) {
+            const winner = p1Swept ? p1 : p2
+            const loser = p1Swept ? p2 : p1
+            const normalTotal = fBetAmt + bBetAmt + tBetAmt
+            const adj = sweepAmt - normalTotal
+            net[winner] = (net[winner] ?? 0) + adj
+            net[loser] = (net[loser] ?? 0) - adj
+            nassauResult = { ...nassauResult, amount: sweepAmt, swept: true }
+          }
+        }
+      }
+    }
     rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
   }
   for (const m of bestBallMatchups) {
@@ -138,35 +181,65 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
     const t2p1 = players.find((p) => p.id === m.team2_player1_id), t2p2 = players.find((p) => p.id === m.team2_player2_id)
     if (!t1p1 || !t1p2 || !t2p1 || !t2p2) continue
     involvedIds.add(m.team1_player1_id); involvedIds.add(m.team1_player2_id); involvedIds.add(m.team2_player1_id); involvedIds.add(m.team2_player2_id)
-    const { betType, amount, scoringType } = parseMBet(m.bet)
-    const betAmt = parseFloat(amount); const hasBet = betType !== '' && !isNaN(betAmt) && betAmt > 0
+    const { betType, scoringType, sweepAmount: bbSweepAmt, handicapSide: bbHcpSide, handicapFront: bbHcpFront, handicapBack: bbHcpBack, handicapTotal: bbHcpTotal, frontAmount: fBetAmt, backAmount: bBetAmt, totalAmount: tBetAmt } = parseMBet(m.bet)
+    const hasBet = betType !== '' && (fBetAmt > 0 || bBetAmt > 0 || tBetAmt > 0)
     const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`, t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
     if (!hasBet) { rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: 'No bet configured', segments: [] }); continue }
     const stats = bbStats(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id], t2Ids = [m.team2_player1_id, m.team2_player2_id]
     const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
     const hole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
-    const resolveBB = (settled: boolean, sl: 't1' | 't2' | 'tie' | null, mpDiff: number): { winnerLabel: string | null; tied: boolean } => {
+    // Stroke handicap adjustments (stroke play only)
+    const bbHf = scoringType === 'stroke' ? (parseFloat(bbHcpFront) || 0) : 0
+    const bbHb = scoringType === 'stroke' ? (parseFloat(bbHcpBack) || 0) : 0
+    const bbHt = scoringType === 'stroke' ? (parseFloat(bbHcpTotal) || 0) : 0
+    const adjT1Front = stats.t1Front !== null ? stats.t1Front - (bbHcpSide === 't1' ? bbHf : 0) : null
+    const adjT2Front = stats.t2Front !== null ? stats.t2Front - (bbHcpSide === 't2' ? bbHf : 0) : null
+    const adjT1Back  = stats.t1Back  !== null ? stats.t1Back  - (bbHcpSide === 't1' ? bbHb : 0) : null
+    const adjT2Back  = stats.t2Back  !== null ? stats.t2Back  - (bbHcpSide === 't2' ? bbHb : 0) : null
+    const adjT1Total = stats.t1Total !== null ? stats.t1Total - (bbHcpSide === 't1' ? bbHt : 0) : null
+    const adjT2Total = stats.t2Total !== null ? stats.t2Total - (bbHcpSide === 't2' ? bbHt : 0) : null
+    const resolveBB = (settled: boolean, sl: 't1' | 't2' | 'tie' | null, mpDiff: number, amt: number): { winnerLabel: string | null; tied: boolean } => {
       if (!settled) return { winnerLabel: null, tied: false }
       const t1w = scoringType === 'match' ? mpDiff > 0 : sl === 't1', t2w = scoringType === 'match' ? mpDiff < 0 : sl === 't2'
-      if (t1w) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + betAmt; for (const id of t2Ids) net[id] = (net[id] ?? 0) - betAmt; return { winnerLabel: t1Name, tied: false } }
-      if (t2w) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + betAmt; for (const id of t1Ids) net[id] = (net[id] ?? 0) - betAmt; return { winnerLabel: t2Name, tied: false } }
+      if (t1w) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + amt; for (const id of t2Ids) net[id] = (net[id] ?? 0) - amt; return { winnerLabel: t1Name, tied: false } }
+      if (t2w) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + amt; for (const id of t1Ids) net[id] = (net[id] ?? 0) - amt; return { winnerLabel: t2Name, tied: false } }
       return { winnerLabel: null, tied: true }
     }
     const segs: MPayoutSeg[] = []
     if (betType === 'nassau') {
       const fS = hole9 && stats.t1Front !== null && stats.t2Front !== null
-      const { winnerLabel: fWL, tied: fT } = resolveBB(fS, slBB(stats.t1Front, stats.t2Front), stats.t1FrontWins - stats.t2FrontWins)
-      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: betAmt, perPlayer: true })
+      const { winnerLabel: fWL, tied: fT } = resolveBB(fS, slBB(adjT1Front, adjT2Front), stats.t1FrontWins - stats.t2FrontWins, fBetAmt)
+      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: true })
       const bS = hole18 && stats.t1Back !== null && stats.t2Back !== null
-      const { winnerLabel: bWL, tied: bT } = resolveBB(bS, slBB(stats.t1Back, stats.t2Back), stats.t1BackWins - stats.t2BackWins)
-      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: betAmt, perPlayer: true })
+      const { winnerLabel: bWL, tied: bT } = resolveBB(bS, slBB(adjT1Back, adjT2Back), stats.t1BackWins - stats.t2BackWins, bBetAmt)
+      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: true })
     }
     const tS = hole18 && stats.t1Total !== null && stats.t2Total !== null
-    const { winnerLabel: tWL, tied: tT } = resolveBB(tS, slBB(stats.t1Total, stats.t2Total), stats.t1Wins - stats.t2Wins)
-    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: betAmt, perPlayer: true })
+    const { winnerLabel: tWL, tied: tT } = resolveBB(tS, slBB(adjT1Total, adjT2Total), stats.t1Wins - stats.t2Wins, tBetAmt)
+    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: true })
     let nassauResult: MPayoutRow['nassauResult']
-    if (betType === 'nassau') { const t1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === t1Name ? seg.amount : -seg.amount) : 0), 0); nassauResult = { winnerLabel: t1Net > 0 ? t1Name : t1Net < 0 ? t2Name : null, amount: Math.abs(t1Net), perPlayer: true, anySettled: segs.some((s) => s.settled) } }
+    if (betType === 'nassau') {
+      const t1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === t1Name ? seg.amount : -seg.amount) : 0), 0)
+      nassauResult = { winnerLabel: t1Net > 0 ? t1Name : t1Net < 0 ? t2Name : null, amount: Math.abs(t1Net), perPlayer: true, anySettled: segs.some((s) => s.settled) }
+      const sweepAmt = parseFloat(bbSweepAmt)
+      if (!isNaN(sweepAmt) && sweepAmt > 0 && segs.length === 3) {
+        const [fSeg, bSeg, tSeg] = segs
+        if (fSeg.settled && bSeg.settled && tSeg.settled) {
+          const t1Swept = fSeg.winnerLabel === t1Name && bSeg.winnerLabel === t1Name && tSeg.winnerLabel === t1Name
+          const t2Swept = fSeg.winnerLabel === t2Name && bSeg.winnerLabel === t2Name && tSeg.winnerLabel === t2Name
+          if (t1Swept || t2Swept) {
+            const winIds = t1Swept ? t1Ids : t2Ids
+            const loseIds = t1Swept ? t2Ids : t1Ids
+            const normalTotal = fBetAmt + bBetAmt + tBetAmt
+            const adj = sweepAmt - normalTotal
+            for (const id of winIds) net[id] = (net[id] ?? 0) + adj
+            for (const id of loseIds) net[id] = (net[id] ?? 0) - adj
+            nassauResult = { ...nassauResult, amount: sweepAmt, swept: true }
+          }
+        }
+      }
+    }
     rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
   }
   return { rows, net, involvedIds }
@@ -201,10 +274,10 @@ export default function ScoreEntry({
   includeTotal?: boolean
 }) {
   const isDaytona = format === 'daytona'
-  const is5Man = isDaytona && daytonaVariant.startsWith('5man')
   const isFlares = daytonaVariant === '5man-flares'
-  const leftLabel = isFlares ? 'Outside' : 'Left'
-  const rightLabel = isFlares ? 'Inside' : 'Right'
+  const is5Man = isDaytona && (daytonaVariant === '5man-normal' || daytonaVariant === '5man-flares')
+  const leftLabel = isFlares ? 'Out' : 'Left'
+  const rightLabel = isFlares ? 'In' : 'Right'
 
   const [strokes, setStrokes] = useState<Record<string, Record<number, number>>>(() => {
     const s: Record<string, Record<number, number>> = {}
@@ -227,7 +300,16 @@ export default function ScoreEntry({
 
   const [savedScores, setSavedScores] = useState<Score[]>(initialScores)
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
-  const [expandedHole, setExpandedHole] = useState<number | null>(null)
+  const [expandedHole, setExpandedHole] = useState<number | null>(() => {
+    // Auto-expand the current (first unsaved) hole when the page loads
+    const saved = new Set<number>()
+    for (let h = 1; h <= 18; h++) {
+      if (players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
+        saved.add(h)
+      }
+    }
+    return holes.find((h) => !saved.has(h.hole_number))?.hole_number ?? null
+  })
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [roundComplete, setRoundComplete] = useState(false)
   const [showPayoutsModal, setShowPayoutsModal] = useState(false)
@@ -236,11 +318,14 @@ export default function ScoreEntry({
   const [showDaytonaResultsModal, setShowDaytonaResultsModal] = useState(false)
   const [showMatchupResultsModal, setShowMatchupResultsModal] = useState(false)
 
+  // First hole that hasn't been saved yet — holes beyond this cannot be opened
+  const currentHole = holes.find((h) => !savedHoles.has(h.hole_number))?.hole_number ?? null
+
   async function openPayoutsModal() {
     setShowPayoutsModal(true)
     if (payoutsData) return
     setPayoutsLoading(true)
-    const { data: teams } = await supabase.from('teams').select('id, name').eq('round_id', roundId)
+    const { data: teams } = await supabase.from('teams').select('id, name, daytona_variant').eq('round_id', roundId)
     const allTeamIds = (teams ?? []).map((t) => t.id)
     const [{ data: allPlayers }, { data: allScores }, { data: ballValues }, { data: dtAssignments }, { data: matchupsData }, { data: bbMatchupsData }] = await Promise.all([
       supabase.from('players').select('id, team_id, name, position').in('team_id', allTeamIds.length ? allTeamIds : ['']).order('position', { ascending: true }),
@@ -280,8 +365,8 @@ export default function ScoreEntry({
       .on('broadcast', { event: 'refresh' }, async () => {
         const [scoresRes, assignRes] = await Promise.all([
           supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds),
-          isDaytona && roundId
-            ? supabase.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
+          isDaytona && roundId && playerIds.length
+            ? supabase.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId).in('player_id', playerIds)
             : Promise.resolve({ data: null }),
         ])
         if (scoresRes.data) {
@@ -318,12 +403,47 @@ export default function ScoreEntry({
     checkRoundComplete()
   }, [])
 
+  // Scroll a hole card into view just below the sticky header with a small gap
+  function scrollHoleIntoView(holeNumber: number, behavior: ScrollBehavior) {
+    const el = document.getElementById(`hole-${holeNumber}`)
+    if (!el) return
+    const header = document.querySelector('header')
+    const headerHeight = header?.offsetHeight ?? 96
+    const top = el.getBoundingClientRect().top + window.scrollY - headerHeight - 8
+    window.scrollTo({ top, behavior })
+  }
+
+  // On page load, scroll so the last saved hole (just above the current hole) is visible
+  const didInitialScrollRef = useRef(false)
+  useEffect(() => {
+    if (didInitialScrollRef.current || expandedHole === null) return
+    didInitialScrollRef.current = true
+    setTimeout(() => {
+      const holeNums = holes.map((h) => h.hole_number)
+      const currentIdx = holeNums.indexOf(expandedHole)
+      // If there's a previous hole, scroll to it so saved ✓ + current are both visible
+      const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
+      scrollHoleIntoView(scrollTarget, 'auto')
+    }, 50)
+  }, [expandedHole])
+
   // Daytona Left/Right assignments per hole
   const [assignments, setAssignments] = useState<AssignmentMap>(() => {
     const m: AssignmentMap = {}
     for (const a of initialAssignments) {
       if (!m[a.hole_number]) m[a.hole_number] = {}
       m[a.hole_number][a.player_id] = a.side as DaytonaSide
+    }
+    // Pre-initialize an empty assignment map for the current hole so side buttons show immediately
+    if (isDaytona) {
+      const saved = new Set<number>()
+      for (let h = 1; h <= 18; h++) {
+        if (players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
+          saved.add(h)
+        }
+      }
+      const firstUnsaved = holes.find((h) => !saved.has(h.hole_number))?.hole_number
+      if (firstUnsaved !== undefined && !m[firstUnsaved]) m[firstUnsaved] = {}
     }
     return m
   })
@@ -332,20 +452,27 @@ export default function ScoreEntry({
     setStrokes((s) => ({ ...s, [playerId]: { ...s[playerId], [hole]: Math.max(1, Math.min(20, val)) } }))
   }
 
-  function toggleSide(holeNumber: number, playerId: string) {
+  function setSideExplicit(holeNumber: number, playerId: string, side: DaytonaSide) {
     setAssignments((prev) => {
       const holeMap = prev[holeNumber] ?? {}
-      const current = holeMap[playerId] ?? 'right'
-      return { ...prev, [holeNumber]: { ...holeMap, [playerId]: current === 'left' ? 'right' : 'left' } }
+      return { ...prev, [holeNumber]: { ...holeMap, [playerId]: side } }
     })
   }
 
   function expandHole(holeNumber: number) {
+    // Block holes beyond the current (first unsaved) hole
+    if (!savedHoles.has(holeNumber) && currentHole !== null && holeNumber > currentHole) return
     setExpandedHole((prev) => {
       if (prev === holeNumber) return null
       if (isDaytona && !assignments[holeNumber]) {
-        const def = defaultAssignmentForHole(players, holeNumber, assignments)
-        setAssignments((a) => ({ ...a, [holeNumber]: def }))
+        if (savedHoles.has(holeNumber)) {
+          // Re-editing a saved hole that lost its assignment data — restore defaults
+          const def = defaultAssignmentForHole(players, holeNumber, assignments)
+          setAssignments((a) => ({ ...a, [holeNumber]: def }))
+        } else {
+          // New hole: start with no assignments so user must explicitly select each side
+          setAssignments((a) => ({ ...a, [holeNumber]: {} }))
+        }
       }
       return holeNumber
     })
@@ -393,7 +520,14 @@ export default function ScoreEntry({
         return [...without, ...added]
       })
       setErrors((e) => { const n = { ...e }; delete n[holeNumber]; return n })
-      setExpandedHole(null)
+      // Auto-advance to the next unsaved hole
+      const nextHole = holes.find((h) => !savedHoles.has(h.hole_number) && h.hole_number !== holeNumber)?.hole_number ?? null
+      if (isDaytona && nextHole !== null && !assignments[nextHole]) {
+        setAssignments((a) => ({ ...a, [nextHole]: {} }))
+      }
+      setExpandedHole(nextHole)
+      // Scroll the just-saved hole into view so both it (collapsed ✓) and the next hole are visible
+      setTimeout(() => scrollHoleIntoView(holeNumber, 'smooth'), 50)
       broadcastChannel.current?.send({ type: 'broadcast', event: 'refresh', payload: {} })
       checkRoundComplete()
     }
@@ -446,13 +580,17 @@ export default function ScoreEntry({
               <h1 className="font-bold text-lg">{team.name}</h1>
             </div>
             <div className="flex items-center gap-2">
-              {isAdmin && (
-                <a href="/admin/dashboard"
-                  className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                  style={{ background: navy, color: '#d1d5db', borderColor: '#d1d5db' }}>
-                  Admin Hub
-                </a>
-              )}
+              {isAdmin
+                ? <a href="/admin/dashboard"
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                    style={{ background: navy, color: '#9ca3af', borderColor: 'rgba(255,255,255,0.2)' }}>
+                    Admin Hub
+                  </a>
+                : <a href="/admin"
+                    className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                    style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                    Admin Login
+                  </a>}
               <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>
@@ -554,7 +692,7 @@ export default function ScoreEntry({
                     const tpIds = tp.map((p) => p.id)
                     const tAssign = payoutsData.assignments.filter((a) => tpIds.includes(a.player_id))
                     const tScores = payoutsData.scores.filter((s) => tpIds.includes(s.player_id))
-                    const pts = computePlayerDaytonaPoints(holes, tScores, tAssign, daytonaVariant)
+                    const pts = computePlayerDaytonaPoints(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant)
                     const { net: pNet } = settleDaytonaPlayerPoints(tp, pts, dtPayoutValue)
                     for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
                   }
@@ -577,7 +715,7 @@ export default function ScoreEntry({
                               const tpIds = teamPlayers.map((p) => p.id)
                               const tAssign = payoutsData.assignments.filter((a) => tpIds.includes(a.player_id))
                               const tScores = payoutsData.scores.filter((s) => tpIds.includes(s.player_id))
-                              const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, daytonaVariant)
+                              const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant)
                               const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, pointTotals, dtPayoutValue)
                               return (
                                 <div key={t.id} className={ti > 0 ? 'border-t border-gray-100' : ''}>
@@ -663,7 +801,7 @@ export default function ScoreEntry({
                                     <div className="flex items-center justify-between px-4 pb-3 pt-1 bg-gray-50 mx-3 mb-3 rounded-lg">
                                       <span className="text-xs font-bold text-gray-400 mr-3">Result</span>
                                       <span className="text-xs font-semibold flex-1">
-                                        {nr ? (!nr.anySettled ? <span className="text-gray-300">Pending</span> : nr.winnerLabel === null ? <span className="text-gray-400 italic">Tied — push</span> : <span className="text-green-700">{nr.winnerLabel}</span>) : overallSeg ? (overallSeg.settled ? overallSeg.tied ? <span className="text-gray-400 italic">Tied — push</span> : <span className="text-green-700">{overallSeg.winnerLabel}</span> : <span className="text-gray-300">Pending</span>) : null}
+                                        {nr ? (!nr.anySettled ? <span className="text-gray-300">Pending</span> : nr.winnerLabel === null ? <span className="text-gray-400 italic">Tied — push</span> : <span className="text-green-700">{nr.winnerLabel}{nr.swept && <span className="ml-1.5 text-xs font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">SWEEP</span>}</span>) : overallSeg ? (overallSeg.settled ? overallSeg.tied ? <span className="text-gray-400 italic">Tied — push</span> : <span className="text-green-700">{overallSeg.winnerLabel}</span> : <span className="text-gray-300">Pending</span>) : null}
                                       </span>
                                       <span className="text-xs font-bold whitespace-nowrap">
                                         {nr && nr.anySettled && nr.winnerLabel !== null ? <span className="text-green-600">+${fmtAmt}{nr.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span> : overallSeg && overallSeg.settled && !overallSeg.tied ? <span className="text-green-600">+${overallSeg.amount % 1 === 0 ? overallSeg.amount : overallSeg.amount.toFixed(2)}{overallSeg.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span> : null}
@@ -737,7 +875,10 @@ export default function ScoreEntry({
           const isSaved = savedHoles.has(hole.hole_number)
           const isPending = pendingHoles.has(hole.hole_number)
           const isExpanded = expandedHole === hole.hole_number
+          const isLocked = !isSaved && currentHole !== null && hole.hole_number > currentHole
           const error = errors[hole.hole_number]
+          const holeLeftLabel = isFlares && hole.par === 3 ? 'Close' : leftLabel
+          const holeRightLabel = isFlares && hole.par === 3 ? 'Far' : rightLabel
 
           const savedHolePlayerScores = players.map((p) => {
             const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
@@ -821,12 +962,13 @@ export default function ScoreEntry({
           return (
             <Fragment key={hole.hole_number}>
             <div
+              id={`hole-${hole.hole_number}`}
               className="bg-white rounded-xl border overflow-hidden"
               style={{ borderColor: isSaved ? gold : '#e5e7eb' }}>
               {/* Hole row */}
               <button
                 type="button"
-                className="w-full flex items-center px-4 py-3 gap-3 text-left"
+                className={`w-full flex items-center px-4 py-3 gap-3 text-left${isLocked ? ' cursor-not-allowed opacity-50' : ''}`}
                 onClick={() => expandHole(hole.hole_number)}>
                 <div className="w-8 text-center flex-shrink-0">
                   <p className="text-xs text-gray-400">Hole</p>
@@ -842,12 +984,12 @@ export default function ScoreEntry({
                     {isDaytona ? (
                       <>
                         <div className="text-center mr-3">
-                          <p className="text-xs" style={{ color: '#2563eb' }}>{leftLabel}</p>
+                          <p className="text-xs" style={{ color: '#2563eb' }}>{holeLeftLabel}</p>
                           <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
                         </div>
                         {is5Man && savedRightPairDts.length === 3 ? (
                           <div className="text-center">
-                            <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
+                            <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
                             <p className="font-bold text-sm text-gray-900">
                               {[...savedRightPairDts].sort((a, b) => (a ?? Infinity) - (b ?? Infinity)).map((dt) => dt ?? '–').join('/')}
                             </p>
@@ -855,14 +997,14 @@ export default function ScoreEntry({
                         ) : (
                           <>
                             <div className="text-center">
-                              <p className="text-xs" style={{ color: '#92400e' }}>{rightLabel}</p>
+                              <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
                               <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
                             </div>
-                            {leftDt != null && rightDt != null && leftDt !== rightDt && (
+                            {is5Man && leftDt != null && rightDt != null && leftDt !== rightDt && (
                               <div className="text-center">
                                 <p className="text-xs text-gray-400">Pts</p>
                                 <p className="font-bold text-sm" style={{ color: leftDt < rightDt ? '#16a34a' : '#dc2626' }}>
-                                  {leftDt < rightDt ? `${leftLabel[0]} +${rightDt - leftDt}` : `${rightLabel[0]} +${leftDt - rightDt}`}
+                                  {leftDt < rightDt ? `${holeLeftLabel[0]} +${rightDt - leftDt}` : `${holeRightLabel[0]} +${leftDt - rightDt}`}
                                 </p>
                               </div>
                             )}
@@ -881,30 +1023,64 @@ export default function ScoreEntry({
                 )}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {isSaved && <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>✓</span>}
-                  <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>
+                  {isLocked
+                    ? <span className="text-gray-300 text-sm">🔒</span>
+                    : <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>}
                 </div>
               </button>
 
               {/* Expanded score entry */}
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 py-3 space-y-2">
-                  {players.map((player) => {
+                  {players.map((player, playerIdx) => {
                     const val = strokes[player.id]?.[hole.hole_number] ?? hole.par
-                    const side = holeAssignments[player.id] ?? 'right'
+                    const side = holeAssignments[player.id] as DaytonaSide | undefined
+                    const isAssigned = player.id in holeAssignments
+                    // Default to 'left' (Out) until 2 left slots are filled, then 'right' (In)
+                    const defaultSide: DaytonaSide = leftCount < 2 ? 'left' : 'right'
+                    const displaySide: DaytonaSide = side ?? defaultSide
+                    // Colors for Out (left) and In (right) sides
+                    const outBg = '#2563eb', inBg = '#b45309'
+                    const outBgFaint = '#dbeafe', inBgFaint = '#fef3c7'
+                    const outBorder = '#93c5fd', inBorder = '#fcd34d'
                     return (
                       <div key={player.id} className="flex items-center gap-2">
                         {isDaytona && (
                           <button
                             type="button"
-                            onClick={() => toggleSide(hole.hole_number, player.id)}
-                            className="flex-shrink-0 text-xs font-bold px-2 py-1 rounded-lg border transition"
+                            onClick={() => {
+                              setAssignments((prev) => {
+                                const holeMap = { ...(prev[hole.hole_number] ?? {}) }
+                                if (!isAssigned) {
+                                  holeMap[player.id] = displaySide
+                                } else {
+                                  holeMap[player.id] = side === 'left' ? 'right' : 'left'
+                                }
+                                // Once exactly 2 are on 'left' (Out), auto-assign all remaining unassigned to 'right' (In)
+                                const newLeftCount = Object.values(holeMap).filter(s => s === 'left').length
+                                if (newLeftCount === 2) {
+                                  for (const p of players) {
+                                    if (!(p.id in holeMap)) holeMap[p.id] = 'right'
+                                  }
+                                }
+                                return { ...prev, [hole.hole_number]: holeMap }
+                              })
+                            }}
+                            className="flex-shrink-0 text-xs font-bold px-2 rounded-lg border transition flex items-center justify-center"
                             style={{
-                              background: side === 'left' ? '#2563eb' : '#f3f4f6',
-                              color: side === 'left' ? 'white' : '#6b7280',
-                              borderColor: side === 'left' ? '#2563eb' : '#e5e7eb',
+                              background: !isAssigned
+                                ? (defaultSide === 'left' ? outBgFaint : inBgFaint)
+                                : (side === 'left' ? outBg : inBg),
+                              color: !isAssigned
+                                ? (defaultSide === 'left' ? '#2563eb' : '#b45309')
+                                : 'white',
+                              borderColor: !isAssigned
+                                ? (defaultSide === 'left' ? outBorder : inBorder)
+                                : (side === 'left' ? outBg : inBg),
                               minWidth: '3rem',
+                              height: '1.5rem',
                             }}>
-                            {side === 'left' ? leftLabel : rightLabel}
+                            {isAssigned ? (side === 'left' ? holeLeftLabel : holeRightLabel) : '+'}
                           </button>
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
@@ -919,35 +1095,66 @@ export default function ScoreEntry({
                             )
                           })()}
                         </span>
-                        <button type="button" onClick={() => setStroke(player.id, hole.hole_number, val - 1)}
-                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition flex-shrink-0">
-                          −
-                        </button>
-                        <div className="w-11 flex items-center justify-center flex-shrink-0">
-                          <ScoreNotation strokes={val} par={hole.par} />
-                        </div>
-                        <button type="button" onClick={() => setStroke(player.id, hole.hole_number, val + 1)}
-                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 flex items-center justify-center active:scale-90 transition flex-shrink-0">
-                          +
-                        </button>
+                        {(() => {
+                          const allAssigned = !isDaytona || players.every((p) => p.id in holeAssignments)
+                          const scoreActive = !isDaytona || allAssigned
+                          const canInteract = allAssigned
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                disabled={!canInteract}
+                                onClick={() => setStroke(player.id, hole.hole_number, scoreActive ? val - 1 : hole.par)}
+                                className={`w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center flex-shrink-0 transition${canInteract ? ' hover:bg-gray-200 active:scale-90' : ' cursor-not-allowed'}`}
+                                style={{ color: scoreActive && canInteract ? '#374151' : '#d1d5db' }}>
+                                −
+                              </button>
+                              <div className="w-11 flex items-center justify-center flex-shrink-0"
+                                style={{ color: scoreActive ? undefined : '#d1d5db' }}>
+                                <ScoreNotation strokes={val} par={hole.par} />
+                              </div>
+                              <button
+                                type="button"
+                                disabled={!canInteract}
+                                onClick={() => setStroke(player.id, hole.hole_number, scoreActive ? val + 1 : hole.par)}
+                                className={`w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center flex-shrink-0 transition${canInteract ? ' hover:bg-gray-200 active:scale-90' : ' cursor-not-allowed'}`}
+                                style={{ color: scoreActive && canInteract ? '#374151' : '#d1d5db' }}>
+                                +
+                              </button>
+                            </>
+                          )
+                        })()}
                       </div>
                     )
                   })}
 
-                  {isDaytona && leftCount !== 2 && (
-                    <p className="text-xs text-red-500">Need exactly 2 on {leftLabel}</p>
-                  )}
-
-                  {error && <p className="text-xs text-red-500">{error}</p>}
-
-                  <button
-                    type="button"
-                    onClick={() => saveHole(hole.hole_number)}
-                    disabled={isPending || (isDaytona && leftCount !== 2)}
-                    className="w-full mt-2 text-white py-2 rounded-lg font-semibold text-sm disabled:opacity-60 transition"
-                    style={{ background: navy }}>
-                    {isPending ? 'Saving…' : 'Save Hole'}
-                  </button>
+                  {(() => {
+                    const allAssigned = !isDaytona || players.every((p) => p.id in holeAssignments)
+                    const daytonaReady = !isDaytona || (allAssigned && leftCount === 2)
+                    return (
+                      <>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            {isDaytona && !allAssigned && (
+                              <p className="text-xs text-red-500">{isFlares && hole.par === 3 ? "Select 2 Closest Players" : isFlares ? "Select 2 Outside Players" : "Select 2 Left Players"}</p>
+                            )}
+                            {isDaytona && allAssigned && leftCount !== 2 && (
+                              <p className="text-xs text-red-500">{isFlares && hole.par === 3 ? "Need exactly 2 Close & 3 Far" : isFlares ? "Need exactly 2 Out & 3 In" : is5Man ? "Need exactly 2 Left & 3 Right" : "Need exactly 2 Left & 2 Right"}</p>
+                            )}
+                            {error && <p className="text-xs text-red-500">{error}</p>}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => saveHole(hole.hole_number)}
+                          disabled={isPending || !daytonaReady}
+                          className="w-full mt-2 text-white py-2 rounded-lg font-semibold text-sm disabled:opacity-60 transition"
+                          style={{ background: navy }}>
+                          {isPending ? 'Saving…' : 'Save Hole'}
+                        </button>
+                      </>
+                    )
+                  })()}
                 </div>
               )}
             </div>

@@ -12,7 +12,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
 
   const sb = createServerClient()
 
-  const { data: team } = await sb.from('teams').select('id, name, round_id, is_admin').eq('id', teamId).single()
+  const { data: team } = await sb.from('teams').select('id, name, round_id, is_admin, daytona_variant').eq('id', teamId).single()
   if (!team) redirect('/')
 
   const { data: round } = await sb
@@ -35,8 +35,8 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
   const [{ data: holes }, { data: scores }, { data: assignments }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
-    isDaytona
-      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id)
+    isDaytona && playerIds.length
+      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', playerIds)
       : Promise.resolve({ data: [] }),
   ])
 
@@ -48,8 +48,8 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
       initialScores={scores ?? []}
       ballsCount={round.balls_count}
       format={round.format ?? 'standard'}
-      daytonaVariant={round.daytona_variant ?? '4man'}
-      isAdmin={team.is_admin ?? false}
+      daytonaVariant={(team as { daytona_variant?: string | null }).daytona_variant ?? round.daytona_variant ?? '4man'}
+      isAdmin={cookieStore.get('admin_auth')?.value === 'true'}
       roundId={round.id}
       initialAssignments={assignments ?? []}
       roundPlayerIds={roundPlayerIds}

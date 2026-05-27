@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   computeTeamBallSummary, computePlayerDaytonaPoints,
-  calculatePoolPayouts, settleDaytonaPlayerPoints,
-  type DaytonaHoleAssignment,
+  calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
+  type DaytonaHoleAssignment, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 
-type Team = { id: string; name: string }
-type Player = { id: string; team_id: string; name: string; position: number | null }
+type Team = { id: string; name: string; daytona_variant?: string | null }
+type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean }
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -20,24 +20,38 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 
 // ── Matchup payout types + helpers ───────────────────────────────────────────
-type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string }
+type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
+type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; press: PressEntry[] }
 type BestBallMatchup = { id: string; team1_player1_id: string; team1_player2_id: string; team2_player1_id: string; team2_player2_id: string; bet: string }
 type MatchupBetType = 'nassau' | 'straight'
 type MatchupScoringType = 'stroke' | 'match'
 type MPayoutSeg = { name: 'Front' | 'Back' | 'Total'; settled: boolean; winnerLabel: string | null; tied: boolean; amount: number; perPlayer: boolean }
-type MPayoutRow = { id: string; label: string; betLabel: string; segments: MPayoutSeg[]; nassauResult?: { winnerLabel: string | null; amount: number; perPlayer: boolean; anySettled: boolean } }
+type MPayoutRow = { id: string; type: 'h2h' | 'bb'; label: string; betLabel: string; segments: MPayoutSeg[]; nassauResult?: { winnerLabel: string | null; amount: number; perPlayer: boolean; anySettled: boolean; swept?: boolean } }
 
-function parseMBet(bet: string): { betType: MatchupBetType | ''; amount: string; scoringType: MatchupScoringType } {
-  if (!bet) return { betType: '', amount: '', scoringType: 'stroke' }
+function parseMBetAmounts(raw: string): { frontAmount: number; backAmount: number; totalAmount: number } {
+  const p = raw.split('|')
+  if (p.length === 3) { const f = parseFloat(p[0]) || 0, b = parseFloat(p[1]) || 0, t = parseFloat(p[2]) || 0; return { frontAmount: f, backAmount: b, totalAmount: t } }
+  const a = parseFloat(raw) || 0; return { frontAmount: a, backAmount: a, totalAmount: a }
+}
+function parseMBet(bet: string): { betType: MatchupBetType | ''; amount: string; scoringType: MatchupScoringType; sweepAmount: string; handicapSide: string; handicapFront: string; handicapBack: string; handicapTotal: string; frontAmount: number; backAmount: number; totalAmount: number } {
+  const empty = { betType: '' as MatchupBetType | '', amount: '', scoringType: 'stroke' as MatchupScoringType, sweepAmount: '', handicapSide: '', handicapFront: '', handicapBack: '', handicapTotal: '', frontAmount: 0, backAmount: 0, totalAmount: 0 }
+  if (!bet) return empty
   const p = bet.split(':')
-  if (p.length >= 2 && (p[0] === 'nassau' || p[0] === 'straight')) return { betType: p[0] as MatchupBetType, amount: p[1] ?? '', scoringType: p[2] === 'match' ? 'match' : 'stroke' }
-  return { betType: '', amount: '', scoringType: 'stroke' }
+  if (p.length >= 2 && (p[0] === 'nassau' || p[0] === 'straight')) { const rawAmt = p[1] ?? ''; return { betType: p[0] as MatchupBetType, amount: rawAmt, scoringType: p[2] === 'match' ? 'match' : 'stroke', sweepAmount: p[3] ?? '', handicapSide: p[4] ?? '', handicapFront: p[5] ?? '', handicapBack: p[6] ?? '', handicapTotal: p[7] ?? '', ...parseMBetAmounts(rawAmt) } }
+  return empty
 }
 function formatMBet(bet: string): string {
-  const { betType, amount, scoringType } = parseMBet(bet)
+  const { betType, scoringType, sweepAmount, frontAmount, backAmount, totalAmount } = parseMBet(bet)
   const sl = scoringType === 'match' ? 'Match Play' : 'Stroke Play'
-  if (betType === 'nassau' && amount) return `$${amount} Nassau · ${sl}`
-  if (betType === 'straight' && amount) return `$${amount} Overall · ${sl}`
+  if (betType === 'nassau') {
+    const sweepLabel = sweepAmount ? ` · Sweep $${sweepAmount}` : ''
+    const allSame = frontAmount > 0 && frontAmount === backAmount && backAmount === totalAmount
+    const anyAmt = frontAmount > 0 || backAmount > 0 || totalAmount > 0
+    const amtLabel = allSame ? `$${frontAmount} ` : anyAmt ? `$${frontAmount}/$${backAmount}/$${totalAmount} ` : ''
+    return `${amtLabel}Nassau${sweepLabel} · ${sl}`
+  }
+  if (betType === 'straight' && totalAmount > 0) return `$${totalAmount} Overall · ${sl}`
+  if (betType === 'straight') return `Overall · ${sl}`
   return sl
 }
 function h2hStats(p1Id: string, p2Id: string, sm: Record<string, Record<number, number>>, holes: Hole[]) {
@@ -94,71 +108,149 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
     const mp1 = players.find((p) => p.id === m.player1_id), mp2 = players.find((p) => p.id === m.player2_id)
     if (!mp1 || !mp2) continue
     involvedIds.add(m.player1_id); involvedIds.add(m.player2_id)
-    const { betType, amount, scoringType } = parseMBet(m.bet)
-    const betAmt = parseFloat(amount); const hasBet = betType !== '' && !isNaN(betAmt) && betAmt > 0
-    if (!hasBet) { rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: 'No bet configured', segments: [] }); continue }
+    const { betType, scoringType, sweepAmount, handicapSide, handicapFront, handicapBack, handicapTotal, frontAmount: fBetAmt, backAmount: bBetAmt, totalAmount: tBetAmt } = parseMBet(m.bet)
+    const hasBet = betType !== '' && (fBetAmt > 0 || bBetAmt > 0 || tBetAmt > 0)
+    if (!hasBet) { rows.push({ id: m.id, type: 'h2h', label: `${mp1.name} vs ${mp2.name}`, betLabel: 'No bet configured', segments: [] }); continue }
     const stats = h2hStats(m.player1_id, m.player2_id, scoreMap, holes)
     const hole9 = scoreMap[m.player1_id]?.[9] != null && scoreMap[m.player2_id]?.[9] != null
     const hole18 = scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null
     const p1 = m.player1_id, p2 = m.player2_id
-    const resolveH2H = (settled: boolean, sl: 'p1' | 'p2' | 'tie' | null, mpDiff: number): { winnerLabel: string | null; tied: boolean } => {
+    // Stroke handicap adjustments (stroke play only)
+    const hf = scoringType === 'stroke' ? (parseFloat(handicapFront) || 0) : 0
+    const hb = scoringType === 'stroke' ? (parseFloat(handicapBack) || 0) : 0
+    const ht = scoringType === 'stroke' ? (parseFloat(handicapTotal) || 0) : 0
+    const adjP1Front = stats.p1Front !== null ? stats.p1Front - (handicapSide === 'p1' ? hf : 0) : null
+    const adjP2Front = stats.p2Front !== null ? stats.p2Front - (handicapSide === 'p2' ? hf : 0) : null
+    const adjP1Back  = stats.p1Back  !== null ? stats.p1Back  - (handicapSide === 'p1' ? hb : 0) : null
+    const adjP2Back  = stats.p2Back  !== null ? stats.p2Back  - (handicapSide === 'p2' ? hb : 0) : null
+    const adjP1Total = stats.p1Total !== null ? stats.p1Total - (handicapSide === 'p1' ? ht : 0) : null
+    const adjP2Total = stats.p2Total !== null ? stats.p2Total - (handicapSide === 'p2' ? ht : 0) : null
+    const resolveH2H = (settled: boolean, sl: 'p1' | 'p2' | 'tie' | null, mpDiff: number, amt: number): { winnerLabel: string | null; tied: boolean } => {
       if (!settled) return { winnerLabel: null, tied: false }
       const p1w = scoringType === 'match' ? mpDiff > 0 : sl === 'p1', p2w = scoringType === 'match' ? mpDiff < 0 : sl === 'p2'
-      if (p1w) { net[p1] = (net[p1] ?? 0) + betAmt; net[p2] = (net[p2] ?? 0) - betAmt; return { winnerLabel: mp1.name, tied: false } }
-      if (p2w) { net[p2] = (net[p2] ?? 0) + betAmt; net[p1] = (net[p1] ?? 0) - betAmt; return { winnerLabel: mp2.name, tied: false } }
+      if (p1w) { net[p1] = (net[p1] ?? 0) + amt; net[p2] = (net[p2] ?? 0) - amt; return { winnerLabel: mp1.name, tied: false } }
+      if (p2w) { net[p2] = (net[p2] ?? 0) + amt; net[p1] = (net[p1] ?? 0) - amt; return { winnerLabel: mp2.name, tied: false } }
       return { winnerLabel: null, tied: true }
     }
     const segs: MPayoutSeg[] = []
     if (betType === 'nassau') {
       const fS = hole9 && stats.p1Front !== null && stats.p2Front !== null
-      const { winnerLabel: fWL, tied: fT } = resolveH2H(fS, slH2H(stats.p1Front, stats.p2Front), stats.p1FrontWins - stats.p2FrontWins)
-      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: betAmt, perPlayer: false })
+      const { winnerLabel: fWL, tied: fT } = resolveH2H(fS, slH2H(adjP1Front, adjP2Front), stats.p1FrontWins - stats.p2FrontWins, fBetAmt)
+      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: false })
       const bS = hole18 && stats.p1Back !== null && stats.p2Back !== null
-      const { winnerLabel: bWL, tied: bT } = resolveH2H(bS, slH2H(stats.p1Back, stats.p2Back), stats.p1BackWins - stats.p2BackWins)
-      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: betAmt, perPlayer: false })
+      const { winnerLabel: bWL, tied: bT } = resolveH2H(bS, slH2H(adjP1Back, adjP2Back), stats.p1BackWins - stats.p2BackWins, bBetAmt)
+      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: false })
     }
     const tS = hole18 && stats.p1Total !== null && stats.p2Total !== null
-    const { winnerLabel: tWL, tied: tT } = resolveH2H(tS, slH2H(stats.p1Total, stats.p2Total), stats.p1Wins - stats.p2Wins)
-    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: betAmt, perPlayer: false })
+    const { winnerLabel: tWL, tied: tT } = resolveH2H(tS, slH2H(adjP1Total, adjP2Total), stats.p1Wins - stats.p2Wins, tBetAmt)
+    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: false })
     let nassauResult: MPayoutRow['nassauResult']
-    if (betType === 'nassau') { const p1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === mp1.name ? seg.amount : -seg.amount) : 0), 0); nassauResult = { winnerLabel: p1Net > 0 ? mp1.name : p1Net < 0 ? mp2.name : null, amount: Math.abs(p1Net), perPlayer: false, anySettled: segs.some((s) => s.settled) } }
-    rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
+    if (betType === 'nassau') {
+      const p1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === mp1.name ? seg.amount : -seg.amount) : 0), 0)
+      nassauResult = { winnerLabel: p1Net > 0 ? mp1.name : p1Net < 0 ? mp2.name : null, amount: Math.abs(p1Net), perPlayer: false, anySettled: segs.some((s) => s.settled) }
+      const sweepAmt = parseFloat(sweepAmount)
+      if (!isNaN(sweepAmt) && sweepAmt > 0 && segs.length === 3) {
+        const [fSeg, bSeg, tSeg] = segs
+        if (fSeg.settled && bSeg.settled && tSeg.settled) {
+          const p1Swept = fSeg.winnerLabel === mp1.name && bSeg.winnerLabel === mp1.name && tSeg.winnerLabel === mp1.name
+          const p2Swept = fSeg.winnerLabel === mp2.name && bSeg.winnerLabel === mp2.name && tSeg.winnerLabel === mp2.name
+          if (p1Swept || p2Swept) {
+            const winner = p1Swept ? p1 : p2
+            const loser = p1Swept ? p2 : p1
+            const normalTotal = fBetAmt + bBetAmt + tBetAmt
+            const adj = sweepAmt - normalTotal
+            net[winner] = (net[winner] ?? 0) + adj
+            net[loser] = (net[loser] ?? 0) - adj
+            nassauResult = { ...nassauResult, amount: sweepAmt, swept: true }
+          }
+        }
+      }
+    }
+    // ── Press bets ──────────────────────────────────────────────────────────
+    for (const press of (m.press ?? [])) {
+      const pressHoles = holes.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
+      if (pressHoles.length === 0) continue
+      let p1Sum = 0, p2Sum = 0, parSum = 0, played = 0
+      for (const h of pressHoles) {
+        const s1 = scoreMap[p1]?.[h.hole_number] ?? null, s2 = scoreMap[p2]?.[h.hole_number] ?? null
+        if (s1 === null || s2 === null) continue
+        p1Sum += s1; p2Sum += s2; parSum += h.par; played++
+      }
+      if (played !== pressHoles.length || played === 0) continue // not yet complete
+      const strokes = press.strokes ?? 0
+      const adjP1 = (p1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
+      const adjP2 = (p2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
+      if (adjP1 < adjP2) { net[p1] = (net[p1] ?? 0) + press.amount; net[p2] = (net[p2] ?? 0) - press.amount }
+      else if (adjP2 < adjP1) { net[p2] = (net[p2] ?? 0) + press.amount; net[p1] = (net[p1] ?? 0) - press.amount }
+      // tie: no net change
+    }
+    rows.push({ id: m.id, type: 'h2h', label: `${mp1.name} vs ${mp2.name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
   }
   for (const m of bestBallMatchups) {
     const t1p1 = players.find((p) => p.id === m.team1_player1_id), t1p2 = players.find((p) => p.id === m.team1_player2_id)
     const t2p1 = players.find((p) => p.id === m.team2_player1_id), t2p2 = players.find((p) => p.id === m.team2_player2_id)
     if (!t1p1 || !t1p2 || !t2p1 || !t2p2) continue
     involvedIds.add(m.team1_player1_id); involvedIds.add(m.team1_player2_id); involvedIds.add(m.team2_player1_id); involvedIds.add(m.team2_player2_id)
-    const { betType, amount, scoringType } = parseMBet(m.bet)
-    const betAmt = parseFloat(amount); const hasBet = betType !== '' && !isNaN(betAmt) && betAmt > 0
+    const { betType, scoringType, sweepAmount, handicapSide, handicapFront, handicapBack, handicapTotal, frontAmount: fBetAmt, backAmount: bBetAmt, totalAmount: tBetAmt } = parseMBet(m.bet)
+    const hasBet = betType !== '' && (fBetAmt > 0 || bBetAmt > 0 || tBetAmt > 0)
     const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`, t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
-    if (!hasBet) { rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: 'No bet configured', segments: [] }); continue }
+    if (!hasBet) { rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: 'No bet configured', segments: [] }); continue }
     const stats = bbStats(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id], t2Ids = [m.team2_player1_id, m.team2_player2_id]
     const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
     const hole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
-    const resolveBB = (settled: boolean, sl: 't1' | 't2' | 'tie' | null, mpDiff: number): { winnerLabel: string | null; tied: boolean } => {
+    // Stroke handicap adjustments (stroke play only)
+    const bbHf = scoringType === 'stroke' ? (parseFloat(handicapFront) || 0) : 0
+    const bbHb = scoringType === 'stroke' ? (parseFloat(handicapBack) || 0) : 0
+    const bbHt = scoringType === 'stroke' ? (parseFloat(handicapTotal) || 0) : 0
+    const adjT1Front = stats.t1Front !== null ? stats.t1Front - (handicapSide === 't1' ? bbHf : 0) : null
+    const adjT2Front = stats.t2Front !== null ? stats.t2Front - (handicapSide === 't2' ? bbHf : 0) : null
+    const adjT1Back  = stats.t1Back  !== null ? stats.t1Back  - (handicapSide === 't1' ? bbHb : 0) : null
+    const adjT2Back  = stats.t2Back  !== null ? stats.t2Back  - (handicapSide === 't2' ? bbHb : 0) : null
+    const adjT1Total = stats.t1Total !== null ? stats.t1Total - (handicapSide === 't1' ? bbHt : 0) : null
+    const adjT2Total = stats.t2Total !== null ? stats.t2Total - (handicapSide === 't2' ? bbHt : 0) : null
+    const resolveBB = (settled: boolean, sl: 't1' | 't2' | 'tie' | null, mpDiff: number, amt: number): { winnerLabel: string | null; tied: boolean } => {
       if (!settled) return { winnerLabel: null, tied: false }
       const t1w = scoringType === 'match' ? mpDiff > 0 : sl === 't1', t2w = scoringType === 'match' ? mpDiff < 0 : sl === 't2'
-      if (t1w) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + betAmt; for (const id of t2Ids) net[id] = (net[id] ?? 0) - betAmt; return { winnerLabel: t1Name, tied: false } }
-      if (t2w) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + betAmt; for (const id of t1Ids) net[id] = (net[id] ?? 0) - betAmt; return { winnerLabel: t2Name, tied: false } }
+      if (t1w) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + amt; for (const id of t2Ids) net[id] = (net[id] ?? 0) - amt; return { winnerLabel: t1Name, tied: false } }
+      if (t2w) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + amt; for (const id of t1Ids) net[id] = (net[id] ?? 0) - amt; return { winnerLabel: t2Name, tied: false } }
       return { winnerLabel: null, tied: true }
     }
     const segs: MPayoutSeg[] = []
     if (betType === 'nassau') {
       const fS = hole9 && stats.t1Front !== null && stats.t2Front !== null
-      const { winnerLabel: fWL, tied: fT } = resolveBB(fS, slBB(stats.t1Front, stats.t2Front), stats.t1FrontWins - stats.t2FrontWins)
-      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: betAmt, perPlayer: true })
+      const { winnerLabel: fWL, tied: fT } = resolveBB(fS, slBB(adjT1Front, adjT2Front), stats.t1FrontWins - stats.t2FrontWins, fBetAmt)
+      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: true })
       const bS = hole18 && stats.t1Back !== null && stats.t2Back !== null
-      const { winnerLabel: bWL, tied: bT } = resolveBB(bS, slBB(stats.t1Back, stats.t2Back), stats.t1BackWins - stats.t2BackWins)
-      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: betAmt, perPlayer: true })
+      const { winnerLabel: bWL, tied: bT } = resolveBB(bS, slBB(adjT1Back, adjT2Back), stats.t1BackWins - stats.t2BackWins, bBetAmt)
+      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: true })
     }
     const tS = hole18 && stats.t1Total !== null && stats.t2Total !== null
-    const { winnerLabel: tWL, tied: tT } = resolveBB(tS, slBB(stats.t1Total, stats.t2Total), stats.t1Wins - stats.t2Wins)
-    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: betAmt, perPlayer: true })
+    const { winnerLabel: tWL, tied: tT } = resolveBB(tS, slBB(adjT1Total, adjT2Total), stats.t1Wins - stats.t2Wins, tBetAmt)
+    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: true })
     let nassauResult: MPayoutRow['nassauResult']
-    if (betType === 'nassau') { const t1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === t1Name ? seg.amount : -seg.amount) : 0), 0); nassauResult = { winnerLabel: t1Net > 0 ? t1Name : t1Net < 0 ? t2Name : null, amount: Math.abs(t1Net), perPlayer: true, anySettled: segs.some((s) => s.settled) } }
-    rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
+    if (betType === 'nassau') {
+      const t1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === t1Name ? seg.amount : -seg.amount) : 0), 0)
+      nassauResult = { winnerLabel: t1Net > 0 ? t1Name : t1Net < 0 ? t2Name : null, amount: Math.abs(t1Net), perPlayer: true, anySettled: segs.some((s) => s.settled) }
+      const sweepAmt = parseFloat(sweepAmount)
+      if (!isNaN(sweepAmt) && sweepAmt > 0 && segs.length === 3) {
+        const [fSeg, bSeg, tSeg] = segs
+        if (fSeg.settled && bSeg.settled && tSeg.settled) {
+          const t1Swept = fSeg.winnerLabel === t1Name && bSeg.winnerLabel === t1Name && tSeg.winnerLabel === t1Name
+          const t2Swept = fSeg.winnerLabel === t2Name && bSeg.winnerLabel === t2Name && tSeg.winnerLabel === t2Name
+          if (t1Swept || t2Swept) {
+            const winIds = t1Swept ? t1Ids : t2Ids
+            const loseIds = t1Swept ? t2Ids : t1Ids
+            const normalTotal = fBetAmt + bBetAmt + tBetAmt
+            const adj = sweepAmt - normalTotal
+            for (const id of winIds) net[id] = (net[id] ?? 0) + adj
+            for (const id of loseIds) net[id] = (net[id] ?? 0) - adj
+            nassauResult = { ...nassauResult, amount: sweepAmt, swept: true }
+          }
+        }
+      }
+    }
+    rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
   }
   return { rows, net, involvedIds }
 }
@@ -181,7 +273,7 @@ function vpColor(vp: number | null): string {
 }
 
 export default function LeaderboardClient({
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [],
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0,
 }: {
   initialTeams: Team[]
   players: Player[]
@@ -202,6 +294,8 @@ export default function LeaderboardClient({
   includeTotal?: boolean
   matchups?: SavedMatchup[]
   bestBallMatchups?: BestBallMatchup[]
+  skinsEnabled?: boolean
+  skinsAmount?: number
 }) {
   const [scores, setScores] = useState<Score[]>(initialScores)
   const [assignments, setAssignments] = useState<DaytonaHoleAssignment[]>(initialAssignments)
@@ -211,10 +305,18 @@ export default function LeaderboardClient({
   const [showPayouts, setShowPayouts] = useState(false)
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showMatchupResults, setShowMatchupResults] = useState(false)
+  const [showSkinsResults, setShowSkinsResults] = useState(false)
+  const [showSkinsParticipants, setShowSkinsParticipants] = useState(false)
+  const [showSkinsNetPositions, setShowSkinsNetPositions] = useState(false)
+  const [showMatchupNetPositions, setShowMatchupNetPositions] = useState(false)
+  const [showDaytonaSettlements, setShowDaytonaSettlements] = useState(false)
+  const [showMatchupSettlements, setShowMatchupSettlements] = useState(false)
+  const [showSkinsSettlements, setShowSkinsSettlements] = useState(false)
   const [isAdmin, setIsAdmin] = useState(isAdminProp)
   const [scorecardTeamId, setScorecardTeamId] = useState(scorecardTeamIdProp)
 
   const isDaytona = format === 'daytona'
+  const isTraditional = format === 'traditional'
 
   // Re-fetch auth state on mount so navigating back from another page doesn't
   // show stale RSC props.  credentials:'include' + cache:'no-store' ensures the
@@ -258,6 +360,21 @@ export default function LeaderboardClient({
     }
   }, [players])
 
+  // Reset all collapsed-by-default sub-states when Payouts panel is closed
+  useEffect(() => {
+    if (!showPayouts) {
+      setShowDaytonaResults(false)
+      setShowMatchupResults(false)
+      setShowSkinsResults(false)
+      setShowSkinsParticipants(false)
+      setShowSkinsNetPositions(false)
+      setShowMatchupNetPositions(false)
+      setShowDaytonaSettlements(false)
+      setShowMatchupSettlements(false)
+      setShowSkinsSettlements(false)
+    }
+  }, [showPayouts])
+
   useEffect(() => {
     if (!isDaytona || !roundId) return
     const channel = supabase.channel('leaderboard-assignments')
@@ -273,7 +390,7 @@ export default function LeaderboardClient({
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
   const backHoles = holes.filter((h) => h.hole_number >= 10)
 
-  const rows = isDaytona ? [] : initialTeams.map((team) => {
+  const rows = (isDaytona || isTraditional) ? [] : initialTeams.map((team) => {
     const teamPlayers = players.filter((p) => p.team_id === team.id)
     const playerIds = teamPlayers.map((p) => p.id)
     const summary = computeTeamBallSummary(holes, playerIds, scores, ballsCount)
@@ -292,18 +409,43 @@ export default function LeaderboardClient({
     return a.team.name.localeCompare(b.team.name)
   })
 
-  const pointsMap = isDaytona ? computePlayerDaytonaPoints(holes, scores, assignments, daytonaVariant) : new Map<string, number>()
-  const dtPlayerRows = isDaytona ? players.map((p) => ({
-    player: p,
-    points: pointsMap.get(p.id) ?? 0,
-    thru: scores.filter((s) => s.player_id === p.id).length,
-  })).sort((a, b) => {
-    const aHas = a.thru > 0
-    const bHas = b.thru > 0
+  const dtGroupRows = isDaytona ? initialTeams.map((team) => {
+    const teamPlayers = players.filter((p) => p.team_id === team.id)
+    const tpIds = teamPlayers.map((p) => p.id)
+    const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
+    const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+    const variant = team.daytona_variant ?? daytonaVariant
+    const groupPointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, variant)
+    const groupRows = teamPlayers.map((p) => ({
+      player: p,
+      points: groupPointsMap.get(p.id) ?? 0,
+      thru: tScores.filter((s) => s.player_id === p.id).length,
+    })).sort((a, b) => {
+      const aHas = a.thru > 0; const bHas = b.thru > 0
+      if (!aHas && !bHas) return a.player.name.localeCompare(b.player.name)
+      if (!aHas) return 1; if (!bHas) return -1
+      return b.points - a.points
+    })
+    return { team, variant, rows: groupRows }
+  }) : []
+
+  const traditionalPlayerRows = isTraditional ? players.map((p) => {
+    const playerScores = scores.filter((s) => s.player_id === p.id)
+    const totalStrokes = playerScores.reduce((sum, s) => sum + s.strokes, 0)
+    const holesPlayed = playerScores.length
+    const totalPar = holes
+      .filter((h) => playerScores.some((s) => s.hole_number === h.hole_number))
+      .reduce((sum, h) => sum + h.par, 0)
+    const vspar = holesPlayed > 0 ? totalStrokes - totalPar : null
+    return { player: p, totalStrokes, holesPlayed, vspar }
+  }).sort((a, b) => {
+    const aHas = a.holesPlayed > 0
+    const bHas = b.holesPlayed > 0
     if (!aHas && !bHas) return a.player.name.localeCompare(b.player.name)
     if (!aHas) return 1
     if (!bHas) return -1
-    return b.points - a.points
+    if (a.vspar !== b.vspar) return (a.vspar ?? 999) - (b.vspar ?? 999)
+    return a.player.name.localeCompare(b.player.name)
   }) : []
 
   // Payout computations (mirrors AdminDashboard)
@@ -312,19 +454,19 @@ export default function LeaderboardClient({
   const dtPayoutValue = ballValues.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
   const perBallValue = ballValues.find((bv) => bv.ball_number === 1)?.value_dollars ?? 5
 
-  const frontSummaries = !isDaytona ? new Map(initialTeams.map((team) => {
+  const frontSummaries = (!isDaytona && !isTraditional) ? new Map(initialTeams.map((team) => {
     const tp = players.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(frontHolesForPayouts, tp.map((p) => p.id), scores, ballsCount)]
   })) : new Map()
-  const backSummaries = !isDaytona ? new Map(initialTeams.map((team) => {
+  const backSummaries = (!isDaytona && !isTraditional) ? new Map(initialTeams.map((team) => {
     const tp = players.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(backHolesForPayouts, tp.map((p) => p.id), scores, ballsCount)]
   })) : new Map()
-  const totalSummaries = (!isDaytona && includeTotal) ? new Map(initialTeams.map((team) => {
+  const totalSummaries = (!isDaytona && !isTraditional && includeTotal) ? new Map(initialTeams.map((team) => {
     const tp = players.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(holes, tp.map((p) => p.id), scores, ballsCount)]
   })) : undefined
-  const poolResults = !isDaytona
+  const poolResults = (!isDaytona && !isTraditional)
     ? calculatePoolPayouts(initialTeams, players, frontSummaries, backSummaries, perBallValue, ballsCount, totalSummaries)
     : { results: [], playerNet: {} as Record<string, number>, settlements: [], potTotal: 0, perBallResult: 0, perPlayerContribution: 0, numDecidedResults: 0 }
 
@@ -336,20 +478,26 @@ export default function LeaderboardClient({
   }
   const matchupPayouts = computeMatchupPayouts(matchups, bestBallMatchups, players, scoreMapForMatchups, holes)
 
-  // Combined net (ball/daytona + matchups)
+  // Skins
+  const skinsParticipants = players.filter((p) => p.skins_participant)
+  const skinsResults = skinsEnabled && skinsParticipants.length > 0
+    ? computeSkinsResults(holes, scores, skinsParticipants, skinsAmount)
+    : { skins: [] as SkinResult[], playerNet: {} as Record<string, number>, skinsWon: 0, settlements: [] }
+
+  // Combined net (ball/daytona + matchups + skins)
   const combinedNet: Record<string, number> = {}
   for (const p of players) {
-    const ballNet = isDaytona ? 0 : (poolResults.playerNet[p.id] ?? 0)
-    combinedNet[p.id] = ballNet + (matchupPayouts.net[p.id] ?? 0)
+    const ballNet = (isDaytona || isTraditional) ? 0 : (poolResults.playerNet[p.id] ?? 0)
+    combinedNet[p.id] = ballNet + (matchupPayouts.net[p.id] ?? 0) + (skinsResults.playerNet[p.id] ?? 0)
   }
-  // For Daytona: add daytona per-team net
+  // For Daytona: add daytona per-group net
   if (isDaytona) {
-    for (const team of initialTeams) {
-      const tp = players.filter((p) => p.team_id === team.id)
+    for (const group of dtGroupRows) {
+      const tp = group.rows.map((r) => r.player)
       const tpIds = tp.map((p) => p.id)
       const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
       const tScores = scores.filter((s) => tpIds.includes(s.player_id))
-      const pts = computePlayerDaytonaPoints(holes, tScores, tAssign, daytonaVariant)
+      const pts = computePlayerDaytonaPoints(holes, tScores, tAssign, group.variant)
       const { net: pNet } = settleDaytonaPlayerPoints(tp, pts, dtPayoutValue)
       for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
     }
@@ -383,23 +531,28 @@ export default function LeaderboardClient({
             <div className="px-4 py-4 space-y-4">
               {/* ── Daytona Results (collapsible) ── */}
               {isDaytona && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                   <button onClick={() => setShowDaytonaResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
                     <span className="text-sm font-semibold text-gray-800">Daytona Results</span>
                     <span className="text-gray-400 text-xs">{showDaytonaResults ? '▲ Hide' : '▼ Show'}</span>
                   </button>
                   {showDaytonaResults && (
                     <div className="border-t border-gray-100">
-                      {initialTeams.map((team, ti) => {
-                        const teamPlayers = players.filter((p) => p.team_id === team.id)
+                      {dtGroupRows.map((group, ti) => {
+                        const teamPlayers = group.rows.map((r) => r.player)
                         const tpIds = teamPlayers.map((p) => p.id)
                         const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
                         const tScores = scores.filter((s) => tpIds.includes(s.player_id))
-                        const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, daytonaVariant)
+                        const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, group.variant)
                         const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, pointTotals, dtPayoutValue)
+                        const variantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares' : group.variant?.startsWith('5man') ? '5-Man Normal' : '4-Man'
                         return (
-                          <div key={team.id} className={ti > 0 ? 'border-t border-gray-100' : ''}>
-                            <div className="px-4 py-2.5"><p className="font-semibold text-gray-900 text-sm">{team.name}</p><p className="text-xs text-gray-400">${dtPayoutValue}/point</p></div>
+                          <div key={group.team.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
+                            <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{group.team.name}</span>
+                              <span className="text-xs text-gray-400">· Daytona {variantLabel}</span>
+                            </div>
+                            <div className="px-4 py-2"><p className="text-xs text-gray-400">${dtPayoutValue}/point</p></div>
                             <div className="divide-y divide-gray-100">
                               {teamPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                 <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
@@ -409,8 +562,27 @@ export default function LeaderboardClient({
                                 </div>
                               )})}
                             </div>
-                            {playerSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{playerSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
-                            {playerSettlements.length === 0 && teamPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">{[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}</p>)}
+                            {(playerSettlements.length > 0 || (playerSettlements.length === 0 && teamPlayers.length > 0)) && (
+                              <div className="border-t border-gray-100 px-4 py-3">
+                                <button
+                                  onClick={() => setShowDaytonaSettlements((v) => !v)}
+                                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2"
+                                >
+                                  <span>Settlement</span>
+                                  <span className="text-gray-400 text-[10px]">{showDaytonaSettlements ? '▲' : '▼'}</span>
+                                </button>
+                                {showDaytonaSettlements && (
+                                  playerSettlements.length === 0
+                                    ? <p className="text-xs text-gray-400 text-center">{[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}</p>
+                                    : playerSettlements.map((s, i) => (
+                                      <div key={i} className="flex items-center py-1 gap-2 text-sm">
+                                        <span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span>
+                                        <span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                                      </div>
+                                    ))
+                                )}
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -420,7 +592,7 @@ export default function LeaderboardClient({
               )}
 
               {/* ── Ball Results (standard, not collapsible) ── */}
-              {!isDaytona && (
+              {!isDaytona && !isTraditional && (
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100">
                     <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
@@ -457,7 +629,7 @@ export default function LeaderboardClient({
               )}
 
               {/* ── Matchup Results (collapsible) ── */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                 <button onClick={() => setShowMatchupResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
                   <span className="text-sm font-semibold text-gray-800">Matchup Results</span>
                   <span className="text-gray-400 text-xs">{showMatchupResults ? '▲ Hide' : '▼ Show'}</span>
@@ -471,8 +643,22 @@ export default function LeaderboardClient({
                         const nr = row.nassauResult
                         const fmtAmt = nr ? (nr.amount % 1 === 0 ? String(nr.amount) : nr.amount.toFixed(2)) : ''
                         const overallSeg = !nr && row.segments.length === 1 ? row.segments[0] : null
+                        const prevRow = rowIdx > 0 ? matchupPayouts.rows[rowIdx - 1] : null
+                        const showH2HHeader = row.type === 'h2h' && (rowIdx === 0 || prevRow?.type !== 'h2h')
+                        const showBBHeader = row.type === 'bb' && (rowIdx === 0 || prevRow?.type !== 'bb')
                         return (
-                          <div key={row.id} className={rowIdx > 0 ? 'border-t border-gray-100' : ''}>
+                          <div key={row.id}>
+                          {showH2HHeader && (
+                            <div className={`px-4 py-2 bg-gray-50 ${rowIdx > 0 ? 'border-t border-gray-200' : ''}`}>
+                              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Head to Head</p>
+                            </div>
+                          )}
+                          {showBBHeader && (
+                            <div className={`px-4 py-2 bg-gray-50 ${rowIdx > 0 ? 'border-t border-gray-200' : ''}`}>
+                              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">2v2 Best Ball</p>
+                            </div>
+                          )}
+                          <div className={rowIdx > 0 && !showH2HHeader && !showBBHeader ? 'border-t border-gray-100' : ''}>
                             <div className="px-4 pt-3 pb-1">
                               <p className="text-sm font-bold text-gray-800 leading-snug">{row.label}</p>
                               <p className="text-xs font-medium mt-0.5" style={{ color: row.segments.length === 0 ? '#9ca3af' : gold }}>{row.betLabel}</p>
@@ -481,7 +667,7 @@ export default function LeaderboardClient({
                               <div className="flex items-center justify-between px-4 pb-3 pt-1 bg-gray-50 mx-3 mb-3 rounded-lg">
                                 <span className="text-xs font-bold text-gray-400 mr-3">Result</span>
                                 <span className="text-xs font-semibold flex-1">
-                                  {nr ? (!nr.anySettled ? <span className="text-gray-300">Pending</span> : nr.winnerLabel === null ? <span className="text-gray-400 italic">Tied — push</span> : <span className="text-green-700">{nr.winnerLabel}</span>) : overallSeg ? (overallSeg.settled ? overallSeg.tied ? <span className="text-gray-400 italic">Tied — push</span> : <span className="text-green-700">{overallSeg.winnerLabel}</span> : <span className="text-gray-300">Pending</span>) : null}
+                                  {nr ? (!nr.anySettled ? <span className="text-gray-300">Pending</span> : nr.winnerLabel === null ? <span className="text-gray-400 italic">Tied — push</span> : <span className="text-green-700">{nr.winnerLabel}{nr.swept && <span className="ml-1.5 text-xs font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">SWEEP</span>}</span>) : overallSeg ? (overallSeg.settled ? overallSeg.tied ? <span className="text-gray-400 italic">Tied — push</span> : <span className="text-green-700">{overallSeg.winnerLabel}</span> : <span className="text-gray-300">Pending</span>) : null}
                                 </span>
                                 <span className="text-xs font-bold whitespace-nowrap">
                                   {nr && nr.anySettled && nr.winnerLabel !== null ? <span className="text-green-600">+${fmtAmt}{nr.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span> : overallSeg && overallSeg.settled && !overallSeg.tied ? <span className="text-green-600">+${overallSeg.amount % 1 === 0 ? overallSeg.amount : overallSeg.amount.toFixed(2)}{overallSeg.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span> : null}
@@ -489,22 +675,37 @@ export default function LeaderboardClient({
                               </div>
                             )}
                           </div>
+                          </div>
                         )
                       })}
                       {matchupPayouts.rows.some((r) => r.segments.some((s) => s.settled)) && (
                         <>
                           <div className="border-t-2 border-gray-200 px-4 pt-3 pb-2">
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Net Positions</p>
-                            <div className="space-y-1">
-                              {[...players].filter((p) => matchupPayouts.involvedIds.has(p.id)).sort((a, b) => (matchupPayouts.net[b.id] ?? 0) - (matchupPayouts.net[a.id] ?? 0)).map((p) => {
-                                const v = Math.round((matchupPayouts.net[p.id] ?? 0) * 100) / 100
-                                return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700">{p.name}</span><span className="text-xs font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
-                              })}
-                            </div>
+                            <button
+                              onClick={() => setShowMatchupNetPositions((v) => !v)}
+                              className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2"
+                            >
+                              <span>Net Positions</span>
+                              <span className="text-gray-400 text-[10px]">{showMatchupNetPositions ? '▲' : '▼'}</span>
+                            </button>
+                            {showMatchupNetPositions && (
+                              <div className="space-y-1">
+                                {[...players].filter((p) => matchupPayouts.involvedIds.has(p.id)).sort((a, b) => (matchupPayouts.net[b.id] ?? 0) - (matchupPayouts.net[a.id] ?? 0)).map((p) => {
+                                  const v = Math.round((matchupPayouts.net[p.id] ?? 0) * 100) / 100
+                                  return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700">{p.name}</span><span className="text-xs font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                                })}
+                              </div>
+                            )}
                           </div>
                           <div className="border-t border-gray-100 px-4 py-3">
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Settlements</p>
-                            {matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}
+                            <button
+                              onClick={() => setShowMatchupSettlements((v) => !v)}
+                              className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2"
+                            >
+                              <span>Settlements</span>
+                              <span className="text-gray-400 text-[10px]">{showMatchupSettlements ? '▲' : '▼'}</span>
+                            </button>
+                            {showMatchupSettlements && (matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>)))}
                           </div>
                         </>
                       )}
@@ -513,11 +714,131 @@ export default function LeaderboardClient({
                   )}
                 </div>
 
+              {/* ── Skins Game Results ── */}
+              {skinsEnabled && skinsParticipants.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
+                  <button onClick={() => setShowSkinsResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                    <span className="text-sm font-semibold text-gray-800">Skins Game</span>
+                    <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{showSkinsResults ? '▲ Hide' : '▼ Show'}</span>
+                  </button>
+                  {showSkinsResults && (
+                    <div className="border-t border-gray-100">
+                      {/* Amount header */}
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-sm text-gray-900">Amount</p>
+                        <p className="text-xs text-gray-400 mt-0.5">${skinsAmount % 1 === 0 ? skinsAmount : skinsAmount.toFixed(2)}/skin</p>
+                      </div>
+                      {/* Current Skins — players with ≥1 skin */}
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Current Skins</p>
+                        {(() => {
+                          const winnerMap: Record<string, { name: string; holes: number[] }> = {}
+                          for (const s of skinsResults.skins) {
+                            if (s.status === 'won' && s.winnerId && s.winnerName) {
+                              if (!winnerMap[s.winnerId]) winnerMap[s.winnerId] = { name: s.winnerName, holes: [] }
+                              winnerMap[s.winnerId].holes.push(s.holeNumber)
+                            }
+                          }
+                          const winners = Object.entries(winnerMap).sort((a, b) => a[1].name.localeCompare(b[1].name))
+                          if (winners.length === 0) return <p className="text-xs text-gray-400">No skins won yet</p>
+                          return (
+                            <div className="space-y-0">
+                              {winners.map(([id, { name, holes }]) => (
+                                <div key={id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                                  <span className="text-xs font-semibold text-green-700">
+                                    {name}{' '}
+                                    <span className="font-normal text-gray-500">
+                                      (Hole{holes.length !== 1 ? 's' : ''} {holes.join(', ')})
+                                    </span>
+                                  </span>
+                                  <span className="text-xs font-semibold text-green-600 shrink-0">
+                                    +${(skinsAmount * (skinsParticipants.length - 1) * holes.length).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                      {/* Participants dropdown */}
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <button
+                          onClick={() => setShowSkinsParticipants((v) => !v)}
+                          className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide"
+                        >
+                          <span>Participants ({skinsParticipants.length})</span>
+                          <span className="text-gray-400 text-[10px]">{showSkinsParticipants ? '▲' : '▼'}</span>
+                        </button>
+                        {showSkinsParticipants && (
+                          <div className="mt-2 space-y-1 pl-1">
+                            {skinsParticipants.map((p) => (
+                              <div key={p.id} className="text-xs text-gray-700">{p.name}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {skinsResults.skinsWon > 0 && (
+                        <>
+                          <div className="border-t border-gray-100 px-4 pt-3 pb-2">
+                            <button
+                              onClick={() => setShowSkinsNetPositions((v) => !v)}
+                              className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2"
+                            >
+                              <span>Net Positions</span>
+                              <span className="text-gray-400 text-[10px]">{showSkinsNetPositions ? '▲' : '▼'}</span>
+                            </button>
+                            {showSkinsNetPositions && (
+                              <div className="space-y-1">
+                                {[...skinsParticipants]
+                                  .sort((a, b) => (skinsResults.playerNet[b.id] ?? 0) - (skinsResults.playerNet[a.id] ?? 0))
+                                  .map((p) => {
+                                    const amt = skinsResults.playerNet[p.id] ?? 0
+                                    return (
+                                      <div key={p.id} className="flex items-center justify-between">
+                                        <span className="text-xs text-gray-700">{p.name}</span>
+                                        <span className="text-xs font-bold tabular-nums"
+                                          style={{ color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
+                                          {amt > 0 ? `+$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : 'Even'}
+                                        </span>
+                                      </div>
+                                    )
+                                  })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="border-t border-gray-100 px-4 py-3">
+                            <button
+                              onClick={() => setShowSkinsSettlements((v) => !v)}
+                              className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2"
+                            >
+                              <span>Settlements</span>
+                              <span className="text-gray-400 text-[10px]">{showSkinsSettlements ? '▲' : '▼'}</span>
+                            </button>
+                            {showSkinsSettlements && (skinsResults.settlements.length === 0 ? (
+                              <p className="text-xs text-gray-400 text-center">All even — no payments needed</p>
+                            ) : skinsResults.settlements.map((s, i) => (
+                              <div key={i} className="flex items-center justify-between py-1">
+                                <span className="text-xs text-gray-800">
+                                  <span className="font-semibold text-red-500">{s.fromName}</span>
+                                  <span className="text-gray-400"> pays </span>
+                                  <span className="font-semibold text-green-600">{s.toName}</span>
+                                </span>
+                                <span className="text-xs font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                              </div>
+                            )))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ── Combined Settlements ── */}
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <h4 className="font-semibold text-gray-900 text-sm">Combined Settlements</h4>
-                  <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game' : 'Ball game'} + all matchup bets</p>
+                  <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game + all matchup bets' : isTraditional ? 'All matchup bets' : 'Ball game + all matchup bets'}{skinsEnabled ? ' + skins' : ''}</p>
                 </div>
                 {/* Net positions */}
                 <div className="px-4 pt-3 pb-2">
@@ -555,34 +876,29 @@ export default function LeaderboardClient({
               </div>
               <div className="flex flex-col items-end gap-1.5 mt-0.5 flex-shrink-0">
                 {scorecardTeamId ? (
-                  <>
-                    <a href={`/score/${scorecardTeamId}`}
-                      className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                      style={{ background: gold, color: navy }}>
-                      {isComplete ? 'Edit Scores' : 'Enter Scores'}
-                    </a>
-                    {isAdmin && (
-                      <a href="/admin/dashboard"
-                        className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                        style={{ background: navy, color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
-                        Admin Hub
-                      </a>
-                    )}
-                  </>
+                  <a href={`/score/${scorecardTeamId}`}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                    style={{ background: gold, color: navy }}>
+                    {isComplete ? 'Edit Scores' : 'Enter Scores'}
+                  </a>
                 ) : (
-                  <>
-                    <button onClick={() => setShowPin(true)}
-                      className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                      style={{ background: gold, color: navy }}>
-                      Team Pin
-                    </button>
-                    <a href="/admin"
-                      className="text-xs px-3 py-1.5 rounded-lg font-medium"
-                      style={{ borderColor: 'rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.3)' }}>
-                      Admin Login
-                    </a>
-                  </>
+                  <button onClick={() => setShowPin(true)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                    style={{ background: gold, color: navy }}>
+                    Team Pin
+                  </button>
                 )}
+                {isAdmin
+                  ? <a href="/admin/dashboard"
+                      className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                      style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
+                      Admin Hub
+                    </a>
+                  : <a href="/admin"
+                      className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                      style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                      Admin Login
+                    </a>}
               </div>
             </div>
           ) : (
@@ -595,20 +911,30 @@ export default function LeaderboardClient({
                 {roundCourse && `${roundCourse} · `}{formattedDate}
               </p>
               <div className="absolute right-0 top-0 flex flex-col items-end gap-1.5">
-                {scorecardTeamId && (
+                {scorecardTeamId ? (
                   <a href={`/score/${scorecardTeamId}`}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
                     {isComplete ? 'Edit Scores' : 'Enter Scores'}
                   </a>
-                )}
-                {isAdmin && (
-                  <a href="/admin/dashboard"
+                ) : (
+                  <button onClick={() => setShowPin(true)}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                    style={{ background: navy, color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
-                    Admin Hub
-                  </a>
+                    style={{ background: gold, color: navy }}>
+                    Team Pin
+                  </button>
                 )}
+                {isAdmin
+                  ? <a href="/admin/dashboard"
+                      className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                      style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
+                      Admin Hub
+                    </a>
+                  : <a href="/admin"
+                      className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                      style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                      Admin Login
+                    </a>}
               </div>
             </div>
           )}
@@ -625,7 +951,7 @@ export default function LeaderboardClient({
               style={{ borderColor: navy, color: navy }}>
               Payouts
             </button>
-            {isDaytona && (
+            {(isTraditional || (isDaytona && dtGroupRows.length <= 1)) && (
               <a href="/scorecards" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
                 style={{ borderColor: navy, color: navy }}>
                 All Scorecards
@@ -642,10 +968,73 @@ export default function LeaderboardClient({
           </div>
         </div>
 
+        {isDaytona && dtGroupRows.length > 1 ? (
+          <div className="space-y-4">
+            {dtGroupRows.map((group) => {
+              const variantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares'
+                : group.variant?.startsWith('5man') ? '5-Man Normal' : '4-Man'
+              return (
+                <div key={group.team.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div style={{ background: navy }}>
+                    <div className="flex items-center px-4 pt-3 pb-1.5">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-bold text-white">{group.team.name}</span>
+                        <span className="ml-2 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>· Daytona {variantLabel}</span>
+                      </div>
+                      <a href={`/scorecards?teamId=${group.team.id}`}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ml-2"
+                        style={{ background: gold, color: navy }}>
+                        All Scorecards
+                      </a>
+                    </div>
+                    <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase"
+                      style={{ background: '#dde4ee' }}>
+                      <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
+                      <span className="flex-1 min-w-0" style={{ color: '#64748b' }}>Player</span>
+                      <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: navy }}>Points</span>
+                      <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem', color: '#64748b' }}>Thru</span>
+                    </div>
+                  </div>
+                  {group.rows.map((row, i) => {
+                    const hasScores = row.thru > 0
+                    const isLeader = i === 0 && hasScores
+                    const pts = row.thru > 0 ? row.points : null
+                    const ptsColor = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
+                    const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
+                    return (
+                      <a key={row.player.id} href={`/player/${row.player.id}`}
+                        className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0"
+                        style={isLeader ? { background: '#fef9e7' } : {}}>
+                        <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: isLeader ? gold : '#9ca3af' }}>
+                          {hasScores ? i + 1 : '–'}
+                        </span>
+                        <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                        <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: ptsColor }}>
+                          {ptsStr}
+                        </span>
+                        <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>
+                          {row.thru === 0 ? '–' : row.thru === 18 ? 'F' : row.thru}
+                        </span>
+                      </a>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           {/* Header */}
           <div style={{ background: navy }}>
-            {isDaytona ? (
+            {isTraditional ? (
+              <div className="flex items-center px-4 py-2.5 text-xs font-semibold uppercase"
+                style={{ color: 'rgba(255,255,255,0.6)' }}>
+                <span className="w-5 mr-2 flex-shrink-0">#</span>
+                <span className="flex-1 min-w-0">Player</span>
+                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>Score</span>
+                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
+              </div>
+            ) : isDaytona ? (
               <div className="flex items-center px-4 py-2.5 text-xs font-semibold uppercase"
                 style={{ color: 'rgba(255,255,255,0.6)' }}>
                 <span className="w-5 mr-2 flex-shrink-0">#</span>
@@ -692,12 +1081,41 @@ export default function LeaderboardClient({
             )}
           </div>
 
-          {isDaytona ? (
+          {isTraditional ? (
             <>
-              {dtPlayerRows.length === 0 && (
+              {traditionalPlayerRows.length === 0 && (
                 <p className="text-center text-gray-500 text-sm py-8">No scores yet.</p>
               )}
-              {dtPlayerRows.map((row, i) => {
+              {traditionalPlayerRows.map((row, i) => {
+                const hasScores = row.holesPlayed > 0
+                const isLeader = i === 0 && hasScores
+                const vp = row.vspar
+                const vpCol = vp !== null && vp < 0 ? '#dc2626' : '#111827'
+                const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                return (
+                  <a key={row.player.id} href={`/player/${row.player.id}`}
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0"
+                    style={isLeader ? { background: '#fef9e7' } : {}}>
+                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: isLeader ? gold : '#9ca3af' }}>
+                      {hasScores ? i + 1 : '–'}
+                    </span>
+                    <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                    <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpCol }}>
+                      {vpStr}
+                    </span>
+                    <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>
+                      {row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}
+                    </span>
+                  </a>
+                )
+              })}
+            </>
+          ) : isDaytona ? (
+            <>
+              {dtGroupRows.length === 0 && (
+                <p className="text-center text-gray-500 text-sm py-8">No groups added yet.</p>
+              )}
+              {(dtGroupRows[0]?.rows ?? []).map((row, i) => {
                 const hasScores = row.thru > 0
                 const isLeader = i === 0 && hasScores
                 const pts = row.thru > 0 ? row.points : null
@@ -806,9 +1224,10 @@ export default function LeaderboardClient({
             </>
           )}
         </div>
+        )}
 
         <p className="text-center text-xs text-gray-400 mt-3">
-          {isDaytona ? 'Tap a player for their scorecard' : 'Tap a team to expand · tap a player for their scorecard'}
+          {(isDaytona || isTraditional) ? 'Tap a player for their scorecard' : 'Tap a team to expand · tap a player for their scorecard'}
         </p>
       </div>
 

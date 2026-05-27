@@ -40,7 +40,7 @@ function ptsColor(pts: number | null): string {
 }
 
 export default function PlayerScorecard({
-  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData,
+  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false,
 }: {
   player: { id: string; name: string }
   teamName: string
@@ -55,11 +55,20 @@ export default function PlayerScorecard({
     allRoundScores: RoundScore[]
     daytonaVariant?: string
   }
+  isAdmin?: boolean
 }) {
   const [scores, setScores] = useState(initialScores)
   const [allRoundScores, setAllRoundScores] = useState<RoundScore[]>(dtData?.allRoundScores ?? [])
+  const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
   const isDaytona = format === 'daytona'
   const assignments = dtData?.assignments ?? []
+
+  useEffect(() => {
+    fetch('/api/auth-status', { credentials: 'include', cache: 'no-store' })
+      .then((r) => r.json())
+      .then(({ scorecardTeamId: t }: { isAdmin: boolean; scorecardTeamId: string | null }) => setScorecardTeamId(t))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const channel = supabase.channel(`player-${player.id}`)
@@ -200,10 +209,22 @@ export default function PlayerScorecard({
               {teamName}
             </p>
           </div>
-          <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold mt-1 flex-shrink-0"
-            style={{ background: gold, color: navy }}>
-            Leaderboard
-          </a>
+          <div className="flex items-center gap-2 mt-1 flex-shrink-0">
+            {scorecardTeamId ? (
+              <a href={`/score/${scorecardTeamId}`}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                style={{ background: gold, color: navy }}>
+                Enter Scores
+              </a>
+            ) : (
+              <a href="/"
+                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                Team Pin
+              </a>
+            )}
+            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+          </div>
         </div>
       </header>
 

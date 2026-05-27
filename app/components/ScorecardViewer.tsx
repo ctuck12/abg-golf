@@ -42,7 +42,7 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 })
 
 export default function ScorecardViewer({
-  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [],
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false,
 }: {
   teamName: string
   players: Player[]
@@ -52,12 +52,21 @@ export default function ScorecardViewer({
   format?: string
   daytonaVariant?: string
   dtAssignments?: DaytonaHoleAssignment[]
+  isAdmin?: boolean
 }) {
   const [scores, setScores] = useState(initialScores)
+  const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
   const isDaytona = format === 'daytona'
   const isFlares = daytonaVariant === '5man-flares'
   const leftLabel = isFlares ? 'Outside' : 'Left'
   const rightLabel = isFlares ? 'Inside' : 'Right'
+
+  useEffect(() => {
+    fetch('/api/auth-status', { credentials: 'include', cache: 'no-store' })
+      .then((r) => r.json())
+      .then(({ scorecardTeamId: t }: { isAdmin: boolean; scorecardTeamId: string | null }) => setScorecardTeamId(t))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -118,10 +127,22 @@ export default function ScorecardViewer({
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
             <h1 className="font-bold text-lg">{teamName}</h1>
           </div>
-          <a href="/leaderboard" className="text-xs px-3 py-1.5 rounded-lg font-semibold mt-0.5 flex-shrink-0"
-            style={{ background: gold, color: navy }}>
-            Leaderboard
-          </a>
+          <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
+            {scorecardTeamId ? (
+              <a href={`/score/${scorecardTeamId}`}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                style={{ background: gold, color: navy }}>
+                Enter Scores
+              </a>
+            ) : (
+              <a href="/"
+                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                Team Pin
+              </a>
+            )}
+            <a href="/leaderboard" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+          </div>
         </div>
       </header>
 

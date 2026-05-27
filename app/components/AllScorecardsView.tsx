@@ -31,7 +31,7 @@ function ptsColor(pts: number | null): string {
 }
 
 export default function AllScorecardsView({
-  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant,
+  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null,
 }: {
   roundId: string
   players: PlayerInfo[]
@@ -40,10 +40,14 @@ export default function AllScorecardsView({
   initialScores: Score[]
   initialAssignments: DaytonaHoleAssignment[]
   daytonaVariant: string
+  isAdmin?: boolean
+  scorecardTeamId?: string | null
 }) {
   const [scores, setScores] = useState(initialScores)
   const [assignments, setAssignments] = useState(initialAssignments)
+  const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
   const is5Man = daytonaVariant.startsWith('5man')
+  const isFlares = daytonaVariant === '5man-flares'
 
   useEffect(() => {
     async function refetchScores() {
@@ -151,10 +155,22 @@ export default function AllScorecardsView({
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Daytona</p>
             <h1 className="font-bold text-lg">All Scorecards</h1>
           </div>
-          <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-            style={{ background: gold, color: navy }}>
-            Leaderboard
-          </a>
+          <div className="flex items-center gap-2">
+            {scorecardTeamId ? (
+              <a href={`/score/${scorecardTeamId}`}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
+                Enter Scores
+              </a>
+            ) : (
+              <a href="/"
+                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                Team Pin
+              </a>
+            )}
+            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+          </div>
         </div>
       </header>
 
@@ -285,10 +301,13 @@ export default function AllScorecardsView({
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null
+                        const par = holes.find((h) => h.hole_number === n)?.par ?? 4
+                        const leftChar = isFlares ? (par === 3 ? 'C' : 'O') : 'L'
+                        const rightChar = isFlares ? (par === 3 ? 'F' : 'I') : 'R'
                         return (
                           <td key={n} style={tdCell()}>
                             {side != null
-                              ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? 'L' : 'R'}</span>
+                              ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? leftChar : rightChar}</span>
                               : <span style={{ color: '#d1d5db' }}>–</span>}
                           </td>
                         )
@@ -297,10 +316,13 @@ export default function AllScorecardsView({
                       {[10,11,12,13,14,15,16,17,18].map((n) => {
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null
+                        const par = holes.find((h) => h.hole_number === n)?.par ?? 4
+                        const leftChar = isFlares ? (par === 3 ? 'C' : 'O') : 'L'
+                        const rightChar = isFlares ? (par === 3 ? 'F' : 'I') : 'R'
                         return (
                           <td key={n} style={tdCell()}>
                             {side != null
-                              ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? 'L' : 'R'}</span>
+                              ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? leftChar : rightChar}</span>
                               : <span style={{ color: '#d1d5db' }}>–</span>}
                           </td>
                         )

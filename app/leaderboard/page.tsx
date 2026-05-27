@@ -10,28 +10,37 @@ export default async function LeaderboardPage() {
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, daytona_variant, include_total')
+    .select('id, name, date, course, balls_count, format, daytona_variant, include_total, skins_enabled, skins_amount')
     .eq('is_active', true)
     .single()
 
   if (!round) redirect('/')
 
   const { data: teams } = await sb
-    .from('teams').select('id, name').eq('round_id', round.id).order('name')
+    .from('teams').select('id, name, daytona_variant').eq('round_id', round.id).order('name')
 
   const teamIds = (teams ?? []).map((t) => t.id)
   const isDaytona = (round.format ?? 'standard') === 'daytona'
 
-  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, { data: matchups }, { data: bestBallMatchups }] = await Promise.all([
-    sb.from('players').select('id, team_id, name, position').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
+  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }] = await Promise.all([
+    sb.from('players').select('id, team_id, name, position, skins_participant').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
     isDaytona
       ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id)
       : Promise.resolve({ data: [] }),
-    sb.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', round.id).order('created_at'),
+    sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', round.id).order('created_at'),
     sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', round.id).order('created_at'),
   ])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let matchups: { id: string; player1_id: string; player2_id: string; bet: string; press: any[] }[]
+  if (!matchupsRes.error) {
+    matchups = (matchupsRes.data ?? []) as typeof matchups
+  } else {
+    const fallback = await sb.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', round.id).order('created_at')
+    matchups = (fallback.data ?? []).map((m) => ({ ...m, press: [] }))
+  }
 
   const cookieStore = await cookies()
   const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
@@ -60,6 +69,8 @@ export default async function LeaderboardPage() {
       includeTotal={round.include_total ?? false}
       matchups={matchups ?? []}
       bestBallMatchups={bestBallMatchups ?? []}
+      skinsEnabled={round.skins_enabled ?? false}
+      skinsAmount={round.skins_amount ?? 0}
     />
   )
 }

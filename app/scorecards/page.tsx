@@ -1,12 +1,16 @@
 import { createServerClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import AllScorecardsView from '@/app/components/AllScorecardsView'
 import { computePlayerDaytonaPoints, type DaytonaHoleAssignment } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AllScorecardsPage() {
+export default async function AllScorecardsPage({ searchParams }: { searchParams: Promise<{ teamId?: string }> }) {
+  const cookieStore = await cookies()
+  const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
   const sb = createServerClient()
+  const { teamId } = await searchParams
 
   const { data: round } = await sb
     .from('rounds')
@@ -16,20 +20,31 @@ export default async function AllScorecardsPage() {
 
   if (!round || round.format !== 'daytona') redirect('/')
 
-  const { data: teams } = await sb.from('teams').select('id, name').eq('round_id', round.id)
-  const teamIds = (teams ?? []).map((t: { id: string }) => t.id)
+  const { data: allTeams } = await sb
+    .from('teams').select('id, name, daytona_variant').eq('round_id', round.id)
+
+  // Filter to a specific team/group if teamId is provided
+  const teams = teamId
+    ? (allTeams ?? []).filter((t: { id: string }) => t.id === teamId)
+    : (allTeams ?? [])
+
+  const teamIds = teams.map((t: { id: string }) => t.id)
 
   const { data: players } = await sb
-    .from('players').select('id, name, team_id').in('team_id', teamIds)
+    .from('players').select('id, name, team_id').in('team_id', teamIds.length ? teamIds : [''])
   const playerIds = (players ?? []).map((p: { id: string }) => p.id)
 
   const [{ data: holes }, { data: scores }, { data: assignments }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
-    sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds),
+    sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
     sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
   ])
 
-  const daytonaVariant = round.daytona_variant ?? '4man'
+  // Use the filtered team's variant, falling back to the round-level variant
+  const daytonaVariant = (teams[0] as { daytona_variant?: string | null } | undefined)?.daytona_variant
+    ?? round.daytona_variant
+    ?? '4man'
+
   const pointsMap = computePlayerDaytonaPoints(
     holes ?? [],
     scores ?? [],
@@ -37,7 +52,7 @@ export default async function AllScorecardsPage() {
     daytonaVariant
   )
 
-  const teamNameMap = Object.fromEntries((teams ?? []).map((t: { id: string; name: string }) => [t.id, t.name]))
+  const teamNameMap = Object.fromEntries(teams.map((t: { id: string; name: string }) => [t.id, t.name]))
 
   const rankedPlayers = (players ?? [])
     .map((p: { id: string; name: string; team_id: string }) => ({
@@ -54,6 +69,8 @@ export default async function AllScorecardsPage() {
       return b.points - a.points
     })
 
+  const scorecardTeamId = (allTeams ?? []).find((t: { id: string }) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
+
   return (
     <AllScorecardsView
       roundId={round.id}
@@ -63,6 +80,8 @@ export default async function AllScorecardsPage() {
       initialScores={scores ?? []}
       initialAssignments={(assignments ?? []) as DaytonaHoleAssignment[]}
       daytonaVariant={daytonaVariant}
+      isAdmin={isAdmin}
+      scorecardTeamId={scorecardTeamId}
     />
   )
 }

@@ -13,7 +13,7 @@ export default async function AdminDashboardPage() {
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total')
+    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount')
     .eq('is_active', true)
     .single()
 
@@ -21,7 +21,7 @@ export default async function AdminDashboardPage() {
 
   const [teamsRes, holesRes, ballValuesRes] = await Promise.all([
     roundId
-      ? sb.from('teams').select('id, name, pin, is_admin').eq('round_id', roundId).order('name')
+      ? sb.from('teams').select('id, name, pin, is_admin, daytona_variant').eq('round_id', roundId).order('name')
       : Promise.resolve({ data: [] }),
     roundId
       ? sb.from('holes').select('hole_number, par').eq('round_id', roundId).order('hole_number')
@@ -37,9 +37,9 @@ export default async function AdminDashboardPage() {
 
   const isDaytona = (round?.format ?? 'standard') === 'daytona'
 
-  const [playersRes, scoresRes, assignmentsRes, matchupsRes, bestBallRes] = await Promise.all([
+  const [playersRes, scoresRes, assignmentsRes, matchupsRaw, bestBallRes] = await Promise.all([
     teamIds.length
-      ? sb.from('players').select('id, team_id, name, position').in('team_id', teamIds).order('position', { ascending: true })
+      ? sb.from('players').select('id, team_id, name, position, skins_participant').in('team_id', teamIds).order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
     roundId
       ? sb.from('scores').select('player_id, hole_number, strokes')
@@ -48,12 +48,23 @@ export default async function AdminDashboardPage() {
       ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
       : Promise.resolve({ data: [] }),
     roundId
-      ? sb.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', roundId).order('created_at')
-      : Promise.resolve({ data: [] }),
+      ? sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', roundId).order('created_at')
+      : Promise.resolve({ data: [], error: null }),
     roundId
       ? sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', roundId).order('created_at')
       : Promise.resolve({ data: [] }),
   ])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let matchupsRes: { data: { id: string; player1_id: string; player2_id: string; bet: string; press: any[] }[] }
+  if (!matchupsRaw.error) {
+    matchupsRes = { data: (matchupsRaw.data ?? []) as typeof matchupsRes['data'] }
+  } else {
+    const fallback = roundId
+      ? await sb.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', roundId).order('created_at')
+      : { data: [] }
+    matchupsRes = { data: (fallback.data ?? []).map((m) => ({ ...m, press: [] })) }
+  }
 
   return (
     <AdminDashboard

@@ -1,12 +1,15 @@
 import { createServerClient } from '@/lib/supabase-server'
 import PlayerScorecard from '@/app/components/PlayerScorecard'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import type { DaytonaHoleAssignment } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
 export default async function PlayerPage({ params }: { params: Promise<{ playerId: string }> }) {
   const { playerId } = await params
+  const cookieStore = await cookies()
+  const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
   const sb = createServerClient()
 
   const { data: player } = await sb
@@ -14,7 +17,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
   if (!player) redirect('/')
 
   const { data: team } = await sb
-    .from('teams').select('id, name, round_id').eq('id', player.team_id).single()
+    .from('teams').select('id, name, round_id, daytona_variant').eq('id', player.team_id).single()
   if (!team) redirect('/')
 
   const { data: round } = await sb
@@ -35,20 +38,24 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
   } | undefined
 
   if ((round.format ?? 'standard') === 'daytona') {
-    const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', round.id)
-    const teamIds = (allTeams ?? []).map((t: { id: string }) => t.id)
-    const { data: allPlayers } = await sb.from('players').select('id').in('team_id', teamIds)
-    const allPlayerIds = (allPlayers ?? []).map((p: { id: string }) => p.id)
+    // Scope to the player's own group only — other groups' assignments and scores
+    // must not bleed into this player's point calculations.
+    const { data: teamPlayers } = await sb.from('players').select('id').eq('team_id', team!.id)
+    const teamPlayerIds = (teamPlayers ?? []).map((p: { id: string }) => p.id)
     const [{ data: assignmentsData }, { data: allScoresData }] = await Promise.all([
-      sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
-      sb.from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds),
+      teamPlayerIds.length
+        ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', teamPlayerIds)
+        : Promise.resolve({ data: [] }),
+      teamPlayerIds.length
+        ? sb.from('scores').select('player_id, hole_number, strokes').in('player_id', teamPlayerIds)
+        : Promise.resolve({ data: [] }),
     ])
     dtData = {
       roundId: round.id,
-      allPlayerIds,
+      allPlayerIds: teamPlayerIds,
       assignments: (assignmentsData ?? []) as DaytonaHoleAssignment[],
       allRoundScores: allScoresData ?? [],
-      daytonaVariant: round.daytona_variant ?? '4man',
+      daytonaVariant: (team as { daytona_variant?: string | null }).daytona_variant ?? '4man',
     }
   }
 
@@ -61,6 +68,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
       scores={scores ?? []}
       format={round.format ?? 'standard'}
       dtData={dtData}
+      isAdmin={isAdmin}
     />
   )
 }

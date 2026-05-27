@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createServerClient } from '@/lib/supabase-server'
 import ScorecardViewer from '@/app/components/ScorecardViewer'
 
@@ -6,9 +7,11 @@ export const dynamic = 'force-dynamic'
 
 export default async function ScorecardPage({ params }: { params: Promise<{ teamId: string }> }) {
   const { teamId } = await params
+  const cookieStore = await cookies()
+  const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
   const sb = createServerClient()
 
-  const { data: team } = await sb.from('teams').select('id, name, round_id').eq('id', teamId).single()
+  const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant').eq('id', teamId).single()
   if (!team) redirect('/leaderboard')
 
   const { data: round } = await sb
@@ -24,8 +27,8 @@ export default async function ScorecardPage({ params }: { params: Promise<{ team
   const [{ data: holes }, { data: scores }, { data: assignments }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
-    isDaytona
-      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id)
+    isDaytona && playerIds.length
+      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', playerIds)
       : Promise.resolve({ data: [] }),
   ])
 
@@ -37,8 +40,9 @@ export default async function ScorecardPage({ params }: { params: Promise<{ team
       scores={scores ?? []}
       ballsCount={round.balls_count}
       format={round.format ?? 'standard'}
-      daytonaVariant={round.daytona_variant ?? '4man'}
+      daytonaVariant={(team as { daytona_variant?: string | null }).daytona_variant ?? '4man'}
       dtAssignments={assignments ?? []}
+      isAdmin={isAdmin}
     />
   )
 }

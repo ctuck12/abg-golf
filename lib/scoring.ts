@@ -606,3 +606,99 @@ export function settleDaytonaPlayerPoints(
 
   return { net, settlements }
 }
+
+// ── Skins Game ────────────────────────────────────────────────────────────────
+
+export type SkinResult = {
+  holeNumber: number
+  par: number
+  winnerId: string | null
+  winnerName: string | null
+  winnerScore: number | null
+  /** won: sole lowest ≤ par  |  tied: 2+ tied for lowest ≤ par  |  no_qualifier: all > par  |  pending: no scores yet */
+  status: 'won' | 'tied' | 'no_qualifier' | 'pending'
+}
+
+/**
+ * Compute hole-by-hole skins results across all participating players.
+ * Rules:
+ *  - Lowest score on a hole ≤ par by exactly one participant → that player wins a skin.
+ *  - 2+ tied for the lowest ≤ par score → washed, no skin.
+ *  - All scores > par → no skin.
+ *  - Skin payout: winner collects amountPerSkin from every other participant.
+ */
+export function computeSkinsResults(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  participants: { id: string; name: string }[],
+  amountPerSkin: number
+): {
+  skins: SkinResult[]
+  playerNet: Record<string, number>
+  skinsWon: number
+  settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[]
+} {
+  const skins: SkinResult[] = []
+  const playerNet: Record<string, number> = {}
+  for (const p of participants) playerNet[p.id] = 0
+  let skinsWon = 0
+
+  for (const hole of holes) {
+    const holeScores = participants
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        score: scores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes ?? null,
+      }))
+      .filter((s): s is typeof s & { score: number } => s.score !== null)
+
+    if (holeScores.length === 0) {
+      skins.push({ holeNumber: hole.hole_number, par: hole.par, winnerId: null, winnerName: null, winnerScore: null, status: 'pending' })
+      continue
+    }
+
+    const minScore = Math.min(...holeScores.map((s) => s.score))
+
+    if (minScore > hole.par) {
+      skins.push({ holeNumber: hole.hole_number, par: hole.par, winnerId: null, winnerName: null, winnerScore: minScore, status: 'no_qualifier' })
+      continue
+    }
+
+    const tiedPlayers = holeScores.filter((s) => s.score === minScore)
+
+    if (tiedPlayers.length > 1) {
+      skins.push({ holeNumber: hole.hole_number, par: hole.par, winnerId: null, winnerName: null, winnerScore: minScore, status: 'tied' })
+      continue
+    }
+
+    const winner = tiedPlayers[0]
+    skinsWon++
+    skins.push({ holeNumber: hole.hole_number, par: hole.par, winnerId: winner.id, winnerName: winner.name, winnerScore: winner.score, status: 'won' })
+
+    if (amountPerSkin > 0 && participants.length > 1) {
+      for (const p of participants) {
+        if (p.id === winner.id) {
+          playerNet[p.id] += amountPerSkin * (participants.length - 1)
+        } else {
+          playerNet[p.id] -= amountPerSkin
+        }
+      }
+    }
+  }
+
+  // Minimize settlements
+  const balances = participants.map((p) => ({ id: p.id, name: p.name, bal: Math.round((playerNet[p.id] ?? 0) * 100) / 100 }))
+  const pos = balances.filter((b) => b.bal > 0.005).sort((a, b) => b.bal - a.bal).map((b) => ({ ...b }))
+  const neg = balances.filter((b) => b.bal < -0.005).sort((a, b) => a.bal - b.bal).map((b) => ({ ...b }))
+  const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
+  let wi = 0, li = 0
+  while (wi < pos.length && li < neg.length) {
+    const w = pos[wi], l = neg[li]
+    const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
+    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    w.bal -= amount; l.bal += amount
+    if (w.bal < 0.005) wi++; if (l.bal > -0.005) li++
+  }
+
+  return { skins, playerNet, skinsWon, settlements }
+}

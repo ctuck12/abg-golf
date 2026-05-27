@@ -7,12 +7,22 @@ import { createServerClient } from '@/lib/supabase-server'
 // ── Course presets ────────────────────────────────────────────────────────────
 
 const COURSE_PARS: Record<string, number[]> = {
-  north: [4, 4, 4, 3, 4, 4, 5, 3, 5, 3, 4, 4, 5, 3, 5, 4, 3, 4],
-  south: [4, 4, 5, 3, 4, 4, 4, 3, 5, 4, 3, 4, 4, 5, 4, 3, 4, 5],
+  south:      [4, 4, 5, 3, 4, 4, 4, 3, 5, 4, 3, 4, 4, 5, 4, 3, 4, 5],
+  north:      [4, 4, 4, 3, 4, 4, 5, 3, 5, 3, 4, 4, 5, 3, 5, 4, 3, 4],
+  liveoak:    [4, 3, 4, 4, 3, 4, 4, 5, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4],
+  maxwell:    [4, 5, 4, 4, 4, 4, 3, 4, 3, 5, 4, 4, 4, 3, 4, 5, 3, 4],
+  shadyoaks:  [4, 3, 4, 5, 4, 4, 3, 3, 4, 5, 4, 4, 3, 4, 4, 3, 5, 4],
+  hideout:    [5, 3, 4, 4, 3, 4, 5, 4, 5, 4, 4, 4, 3, 4, 3, 5, 4, 4],
+  canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 const COURSE_NAMES: Record<string, string> = {
-  north: 'North Course',
-  south: 'South Course',
+  south:      'ACC South Course',
+  north:      'ACC North Course',
+  liveoak:    'Live Oak Golf Club',
+  maxwell:    'Maxwell Golf Course',
+  shadyoaks:  'Shady Oaks Golf Course',
+  hideout:    'The Hideout Golf Club',
+  canyonwest: 'Canyon West Golf Course',
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -81,11 +91,11 @@ export async function submitHoleScores(
 export async function createRound(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
   const date = formData.get('date') as string
-  const courseKey = (formData.get('course') as string) || 'north'
+  const courseKey = (formData.get('course') as string) || 'south'
   const format = (formData.get('format') as string) || 'standard'
-  const daytonaVariant = format === 'daytona' ? ((formData.get('daytona_variant') as string) || '4man') : null
-  const ballsCount = format === 'daytona' ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
-  const includeTotal = format !== 'daytona' && formData.get('include_total') === 'true'
+  const daytonaVariant = null  // Daytona type is now configured per-group, not per-round
+  const ballsCount = (format === 'daytona' || format === 'traditional') ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
+  const includeTotal = (format !== 'daytona' && format !== 'traditional') && formData.get('include_total') === 'true'
 
   if (!name || !date) return { error: 'Round name and date are required.' }
 
@@ -102,13 +112,14 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
   if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
 
-  await supabase.from('holes').insert(
-    pars.map((par, i) => ({ round_id: round.id, hole_number: i + 1, par }))
-  )
-
-  await supabase.from('ball_values').insert(
-    Array.from({ length: ballsCount }, (_, i) => ({ round_id: round.id, ball_number: i + 1, value_dollars: 10 }))
-  )
+  await Promise.all([
+    supabase.from('holes').insert(
+      pars.map((par, i) => ({ round_id: round.id, hole_number: i + 1, par }))
+    ),
+    supabase.from('ball_values').insert(
+      Array.from({ length: ballsCount }, (_, i) => ({ round_id: round.id, ball_number: i + 1, value_dollars: 0 }))
+    ),
+  ])
 
   return { success: true, roundId: round.id }
 }
@@ -152,8 +163,10 @@ export async function addTeam(_prev: unknown, formData: FormData) {
   if (!name || !pin || !roundId) return { error: 'All fields required.' }
   if (!/^\d{4}$/.test(pin)) return { error: 'PIN must be exactly 4 digits.' }
 
+  const daytonaVariant = (formData.get('daytona_variant') as string) || null
+
   const supabase = createServerClient()
-  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false })
+  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant })
   if (error) return { error: error.code === '23505' ? 'A team with that name already exists.' : error.message }
   return { success: true }
 }
@@ -203,14 +216,47 @@ export async function resetTeamScores(teamId: string) {
 export async function addPlayer(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
   const teamId = formData.get('teamId') as string
+  const skinsParticipant = formData.get('skins_participant') === 'true'
   if (!name || !teamId) return { error: 'Player name required.' }
 
   const supabase = createServerClient()
+
+  // Get the round for this team so we can check all players in the round
+  const { data: teamRow } = await supabase.from('teams').select('round_id').eq('id', teamId).single()
+  if (teamRow?.round_id) {
+    const { data: allTeams } = await supabase.from('teams').select('id').eq('round_id', teamRow.round_id)
+    const allTeamIds = (allTeams ?? []).map((t: { id: string }) => t.id)
+    if (allTeamIds.length > 0) {
+      const { data: allPlayers } = await supabase.from('players').select('name').in('team_id', allTeamIds)
+      const duplicate = (allPlayers ?? []).some(
+        (p: { name: string }) => p.name.trim().toLowerCase() === name.toLowerCase()
+      )
+      if (duplicate) return { error: `A player named "${name}" already exists in this round.` }
+    }
+  }
+
   // Place new player after all existing ones
   const { data: existing } = await supabase
     .from('players').select('position').eq('team_id', teamId).order('position', { ascending: false }).limit(1)
   const nextPosition = existing?.[0]?.position != null ? existing[0].position + 1 : 0
-  const { error } = await supabase.from('players').insert({ name, team_id: teamId, position: nextPosition })
+  const { error } = await supabase.from('players').insert({ name, team_id: teamId, position: nextPosition, skins_participant: skinsParticipant })
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function updateSkinsSettings(_prev: unknown, formData: FormData) {
+  const roundId = formData.get('roundId') as string
+  const enabled = formData.get('skins_enabled') === 'true'
+  const amount = parseFloat(formData.get('skins_amount') as string) || 0
+  const supabase = createServerClient()
+  const { error } = await supabase.from('rounds').update({ skins_enabled: enabled, skins_amount: amount }).eq('id', roundId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function updatePlayerSkinsParticipation(playerId: string, participates: boolean) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('players').update({ skins_participant: participates }).eq('id', playerId)
   if (error) return { error: error.message }
   return { success: true }
 }
@@ -273,6 +319,13 @@ export async function updateMatchupBet(id: string, bet: string) {
   return {}
 }
 
+export async function updateMatchupPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: string; strokes?: number }[]) {
+  const sb = createServerClient()
+  const { error } = await sb.from('matchups').update({ press: presses }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function saveBestBallMatchup(
   roundId: string,
   team1Player1Id: string, team1Player2Id: string,
@@ -312,8 +365,16 @@ export async function saveDaytonaAssignments(
   assignments: { playerId: string; side: 'left' | 'right' }[]
 ) {
   const supabase = createServerClient()
-  await supabase.from('daytona_hole_assignments')
-    .delete().eq('round_id', roundId).eq('hole_number', holeNumber)
+  // Scope the delete to only this group's players — other groups share the same
+  // round_id + hole_number, so a round-wide delete would wipe their assignments.
+  const playerIds = assignments.map((a) => a.playerId)
+  if (playerIds.length > 0) {
+    await supabase.from('daytona_hole_assignments')
+      .delete()
+      .eq('round_id', roundId)
+      .eq('hole_number', holeNumber)
+      .in('player_id', playerIds)
+  }
   if (assignments.length > 0) {
     await supabase.from('daytona_hole_assignments').insert(
       assignments.map((a) => ({ round_id: roundId, hole_number: holeNumber, player_id: a.playerId, side: a.side }))
