@@ -997,15 +997,14 @@ export default function LeaderboardClient({
                   </div>
                   {group.rows.map((row, i) => {
                     const hasScores = row.thru > 0
-                    const isLeader = i === 0 && hasScores
+
                     const pts = row.thru > 0 ? row.points : null
                     const ptsColor = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
                     const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                     return (
                       <a key={row.player.id} href={`/player/${row.player.id}`}
-                        className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0"
-                        style={isLeader ? { background: '#fef9e7' } : {}}>
-                        <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: isLeader ? gold : '#9ca3af' }}>
+                        className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                        <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                           {hasScores ? i + 1 : '–'}
                         </span>
                         <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
@@ -1088,15 +1087,13 @@ export default function LeaderboardClient({
               )}
               {traditionalPlayerRows.map((row, i) => {
                 const hasScores = row.holesPlayed > 0
-                const isLeader = i === 0 && hasScores
                 const vp = row.vspar
                 const vpCol = vp !== null && vp < 0 ? '#dc2626' : '#111827'
                 const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
                   <a key={row.player.id} href={`/player/${row.player.id}`}
-                    className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0"
-                    style={isLeader ? { background: '#fef9e7' } : {}}>
-                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: isLeader ? gold : '#9ca3af' }}>
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                       {hasScores ? i + 1 : '–'}
                     </span>
                     <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
@@ -1117,15 +1114,13 @@ export default function LeaderboardClient({
               )}
               {(dtGroupRows[0]?.rows ?? []).map((row, i) => {
                 const hasScores = row.thru > 0
-                const isLeader = i === 0 && hasScores
                 const pts = row.thru > 0 ? row.points : null
                 const ptsColor = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
                 const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                 return (
                   <a key={row.player.id} href={`/player/${row.player.id}`}
-                    className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0"
-                    style={isLeader ? { background: '#fef9e7' } : {}}>
-                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: isLeader ? gold : '#9ca3af' }}>
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                       {hasScores ? i + 1 : '–'}
                     </span>
                     <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
@@ -1147,7 +1142,6 @@ export default function LeaderboardClient({
               {rows.map((row, i) => {
                 const thruCount = row.summary?.holesPerBall?.[0] ?? 0
                 const hasScores = thruCount > 0
-                const isLeader = i === 0 && hasScores
                 const isExpanded = expandedTeam === row.team.id
                 const teamPlayers = players.filter((p) => p.team_id === row.team.id)
                 return (
@@ -1155,9 +1149,8 @@ export default function LeaderboardClient({
                     <button
                       type="button"
                       onClick={() => setExpandedTeam(isExpanded ? null : row.team.id)}
-                      className="w-full flex items-center px-4 py-3 hover:bg-gray-50 transition text-left"
-                      style={isLeader ? { background: '#fef9e7' } : {}}>
-                      <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: isLeader ? gold : '#9ca3af' }}>
+                      className="w-full flex items-center px-4 py-3 hover:bg-gray-50 transition text-left">
+                      <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                         {hasScores ? i + 1 : '–'}
                       </span>
                       <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.team.name}</span>
