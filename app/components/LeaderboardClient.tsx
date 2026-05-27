@@ -345,7 +345,7 @@ export default function LeaderboardClient({
       .on('broadcast', { event: 'refresh' }, refetchScores)
       .subscribe()
 
-    const interval = setInterval(refetchScores, 10000)
+    const interval = setInterval(refetchScores, 3000)
 
     function onVisibilityChange() {
       if (document.visibilityState === 'visible') refetchScores()

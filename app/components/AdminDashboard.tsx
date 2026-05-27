@@ -585,10 +585,18 @@ export default function AdminDashboard({
         if (data) setLiveScores(data)
       }).subscribe()
 
+    const ch4 = supabase.channel('admin-score-updates')
+      .on('broadcast', { event: 'refresh' }, async () => {
+        if (!playerIds.length) return
+        const { data } = await supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
+        if (data) setLiveScores(data)
+      }).subscribe()
+
     return () => {
       supabase.removeChannel(ch1)
       supabase.removeChannel(ch2)
       supabase.removeChannel(ch3)
+      supabase.removeChannel(ch4)
     }
   }, [round?.id])
 

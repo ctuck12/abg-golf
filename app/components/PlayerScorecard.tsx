@@ -71,29 +71,37 @@ export default function PlayerScorecard({
   }, [])
 
   useEffect(() => {
-    const channel = supabase.channel(`player-${player.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
-        const { data } = await supabase
-          .from('scores')
-          .select('hole_number, strokes')
-          .eq('player_id', player.id)
-        if (data) setScores(data)
-      })
+    async function refetchScores() {
+      const { data } = await supabase
+        .from('scores')
+        .select('hole_number, strokes')
+        .eq('player_id', player.id)
+      if (data) setScores(data)
+    }
+    const ch1 = supabase.channel(`player-${player.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    const ch2 = supabase.channel(`player-updates-${player.id}`)
+      .on('broadcast', { event: 'refresh' }, refetchScores)
+      .subscribe()
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
   }, [player.id])
 
   useEffect(() => {
     if (!isDaytona || !dtData) return
     const allPlayerIds = dtData.allPlayerIds
-    const channel = supabase.channel(`player-dt-${player.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
-        const { data } = await supabase
-          .from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds)
-        if (data) setAllRoundScores(data)
-      })
+    async function refetchDaytona() {
+      const { data } = await supabase
+        .from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds)
+      if (data) setAllRoundScores(data)
+    }
+    const ch1 = supabase.channel(`player-dt-${player.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchDaytona)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    const ch2 = supabase.channel(`player-dt-updates-${player.id}`)
+      .on('broadcast', { event: 'refresh' }, refetchDaytona)
+      .subscribe()
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
   }, [isDaytona, dtData?.roundId])
 
   // Compute per-hole points for this player (Daytona only)

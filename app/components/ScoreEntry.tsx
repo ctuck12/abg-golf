@@ -393,9 +393,8 @@ export default function ScoreEntry({
         }
         checkRoundComplete()
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') broadcastChannel.current = ch
-      })
+      .subscribe()
+    broadcastChannel.current = ch
     return () => { supabase.removeChannel(ch); broadcastChannel.current = null }
   }, [players])
 

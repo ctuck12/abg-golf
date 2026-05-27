@@ -70,14 +70,18 @@ export default function ScorecardViewer({
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
-    const channel = supabase.channel('scorecard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
-        const { data } = await supabase
-          .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
-        if (data) setScores(data)
-      })
+    async function refetch() {
+      const { data } = await supabase
+        .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
+      if (data) setScores(data)
+    }
+    const ch1 = supabase.channel('scorecard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetch)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    const ch2 = supabase.channel('scorecard-updates')
+      .on('broadcast', { event: 'refresh' }, refetch)
+      .subscribe()
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
   }, [players])
 
   // Pre-compute per-hole data (player scores + ball scores)
