@@ -481,6 +481,7 @@ export default function ScoreEntry({
   const [pressShowInput, setPressShowInput] = useState<Record<number, boolean>>({})
   const [pressValueStr, setPressValueStr] = useState<Record<number, string>>({})
   const [pressScope, setPressScope] = useState<Record<number, 'this' | 'forward'>>({})
+  const [pressConfirmHole, setPressConfirmHole] = useState<number | null>(null)
 
   // Daytona Left/Right assignments per hole
   const [assignments, setAssignments] = useState<AssignmentMap>(() => {
@@ -1297,16 +1298,35 @@ export default function ScoreEntry({
                             {existingVal !== undefined && !isActive ? `↑ Press $${existingVal}` : isActive ? '✕ Press' : '↑ Press'}
                           </button>
                           {existingVal !== undefined && !isActive && (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!roundId) return
-                                await saveDaytonaHoleValues(roundId, team.id, [{ holeNumber: hole.hole_number, valuePerPoint: null }])
-                                setHoleValues((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
-                              }}
-                              className="text-xs text-gray-400 hover:text-red-500 transition">
-                              Clear
-                            </button>
+                            pressConfirmHole === hole.hole_number ? (
+                              <span className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500">Remove press?</span>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!roundId) return
+                                    await saveDaytonaHoleValues(roundId, team.id, [{ holeNumber: hole.hole_number, valuePerPoint: null }])
+                                    setHoleValues((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
+                                    setPressConfirmHole(null)
+                                  }}
+                                  className="text-xs font-semibold text-red-500 hover:text-red-700 transition">
+                                  Yes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPressConfirmHole(null)}
+                                  className="text-xs text-gray-400 hover:text-gray-600 transition">
+                                  Cancel
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setPressConfirmHole(hole.hole_number)}
+                                className="text-xs text-gray-400 hover:text-red-500 transition">
+                                Clear
+                              </button>
+                            )
                           )}
                         </div>
                         {isActive && (
