@@ -11,6 +11,7 @@ import { ScoreNotation } from './ScoreNotation'
 const navy = '#0f172a'
 const gold = '#f59e0b'
 const steelBlue = '#4a7fa5'
+const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
 const steelBlueBg = '#dbeafe'
 const holeBg = '#dde4ee'
 
@@ -214,29 +215,38 @@ export default function AllScorecardsView({
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
                       <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
-                      {[1,2,3,4,5,6,7,8,9].map((n) => {
-                        const pressed = player.teamId ? teamHoleValues[player.teamId]?.[n] : undefined
+                      {(() => {
+                        const teamVals = player.teamId ? teamHoleValues[player.teamId] ?? {} : {}
+                        const sortedPressRates = [...new Set(Object.values(teamVals))].sort((a, b) => a - b)
+                        const pressColor = (val: number) => PRESS_COLORS[sortedPressRates.indexOf(val) % PRESS_COLORS.length]
                         return (
-                          <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
-                            {n}
-                            {pressed !== undefined && (
-                              <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
-                            )}
-                          </th>
+                          <>
+                            {[1,2,3,4,5,6,7,8,9].map((n) => {
+                              const pressed = teamVals[n]
+                              return (
+                                <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
+                                  {n}
+                                  {pressed !== undefined && (
+                                    <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressed), lineHeight: 1, fontWeight: 800 }}>↑</span>
+                                  )}
+                                </th>
+                              )
+                            })}
+                            <th style={thStyle(true)}>Front</th>
+                            {[10,11,12,13,14,15,16,17,18].map((n) => {
+                              const pressed = teamVals[n]
+                              return (
+                                <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
+                                  {n}
+                                  {pressed !== undefined && (
+                                    <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressed), lineHeight: 1, fontWeight: 800 }}>↑</span>
+                                  )}
+                                </th>
+                              )
+                            })}
+                          </>
                         )
-                      })}
-                      <th style={thStyle(true)}>Front</th>
-                      {[10,11,12,13,14,15,16,17,18].map((n) => {
-                        const pressed = player.teamId ? teamHoleValues[player.teamId]?.[n] : undefined
-                        return (
-                          <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
-                            {n}
-                            {pressed !== undefined && (
-                              <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
-                            )}
-                          </th>
-                        )
-                      })}
+                      })()}
                       <th style={thStyle(true)}>Back</th>
                       <th style={thStyle()}>TOTAL</th>
                     </tr>

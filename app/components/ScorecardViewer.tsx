@@ -12,6 +12,7 @@ type Score = { player_id: string; hole_number: number; strokes: number }
 const navy = '#0f172a'
 const gold = '#f59e0b'
 const steelBlue = '#4a7fa5'
+const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
 const steelBlueBg = '#dbeafe'
 const BALL_LABELS = ['1B', '2B', '3B', '4B']
 
@@ -59,6 +60,8 @@ export default function ScorecardViewer({
   const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
   const isDaytona = format === 'daytona'
   const isFlares = daytonaVariant === '5man-flares'
+  const sortedPressRates = [...new Set(Object.values(pressedHoles))].sort((a, b) => a - b)
+  const pressColor = (val: number) => PRESS_COLORS[sortedPressRates.indexOf(val) % PRESS_COLORS.length]
   const leftLabel = isFlares ? 'Outside' : 'Left'
   const rightLabel = isFlares ? 'Inside' : 'Right'
 
@@ -160,7 +163,7 @@ export default function ScorecardViewer({
                 <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
                   {n}
                   {isDaytona && pressedHoles[n] !== undefined && (
-                    <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
+                    <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressedHoles[n]), lineHeight: 1, fontWeight: 800 }}>↑</span>
                   )}
                 </th>
               ))}
@@ -169,7 +172,7 @@ export default function ScorecardViewer({
                 <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
                   {n}
                   {isDaytona && pressedHoles[n] !== undefined && (
-                    <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
+                    <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressedHoles[n]), lineHeight: 1, fontWeight: 800 }}>↑</span>
                   )}
                 </th>
               ))}
