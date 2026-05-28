@@ -621,9 +621,9 @@ export default function LeaderboardClient({
                                     <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
                                   </div>
                                   {segments.length > 0 && (
-                                    <div className="px-4 pb-2 flex flex-wrap gap-x-4 gap-y-0">
+                                    <div className="px-4 pb-2 flex gap-x-3" style={{ fontSize: segments.length <= 2 ? '12px' : segments.length === 3 ? '10px' : '9px' }}>
                                       {segments.map((seg, si) => { const sp = seg.ptsByPlayer.get(p.id) ?? 0; const sd = Math.round(sp * seg.rate * 100) / 100; return (
-                                        <span key={si} className="text-xs tabular-nums text-gray-400">
+                                        <span key={si} className="tabular-nums text-gray-400 whitespace-nowrap">
                                           {seg.label}:{' '}
                                           <span style={{ color: sp > 0 ? '#16a34a' : sp < 0 ? '#dc2626' : '#6b7280' }}>{sp > 0 ? `+${sp}` : sp}pts</span>
                                           {' ('}
