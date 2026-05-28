@@ -25,6 +25,11 @@ function ptsStr(pts: number | null): string {
   return pts > 0 ? `+${pts}` : String(pts)
 }
 
+function fmtAmt(val: number): string {
+  if (val === Math.floor(val)) return `$${val}`
+  return `$${val.toFixed(2).replace(/^0/, '')}`
+}
+
 function ptsColor(pts: number | null): string {
   if (pts === null) return '#d1d5db'
   if (pts > 0) return '#16a34a'
@@ -33,7 +38,7 @@ function ptsColor(pts: number | null): string {
 }
 
 export default function AllScorecardsView({
-  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {},
+  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {}, dtPayoutValue = 0,
 }: {
   roundId: string
   players: PlayerInfo[]
@@ -45,6 +50,7 @@ export default function AllScorecardsView({
   isAdmin?: boolean
   scorecardTeamId?: string | null
   teamHoleValues?: Record<string, Record<number, number>>
+  dtPayoutValue?: number
 }) {
   const [scores, setScores] = useState(initialScores)
   const [assignments, setAssignments] = useState(initialAssignments)
@@ -215,38 +221,13 @@ export default function AllScorecardsView({
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
                       <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
-                      {(() => {
-                        const teamVals = player.teamId ? teamHoleValues[player.teamId] ?? {} : {}
-                        const sortedPressRates = [...new Set(Object.values(teamVals))].sort((a, b) => a - b)
-                        const pressColor = (val: number) => PRESS_COLORS[sortedPressRates.indexOf(val) % PRESS_COLORS.length]
-                        return (
-                          <>
-                            {[1,2,3,4,5,6,7,8,9].map((n) => {
-                              const pressed = teamVals[n]
-                              return (
-                                <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
-                                  {n}
-                                  {pressed !== undefined && (
-                                    <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressed), lineHeight: 1, fontWeight: 800 }}>↑</span>
-                                  )}
-                                </th>
-                              )
-                            })}
-                            <th style={thStyle(true)}>Front</th>
-                            {[10,11,12,13,14,15,16,17,18].map((n) => {
-                              const pressed = teamVals[n]
-                              return (
-                                <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
-                                  {n}
-                                  {pressed !== undefined && (
-                                    <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressed), lineHeight: 1, fontWeight: 800 }}>↑</span>
-                                  )}
-                                </th>
-                              )
-                            })}
-                          </>
-                        )
-                      })()}
+                      {[1,2,3,4,5,6,7,8,9].map((n) => (
+                        <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>{n}</th>
+                      ))}
+                      <th style={thStyle(true)}>Front</th>
+                      {[10,11,12,13,14,15,16,17,18].map((n) => (
+                        <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>{n}</th>
+                      ))}
                       <th style={thStyle(true)}>Back</th>
                       <th style={thStyle()}>TOTAL</th>
                     </tr>
@@ -298,37 +279,8 @@ export default function AllScorecardsView({
                         {thru > 0 ? playerScores.reduce((s, sc) => s + sc.strokes, 0) : '–'}
                       </td>
                     </tr>
-                    {/* PTS */}
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
-                      {[1,2,3,4,5,6,7,8,9].map((n) => {
-                        const holePts = holePtsMaps.get(n)?.has(player.id) ? holePtsMaps.get(n)!.get(player.id)! : null
-                        return (
-                          <td key={n} style={tdCell()}>
-                            <span style={{ fontWeight: 600, color: ptsColor(holePts), fontSize: '0.7rem' }}>{ptsStr(holePts)}</span>
-                          </td>
-                        )
-                      })}
-                      <td style={tdCell(true)}>
-                        <span style={{ fontWeight: 700, color: ptsColor(frontPoints) }}>{ptsStr(frontPoints)}</span>
-                      </td>
-                      {[10,11,12,13,14,15,16,17,18].map((n) => {
-                        const holePts = holePtsMaps.get(n)?.has(player.id) ? holePtsMaps.get(n)!.get(player.id)! : null
-                        return (
-                          <td key={n} style={tdCell()}>
-                            <span style={{ fontWeight: 600, color: ptsColor(holePts), fontSize: '0.7rem' }}>{ptsStr(holePts)}</span>
-                          </td>
-                        )
-                      })}
-                      <td style={tdCell(true)}>
-                        <span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span>
-                      </td>
-                      <td style={{ ...tdCell(), fontWeight: 700, color: ptsColor(totalPoints) }}>
-                        {ptsStr(totalPoints)}
-                      </td>
-                    </tr>
                     {/* TEAM */}
-                    <tr>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
@@ -362,6 +314,61 @@ export default function AllScorecardsView({
                       <td style={tdCell(true)} />
                       <td style={tdCell()} />
                     </tr>
+                    {/* PTS */}
+                    {(() => {
+                      const teamVals = player.teamId ? teamHoleValues[player.teamId] ?? {} : {}
+                      const hasPress = Object.keys(teamVals).length > 0
+                      const sortedPressRates = [...new Set(Object.values(teamVals))].sort((a, b) => a - b)
+                      const pressColor = (val: number) => PRESS_COLORS[sortedPressRates.indexOf(val) % PRESS_COLORS.length]
+                      return (
+                        <>
+                          <tr style={hasPress ? { borderBottom: '1px solid #e5e7eb' } : {}}>
+                            <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
+                            {[1,2,3,4,5,6,7,8,9].map((n) => {
+                              const holePts = holePtsMaps.get(n)?.has(player.id) ? holePtsMaps.get(n)!.get(player.id)! : null
+                              return (
+                                <td key={n} style={tdCell()}>
+                                  <span style={{ fontWeight: 600, color: ptsColor(holePts), fontSize: '0.7rem' }}>{ptsStr(holePts)}</span>
+                                </td>
+                              )
+                            })}
+                            <td style={tdCell(true)}>
+                              <span style={{ fontWeight: 700, color: ptsColor(frontPoints) }}>{ptsStr(frontPoints)}</span>
+                            </td>
+                            {[10,11,12,13,14,15,16,17,18].map((n) => {
+                              const holePts = holePtsMaps.get(n)?.has(player.id) ? holePtsMaps.get(n)!.get(player.id)! : null
+                              return (
+                                <td key={n} style={tdCell()}>
+                                  <span style={{ fontWeight: 600, color: ptsColor(holePts), fontSize: '0.7rem' }}>{ptsStr(holePts)}</span>
+                                </td>
+                              )
+                            })}
+                            <td style={tdCell(true)}>
+                              <span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span>
+                            </td>
+                            <td style={{ ...tdCell(), fontWeight: 700, color: ptsColor(totalPoints) }}>{ptsStr(totalPoints)}</td>
+                          </tr>
+                          {hasPress && (
+                            <tr>
+                              <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                              {[1,2,3,4,5,6,7,8,9].map((n) => {
+                                const rate = teamVals[n] !== undefined ? teamVals[n] : dtPayoutValue
+                                const color = teamVals[n] !== undefined ? pressColor(teamVals[n]) : '#9ca3af'
+                                return <td key={n} style={tdCell()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
+                              })}
+                              <td style={tdCell(true)} />
+                              {[10,11,12,13,14,15,16,17,18].map((n) => {
+                                const rate = teamVals[n] !== undefined ? teamVals[n] : dtPayoutValue
+                                const color = teamVals[n] !== undefined ? pressColor(teamVals[n]) : '#9ca3af'
+                                return <td key={n} style={tdCell()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
+                              })}
+                              <td style={tdCell(true)} />
+                              <td style={tdCell()} />
+                            </tr>
+                          )}
+                        </>
+                      )
+                    })()}
                   </tbody>
                 </table>
               </div>
