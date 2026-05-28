@@ -615,15 +615,15 @@ export default function LeaderboardClient({
                             <div className="divide-y divide-gray-100">
                               {teamPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                 <div key={p.id}>
-                                  <div className="flex items-center px-4 py-2.5 gap-2">
+                                  <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
                                     <span className="flex-1 text-sm text-gray-900">{p.name}</span>
                                     <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>
                                     <span className="text-sm font-bold tabular-nums w-16 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
                                   </div>
                                   {segments.length > 0 && (
-                                    <div className="px-4 pb-2 -mt-1 flex flex-wrap gap-x-4 gap-y-0">
+                                    <div className="mx-4 mb-2 pl-2.5 border-l-2 border-gray-200 flex flex-wrap gap-x-3 gap-y-0">
                                       {segments.map((seg, si) => { const sp = seg.ptsByPlayer.get(p.id) ?? 0; const sd = Math.round(sp * seg.rate * 100) / 100; return (
-                                        <span key={si} className="text-xs tabular-nums text-gray-400">
+                                        <span key={si} className="tabular-nums text-gray-400" style={{ fontSize: '10px' }}>
                                           {seg.label}:{' '}
                                           <span style={{ color: sp > 0 ? '#16a34a' : sp < 0 ? '#dc2626' : '#6b7280' }}>{sp > 0 ? `+${sp}` : sp}pts</span>
                                           {' ('}
