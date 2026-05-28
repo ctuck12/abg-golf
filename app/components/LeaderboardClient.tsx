@@ -20,6 +20,46 @@ const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
+function formatHoleRateBreakdown(holes: { hole_number: number }[], overrides: Record<number, number>, defaultRate: number): string {
+  if (Object.keys(overrides).length === 0) return `$${defaultRate}/point`
+  const sorted = [...holes].sort((a, b) => a.hole_number - b.hole_number)
+  const ranges: { start: number; end: number; rate: number }[] = []
+  for (const hole of sorted) {
+    const rate = overrides[hole.hole_number] ?? defaultRate
+    const last = ranges[ranges.length - 1]
+    if (last && last.rate === rate && last.end === hole.hole_number - 1) { last.end = hole.hole_number }
+    else { ranges.push({ start: hole.hole_number, end: hole.hole_number, rate }) }
+  }
+  return ranges.map(r => `Holes ${r.start === r.end ? r.start : `${r.start}–${r.end}`}: $${r.rate}/pt`).join(' · ')
+}
+
+type SegBreak = { label: string; rate: number; ptsByPlayer: Map<string, number> }
+function buildSegmentBreakdown(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  assignments: DaytonaHoleAssignment[],
+  variant: string,
+  overrides: Record<number, number>,
+  defaultRate: number
+): SegBreak[] {
+  if (Object.keys(overrides).length === 0) return []
+  const sorted = [...holes].sort((a, b) => a.hole_number - b.hole_number)
+  type S = { start: number; end: number; rate: number; holeObjs: typeof holes }
+  const segs: S[] = []
+  for (const hole of sorted) {
+    const rate = overrides[hole.hole_number] ?? defaultRate
+    const last = segs[segs.length - 1]
+    if (last && last.rate === rate && last.end === hole.hole_number - 1) { last.end = hole.hole_number; last.holeObjs.push(hole) }
+    else segs.push({ start: hole.hole_number, end: hole.hole_number, rate, holeObjs: [hole] })
+  }
+  if (segs.length <= 1) return []
+  return segs.map(seg => ({
+    label: seg.start === seg.end ? `H${seg.start}` : `H${seg.start}–${seg.end}`,
+    rate: seg.rate,
+    ptsByPlayer: computePlayerDaytonaPoints(seg.holeObjs, scores, assignments, variant),
+  }))
+}
+
 // ── Matchup payout types + helpers ───────────────────────────────────────────
 type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
 type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; press: PressEntry[] }
@@ -560,24 +600,39 @@ export default function LeaderboardClient({
                         const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
                         const tScores = scores.filter((s) => tpIds.includes(s.player_id))
                         const tHoleVals2 = liveHoleValues[group.team.id] ?? {}
-                        const hasCustomHoleValues = Object.keys(tHoleVals2).length > 0
                         const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, group.variant)
                         const dollarTotals2 = computePlayerDaytonaDollars(holes, tScores, tAssign, group.variant, dtPayoutValue, tHoleVals2)
                         const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, dollarTotals2, 1)
                         const variantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares' : group.variant?.startsWith('5man') ? '5-Man Normal' : '4-Man'
+                        const segments = buildSegmentBreakdown(holes, tScores, tAssign, group.variant, tHoleVals2, dtPayoutValue)
                         return (
                           <div key={group.team.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
                             <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
                               <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{group.team.name}</span>
                               <span className="text-xs text-gray-400">· Daytona {variantLabel}</span>
                             </div>
-                            <div className="px-4 py-2"><p className="text-xs text-gray-400">${dtPayoutValue}/point{hasCustomHoleValues ? ' (custom on some holes)' : ''}</p></div>
+                            <div className="px-4 py-2"><p className="text-xs text-gray-400">{formatHoleRateBreakdown(holes, tHoleVals2, dtPayoutValue)}</p></div>
                             <div className="divide-y divide-gray-100">
                               {teamPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
-                                <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
-                                  <span className="flex-1 text-sm text-gray-900">{p.name}</span>
-                                  <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>
-                                  <span className="text-sm font-bold tabular-nums w-16 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                <div key={p.id}>
+                                  <div className="flex items-center px-4 py-2.5 gap-2">
+                                    <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                    <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>
+                                    <span className="text-sm font-bold tabular-nums w-16 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                  </div>
+                                  {segments.length > 0 && (
+                                    <div className="px-4 pb-2 -mt-1 flex flex-wrap gap-x-4 gap-y-0">
+                                      {segments.map((seg, si) => { const sp = seg.ptsByPlayer.get(p.id) ?? 0; const sd = Math.round(sp * seg.rate * 100) / 100; return (
+                                        <span key={si} className="text-xs tabular-nums text-gray-400">
+                                          {seg.label}:{' '}
+                                          <span style={{ color: sp > 0 ? '#16a34a' : sp < 0 ? '#dc2626' : '#6b7280' }}>{sp > 0 ? `+${sp}` : sp}pts</span>
+                                          {' ('}
+                                          <span style={{ color: sd > 0 ? '#16a34a' : sd < 0 ? '#dc2626' : '#6b7280' }}>{sd > 0 ? `+$${sd.toFixed(2)}` : sd < 0 ? `-$${Math.abs(sd).toFixed(2)}` : '$0.00'}</span>
+                                          {')'}
+                                        </span>
+                                      )})}
+                                    </div>
+                                  )}
                                 </div>
                               )})}
                             </div>
@@ -1042,6 +1097,8 @@ export default function LeaderboardClient({
           </div>
         ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+          <div className="min-w-max w-full">
           {/* Header */}
           <div style={{ background: navy }}>
             {isTraditional ? (
@@ -1235,6 +1292,8 @@ export default function LeaderboardClient({
               })}
             </>
           )}
+          </div>
+          </div>
         </div>
         )}
 

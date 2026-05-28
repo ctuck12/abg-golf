@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   saveMatchup, deleteMatchup, updateMatchupBet, updateMatchupPresses,
@@ -579,10 +579,14 @@ export default function MatchupClient({
   const [matchups, setMatchups] = useState(initialMatchups)
   const [bestBallMatchups, setBestBallMatchups] = useState(initialBestBallMatchups)
 
+  const addH2HRef = useRef<HTMLDivElement>(null)
   const [newP1, setNewP1] = useState('')
   const [newP2, setNewP2] = useState('')
   const [newBetType, setNewBetType] = useState<BetType | ''>('')
   const [newBetAmount, setNewBetAmount] = useState('')
+  const [newFrontAmount, setNewFrontAmount] = useState('')
+  const [newBackAmount, setNewBackAmount] = useState('')
+  const [newTotalAmount, setNewTotalAmount] = useState('')
   const [newScoringType, setNewScoringType] = useState<ScoringType>('stroke')
   const [newSweepEnabled, setNewSweepEnabled] = useState(false)
   const [newSweepAmount, setNewSweepAmount] = useState('')
@@ -593,6 +597,7 @@ export default function MatchupClient({
   const [newStrokesTotal, setNewStrokesTotal] = useState('')
   const [savingH2H, setSavingH2H] = useState(false)
 
+  const editH2HRef = useRef<HTMLDivElement>(null)
   const [editingH2H, setEditingH2H] = useState<string | null>(null)
   const [editH2HBetType, setEditH2HBetType] = useState<BetType | ''>('')
   const [editH2HBetAmount, setEditH2HBetAmount] = useState('')
@@ -619,12 +624,16 @@ export default function MatchupClient({
   const [newPressAmount, setNewPressAmount] = useState('')
   const [pressPopoverInfo, setPressPopoverInfo] = useState<{ press: PressEntry; p1Name: string; p2Name: string; pressLabel: string } | null>(null)
 
+  const addBBRef = useRef<HTMLDivElement>(null)
   const [bbT1P1, setBbT1P1] = useState('')
   const [bbT1P2, setBbT1P2] = useState('')
   const [bbT2P1, setBbT2P1] = useState('')
   const [bbT2P2, setBbT2P2] = useState('')
   const [bbBetType, setBbBetType] = useState<BetType | ''>('')
   const [bbBetAmount, setBbBetAmount] = useState('')
+  const [bbFrontAmount, setBbFrontAmount] = useState('')
+  const [bbBackAmount, setBbBackAmount] = useState('')
+  const [bbTotalAmount, setBbTotalAmount] = useState('')
   const [bbScoringType, setBbScoringType] = useState<ScoringType>('stroke')
   const [bbSweepEnabled, setBbSweepEnabled] = useState(false)
   const [bbSweepAmount, setBbSweepAmount] = useState('')
@@ -635,6 +644,7 @@ export default function MatchupClient({
   const [bbStrokesTotal, setBbStrokesTotal] = useState('')
   const [savingBB, setSavingBB] = useState(false)
 
+  const editBBRef = useRef<HTMLDivElement>(null)
   const [editingBB, setEditingBB] = useState<string | null>(null)
   const [editBBBetType, setEditBBBetType] = useState<BetType | ''>('')
   const [editBBBetAmount, setEditBBBetAmount] = useState('')
@@ -706,7 +716,10 @@ export default function MatchupClient({
     })
     if (isDuplicateH2H) { setShowDuplicateAlert(true); return }
     setSavingH2H(true)
-    const bet = composeBet(newBetType, newBetAmount, newScoringType,
+    const amtStr = newBetType === 'nassau'
+      ? `${newBetAmount.trim() || '0'}|${newBetAmount.trim() || '0'}|${newBetAmount.trim() || '0'}`
+      : newBetAmount
+    const bet = composeBet(newBetType, amtStr, newScoringType,
       newSweepEnabled ? newSweepAmount : '',
       newScoringType === 'stroke' && newStrokesEnabled ? newStrokesSide : '',
       newScoringType === 'stroke' && newStrokesEnabled ? newStrokesFront : '',
@@ -716,7 +729,8 @@ export default function MatchupClient({
     const result = await saveMatchup(roundId, newP1, newP2, bet)
     if (!result.error && result.id) {
       setMatchups((prev) => [...prev, { id: result.id!, player1_id: newP1, player2_id: newP2, bet, press: [] }])
-      setNewP1(''); setNewP2(''); setNewBetAmount(''); setNewSweepAmount(''); setNewSweepEnabled(false)
+      setNewP1(''); setNewP2(''); setNewBetAmount(''); setNewFrontAmount(''); setNewBackAmount(''); setNewTotalAmount('')
+      setNewSweepAmount(''); setNewSweepEnabled(false)
       setNewStrokesEnabled(false); setNewStrokesFront(''); setNewStrokesBack(''); setNewStrokesTotal('')
       setShowH2HForm(false)
     }
@@ -758,7 +772,10 @@ export default function MatchupClient({
     })
     if (isDuplicateBB) { setShowDuplicateAlert(true); return }
     setSavingBB(true)
-    const bet = composeBet(bbBetType, bbBetAmount, bbScoringType,
+    const bbAmtStr = bbBetType === 'nassau'
+      ? `${bbBetAmount.trim() || '0'}|${bbBetAmount.trim() || '0'}|${bbBetAmount.trim() || '0'}`
+      : bbBetAmount
+    const bet = composeBet(bbBetType, bbAmtStr, bbScoringType,
       bbSweepEnabled ? bbSweepAmount : '',
       bbScoringType === 'stroke' && bbStrokesEnabled ? bbStrokesSide : '',
       bbScoringType === 'stroke' && bbStrokesEnabled ? bbStrokesFront : '',
@@ -771,7 +788,9 @@ export default function MatchupClient({
         id: result.id!, team1_player1_id: bbT1P1, team1_player2_id: bbT1P2,
         team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet,
       }])
-      setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetAmount(''); setBbSweepAmount(''); setBbSweepEnabled(false)
+      setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetAmount('')
+      setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount('')
+      setBbSweepAmount(''); setBbSweepEnabled(false)
       setBbStrokesEnabled(false); setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal('')
       setShowBBForm(false)
     }
@@ -1096,104 +1115,140 @@ export default function MatchupClient({
         {/* ── Head to Head ── */}
         <div>
           <div className="flex items-center justify-between mb-2 px-1">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Head to Head</p>
-            {showH2HForm
-              ? <button onClick={() => setShowH2HForm(false)} className="text-xs font-semibold text-gray-400 hover:text-gray-600 px-2 py-1">✕ Cancel</button>
-              : <button onClick={() => setShowH2HForm(true)} className="text-xs font-semibold px-3 py-1 rounded-lg" style={{ background: navy, color: 'white' }}>+ Add</button>
-            }
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Head to Head</p>
+            {!showH2HForm && (
+              <button onClick={() => { setShowH2HForm(true); setTimeout(() => addH2HRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }}
+                className="text-sm font-semibold px-4 py-1.5 rounded-lg" style={{ background: navy, color: 'white' }}>+ Add</button>
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            {showH2HForm && <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Player 1</label>
-                    <select value={newP1} onChange={(e) => { setNewP1(e.target.value); if (e.target.value === newP2) setNewP2('') }}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                      <option value="">Select…</option>
-                      {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === newP2}>{p.name}</option>)}
-                    </select>
+            {showH2HForm && (
+              <div className="px-4 pt-3 pb-3 border-b border-gray-100">
+                <div ref={addH2HRef} className="space-y-3 bg-gray-50 rounded-xl p-3 border border-gray-200">
+
+                  {/* Players */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Player 1</label>
+                      <select value={newP1} onChange={(e) => { setNewP1(e.target.value); if (e.target.value === newP2) setNewP2('') }}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                        <option value="">Select…</option>
+                        {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === newP2}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Player 2</label>
+                      <select value={newP2} onChange={(e) => setNewP2(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                        <option value="">Select…</option>
+                        {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === newP1}>{p.name}</option>)}
+                      </select>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Player 2</label>
-                    <select value={newP2} onChange={(e) => setNewP2(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                      <option value="">Select…</option>
-                      {players.map((p) => <option key={p.id} value={p.id} disabled={p.id === newP1}>{p.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex gap-2 items-end flex-wrap">
-                  <div className="flex-1 min-w-[100px]">
-                    <label className="block text-xs text-gray-500 mb-1">Scoring</label>
+
+                  {/* Scoring */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Scoring</label>
                     <select value={newScoringType} onChange={(e) => setNewScoringType(e.target.value as ScoringType)}
                       className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                       <option value="stroke">Stroke Play</option>
                       <option value="match">Match Play</option>
                     </select>
                   </div>
-                  <div className="flex-1 min-w-[100px]">
-                    <label className="block text-xs text-gray-500 mb-1">Bet <span className="text-red-400">*</span></label>
-                    <select value={newBetType} onChange={(e) => { setNewBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setNewSweepEnabled(false); setNewSweepAmount('') } }}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                      <option value="" disabled>Select…</option>
-                      <option value="nassau">Nassau</option>
-                      <option value="straight">Overall</option>
-                    </select>
-                  </div>
-                  <div className="w-20 flex-shrink-0">
-                    <label className="block text-xs text-gray-500 mb-1">Amount ($) <span className="text-red-400">*</span></label>
-                    <input type="number" min="0" step="1" placeholder="10"
-                      value={newBetAmount} onChange={(e) => setNewBetAmount(e.target.value)}
-                      disabled={!newBetType}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none disabled:opacity-40" />
-                  </div>
-                  {newBetType === 'nassau' && (
-                    <div className="flex-shrink-0">
-                      <label className="flex items-center gap-1.5 text-xs text-gray-500 mb-1 cursor-pointer">
-                        <input type="checkbox" checked={newSweepEnabled} onChange={(e) => { setNewSweepEnabled(e.target.checked); if (!e.target.checked) setNewSweepAmount('') }} className="rounded" />
-                        Sweep ($)
-                      </label>
-                      <input type="number" min="0" step="1" placeholder="amt"
-                        value={newSweepAmount} onChange={(e) => setNewSweepAmount(e.target.value)}
-                        disabled={!newSweepEnabled}
-                        className="w-20 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none disabled:opacity-40" />
+
+                  {/* Bet Type + Amount + Sweep — all on one row */}
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Bet Type <span className="text-red-400">*</span></label>
+                      <select value={newBetType} onChange={(e) => { setNewBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setNewSweepEnabled(false); setNewSweepAmount('') } }}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                        <option value="" disabled>Select…</option>
+                        <option value="nassau">Nassau</option>
+                        <option value="straight">Overall</option>
+                      </select>
                     </div>
-                  )}
-                  <button onClick={handleCreateH2H} disabled={!newP1 || !newP2 || newP1 === newP2 || !newBetType || !newBetAmount.trim() || savingH2H}
-                    className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 flex-shrink-0"
-                    style={{ background: navy, color: 'white' }}>
-                    {savingH2H ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-                {newScoringType === 'stroke' && newBetType && (
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-                      <input type="checkbox" checked={newStrokesEnabled} onChange={(e) => { setNewStrokesEnabled(e.target.checked); if (!e.target.checked) { setNewStrokesFront(''); setNewStrokesBack(''); setNewStrokesTotal('') } }} className="rounded" />
-                      Strokes (handicap)
-                    </label>
-                    {newStrokesEnabled && (
-                      <>
-                        <select value={newStrokesSide} onChange={(e) => setNewStrokesSide(e.target.value as 'p1' | 'p2')}
-                          className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
-                          <option value="p1">{newP1 ? (players.find((p) => p.id === newP1)?.name.split(' ')[0] ?? 'Player 1') : 'Player 1'} gets strokes</option>
-                          <option value="p2">{newP2 ? (players.find((p) => p.id === newP2)?.name.split(' ')[0] ?? 'Player 2') : 'Player 2'} gets strokes</option>
-                        </select>
-                        {newBetType === 'nassau' && <span className="text-xs text-gray-400">Front:</span>}
-                        {newBetType === 'nassau' && <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesFront} onChange={(e) => setNewStrokesFront(e.target.value)}
-                          className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none w-16" />}
-                        {newBetType === 'nassau' && <span className="text-xs text-gray-400">Back:</span>}
-                        {newBetType === 'nassau' && <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesBack} onChange={(e) => setNewStrokesBack(e.target.value)}
-                          className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none w-16" />}
-                        <span className="text-xs text-gray-400">Overall:</span>
-                        <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesTotal} onChange={(e) => setNewStrokesTotal(e.target.value)}
-                          className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none w-16" />
-                      </>
+                    {newBetType && (
+                      <div className="w-16 flex-shrink-0">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Amt ($)</label>
+                        <input type="number" min="0" step="1" placeholder="0"
+                          value={newBetAmount} onChange={(e) => setNewBetAmount(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                      </div>
+                    )}
+                    {newBetType === 'nassau' && (
+                      <div className="flex-shrink-0 flex flex-col">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Sweep</label>
+                        <div className="flex items-center gap-1.5 h-[38px]">
+                          <input type="checkbox" checked={newSweepEnabled} onChange={(e) => { setNewSweepEnabled(e.target.checked); if (!e.target.checked) setNewSweepAmount('') }} className="rounded" />
+                          {newSweepEnabled && (
+                            <input type="number" min="0" step="1" placeholder="0"
+                              value={newSweepAmount} onChange={(e) => setNewSweepAmount(e.target.value)}
+                              className="w-14 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
-                )}
+
+                  {/* Handicap Strokes */}
+                  {newScoringType === 'stroke' && newBetType && (
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 cursor-pointer">
+                        <input type="checkbox" checked={newStrokesEnabled} onChange={(e) => { setNewStrokesEnabled(e.target.checked); if (!e.target.checked) { setNewStrokesFront(''); setNewStrokesBack(''); setNewStrokesTotal('') } }} className="rounded" />
+                        Handicap Strokes
+                      </label>
+                      {newStrokesEnabled && (
+                        <div className="pl-3 border-l-2 border-gray-200 ml-1 mt-2 space-y-2">
+                          <select value={newStrokesSide} onChange={(e) => setNewStrokesSide(e.target.value as 'p1' | 'p2')}
+                            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none">
+                            <option value="p1">{newP1 ? (players.find((p) => p.id === newP1)?.name.split(' ')[0] ?? 'Player 1') : 'Player 1'} gets strokes</option>
+                            <option value="p2">{newP2 ? (players.find((p) => p.id === newP2)?.name.split(' ')[0] ?? 'Player 2') : 'Player 2'} gets strokes</option>
+                          </select>
+                          {newBetType === 'nassau' ? (
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Front</label>
+                                <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesFront} onChange={(e) => setNewStrokesFront(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Back</label>
+                                <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesBack} onChange={(e) => setNewStrokesBack(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Total</label>
+                                <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesTotal} onChange={(e) => setNewStrokesTotal(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-400 mb-1">Overall</label>
+                              <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesTotal} onChange={(e) => setNewStrokesTotal(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Save / Cancel */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                    <button onClick={() => { setShowH2HForm(false); setNewP1(''); setNewP2(''); setNewBetType(''); setNewBetAmount(''); setNewFrontAmount(''); setNewBackAmount(''); setNewTotalAmount(''); setNewSweepEnabled(false); setNewSweepAmount(''); setNewStrokesEnabled(false); setNewStrokesFront(''); setNewStrokesBack(''); setNewStrokesTotal('') }}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">Cancel</button>
+                    <button onClick={handleCreateH2H}
+                      disabled={!newP1 || !newP2 || newP1 === newP2 || !newBetType || !newBetAmount.trim() || savingH2H}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                      style={{ background: navy, color: 'white' }}>
+                      {savingH2H ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+
+                </div>
               </div>
-            </div>}
+            )}
 
             {(() => {
               const filtered = searchLower
@@ -1248,200 +1303,13 @@ export default function MatchupClient({
                       <div key={m.id}>
                         <div className="px-4 py-3">
                           {/* Bet + status + controls row */}
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
-                            {isEditing ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <select value={editH2HScoringType} onChange={(e) => setEditH2HScoringType(e.target.value as ScoringType)}
-                                  className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none">
-                                  <option value="stroke">Stroke Play</option>
-                                  <option value="match">Match Play</option>
-                                </select>
-                                <select value={editH2HBetType} onChange={(e) => { const v = e.target.value as BetType | ''; setEditH2HBetType(v); if (v !== 'nassau') { setEditH2HSweepEnabled(false); setEditH2HSweepAmount(''); setEditH2HFrontAmount(''); setEditH2HBackAmount(''); setEditH2HTotalAmount('') } }}
-                                  className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none">
-                                  <option value="">No bet</option>
-                                  <option value="nassau">Nassau</option>
-                                  <option value="straight">Overall</option>
-                                </select>
-                                {editH2HBetType && editH2HBetType === 'nassau' && (
-                                  <>
-                                    <span className="text-xs text-gray-400">F:</span>
-                                    <input autoFocus type="number" min="0" step="1" placeholder="0"
-                                      value={editH2HFrontAmount} onChange={(e) => setEditH2HFrontAmount(e.target.value)}
-                                      className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-12" />
-                                    <span className="text-xs text-gray-400">B:</span>
-                                    <input type="number" min="0" step="1" placeholder="0"
-                                      value={editH2HBackAmount} onChange={(e) => setEditH2HBackAmount(e.target.value)}
-                                      className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-12" />
-                                    <span className="text-xs text-gray-400">T:</span>
-                                    <input type="number" min="0" step="1" placeholder="0"
-                                      value={editH2HTotalAmount} onChange={(e) => setEditH2HTotalAmount(e.target.value)}
-                                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveH2HBet(m.id); if (e.key === 'Escape') setEditingH2H(null) }}
-                                      className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-12" />
-                                  </>
-                                )}
-                                {editH2HBetType && editH2HBetType !== 'nassau' && (
-                                  <input autoFocus type="number" min="0" step="1" placeholder="amt"
-                                    value={editH2HBetAmount} onChange={(e) => setEditH2HBetAmount(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveH2HBet(m.id); if (e.key === 'Escape') setEditingH2H(null) }}
-                                    className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-14" />
-                                )}
-                                {editH2HBetType === 'nassau' && (
-                                  <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
-                                    <input type="checkbox" checked={editH2HSweepEnabled} onChange={(e) => { setEditH2HSweepEnabled(e.target.checked); if (!e.target.checked) setEditH2HSweepAmount('') }} className="rounded" />
-                                    Sweep
-                                  </label>
-                                )}
-                                {editH2HBetType === 'nassau' && editH2HSweepEnabled && (
-                                  <input type="number" min="0" step="1" placeholder="sweep $"
-                                    value={editH2HSweepAmount} onChange={(e) => setEditH2HSweepAmount(e.target.value)}
-                                    className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-16" />
-                                )}
-                                {editH2HScoringType === 'stroke' && editH2HBetType && (
-                                  <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
-                                    <input type="checkbox" checked={editH2HStrokesEnabled} onChange={(e) => { setEditH2HStrokesEnabled(e.target.checked); if (!e.target.checked) { setEditH2HStrokesFront(''); setEditH2HStrokesBack(''); setEditH2HStrokesTotal('') } }} className="rounded" />
-                                    Strokes
-                                  </label>
-                                )}
-                                {editH2HScoringType === 'stroke' && editH2HBetType && editH2HStrokesEnabled && (
-                                  <>
-                                    <select value={editH2HStrokesSide} onChange={(e) => setEditH2HStrokesSide(e.target.value as 'p1' | 'p2')}
-                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
-                                      <option value="p1">{mp1.name.split(' ')[0]}</option>
-                                      <option value="p2">{mp2.name.split(' ')[0]}</option>
-                                    </select>
-                                    {editH2HBetType === 'nassau' && <span className="text-xs text-gray-400">F:</span>}
-                                    {editH2HBetType === 'nassau' && <input type="number" min="0" step="0.5" placeholder="0"
-                                      value={editH2HStrokesFront} onChange={(e) => setEditH2HStrokesFront(e.target.value)}
-                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-10" />}
-                                    {editH2HBetType === 'nassau' && <span className="text-xs text-gray-400">B:</span>}
-                                    {editH2HBetType === 'nassau' && <input type="number" min="0" step="0.5" placeholder="0"
-                                      value={editH2HStrokesBack} onChange={(e) => setEditH2HStrokesBack(e.target.value)}
-                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-10" />}
-                                    <span className="text-xs text-gray-400">T:</span>
-                                    <input type="number" min="0" step="0.5" placeholder="0"
-                                      value={editH2HStrokesTotal} onChange={(e) => setEditH2HStrokesTotal(e.target.value)}
-                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-10" />
-                                  </>
-                                )}
-                                <button onClick={() => handleSaveH2HBet(m.id)} className="text-xs font-semibold text-green-600">Save</button>
-                                <button onClick={() => { setEditingH2H(null); setPressEnabled(false) }} className="text-xs text-gray-400">Cancel</button>
-                                {/* ── Press section (full-width row in flex-wrap) ── */}
-                                <div className="w-full flex flex-col gap-1.5 pt-1.5 border-t border-gray-100">
-                                  {/* Existing presses list */}
-                                  {editH2HPresses.length > 0 && (
-                                    <div className="flex flex-col gap-0.5">
-                                      {editH2HPresses.map((pr, pi) => {
-                                        const hl = pr.holeStart === pr.holeEnd ? `H${pr.holeStart}` : `H${pr.holeStart}–${pr.holeEnd}`
-                                        const sl = pr.strokesSide && (pr.strokes ?? 0) > 0
-                                          ? ` · ${pr.strokesSide === 'p1' ? mp1.name.split(' ')[0] : mp2.name.split(' ')[0]} +${pr.strokes}`
-                                          : ''
-                                        return (
-                                          <div key={pr.id} className="flex items-center gap-1.5 text-xs">
-                                            <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
-                                            <span className="text-gray-600">{hl} · ${pr.amount}{sl}</span>
-                                            <button onClick={() => setEditH2HPresses(prev => prev.filter((_, i) => i !== pi))}
-                                              className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
-                                          </div>
-                                        )
-                                      })}
-                                    </div>
-                                  )}
-                                  {/* Press checkbox */}
-                                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer w-fit">
-                                    <input type="checkbox" checked={pressEnabled}
-                                      onChange={(e) => { setPressEnabled(e.target.checked); if (!e.target.checked) { setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false) } }}
-                                      className="rounded" />
-                                    Press
-                                  </label>
-                                  {pressEnabled && (
-                                    <div className="flex items-center gap-1.5 flex-wrap pl-2 border-l-2 border-amber-300">
-                                      <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
-                                        <input type="checkbox" checked={newPressStrokesEnabled}
-                                          onChange={(e) => { setNewPressStrokesEnabled(e.target.checked); if (!e.target.checked) setNewPressStrokes('') }}
-                                          className="rounded" />
-                                        Strokes
-                                      </label>
-                                      {newPressStrokesEnabled && (
-                                        <>
-                                          <select value={newPressStrokesSide} onChange={(e) => setNewPressStrokesSide(e.target.value as 'p1' | 'p2')}
-                                            className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
-                                            <option value="p1">{mp1.name.split(' ')[0]}</option>
-                                            <option value="p2">{mp2.name.split(' ')[0]}</option>
-                                          </select>
-                                          <input type="number" min="0" step="0.5" placeholder="0" value={newPressStrokes}
-                                            onChange={(e) => setNewPressStrokes(e.target.value)}
-                                            className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-12" />
-                                        </>
-                                      )}
-                                      <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
-                                        <input type="radio" name={`pht-${m.id}`} checked={newPressHoleType === '1hole'}
-                                          onChange={() => { setNewPressHoleType('1hole'); setNewPressHoleEnd(newPressHoleStart) }} />
-                                        1 Hole
-                                      </label>
-                                      <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
-                                        <input type="radio" name={`pht-${m.id}`} checked={newPressHoleType === 'multihole'}
-                                          onChange={() => setNewPressHoleType('multihole')} />
-                                        Multi
-                                      </label>
-                                      {newPressHoleType === '1hole' && (
-                                        <select value={newPressHoleStart}
-                                          onChange={(e) => { const v = parseInt(e.target.value); setNewPressHoleStart(v); setNewPressHoleEnd(v) }}
-                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
-                                          {Array.from({ length: 18 }, (_, i) => i + 1).map(n => (
-                                            <option key={n} value={n}>Hole {n}</option>
-                                          ))}
-                                        </select>
-                                      )}
-                                      {newPressHoleType === 'multihole' && (
-                                        <>
-                                          <select value={newPressHoleStart}
-                                            onChange={(e) => { const v = parseInt(e.target.value); setNewPressHoleStart(v); if (newPressHoleEnd < v) setNewPressHoleEnd(v) }}
-                                            className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
-                                            {Array.from({ length: 18 }, (_, i) => i + 1).map(n => <option key={n} value={n}>H{n}</option>)}
-                                          </select>
-                                          <span className="text-xs text-gray-400">–</span>
-                                          <select value={newPressHoleEnd}
-                                            onChange={(e) => setNewPressHoleEnd(parseInt(e.target.value))}
-                                            className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
-                                            {Array.from({ length: 18 }, (_, i) => i + 1).filter(n => n >= newPressHoleStart).map(n => <option key={n} value={n}>H{n}</option>)}
-                                          </select>
-                                        </>
-                                      )}
-                                      <input type="number" min="0" step="1" placeholder="$amt" value={newPressAmount}
-                                        onChange={(e) => setNewPressAmount(e.target.value)}
-                                        className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-16" />
-                                      <button
-                                        onClick={() => {
-                                          const amt = parseFloat(newPressAmount)
-                                          if (!newPressAmount.trim() || isNaN(amt) || amt <= 0) return
-                                          const hEnd = newPressHoleType === '1hole' ? newPressHoleStart : Math.max(newPressHoleStart, newPressHoleEnd)
-                                          const entry: PressEntry = {
-                                            id: Math.random().toString(36).slice(2),
-                                            holeStart: newPressHoleStart,
-                                            holeEnd: hEnd,
-                                            amount: amt,
-                                            ...(newPressStrokesEnabled && newPressStrokes.trim() ? { strokesSide: newPressStrokesSide, strokes: parseFloat(newPressStrokes) || 0 } : {}),
-                                          }
-                                          setEditH2HPresses(prev => [...prev, entry])
-                                          setNewPressAmount('')
-                                          setNewPressStrokes('')
-                                          setNewPressStrokesEnabled(false)
-                                          setPressEnabled(false)
-                                        }}
-                                        disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
-                                        className="text-xs font-semibold text-blue-600 disabled:opacity-40">
-                                        + Add
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                            {!isEditing && (
                               <span className="flex items-center gap-1.5">
                                 {m.bet
                                   ? <span className="font-medium text-[11px]" style={{ color: gold }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300 text-[11px]">No bet</span>}
-                                <button onClick={() => { setEditingH2H(m.id); const p = parseBet(m.bet); setEditH2HBetType(p.betType); setEditH2HBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditH2HScoringType(p.scoringType); setEditH2HSweepAmount(p.sweepAmount); setEditH2HSweepEnabled(!!p.sweepAmount); setEditH2HStrokesEnabled(!!p.handicapSide); setEditH2HStrokesSide((p.handicapSide as 'p1' | 'p2') || 'p1'); setEditH2HStrokesFront(p.handicapFront); setEditH2HStrokesBack(p.handicapBack); setEditH2HStrokesTotal(p.handicapTotal); setEditH2HFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditH2HBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditH2HTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditH2HPresses(m.press ?? []); setPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18) }}
+                                <button onClick={() => { setEditingH2H(m.id); const p = parseBet(m.bet); setEditH2HBetType(p.betType); setEditH2HBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditH2HScoringType(p.scoringType); setEditH2HSweepAmount(p.sweepAmount); setEditH2HSweepEnabled(!!p.sweepAmount); setEditH2HStrokesEnabled(!!p.handicapSide); setEditH2HStrokesSide((p.handicapSide as 'p1' | 'p2') || 'p1'); setEditH2HStrokesFront(p.handicapFront); setEditH2HStrokesBack(p.handicapBack); setEditH2HStrokesTotal(p.handicapTotal); setEditH2HFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditH2HBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditH2HTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditH2HPresses(m.press ?? []); setPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editH2HRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
@@ -1454,9 +1322,240 @@ export default function MatchupClient({
                             <button onClick={() => setConfirmDelete({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, type: 'h2h' })} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
 
+                          {/* Edit form — shown below the controls row when editing */}
+                          {isEditing && (
+                            <div ref={editH2HRef} className="space-y-3 mb-3 bg-gray-50 rounded-xl p-3 border border-gray-200 [&_input]:text-base [&_select]:text-base">
+                              {/* Bet type label (static) */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium text-gray-500">Bet:</span>
+                                <span className="text-xs font-semibold text-gray-800">
+                                  {editH2HBetType === 'nassau' ? 'Nassau' : editH2HBetType === 'straight' ? 'Overall' : 'No bet'}
+                                </span>
+                              </div>
+
+                              {/* Amount inputs */}
+                              {editH2HBetType === 'nassau' && (
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Front ($)</label>
+                                    <input autoFocus type="number" min="0" step="1" placeholder="0"
+                                      value={editH2HFrontAmount} onChange={(e) => setEditH2HFrontAmount(e.target.value)}
+                                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Back ($)</label>
+                                    <input type="number" min="0" step="1" placeholder="0"
+                                      value={editH2HBackAmount} onChange={(e) => setEditH2HBackAmount(e.target.value)}
+                                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Total ($)</label>
+                                    <input type="number" min="0" step="1" placeholder="0"
+                                      value={editH2HTotalAmount} onChange={(e) => setEditH2HTotalAmount(e.target.value)}
+                                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                  </div>
+                                </div>
+                              )}
+                              {editH2HBetType === 'straight' && (
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Amount ($)</label>
+                                  <input autoFocus type="number" min="0" step="1" placeholder="0"
+                                    value={editH2HBetAmount} onChange={(e) => setEditH2HBetAmount(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                </div>
+                              )}
+
+                              {/* Sweep row (Nassau only) */}
+                              {editH2HBetType === 'nassau' && (
+                                <div className="flex items-center gap-2">
+                                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                                    <input type="checkbox" checked={editH2HSweepEnabled} onChange={(e) => { setEditH2HSweepEnabled(e.target.checked); if (!e.target.checked) setEditH2HSweepAmount('') }} className="rounded" />
+                                    Sweep ($)
+                                  </label>
+                                  {editH2HSweepEnabled && (
+                                    <input type="number" min="0" step="1" placeholder="sweep amt"
+                                      value={editH2HSweepAmount} onChange={(e) => setEditH2HSweepAmount(e.target.value)}
+                                      className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none w-28" />
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Handicap Strokes row */}
+                              {editH2HScoringType === 'stroke' && editH2HBetType && (
+                                <div>
+                                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer mb-2">
+                                    <input type="checkbox" checked={editH2HStrokesEnabled} onChange={(e) => { setEditH2HStrokesEnabled(e.target.checked); if (!e.target.checked) { setEditH2HStrokesFront(''); setEditH2HStrokesBack(''); setEditH2HStrokesTotal('') } }} className="rounded" />
+                                    Handicap Strokes
+                                  </label>
+                                  {editH2HStrokesEnabled && (
+                                    <div className="pl-3 border-l-2 border-gray-200 space-y-2">
+                                      <select value={editH2HStrokesSide} onChange={(e) => setEditH2HStrokesSide(e.target.value as 'p1' | 'p2')}
+                                        className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
+                                        <option value="p1">{mp1.name.split(' ')[0]} gets strokes</option>
+                                        <option value="p2">{mp2.name.split(' ')[0]} gets strokes</option>
+                                      </select>
+                                      {editH2HBetType === 'nassau' ? (
+                                        <div className="grid grid-cols-3 gap-2">
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Front</label>
+                                            <input type="number" min="0" step="0.5" placeholder="0"
+                                              value={editH2HStrokesFront} onChange={(e) => setEditH2HStrokesFront(e.target.value)}
+                                              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Back</label>
+                                            <input type="number" min="0" step="0.5" placeholder="0"
+                                              value={editH2HStrokesBack} onChange={(e) => setEditH2HStrokesBack(e.target.value)}
+                                              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Total</label>
+                                            <input type="number" min="0" step="0.5" placeholder="0"
+                                              value={editH2HStrokesTotal} onChange={(e) => setEditH2HStrokesTotal(e.target.value)}
+                                              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">Overall</label>
+                                          <input type="number" min="0" step="0.5" placeholder="0"
+                                            value={editH2HStrokesTotal} onChange={(e) => setEditH2HStrokesTotal(e.target.value)}
+                                            className="w-32 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Press section */}
+                              <div className="border-t border-gray-100 pt-2.5 space-y-2">
+                                {editH2HPresses.length > 0 && (
+                                  <div className="flex flex-col gap-0.5">
+                                    {editH2HPresses.map((pr, pi) => {
+                                      const hl = pr.holeStart === pr.holeEnd ? `H${pr.holeStart}` : `H${pr.holeStart}–${pr.holeEnd}`
+                                      const sl = pr.strokesSide && (pr.strokes ?? 0) > 0
+                                        ? ` · ${pr.strokesSide === 'p1' ? mp1.name.split(' ')[0] : mp2.name.split(' ')[0]} +${pr.strokes}`
+                                        : ''
+                                      return (
+                                        <div key={pr.id} className="flex items-center gap-1.5 text-xs">
+                                          <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
+                                          <span className="text-gray-600">{hl} · ${pr.amount}{sl}</span>
+                                          <button onClick={() => setEditH2HPresses(prev => prev.filter((_, i) => i !== pi))}
+                                            className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer w-fit">
+                                  <input type="checkbox" checked={pressEnabled}
+                                    onChange={(e) => { setPressEnabled(e.target.checked); if (!e.target.checked) { setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false) } }}
+                                    className="rounded" />
+                                  Press
+                                </label>
+                                {pressEnabled && (
+                                  <div className="flex items-center gap-1.5 flex-wrap pl-2 border-l-2 border-amber-300">
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                      <input type="checkbox" checked={newPressStrokesEnabled}
+                                        onChange={(e) => { setNewPressStrokesEnabled(e.target.checked); if (!e.target.checked) setNewPressStrokes('') }}
+                                        className="rounded" />
+                                      Strokes
+                                    </label>
+                                    {newPressStrokesEnabled && (
+                                      <>
+                                        <select value={newPressStrokesSide} onChange={(e) => setNewPressStrokesSide(e.target.value as 'p1' | 'p2')}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          <option value="p1">{mp1.name.split(' ')[0]}</option>
+                                          <option value="p2">{mp2.name.split(' ')[0]}</option>
+                                        </select>
+                                        <input type="number" min="0" step="0.5" placeholder="0" value={newPressStrokes}
+                                          onChange={(e) => setNewPressStrokes(e.target.value)}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-12" />
+                                      </>
+                                    )}
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                      <input type="radio" name={`pht-${m.id}`} checked={newPressHoleType === '1hole'}
+                                        onChange={() => { setNewPressHoleType('1hole'); setNewPressHoleEnd(newPressHoleStart) }} />
+                                      1 Hole
+                                    </label>
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                      <input type="radio" name={`pht-${m.id}`} checked={newPressHoleType === 'multihole'}
+                                        onChange={() => setNewPressHoleType('multihole')} />
+                                      Multi
+                                    </label>
+                                    {newPressHoleType === '1hole' && (
+                                      <select value={newPressHoleStart}
+                                        onChange={(e) => { const v = parseInt(e.target.value); setNewPressHoleStart(v); setNewPressHoleEnd(v) }}
+                                        className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                        {Array.from({ length: 18 }, (_, i) => i + 1).map(n => (
+                                          <option key={n} value={n}>Hole {n}</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                    {newPressHoleType === 'multihole' && (
+                                      <>
+                                        <select value={newPressHoleStart}
+                                          onChange={(e) => { const v = parseInt(e.target.value); setNewPressHoleStart(v); if (newPressHoleEnd < v) setNewPressHoleEnd(v) }}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          {Array.from({ length: 18 }, (_, i) => i + 1).map(n => <option key={n} value={n}>H{n}</option>)}
+                                        </select>
+                                        <span className="text-xs text-gray-400">–</span>
+                                        <select value={newPressHoleEnd}
+                                          onChange={(e) => setNewPressHoleEnd(parseInt(e.target.value))}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          {Array.from({ length: 18 }, (_, i) => i + 1).filter(n => n >= newPressHoleStart).map(n => <option key={n} value={n}>H{n}</option>)}
+                                        </select>
+                                      </>
+                                    )}
+                                    <input type="number" min="0" step="1" placeholder="$amt" value={newPressAmount}
+                                      onChange={(e) => setNewPressAmount(e.target.value)}
+                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-16" />
+                                    <button
+                                      onClick={() => {
+                                        const amt = parseFloat(newPressAmount)
+                                        if (!newPressAmount.trim() || isNaN(amt) || amt <= 0) return
+                                        const hEnd = newPressHoleType === '1hole' ? newPressHoleStart : Math.max(newPressHoleStart, newPressHoleEnd)
+                                        const entry: PressEntry = {
+                                          id: Math.random().toString(36).slice(2),
+                                          holeStart: newPressHoleStart,
+                                          holeEnd: hEnd,
+                                          amount: amt,
+                                          ...(newPressStrokesEnabled && newPressStrokes.trim() ? { strokesSide: newPressStrokesSide, strokes: parseFloat(newPressStrokes) || 0 } : {}),
+                                        }
+                                        setEditH2HPresses(prev => [...prev, entry])
+                                        setNewPressAmount('')
+                                        setNewPressStrokes('')
+                                        setNewPressStrokesEnabled(false)
+                                        setPressEnabled(false)
+                                      }}
+                                      disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
+                                      className="text-xs font-semibold text-blue-600 disabled:opacity-40">
+                                      + Add
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Save / Cancel */}
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSaveH2HBet(m.id)}
+                                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-white"
+                                  style={{ background: navy }}>
+                                  Save
+                                </button>
+                                <button onClick={() => { setEditingH2H(null); setPressEnabled(false) }}
+                                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
                           {/* summary table (5 columns + press columns) */}
                           <div className="rounded-lg border border-gray-300 overflow-hidden">
-                            <table className="w-full border-collapse">
+                            <div className="overflow-x-auto">
+                            <table className="min-w-full border-collapse">
                               <thead>
                                 <tr style={{ background: navy }}>
                                   <th className="px-3 py-1.5 text-left text-xs font-semibold text-white">Player</th>
@@ -1548,6 +1647,7 @@ export default function MatchupClient({
                                 })}
                               </tbody>
                             </table>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1562,121 +1662,158 @@ export default function MatchupClient({
         {/* ── 2 v 2 Best Ball ── */}
         <div>
           <div className="flex items-center justify-between mb-2 px-1">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">2 v 2 Best Ball</p>
-            {showBBForm
-              ? <button onClick={() => setShowBBForm(false)} className="text-xs font-semibold text-gray-400 hover:text-gray-600 px-2 py-1">✕ Cancel</button>
-              : <button onClick={() => setShowBBForm(true)} className="text-xs font-semibold px-3 py-1 rounded-lg" style={{ background: navy, color: 'white' }}>+ Add</button>
-            }
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">2 v 2 Best Ball</p>
+            {!showBBForm && (
+              <button onClick={() => { setShowBBForm(true); setTimeout(() => addBBRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }}
+                className="text-sm font-semibold px-4 py-1.5 rounded-lg" style={{ background: navy, color: 'white' }}>+ Add</button>
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            {showBBForm && <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <div>
-                  <p className="text-xs font-semibold text-blue-600 mb-1">Team 1</p>
-                  <div className="space-y-1.5">
-                    <select value={bbT1P1} onChange={(e) => setBbT1P1(e.target.value)}
+            {showBBForm && (
+              <div className="px-4 pt-3 pb-3 border-b border-gray-100">
+                <div ref={addBBRef} className="space-y-3 bg-gray-50 rounded-xl p-3 border border-gray-200">
+
+                  {/* Teams */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-xs font-semibold text-blue-600 mb-1">Team 1</p>
+                      <div className="space-y-1.5">
+                        <select value={bbT1P1} onChange={(e) => setBbT1P1(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                          <option value="">Player 1…</option>
+                          {players.map((p) => <option key={p.id} value={p.id}
+                            disabled={p.id !== bbT1P1 && bbSelected.includes(p.id)}>{p.name}</option>)}
+                        </select>
+                        <select value={bbT1P2} onChange={(e) => setBbT1P2(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                          <option value="">Player 2…</option>
+                          {players.map((p) => <option key={p.id} value={p.id}
+                            disabled={p.id !== bbT1P2 && bbSelected.includes(p.id)}>{p.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-amber-600 mb-1">Team 2</p>
+                      <div className="space-y-1.5">
+                        <select value={bbT2P1} onChange={(e) => setBbT2P1(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                          <option value="">Player 1…</option>
+                          {players.map((p) => <option key={p.id} value={p.id}
+                            disabled={p.id !== bbT2P1 && bbSelected.includes(p.id)}>{p.name}</option>)}
+                        </select>
+                        <select value={bbT2P2} onChange={(e) => setBbT2P2(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                          <option value="">Player 2…</option>
+                          {players.map((p) => <option key={p.id} value={p.id}
+                            disabled={p.id !== bbT2P2 && bbSelected.includes(p.id)}>{p.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Scoring */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Scoring</label>
+                    <select value={bbScoringType} onChange={(e) => setBbScoringType(e.target.value as ScoringType)}
                       className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                      <option value="">Player 1…</option>
-                      {players.map((p) => <option key={p.id} value={p.id}
-                        disabled={p.id !== bbT1P1 && bbSelected.includes(p.id)}>{p.name}</option>)}
-                    </select>
-                    <select value={bbT1P2} onChange={(e) => setBbT1P2(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                      <option value="">Player 2…</option>
-                      {players.map((p) => <option key={p.id} value={p.id}
-                        disabled={p.id !== bbT1P2 && bbSelected.includes(p.id)}>{p.name}</option>)}
+                      <option value="stroke">Stroke Play</option>
+                      <option value="match">Match Play</option>
                     </select>
                   </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-amber-600 mb-1">Team 2</p>
-                  <div className="space-y-1.5">
-                    <select value={bbT2P1} onChange={(e) => setBbT2P1(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                      <option value="">Player 1…</option>
-                      {players.map((p) => <option key={p.id} value={p.id}
-                        disabled={p.id !== bbT2P1 && bbSelected.includes(p.id)}>{p.name}</option>)}
-                    </select>
-                    <select value={bbT2P2} onChange={(e) => setBbT2P2(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                      <option value="">Player 2…</option>
-                      {players.map((p) => <option key={p.id} value={p.id}
-                        disabled={p.id !== bbT2P2 && bbSelected.includes(p.id)}>{p.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-2 items-end flex-wrap">
-                <div className="flex-1 min-w-[100px]">
-                  <label className="block text-xs text-gray-500 mb-1">Scoring</label>
-                  <select value={bbScoringType} onChange={(e) => setBbScoringType(e.target.value as ScoringType)}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                    <option value="stroke">Stroke Play</option>
-                    <option value="match">Match Play</option>
-                  </select>
-                </div>
-                <div className="flex-1 min-w-[100px]">
-                  <label className="block text-xs text-gray-500 mb-1">Bet <span className="text-red-400">*</span></label>
-                  <select value={bbBetType} onChange={(e) => { setBbBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setBbSweepEnabled(false); setBbSweepAmount('') } }}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                    <option value="" disabled>Select…</option>
-                    <option value="nassau">Nassau</option>
-                    <option value="straight">Overall</option>
-                  </select>
-                </div>
-                <div className="w-20 flex-shrink-0">
-                  <label className="block text-xs text-gray-500 mb-1">Amount ($) <span className="text-red-400">*</span></label>
-                  <input type="number" min="0" step="1" placeholder="10"
-                    value={bbBetAmount} onChange={(e) => setBbBetAmount(e.target.value)}
-                    disabled={!bbBetType}
-                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none disabled:opacity-40" />
-                </div>
-                {bbBetType === 'nassau' && (
-                  <div className="flex-shrink-0">
-                    <label className="flex items-center gap-1.5 text-xs text-gray-500 mb-1 cursor-pointer">
-                      <input type="checkbox" checked={bbSweepEnabled} onChange={(e) => { setBbSweepEnabled(e.target.checked); if (!e.target.checked) setBbSweepAmount('') }} className="rounded" />
-                      Sweep ($)
-                    </label>
-                    <input type="number" min="0" step="1" placeholder="amt"
-                      value={bbSweepAmount} onChange={(e) => setBbSweepAmount(e.target.value)}
-                      disabled={!bbSweepEnabled}
-                      className="w-20 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none disabled:opacity-40" />
-                  </div>
-                )}
-                <button onClick={handleCreateBB}
-                  disabled={!bbT1P1 || !bbT1P2 || !bbT2P1 || !bbT2P2 || new Set([bbT1P1, bbT1P2, bbT2P1, bbT2P2]).size !== 4 || !bbBetType || !bbBetAmount.trim() || savingBB}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 flex-shrink-0"
-                  style={{ background: navy, color: 'white' }}>
-                  {savingBB ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-              {bbScoringType === 'stroke' && bbBetType && (
-                <div className="flex items-center gap-2 flex-wrap pt-2">
-                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-                    <input type="checkbox" checked={bbStrokesEnabled} onChange={(e) => { setBbStrokesEnabled(e.target.checked); if (!e.target.checked) { setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal('') } }} className="rounded" />
-                    Strokes (handicap)
-                  </label>
-                  {bbStrokesEnabled && (
-                    <>
-                      <select value={bbStrokesSide} onChange={(e) => setBbStrokesSide(e.target.value as 't1' | 't2')}
-                        className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
-                        <option value="t1">Team 1 gets strokes</option>
-                        <option value="t2">Team 2 gets strokes</option>
+
+                  {/* Bet Type + Amount + Sweep — all on one row */}
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Bet Type <span className="text-red-400">*</span></label>
+                      <select value={bbBetType} onChange={(e) => { setBbBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setBbSweepEnabled(false); setBbSweepAmount('') } }}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                        <option value="" disabled>Select…</option>
+                        <option value="nassau">Nassau</option>
+                        <option value="straight">Overall</option>
                       </select>
-                      {bbBetType === 'nassau' && <span className="text-xs text-gray-400">Front:</span>}
-                      {bbBetType === 'nassau' && <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesFront} onChange={(e) => setBbStrokesFront(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none w-16" />}
-                      {bbBetType === 'nassau' && <span className="text-xs text-gray-400">Back:</span>}
-                      {bbBetType === 'nassau' && <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesBack} onChange={(e) => setBbStrokesBack(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none w-16" />}
-                      <span className="text-xs text-gray-400">Overall:</span>
-                      <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesTotal} onChange={(e) => setBbStrokesTotal(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none w-16" />
-                    </>
+                    </div>
+                    {bbBetType && (
+                      <div className="w-16 flex-shrink-0">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Amt ($)</label>
+                        <input type="number" min="0" step="1" placeholder="0"
+                          value={bbBetAmount} onChange={(e) => setBbBetAmount(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                      </div>
+                    )}
+                    {bbBetType === 'nassau' && (
+                      <div className="flex-shrink-0 flex flex-col">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Sweep</label>
+                        <div className="flex items-center gap-1.5 h-[38px]">
+                          <input type="checkbox" checked={bbSweepEnabled} onChange={(e) => { setBbSweepEnabled(e.target.checked); if (!e.target.checked) setBbSweepAmount('') }} className="rounded" />
+                          {bbSweepEnabled && (
+                            <input type="number" min="0" step="1" placeholder="0"
+                              value={bbSweepAmount} onChange={(e) => setBbSweepAmount(e.target.value)}
+                              className="w-14 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Handicap Strokes */}
+                  {bbScoringType === 'stroke' && bbBetType && (
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 cursor-pointer">
+                        <input type="checkbox" checked={bbStrokesEnabled} onChange={(e) => { setBbStrokesEnabled(e.target.checked); if (!e.target.checked) { setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal('') } }} className="rounded" />
+                        Handicap Strokes
+                      </label>
+                      {bbStrokesEnabled && (
+                        <div className="pl-3 border-l-2 border-gray-200 ml-1 mt-2 space-y-2">
+                          <select value={bbStrokesSide} onChange={(e) => setBbStrokesSide(e.target.value as 't1' | 't2')}
+                            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none">
+                            <option value="t1">Team 1 gets strokes</option>
+                            <option value="t2">Team 2 gets strokes</option>
+                          </select>
+                          {bbBetType === 'nassau' ? (
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Front</label>
+                                <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesFront} onChange={(e) => setBbStrokesFront(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Back</label>
+                                <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesBack} onChange={(e) => setBbStrokesBack(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-400 mb-1">Total</label>
+                                <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesTotal} onChange={(e) => setBbStrokesTotal(e.target.value)}
+                                  className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-400 mb-1">Overall</label>
+                              <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesTotal} onChange={(e) => setBbStrokesTotal(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
+
+                  {/* Save / Cancel */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                    <button onClick={() => { setShowBBForm(false); setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetType(''); setBbBetAmount(''); setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount(''); setBbSweepEnabled(false); setBbSweepAmount(''); setBbStrokesEnabled(false); setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal('') }}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">Cancel</button>
+                    <button onClick={handleCreateBB}
+                      disabled={!bbT1P1 || !bbT1P2 || !bbT2P1 || !bbT2P2 || new Set([bbT1P1, bbT1P2, bbT2P1, bbT2P2]).size !== 4 || !bbBetType || !bbBetAmount.trim() || savingBB}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                      style={{ background: navy, color: 'white' }}>
+                      {savingBB ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+
                 </div>
-              )}
-            </div>}
+              </div>
+            )}
 
             {(() => {
               const filtered = searchLower
@@ -1731,90 +1868,13 @@ export default function MatchupClient({
                       <div key={m.id}>
                         <div className="px-4 py-3">
                           {/* Bet + status + controls row */}
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 flex-wrap">
-                            {isEditingBB ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <select value={editBBScoringType} onChange={(e) => setEditBBScoringType(e.target.value as ScoringType)}
-                                  className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none">
-                                  <option value="stroke">Stroke Play</option>
-                                  <option value="match">Match Play</option>
-                                </select>
-                                <select value={editBBBetType} onChange={(e) => { const v = e.target.value as BetType | ''; setEditBBBetType(v); if (v !== 'nassau') { setEditBBSweepEnabled(false); setEditBBSweepAmount(''); setEditBBFrontAmount(''); setEditBBBackAmount(''); setEditBBTotalAmount('') } }}
-                                  className="border border-gray-300 rounded px-2 py-1 text-xs bg-white focus:outline-none">
-                                  <option value="">No bet</option>
-                                  <option value="nassau">Nassau</option>
-                                  <option value="straight">Overall</option>
-                                </select>
-                                {editBBBetType && editBBBetType === 'nassau' && (
-                                  <>
-                                    <span className="text-xs text-gray-400">F:</span>
-                                    <input autoFocus type="number" min="0" step="1" placeholder="0"
-                                      value={editBBFrontAmount} onChange={(e) => setEditBBFrontAmount(e.target.value)}
-                                      className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-12" />
-                                    <span className="text-xs text-gray-400">B:</span>
-                                    <input type="number" min="0" step="1" placeholder="0"
-                                      value={editBBBackAmount} onChange={(e) => setEditBBBackAmount(e.target.value)}
-                                      className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-12" />
-                                    <span className="text-xs text-gray-400">T:</span>
-                                    <input type="number" min="0" step="1" placeholder="0"
-                                      value={editBBTotalAmount} onChange={(e) => setEditBBTotalAmount(e.target.value)}
-                                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveBBBet(m.id); if (e.key === 'Escape') setEditingBB(null) }}
-                                      className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-12" />
-                                  </>
-                                )}
-                                {editBBBetType && editBBBetType !== 'nassau' && (
-                                  <input autoFocus type="number" min="0" step="1" placeholder="amt"
-                                    value={editBBBetAmount} onChange={(e) => setEditBBBetAmount(e.target.value)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveBBBet(m.id); if (e.key === 'Escape') setEditingBB(null) }}
-                                    className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-14" />
-                                )}
-                                {editBBBetType === 'nassau' && (
-                                  <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
-                                    <input type="checkbox" checked={editBBSweepEnabled} onChange={(e) => { setEditBBSweepEnabled(e.target.checked); if (!e.target.checked) setEditBBSweepAmount('') }} className="rounded" />
-                                    Sweep
-                                  </label>
-                                )}
-                                {editBBBetType === 'nassau' && editBBSweepEnabled && (
-                                  <input type="number" min="0" step="1" placeholder="sweep $"
-                                    value={editBBSweepAmount} onChange={(e) => setEditBBSweepAmount(e.target.value)}
-                                    className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none w-16" />
-                                )}
-                                {editBBScoringType === 'stroke' && editBBBetType && (
-                                  <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
-                                    <input type="checkbox" checked={editBBStrokesEnabled} onChange={(e) => { setEditBBStrokesEnabled(e.target.checked); if (!e.target.checked) { setEditBBStrokesFront(''); setEditBBStrokesBack(''); setEditBBStrokesTotal('') } }} className="rounded" />
-                                    Strokes
-                                  </label>
-                                )}
-                                {editBBScoringType === 'stroke' && editBBBetType && editBBStrokesEnabled && (
-                                  <>
-                                    <select value={editBBStrokesSide} onChange={(e) => setEditBBStrokesSide(e.target.value as 't1' | 't2')}
-                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
-                                      <option value="t1">{t1Name}</option>
-                                      <option value="t2">{t2Name}</option>
-                                    </select>
-                                    {editBBBetType === 'nassau' && <span className="text-xs text-gray-400">F:</span>}
-                                    {editBBBetType === 'nassau' && <input type="number" min="0" step="0.5" placeholder="0"
-                                      value={editBBStrokesFront} onChange={(e) => setEditBBStrokesFront(e.target.value)}
-                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-10" />}
-                                    {editBBBetType === 'nassau' && <span className="text-xs text-gray-400">B:</span>}
-                                    {editBBBetType === 'nassau' && <input type="number" min="0" step="0.5" placeholder="0"
-                                      value={editBBStrokesBack} onChange={(e) => setEditBBStrokesBack(e.target.value)}
-                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-10" />}
-                                    <span className="text-xs text-gray-400">T:</span>
-                                    <input type="number" min="0" step="0.5" placeholder="0"
-                                      value={editBBStrokesTotal} onChange={(e) => setEditBBStrokesTotal(e.target.value)}
-                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-10" />
-                                  </>
-                                )}
-                                <button onClick={() => handleSaveBBBet(m.id)} className="text-xs font-semibold text-green-600">Save</button>
-                                <button onClick={() => setEditingBB(null)} className="text-xs text-gray-400">Cancel</button>
-                              </div>
-                            ) : (
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                            {!isEditingBB && (
                               <span className="flex items-center gap-1.5">
                                 {m.bet
                                   ? <span className="font-medium text-[11px]" style={{ color: gold }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300 text-[11px]">No bet</span>}
-                                <button onClick={() => { setEditingBB(m.id); const p = parseBet(m.bet); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : '') }}
+                                <button onClick={() => { setEditingBB(m.id); const p = parseBet(m.bet); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
@@ -1840,9 +1900,131 @@ export default function MatchupClient({
                             <button onClick={() => setConfirmDelete({ id: m.id, label: `${t1Name} vs ${t2Name}`, type: 'bb' })} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
 
+                          {/* Edit form — shown below the controls row when editing */}
+                          {isEditingBB && (
+                            <div ref={editBBRef} className="space-y-3 mb-3 bg-gray-50 rounded-xl p-3 border border-gray-200 [&_input]:text-base [&_select]:text-base">
+                              {/* Bet type label (static) */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium text-gray-500">Bet:</span>
+                                <span className="text-xs font-semibold text-gray-800">
+                                  {editBBBetType === 'nassau' ? 'Nassau' : editBBBetType === 'straight' ? 'Overall' : 'No bet'}
+                                </span>
+                              </div>
+
+                              {/* Amount inputs */}
+                              {editBBBetType === 'nassau' && (
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Front ($)</label>
+                                    <input autoFocus type="number" min="0" step="1" placeholder="0"
+                                      value={editBBFrontAmount} onChange={(e) => setEditBBFrontAmount(e.target.value)}
+                                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Back ($)</label>
+                                    <input type="number" min="0" step="1" placeholder="0"
+                                      value={editBBBackAmount} onChange={(e) => setEditBBBackAmount(e.target.value)}
+                                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Total ($)</label>
+                                    <input type="number" min="0" step="1" placeholder="0"
+                                      value={editBBTotalAmount} onChange={(e) => setEditBBTotalAmount(e.target.value)}
+                                      className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                  </div>
+                                </div>
+                              )}
+                              {editBBBetType === 'straight' && (
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Amount ($)</label>
+                                  <input autoFocus type="number" min="0" step="1" placeholder="0"
+                                    value={editBBBetAmount} onChange={(e) => setEditBBBetAmount(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                </div>
+                              )}
+
+                              {/* Sweep row (Nassau only) */}
+                              {editBBBetType === 'nassau' && (
+                                <div className="flex items-center gap-2">
+                                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                                    <input type="checkbox" checked={editBBSweepEnabled} onChange={(e) => { setEditBBSweepEnabled(e.target.checked); if (!e.target.checked) setEditBBSweepAmount('') }} className="rounded" />
+                                    Sweep ($)
+                                  </label>
+                                  {editBBSweepEnabled && (
+                                    <input type="number" min="0" step="1" placeholder="sweep amt"
+                                      value={editBBSweepAmount} onChange={(e) => setEditBBSweepAmount(e.target.value)}
+                                      className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none w-28" />
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Handicap Strokes row */}
+                              {editBBScoringType === 'stroke' && editBBBetType && (
+                                <div>
+                                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer mb-2">
+                                    <input type="checkbox" checked={editBBStrokesEnabled} onChange={(e) => { setEditBBStrokesEnabled(e.target.checked); if (!e.target.checked) { setEditBBStrokesFront(''); setEditBBStrokesBack(''); setEditBBStrokesTotal('') } }} className="rounded" />
+                                    Handicap Strokes
+                                  </label>
+                                  {editBBStrokesEnabled && (
+                                    <div className="pl-3 border-l-2 border-gray-200 space-y-2">
+                                      <select value={editBBStrokesSide} onChange={(e) => setEditBBStrokesSide(e.target.value as 't1' | 't2')}
+                                        className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
+                                        <option value="t1">{t1Name} gets strokes</option>
+                                        <option value="t2">{t2Name} gets strokes</option>
+                                      </select>
+                                      {editBBBetType === 'nassau' ? (
+                                        <div className="grid grid-cols-3 gap-2">
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Front</label>
+                                            <input type="number" min="0" step="0.5" placeholder="0"
+                                              value={editBBStrokesFront} onChange={(e) => setEditBBStrokesFront(e.target.value)}
+                                              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Back</label>
+                                            <input type="number" min="0" step="0.5" placeholder="0"
+                                              value={editBBStrokesBack} onChange={(e) => setEditBBStrokesBack(e.target.value)}
+                                              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                          </div>
+                                          <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Total</label>
+                                            <input type="number" min="0" step="0.5" placeholder="0"
+                                              value={editBBStrokesTotal} onChange={(e) => setEditBBStrokesTotal(e.target.value)}
+                                              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-500 mb-1">Overall</label>
+                                          <input type="number" min="0" step="0.5" placeholder="0"
+                                            value={editBBStrokesTotal} onChange={(e) => setEditBBStrokesTotal(e.target.value)}
+                                            className="w-32 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Save / Cancel */}
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSaveBBBet(m.id)}
+                                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-white"
+                                  style={{ background: navy }}>
+                                  Save
+                                </button>
+                                <button onClick={() => setEditingBB(null)}
+                                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
                           {/* 5-column summary table */}
                           <div className="rounded-lg border border-gray-300 overflow-hidden">
-                            <table className="w-full border-collapse">
+                            <div className="overflow-x-auto">
+                            <table className="min-w-full border-collapse">
                               <thead>
                                 <tr style={{ background: navy }}>
                                   <th className="px-3 py-1.5 text-left text-xs font-semibold text-white">Team</th>
@@ -1918,6 +2100,7 @@ export default function MatchupClient({
                                 })}
                               </tbody>
                             </table>
+                            </div>
                           </div>
                         </div>
 
@@ -2203,9 +2386,9 @@ function HorizontalScorecardTable({
   }
   const chk = <span style={{ color: '#16a34a', fontSize: '0.6rem', marginLeft: '1px', lineHeight: 1 }}>✓</span>
 
-  const hdr = (highlight?: boolean): React.CSSProperties => ({
-    background: highlight ? '#4a7fa5' : navy,
-    color: 'white',
+  const hdr = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
+    background: highlight ? '#4a7fa5' : isHoleNum ? '#dde4ee' : navy,
+    color: highlight || !isHoleNum ? 'white' : navy,
     fontWeight: 700,
     fontSize: '0.65rem',
     textAlign: 'center',
@@ -2228,10 +2411,10 @@ function HorizontalScorecardTable({
     <table style={{ borderCollapse: 'collapse', minWidth: '540px', width: '100%' }}>
       <thead>
         <tr>
-          <th style={{ ...hdr(), textAlign: 'left', paddingLeft: '0.5rem', minWidth: '5rem' }}>HOLE</th>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <th key={n} style={hdr()}>{n}</th>)}
+          <th style={{ ...hdr(false, true), textAlign: 'left', paddingLeft: '0.5rem', minWidth: '5rem' }}>HOLE</th>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <th key={n} style={hdr(false, true)}>{n}</th>)}
           <th style={hdr(true)}>Front</th>
-          {[10, 11, 12, 13, 14, 15, 16, 17, 18].map((n) => <th key={n} style={hdr()}>{n}</th>)}
+          {[10, 11, 12, 13, 14, 15, 16, 17, 18].map((n) => <th key={n} style={hdr(false, true)}>{n}</th>)}
           <th style={hdr(true)}>Back</th>
           <th style={hdr()}>TOTAL</th>
         </tr>

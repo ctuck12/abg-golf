@@ -15,9 +15,9 @@ const steelBlue = '#4a7fa5'
 const steelBlueBg = '#dbeafe'
 const BALL_LABELS = ['1B', '2B', '3B', '4B']
 
-const thStyle = (highlight?: boolean): React.CSSProperties => ({
-  background: highlight ? steelBlue : navy,
-  color: 'white',
+const thStyle = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
+  background: highlight ? steelBlue : isHoleNum ? '#dde4ee' : navy,
+  color: highlight || !isHoleNum ? 'white' : navy,
   fontWeight: 700,
   fontSize: '0.65rem',
   textAlign: 'center',
@@ -155,9 +155,9 @@ export default function ScorecardViewer({
         <table className="border-collapse bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200" style={{ minWidth: '600px', width: '100%' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
+              <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
               {[1,2,3,4,5,6,7,8,9].map((n) => (
-                <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
                   {n}
                   {isDaytona && pressedHoles[n] !== undefined && (
                     <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
@@ -166,7 +166,7 @@ export default function ScorecardViewer({
               ))}
               <th style={thStyle(true)}>Front</th>
               {[10,11,12,13,14,15,16,17,18].map((n) => (
-                <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
                   {n}
                   {isDaytona && pressedHoles[n] !== undefined && (
                     <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>

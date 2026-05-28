@@ -187,8 +187,8 @@ export default function PlayerScorecard({
     padding: '0.4rem 0.25rem',
     whiteSpace: 'nowrap',
   })
-  const tdPar = (highlight?: boolean): React.CSSProperties => ({
-    background: highlight ? steelBlueBg : 'white',
+  const tdPar = (highlight?: boolean, isParCell?: boolean): React.CSSProperties => ({
+    background: highlight ? steelBlueBg : isParCell ? '#dde4ee' : 'white',
     color: highlight ? '#1e40af' : '#6b7280',
     fontWeight: highlight ? 700 : 400,
     fontSize: '0.7rem',
@@ -279,15 +279,15 @@ export default function PlayerScorecard({
             <tbody>
               {/* PAR row */}
               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PAR</td>
+                <td style={{ ...tdPar(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PAR</td>
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
-                  return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
+                  return <td key={n} style={tdPar(false, true)}>{hole?.par ?? '–'}</td>
                 })}
                 <td style={tdPar(true)}>{frontNine.length > 0 ? frontPar : '–'}</td>
                 {[10,11,12,13,14,15,16,17,18].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
-                  return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
+                  return <td key={n} style={tdPar(false, true)}>{hole?.par ?? '–'}</td>
                 })}
                 <td style={tdPar(true)}>{backNine.length > 0 ? backPar : '–'}</td>
                 <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>

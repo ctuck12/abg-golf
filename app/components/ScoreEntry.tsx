@@ -36,6 +36,46 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
+function formatHoleRateBreakdown(holes: { hole_number: number }[], overrides: Record<number, number>, defaultRate: number): string {
+  if (Object.keys(overrides).length === 0) return `$${defaultRate}/point`
+  const sorted = [...holes].sort((a, b) => a.hole_number - b.hole_number)
+  const ranges: { start: number; end: number; rate: number }[] = []
+  for (const hole of sorted) {
+    const rate = overrides[hole.hole_number] ?? defaultRate
+    const last = ranges[ranges.length - 1]
+    if (last && last.rate === rate && last.end === hole.hole_number - 1) { last.end = hole.hole_number }
+    else { ranges.push({ start: hole.hole_number, end: hole.hole_number, rate }) }
+  }
+  return ranges.map(r => `Holes ${r.start === r.end ? r.start : `${r.start}–${r.end}`}: $${r.rate}/pt`).join(' · ')
+}
+
+type SegBreak = { label: string; rate: number; ptsByPlayer: Map<string, number> }
+function buildSegmentBreakdown(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  assignments: DaytonaHoleAssignment[],
+  variant: string,
+  overrides: Record<number, number>,
+  defaultRate: number
+): SegBreak[] {
+  if (Object.keys(overrides).length === 0) return []
+  const sorted = [...holes].sort((a, b) => a.hole_number - b.hole_number)
+  type S = { start: number; end: number; rate: number; holeObjs: typeof holes }
+  const segs: S[] = []
+  for (const hole of sorted) {
+    const rate = overrides[hole.hole_number] ?? defaultRate
+    const last = segs[segs.length - 1]
+    if (last && last.rate === rate && last.end === hole.hole_number - 1) { last.end = hole.hole_number; last.holeObjs.push(hole) }
+    else segs.push({ start: hole.hole_number, end: hole.hole_number, rate, holeObjs: [hole] })
+  }
+  if (segs.length <= 1) return []
+  return segs.map(seg => ({
+    label: seg.start === seg.end ? `H${seg.start}` : `H${seg.start}–${seg.end}`,
+    rate: seg.rate,
+    ptsByPlayer: computePlayerDaytonaPoints(seg.holeObjs, scores, assignments, variant),
+  }))
+}
+
 // ── Matchup helpers (mirrors LeaderboardClient) ───────────────────────────────
 function parseMBetAmounts(raw: string): { frontAmount: number; backAmount: number; totalAmount: number } {
   const p = raw.split('|')
@@ -763,19 +803,35 @@ export default function ScoreEntry({
                               const tAssign = payoutsData.assignments.filter((a) => tpIds.includes(a.player_id))
                               const tScores = payoutsData.scores.filter((s) => tpIds.includes(s.player_id))
                               const tHoleVals = payoutsData.holeValues[t.id] ?? {}
-                              const hasOverrides = Object.keys(tHoleVals).length > 0
-                              const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant)
-                              const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant, dtPayoutValue, tHoleVals)
+                              const dtVariant = t.daytona_variant ?? daytonaVariant
+                              const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, dtVariant)
+                              const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, dtVariant, dtPayoutValue, tHoleVals)
                               const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, dollarTotals, 1)
+                              const segments = buildSegmentBreakdown(holes, tScores, tAssign, dtVariant, tHoleVals, dtPayoutValue)
                               return (
                                 <div key={t.id} className={ti > 0 ? 'border-t border-gray-100' : ''}>
-                                  <div className="px-4 py-2.5"><p className="font-semibold text-gray-900 text-sm">{t.name}</p><p className="text-xs text-gray-400">{hasOverrides ? `$${dtPayoutValue}/pt (custom on some holes)` : `$${dtPayoutValue}/point`}</p></div>
+                                  <div className="px-4 py-2.5"><p className="font-semibold text-gray-900 text-sm">{t.name}</p><p className="text-xs text-gray-400">{formatHoleRateBreakdown(holes, tHoleVals, dtPayoutValue)}</p></div>
                                   <div className="divide-y divide-gray-100">
                                     {teamPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
-                                      <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
-                                        <span className="flex-1 text-sm text-gray-900">{p.name}</span>
-                                        <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>
-                                        <span className="text-sm font-bold tabular-nums w-16 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                      <div key={p.id}>
+                                        <div className="flex items-center px-4 py-2.5 gap-2">
+                                          <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                          <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>
+                                          <span className="text-sm font-bold tabular-nums w-16 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                        </div>
+                                        {segments.length > 0 && (
+                                          <div className="px-4 pb-2 -mt-1 flex flex-wrap gap-x-4 gap-y-0">
+                                            {segments.map((seg, si) => { const sp = seg.ptsByPlayer.get(p.id) ?? 0; const sd = Math.round(sp * seg.rate * 100) / 100; return (
+                                              <span key={si} className="text-xs tabular-nums text-gray-400">
+                                                {seg.label}:{' '}
+                                                <span style={{ color: sp > 0 ? '#16a34a' : sp < 0 ? '#dc2626' : '#6b7280' }}>{sp > 0 ? `+${sp}` : sp}pts</span>
+                                                {' ('}
+                                                <span style={{ color: sd > 0 ? '#16a34a' : sd < 0 ? '#dc2626' : '#6b7280' }}>{sd > 0 ? `+$${sd.toFixed(2)}` : sd < 0 ? `-$${Math.abs(sd).toFixed(2)}` : '$0.00'}</span>
+                                                {')'}
+                                              </span>
+                                            )})}
+                                          </div>
+                                        )}
                                       </div>
                                     )})}
                                   </div>
@@ -912,12 +968,16 @@ export default function ScoreEntry({
       )}
 
       <main className="max-w-lg mx-auto px-3 py-4 space-y-2 pb-24">
-        {roundComplete && (
+        {savedHoles.size === 18 && (
           <div className="bg-white rounded-xl border-2 px-4 py-3 text-center" style={{ borderColor: gold }}>
             <p className="font-semibold" style={{ color: navy }}>All 18 holes submitted! ⛳</p>
-            <button onClick={openPayoutsModal} className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
-              Final Payouts →
-            </button>
+            {roundComplete ? (
+              <button onClick={openPayoutsModal} className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
+                Final Payouts →
+              </button>
+            ) : (
+              <p className="text-xs mt-1" style={{ color: '#92400e' }}>Waiting for other groups to finish…</p>
+            )}
           </div>
         )}
 
@@ -1029,6 +1089,11 @@ export default function ScoreEntry({
                   <p className="font-semibold text-gray-600">{hole.par}</p>
                 </div>
                 <div className="flex-1" />
+                {isDaytona && isSaved && holeValues[hole.hole_number] !== undefined && (
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-1 flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>
+                    ↑${holeValues[hole.hole_number]}
+                  </span>
+                )}
                 {isSaved && (
                   <div className="flex items-center gap-3 mr-2">
                     {isDaytona ? (
@@ -1072,11 +1137,6 @@ export default function ScoreEntry({
                   </div>
                 )}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {isDaytona && isSaved && holeValues[hole.hole_number] !== undefined && (
-                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>
-                      ↑${holeValues[hole.hole_number]}
-                    </span>
-                  )}
                   {isSaved && <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>✓</span>}
                   {isLocked
                     ? <span className="text-gray-300 text-sm">🔒</span>
@@ -1192,6 +1252,21 @@ export default function ScoreEntry({
                     )
                   })}
 
+                  {/* ── Daytona assignment validation ── */}
+                  {isDaytona && (() => {
+                    const allAssigned = players.every((p) => p.id in holeAssignments)
+                    return (
+                      <>
+                        {!allAssigned && (
+                          <p className="text-xs text-red-500 mt-1">{isFlares && hole.par === 3 ? "Select 2 Closest Players" : isFlares ? "Select 2 Outside Players" : "Select 2 Left Players"}</p>
+                        )}
+                        {allAssigned && leftCount !== 2 && (
+                          <p className="text-xs text-red-500 mt-1">{isFlares && hole.par === 3 ? "Need exactly 2 Close & 3 Far" : isFlares ? "Need exactly 2 Out & 3 In" : is5Man ? "Need exactly 2 Left & 3 Right" : "Need exactly 2 Left & 2 Right"}</p>
+                        )}
+                      </>
+                    )
+                  })()}
+
                   {/* ── Press (custom payout) UI ── */}
                   {isDaytona && (() => {
                     const isActive = !!pressShowInput[hole.hole_number]
@@ -1273,17 +1348,7 @@ export default function ScoreEntry({
                     const daytonaReady = !isDaytona || (allAssigned && leftCount === 2)
                     return (
                       <>
-                        <div className="flex items-start justify-between">
-                          <div>
-                            {isDaytona && !allAssigned && (
-                              <p className="text-xs text-red-500">{isFlares && hole.par === 3 ? "Select 2 Closest Players" : isFlares ? "Select 2 Outside Players" : "Select 2 Left Players"}</p>
-                            )}
-                            {isDaytona && allAssigned && leftCount !== 2 && (
-                              <p className="text-xs text-red-500">{isFlares && hole.par === 3 ? "Need exactly 2 Close & 3 Far" : isFlares ? "Need exactly 2 Out & 3 In" : is5Man ? "Need exactly 2 Left & 3 Right" : "Need exactly 2 Left & 2 Right"}</p>
-                            )}
-                            {error && <p className="text-xs text-red-500">{error}</p>}
-                          </div>
-                        </div>
+                        {error && <p className="text-xs text-red-500">{error}</p>}
                         <button
                           type="button"
                           onClick={() => saveHole(hole.hole_number)}

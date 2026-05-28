@@ -12,6 +12,7 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 const steelBlue = '#4a7fa5'
 const steelBlueBg = '#dbeafe'
+const holeBg = '#dde4ee'
 
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -122,9 +123,9 @@ export default function AllScorecardsView({
   const backPar = backNine.reduce((s, h) => s + h.par, 0)
   const totalPar = holes.reduce((s, h) => s + h.par, 0)
 
-  const thStyle = (highlight?: boolean): React.CSSProperties => ({
-    background: highlight ? steelBlue : navy,
-    color: 'white',
+  const thStyle = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
+    background: highlight ? steelBlue : isHoleNum ? holeBg : navy,
+    color: highlight ? 'white' : isHoleNum ? navy : 'white',
     fontWeight: 700,
     fontSize: '0.65rem',
     textAlign: 'center',
@@ -212,11 +213,11 @@ export default function AllScorecardsView({
                 <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
-                      <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
+                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const pressed = player.teamId ? teamHoleValues[player.teamId]?.[n] : undefined
                         return (
-                          <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                          <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
                             {n}
                             {pressed !== undefined && (
                               <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>
@@ -228,7 +229,7 @@ export default function AllScorecardsView({
                       {[10,11,12,13,14,15,16,17,18].map((n) => {
                         const pressed = player.teamId ? teamHoleValues[player.teamId]?.[n] : undefined
                         return (
-                          <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                          <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
                             {n}
                             {pressed !== undefined && (
                               <span style={{ display: 'block', fontSize: '0.5rem', color: gold, lineHeight: 1 }}>↑</span>

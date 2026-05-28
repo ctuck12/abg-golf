@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useEffect, useMemo } from 'react'
+import { useActionState, useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   createRound, addTeam, addPlayer, deleteTeam, deletePlayer,
@@ -436,6 +436,8 @@ export default function AdminDashboard({
   const [selectedFormat, setSelectedFormat] = useState('')
   const [showNewRoundForm, setShowNewRoundForm] = useState(!round)
   const [showNewRoundWarning, setShowNewRoundWarning] = useState(false)
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false)
+  const createFormRef = useRef<HTMLFormElement>(null)
   const [selectedBallsCount, setSelectedBallsCount] = useState('3')
   const [createIncludeTotal, setCreateIncludeTotal] = useState(false)
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
@@ -525,7 +527,7 @@ export default function AdminDashboard({
   // When the active round changes (new round created + router.refresh() delivers new props),
   // sync local UI state so skins/ball values always reflect what's in the DB for the new round.
   useEffect(() => {
-    setSkinsEnabled(round?.skins_enabled ?? false)
+    setSkinsEnabled(round && !round.is_started ? null : (round?.skins_enabled ?? false))
     setSkinsAmount(round?.skins_amount ?? 0)
     setBallVals(
       ballValues.length > 0
@@ -621,7 +623,9 @@ export default function AdminDashboard({
   const [ballVals, setBallVals] = useState<Record<number, number>>(
     Object.fromEntries(ballValues.map((bv) => [bv.ball_number, bv.value_dollars]))
   )
-  const [skinsEnabled, setSkinsEnabled] = useState(round?.skins_enabled ?? false)
+  const [skinsEnabled, setSkinsEnabled] = useState<boolean | null>(
+    round && !round.is_started ? null : (round?.skins_enabled ?? false)
+  )
   const [skinsAmount, setSkinsAmount] = useState(round?.skins_amount ?? 0)
 
   // Live state — kept in sync with server props and updated by real-time subscriptions
@@ -865,6 +869,75 @@ export default function AdminDashboard({
           </div>
         </div>
       )}
+      {/* ── Create Round confirmation modal ── */}
+      {showCreateConfirm && (() => {
+        const courseLabels: Record<string, string> = {
+          south: 'ACC South Course (Par 72)',
+          north: 'ACC North Course (Par 71)',
+          liveoak: 'Live Oak Golf Club (Par 71)',
+          maxwell: 'Maxwell Golf Course (Par 71)',
+          shadyoaks: 'Shady Oaks Golf Course (Par 70)',
+          hideout: 'The Hideout Golf Club (Par 72)',
+          canyonwest: 'Canyon West Golf Course (Par 72)',
+        }
+        const formatLabels: Record<string, string> = {
+          standard: '3/4 Balls',
+          daytona: 'Daytona',
+          traditional: 'Traditional',
+        }
+        const formattedDate = newRoundDate
+          ? new Date(newRoundDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+          : '—'
+        const rows: { label: string; value: string }[] = [
+          { label: 'Round Name', value: newRoundName || '—' },
+          { label: 'Date', value: formattedDate },
+          { label: 'Format', value: formatLabels[selectedFormat] ?? selectedFormat },
+          ...(selectedFormat === 'standard' ? [
+            { label: 'Balls in Play', value: `${selectedBallsCount} Balls` },
+            { label: 'Include Overall', value: createIncludeTotal ? 'Yes' : 'No' },
+          ] : []),
+          { label: 'Course', value: courseLabels[selectedCourse] ?? selectedCourse },
+        ]
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base">Confirm New Round</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Review your settings before creating.</p>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="space-y-2.5">
+                {rows.map(({ label, value }) => (
+                  <div key={label} className="flex items-start justify-between gap-3">
+                    <span className="text-xs font-medium text-gray-500 flex-shrink-0">{label}</span>
+                    <span className="text-xs text-gray-900 font-semibold text-right">{value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateConfirm(false)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateConfirm(false)
+                    createFormRef.current?.requestSubmit()
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                  style={{ background: navy }}>
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Reset Scores confirmation modal ── */}
       {resetConfirmTeamId && (() => {
         const teamName = teams.find(t => t.id === resetConfirmTeamId)?.name ?? 'this team'
@@ -980,7 +1053,7 @@ export default function AdminDashboard({
                 )}
                 {createState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createState.error}</p>}
                 {createState?.success && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2 mb-2">Round created! Add teams and activate when ready.</p>}
-                <form action={createAction} className="space-y-3">
+                <form ref={createFormRef} action={createAction} className="space-y-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Round Name</label>
                     <input type="text" name="name" placeholder="e.g. Saturday Scramble" required
@@ -1064,7 +1137,10 @@ export default function AdminDashboard({
                         </ul>
                       </div>
                     )}
-                    <button type="submit" disabled={!canStartRound || createPending}
+                    <button
+                      type="button"
+                      disabled={!canStartRound || createPending}
+                      onClick={() => setShowCreateConfirm(true)}
                       className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 transition"
                       style={{ background: navy, cursor: !canStartRound ? 'not-allowed' : undefined }}>
                       {createPending ? 'Creating…' : round ? 'Save' : 'Create Round'}
@@ -1096,7 +1172,7 @@ export default function AdminDashboard({
                     <p className="text-xs text-gray-500">
                       {round.course && `${round.course} · `}
                       {new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      {' · '}{teams.length} teams · Par {parTotal}
+                      {' · '}{teams.length} {isDaytona ? 'groups' : 'teams'} · Par {parTotal}
                       {' · '}{isDaytona ? 'Daytona' : isTraditional ? 'Traditional' : `${ballsCount}-ball${roundIncludeTotal ? ' + total' : ''}`}
                     </p>
                   </div>
@@ -1104,72 +1180,6 @@ export default function AdminDashboard({
                 {isSettingUp && (
                   <p className="text-xs text-amber-700 mt-2">
                     Add teams and configure settings below, then click &quot;Activate Round&quot; at the bottom to make the leaderboard live.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* ── Skins Game ── */}
-            {round && (
-              <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {!skinsAndPayoutEnabled && roundIsSettingUp && (
-                  <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    Complete the round form above to unlock
-                  </p>
-                )}
-                <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
-                <form action={skinsAction} className="space-y-4">
-                  <input type="hidden" name="roundId" value={round.id} />
-                  <input type="hidden" name="skins_enabled" value={String(skinsEnabled)} />
-                  {skinsState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{skinsState.error}</p>}
-                  {showSkinsSuccess && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Skins settings saved!</p>}
-                  {/* Yes / No toggle */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-2">Is there a skins game?</label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSkinsEnabled(true)}
-                        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
-                          skinsEnabled
-                            ? 'border-green-500 bg-green-50 text-green-700'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}>
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSkinsEnabled(false)}
-                        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
-                          !skinsEnabled
-                            ? 'border-gray-700 bg-gray-100 text-gray-800'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}>
-                        No
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1.5">Lowest individual score ≤ par on each hole wins a skin from every other participant.</p>
-                  </div>
-                  {/* Amount per skin */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Amount Per Skin ($)</label>
-                    <input
-                      type="number" name="skins_amount" min="0" step="0.50"
-                      value={skinsAmount}
-                      onChange={(e) => setSkinsAmount(parseFloat(e.target.value) || 0)}
-                      disabled={!skinsEnabled}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none disabled:opacity-40 disabled:bg-gray-50" />
-                    <p className="text-xs text-gray-400 mt-1">Each other participant owes this amount to the skin winner per hole won.</p>
-                  </div>
-                  <button type="submit" disabled={skinsPending}
-                    className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
-                    style={{ background: navy }}>
-                    {skinsPending ? 'Saving…' : 'Save Skins Settings'}
-                  </button>
-                </form>
-                {skinsEnabled && skinsAndPayoutEnabled && (
-                  <p className="text-xs text-amber-700 bg-amber-50 rounded px-3 py-2 mt-3">
-                    Mark each player as a skins participant using the Skins toggle in the Teams / Groups → Players section below.
                   </p>
                 )}
               </div>
@@ -1215,6 +1225,72 @@ export default function AdminDashboard({
                     {ballPending ? 'Saving…' : 'Save Values'}
                   </button>
                 </form>
+              </div>
+            )}
+
+            {/* ── Skins Game ── */}
+            {round && (
+              <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {!skinsAndPayoutEnabled && roundIsSettingUp && (
+                  <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
+                    Complete the round form above to unlock
+                  </p>
+                )}
+                <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
+                <form action={skinsAction} className="space-y-4">
+                  <input type="hidden" name="roundId" value={round.id} />
+                  <input type="hidden" name="skins_enabled" value={String(skinsEnabled ?? false)} />
+                  {skinsState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{skinsState.error}</p>}
+                  {showSkinsSuccess && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Skins settings saved!</p>}
+                  {/* Yes / No toggle */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-2">Is there a skins game?</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSkinsEnabled(true)}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
+                          skinsEnabled === true
+                            ? 'border-green-500 bg-green-50 text-green-700'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                        }`}>
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSkinsEnabled(false)}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
+                          skinsEnabled === false
+                            ? 'border-gray-700 bg-gray-100 text-gray-800'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                        }`}>
+                        No
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">Lowest individual score ≤ par on each hole wins a skin from every other participant.</p>
+                  </div>
+                  {/* Amount per skin */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Amount Per Skin ($)</label>
+                    <input
+                      type="number" name="skins_amount" min="0" step="0.50"
+                      value={skinsAmount}
+                      onChange={(e) => setSkinsAmount(parseFloat(e.target.value) || 0)}
+                      disabled={!skinsEnabled}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none disabled:opacity-40 disabled:bg-gray-50" />
+                    <p className="text-xs text-gray-400 mt-1">Each other participant owes this amount to the skin winner per hole won.</p>
+                  </div>
+                  <button type="submit" disabled={skinsPending || (roundIsSettingUp && skinsEnabled === null)}
+                    className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
+                    style={{ background: navy }}>
+                    {skinsPending ? 'Saving…' : 'Save Skins Settings'}
+                  </button>
+                </form>
+                {skinsEnabled && skinsAndPayoutEnabled && (
+                  <p className="text-xs text-amber-700 bg-amber-50 rounded px-3 py-2 mt-3">
+                    Mark each player as a skins participant using the Skins toggle in the Teams / Groups → Players section below.
+                  </p>
+                )}
               </div>
             )}
 
