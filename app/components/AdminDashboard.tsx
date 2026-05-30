@@ -1447,10 +1447,10 @@ export default function AdminDashboard({
                                   return <> · <span className="font-medium text-gray-700">{label}{p && p !== '0' ? ` · $${p}/pt` : ''}</span></>
                                 })()}
                                 {' · '}
-                                {roundIsSettingUp ? (() => {
+                                {(() => {
                                   if (isTraditional) {
                                     if (team.daytona_variant) {
-                                      const required = team.daytona_variant.startsWith('5man') ? 5 : 4
+                                      const required = team.daytona_variant.split('|')[0].startsWith('5man') ? 5 : 4
                                       const ok = teamPlayers.length === required
                                       const over = teamPlayers.length > required
                                       return (
@@ -1470,14 +1470,14 @@ export default function AdminDashboard({
                                     )
                                   }
                                   if (isDaytona) {
-                                    const teamVariant = team.daytona_variant ?? '4man'
+                                    const teamVariant = (team.daytona_variant ?? '4man').split('|')[0]
                                     const required = teamVariant.startsWith('5man') ? 5 : 4
                                     const ok = teamPlayers.length === required
                                     const over = teamPlayers.length > required
                                     return (
                                       <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>
                                         {teamPlayers.length}/{required} players
-                                        {over ? ' ↑ too many' : !ok ? '' : ' ✓'}
+                                        {over ? ' ↑ too many' : ok ? ' ✓' : ''}
                                       </span>
                                     )
                                   }
@@ -1490,7 +1490,7 @@ export default function AdminDashboard({
                                       {over ? ' ↑ too many' : ok ? ' ✓' : ''}
                                     </span>
                                   )
-                                })() : `${teamPlayers.length} player${teamPlayers.length !== 1 ? 's' : ''}`}
+                                })()}
                                 {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
                               </p>
                             </div>
@@ -1568,7 +1568,7 @@ export default function AdminDashboard({
                             ))}
                             {(() => {
                               const maxPlayers = (isDaytona || (isTraditional && team.daytona_variant))
-                                ? (team.daytona_variant ?? '4man').startsWith('5man') ? 5 : 4
+                                ? (team.daytona_variant ?? '4man').split('|')[0].startsWith('5man') ? 5 : 4
                                 : 5
                               if (teamPlayers.length >= maxPlayers) return null
                               return (
