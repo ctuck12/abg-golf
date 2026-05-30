@@ -465,6 +465,7 @@ export default function AdminDashboard({
   const [newTeamDaytonaType, setNewTeamDaytonaType] = useState('')
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
   const [newTeamDaytonaEnabled, setNewTeamDaytonaEnabled] = useState(false)
+  const [newTeamDaytonaPayout, setNewTeamDaytonaPayout] = useState('')
 
   const [createState, createAction, createPending] = useActionState(createRound, null)
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
@@ -494,6 +495,7 @@ export default function AdminDashboard({
       setNewTeamDaytonaType('')
       setNewTeamSubVariant('')
       setNewTeamDaytonaEnabled(false)
+      setNewTeamDaytonaPayout('')
       setShowAddTeamSuccess(true)
       const t = setTimeout(() => setShowAddTeamSuccess(false), 5000)
       return () => clearTimeout(t)
@@ -1358,24 +1360,36 @@ export default function AdminDashboard({
                             </button>
                           </div>
                           {newTeamDaytonaEnabled && (
-                            <div className="flex gap-2">
-                              <select value={newTeamDaytonaType} onChange={(e) => { setNewTeamDaytonaType(e.target.value); setNewTeamSubVariant('') }}
-                                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                                <option value="" disabled>Type…</option>
-                                <option value="4">4-Man</option>
-                                <option value="5">5-Man</option>
-                              </select>
-                              {newTeamDaytonaType === '5' && (
-                                <select value={newTeamSubVariant} onChange={(e) => setNewTeamSubVariant(e.target.value)}
+                            <div className="space-y-2">
+                              <div className="flex gap-2">
+                                <select value={newTeamDaytonaType} onChange={(e) => { setNewTeamDaytonaType(e.target.value); setNewTeamSubVariant('') }}
                                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                                  <option value="" disabled>Variant…</option>
-                                  <option value="normal">Normal</option>
-                                  <option value="flares">Flares</option>
+                                  <option value="" disabled>Type…</option>
+                                  <option value="4">4-Man</option>
+                                  <option value="5">5-Man</option>
                                 </select>
-                              )}
+                                {newTeamDaytonaType === '5' && (
+                                  <select value={newTeamSubVariant} onChange={(e) => setNewTeamSubVariant(e.target.value)}
+                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                    <option value="" disabled>Variant…</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="flares">Flares</option>
+                                  </select>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
+                                <input
+                                  type="number" min="0" step="0.25"
+                                  placeholder="e.g. 0.25"
+                                  value={newTeamDaytonaPayout}
+                                  onChange={(e) => setNewTeamDaytonaPayout(e.target.value)}
+                                  onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
+                                  className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                              </div>
                               <input type="hidden" name="daytona_variant" value={
-                                newTeamDaytonaType === '4' ? '4man' :
-                                newTeamDaytonaType === '5' ? `5man-${newTeamSubVariant || 'normal'}` : ''
+                                newTeamDaytonaType === '4' ? `4man|${newTeamDaytonaPayout || '0'}` :
+                                newTeamDaytonaType === '5' ? `5man-${newTeamSubVariant || 'normal'}|${newTeamDaytonaPayout || '0'}` : ''
                               } />
                             </div>
                           )}
@@ -1388,7 +1402,7 @@ export default function AdminDashboard({
                           className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none" />
                         {/* Disabled only while the create action is in-flight (roundId not known yet) */}
                         <button type="submit"
-                          disabled={addTeamPending || createPending || (isDaytona && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant))) || (isTraditional && newTeamDaytonaEnabled && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant)))}
+                          disabled={addTeamPending || createPending || (isDaytona && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant))) || (isTraditional && newTeamDaytonaEnabled && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant) || !newTeamDaytonaPayout))}
                           className="text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
                           style={{ background: navy }}>{createPending ? '…' : 'Add'}</button>
                       </div>
@@ -1427,13 +1441,11 @@ export default function AdminDashboard({
                               <p className="font-semibold text-gray-900 text-sm">{team.name}</p>
                               <p className="text-xs text-gray-500">
                                 PIN: <span className="font-mono font-bold text-gray-800">{team.pin}</span>
-                                {team.daytona_variant && (
-                                  <> · <span className="font-medium text-gray-700">{
-                                    team.daytona_variant === '5man-flares' ? 'Daytona 5-Man Flares' :
-                                    team.daytona_variant === '5man-normal' ? 'Daytona 5-Man Normal' :
-                                    'Daytona 4-Man'
-                                  }</span></>
-                                )}
+                                {team.daytona_variant && (() => {
+                                  const [v, p] = team.daytona_variant!.split('|')
+                                  const label = v === '5man-flares' ? 'Daytona 5-Man Flares' : v === '5man-normal' ? 'Daytona 5-Man Normal' : 'Daytona 4-Man'
+                                  return <> · <span className="font-medium text-gray-700">{label}{p && p !== '0' ? ` · $${p}/pt` : ''}</span></>
+                                })()}
                                 {' · '}
                                 {roundIsSettingUp ? (() => {
                                   if (isTraditional) {

@@ -299,7 +299,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 }
 
 export default function ScoreEntry({
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25,
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false,
 }: {
   team: Team
   players: Player[]
@@ -315,10 +315,12 @@ export default function ScoreEntry({
   includeTotal?: boolean
   initialHoleValues?: Record<number, number>
   defaultDtPayoutValue?: number
+  isDaytonaSideGame?: boolean
 }) {
   const isDaytona = format === 'daytona'
+  const isDaytonaMode = isDaytona || !!isDaytonaSideGame
   const isFlares = daytonaVariant === '5man-flares'
-  const is5Man = isDaytona && (daytonaVariant === '5man-normal' || daytonaVariant === '5man-flares')
+  const is5Man = isDaytonaMode && (daytonaVariant === '5man-normal' || daytonaVariant === '5man-flares')
   const leftLabel = isFlares ? 'Out' : 'Left'
   const rightLabel = isFlares ? 'In' : 'Right'
 
@@ -415,7 +417,7 @@ export default function ScoreEntry({
       .on('broadcast', { event: 'refresh' }, async () => {
         const [scoresRes, assignRes] = await Promise.all([
           supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds),
-          isDaytona && roundId && playerIds.length
+          isDaytonaMode && roundId && playerIds.length
             ? supabase.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId).in('player_id', playerIds)
             : Promise.resolve({ data: null }),
         ])
@@ -491,7 +493,7 @@ export default function ScoreEntry({
       m[a.hole_number][a.player_id] = a.side as DaytonaSide
     }
     // Pre-initialize an empty assignment map for the current hole so side buttons show immediately
-    if (isDaytona) {
+    if (isDaytonaMode) {
       const saved = new Set<number>()
       for (let h = 1; h <= 18; h++) {
         if (players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
@@ -520,7 +522,7 @@ export default function ScoreEntry({
     if (!savedHoles.has(holeNumber) && currentHole !== null && holeNumber > currentHole) return
     setExpandedHole((prev) => {
       if (prev === holeNumber) return null
-      if (isDaytona && !assignments[holeNumber]) {
+      if (isDaytonaMode && !assignments[holeNumber]) {
         if (savedHoles.has(holeNumber)) {
           // Re-editing a saved hole that lost its assignment data — restore defaults
           const def = defaultAssignmentForHole(players, holeNumber, assignments)
@@ -538,7 +540,7 @@ export default function ScoreEntry({
     const holeAssignments = assignments[holeNumber] ?? {}
     const leftCount = Object.values(holeAssignments).filter((s) => s === 'left').length
 
-    if (isDaytona && leftCount !== 2) {
+    if (isDaytonaMode && leftCount !== 2) {
       setErrors((e) => ({ ...e, [holeNumber]: 'Assign exactly 2 players to Left before saving.' }))
       return
     }
@@ -552,7 +554,7 @@ export default function ScoreEntry({
 
     // Determine press value entries to save alongside this hole
     const pressEntries: { holeNumber: number; valuePerPoint: number | null }[] = []
-    if (isDaytona && roundId) {
+    if (isDaytonaMode && roundId) {
       if (pressShowInput[holeNumber]) {
         const rawVal = parseFloat(pressValueStr[holeNumber] ?? '')
         const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
@@ -566,14 +568,14 @@ export default function ScoreEntry({
 
     const [result] = await Promise.all([
       submitHoleScores(team.id, holeNumber, playerScores),
-      isDaytona && roundId
+      isDaytonaMode && roundId
         ? saveDaytonaAssignments(
             roundId,
             holeNumber,
             Object.entries(holeAssignments).map(([playerId, side]) => ({ playerId, side }))
           )
         : Promise.resolve(),
-      isDaytona && roundId && pressEntries.length > 0
+      isDaytonaMode && roundId && pressEntries.length > 0
         ? saveDaytonaHoleValues(roundId, team.id, pressEntries)
         : Promise.resolve(),
     ])
@@ -609,7 +611,7 @@ export default function ScoreEntry({
       setErrors((e) => { const n = { ...e }; delete n[holeNumber]; return n })
       // Auto-advance to the next unsaved hole
       const nextHole = holes.find((h) => !savedHoles.has(h.hole_number) && h.hole_number !== holeNumber)?.hole_number ?? null
-      if (isDaytona && nextHole !== null && !assignments[nextHole]) {
+      if (isDaytonaMode && nextHole !== null && !assignments[nextHole]) {
         setAssignments((a) => ({ ...a, [nextHole]: {} }))
       }
       setExpandedHole(nextHole)
@@ -624,20 +626,20 @@ export default function ScoreEntry({
   const backHoles = holes.filter((h) => h.hole_number >= 10)
   const playerIds = players.map((p) => p.id)
 
-  const frontSummary = !isDaytona ? computeTeamBallSummary(frontHoles, playerIds, savedScores, ballsCount) : null
-  const backSummary = !isDaytona ? computeTeamBallSummary(backHoles, playerIds, savedScores, ballsCount) : null
+  const frontSummary = !isDaytonaMode ? computeTeamBallSummary(frontHoles, playerIds, savedScores, ballsCount) : null
+  const backSummary = !isDaytonaMode ? computeTeamBallSummary(backHoles, playerIds, savedScores, ballsCount) : null
 
   // Convert assignments map to flat array for summary functions
-  const flatAssignments: DaytonaHoleAssignment[] = isDaytona
+  const flatAssignments: DaytonaHoleAssignment[] = isDaytonaMode
     ? Object.entries(assignments).flatMap(([hn, map]) =>
         Object.entries(map).map(([pid, side]) => ({ player_id: pid, hole_number: Number(hn), side }))
       )
     : []
 
-  const dtSummary = isDaytona ? computeDaytonaSidesSummary(holes, savedScores, flatAssignments) : null
-  const playerPointTotals = isDaytona ? computePlayerDaytonaPoints(holes, savedScores, flatAssignments, daytonaVariant) : new Map<string, number>()
+  const dtSummary = isDaytonaMode ? computeDaytonaSidesSummary(holes, savedScores, flatAssignments) : null
+  const playerPointTotals = isDaytonaMode ? computePlayerDaytonaPoints(holes, savedScores, flatAssignments, daytonaVariant) : new Map<string, number>()
 
-  const frontBallTotals = !isDaytona
+  const frontBallTotals = !isDaytonaMode
     ? Array.from({ length: ballsCount }, (_, bi) =>
         frontHoles.reduce((sum, h) => {
           const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
@@ -645,7 +647,7 @@ export default function ScoreEntry({
         }, 0)
       )
     : []
-  const backBallTotals = !isDaytona
+  const backBallTotals = !isDaytonaMode
     ? Array.from({ length: ballsCount }, (_, bi) =>
         backHoles.reduce((sum, h) => {
           const hps = players.map((p) => strokes[p.id]?.[h.hole_number] ?? h.par)
@@ -681,7 +683,7 @@ export default function ScoreEntry({
               <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>
-          {!isDaytona && (
+          {!isDaytonaMode && (
             <div className="flex gap-3">
               {([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
                 <div key={label} className="flex-1">
@@ -704,17 +706,25 @@ export default function ScoreEntry({
             </div>
           )}
 
-          {/* Player running point totals — Daytona only */}
-          {isDaytona && playerPointTotals.size > 0 && (
+          {/* Player running point totals — Daytona / side game */}
+          {isDaytonaMode && playerPointTotals.size > 0 && (
             <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
               {players.map((p) => {
                 const pts = playerPointTotals.get(p.id) ?? 0
+                const pScores = savedScores.filter((s) => s.player_id === p.id)
+                const pStrokes = pScores.reduce((sum, s) => sum + s.strokes, 0)
+                const pPar = holes.filter((h) => pScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+                const vspar = pScores.length > 0 ? pStrokes - pPar : null
+                const vsparStr = vspar === null ? null : vspar === 0 ? 'E' : vspar > 0 ? `+${vspar}` : String(vspar)
                 return (
-                  <div key={p.id} className="flex items-center gap-1.5 text-xs">
-                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}</span>
+                  <div key={p.id} className="flex items-center gap-1 text-xs">
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
                     <span className="font-bold" style={{ color: pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {pts > 0 ? `+${pts}` : pts}
                     </span>
+                    {isDaytonaSideGame && vsparStr !== null && (
+                      <span style={{ color: 'rgba(255,255,255,0.45)' }}>({vsparStr})</span>
+                    )}
                   </div>
                 )
               })}
@@ -995,7 +1005,7 @@ export default function ScoreEntry({
             const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
             return sc?.strokes ?? hole.par
           })
-          const holeBalls = !isDaytona ? computeHoleBallScores(savedHolePlayerScores, ballsCount) : []
+          const holeBalls = !isDaytonaMode ? computeHoleBallScores(savedHolePlayerScores, ballsCount) : []
 
           // Compute Left/Right DT for collapsed row using saved data
           const holeAssignments = assignments[hole.hole_number] ?? {}
@@ -1007,7 +1017,7 @@ export default function ScoreEntry({
             .filter((p) => holeAssignments[p.id] === 'right')
             .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
             .filter((s): s is number => s !== undefined)
-          const { leftDt, rightDt } = isDaytona
+          const { leftDt, rightDt } = isDaytonaMode
             ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par)
             : { leftDt: null, rightDt: null }
 
@@ -1026,7 +1036,7 @@ export default function ScoreEntry({
 
           // Per-player points for this hole (saved only)
           const holePlayerPoints: Map<string, number> = (() => {
-            if (!isDaytona || !isSaved) return new Map()
+            if (!isDaytonaMode || !isSaved) return new Map()
             const leftIds = players.filter((p) => holeAssignments[p.id] === 'left').map((p) => p.id)
             const rightIds = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => p.id)
             if (is5Man) {
@@ -1053,7 +1063,7 @@ export default function ScoreEntry({
           const editRightScores = players
             .filter((p) => holeAssignments[p.id] === 'right')
             .map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
-          const { leftDt: liveLeftDt, rightDt: liveRightDt } = isDaytona
+          const { leftDt: liveLeftDt, rightDt: liveRightDt } = isDaytonaMode
             ? computeHoleDaytonaWithSides(editLeftScores, editRightScores, hole.par)
             : { leftDt: null, rightDt: null }
 
@@ -1090,14 +1100,14 @@ export default function ScoreEntry({
                   <p className="font-semibold text-gray-600">{hole.par}</p>
                 </div>
                 <div className="flex-1" />
-                {isDaytona && isSaved && holeValues[hole.hole_number] !== undefined && (
+                {isDaytonaMode && isSaved && holeValues[hole.hole_number] !== undefined && (
                   <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-1 flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>
                     ↑${holeValues[hole.hole_number]}
                   </span>
                 )}
                 {isSaved && (
                   <div className="flex items-center gap-3 mr-2">
-                    {isDaytona ? (
+                    {isDaytonaMode ? (
                       <>
                         <div className="text-center mr-3">
                           <p className="text-xs" style={{ color: '#2563eb' }}>{holeLeftLabel}</p>
@@ -1161,7 +1171,7 @@ export default function ScoreEntry({
                     const outBorder = '#93c5fd', inBorder = '#fcd34d'
                     return (
                       <div key={player.id} className="flex items-center gap-2">
-                        {isDaytona && (
+                        {isDaytonaMode && (
                           <button
                             type="button"
                             onClick={() => {
@@ -1210,7 +1220,7 @@ export default function ScoreEntry({
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
                           {player.name}
-                          {isDaytona && isSaved && (() => {
+                          {isDaytonaMode && isSaved && (() => {
                             const pts = holePlayerPoints.get(player.id)
                             if (!pts) return null
                             return (
@@ -1221,8 +1231,8 @@ export default function ScoreEntry({
                           })()}
                         </span>
                         {(() => {
-                          const allAssigned = !isDaytona || players.every((p) => p.id in holeAssignments)
-                          const scoreActive = !isDaytona || allAssigned
+                          const allAssigned = !isDaytonaMode || players.every((p) => p.id in holeAssignments)
+                          const scoreActive = !isDaytonaMode || allAssigned
                           const canInteract = allAssigned
                           return (
                             <>
@@ -1254,7 +1264,7 @@ export default function ScoreEntry({
                   })}
 
                   {/* ── Daytona assignment validation ── */}
-                  {isDaytona && (() => {
+                  {isDaytonaMode && (() => {
                     const allAssigned = players.every((p) => p.id in holeAssignments)
                     return (
                       <>
@@ -1269,7 +1279,7 @@ export default function ScoreEntry({
                   })()}
 
                   {/* ── Press (custom payout) UI ── */}
-                  {isDaytona && (() => {
+                  {isDaytonaMode && (() => {
                     const isActive = !!pressShowInput[hole.hole_number]
                     const existingVal = holeValues[hole.hole_number]
                     const currentScope = pressScope[hole.hole_number] ?? 'this'
@@ -1364,8 +1374,8 @@ export default function ScoreEntry({
                   })()}
 
                   {(() => {
-                    const allAssigned = !isDaytona || players.every((p) => p.id in holeAssignments)
-                    const daytonaReady = !isDaytona || (allAssigned && leftCount === 2)
+                    const allAssigned = !isDaytonaMode || players.every((p) => p.id in holeAssignments)
+                    const daytonaReady = !isDaytonaMode || (allAssigned && leftCount === 2)
                     return (
                       <>
                         {error && <p className="text-xs text-red-500">{error}</p>}
@@ -1384,13 +1394,13 @@ export default function ScoreEntry({
               )}
             </div>
 
-              {hole.hole_number === 9 && !isDaytona && (
+              {hole.hole_number === 9 && !isDaytonaMode && (
                 <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: navy }}>
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Front 9 Total</p>
                     {savedHoles.has(9) && (
                       <div className="flex items-center gap-3 mr-8">
-                        {isDaytona ? (
+                        {isDaytonaMode ? (
                           <>
                             <div className="text-center">
                               <p className="text-xs" style={{ color: '#2563eb' }}>{leftLabel}</p>
@@ -1414,13 +1424,13 @@ export default function ScoreEntry({
                   </div>
                 </div>
               )}
-              {hole.hole_number === 18 && !isDaytona && (
+              {hole.hole_number === 18 && !isDaytonaMode && (
                 <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: navy }}>
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Back 9 Total</p>
                     {savedHoles.has(18) && (
                       <div className="flex items-center gap-3 mr-8">
-                        {isDaytona ? (
+                        {isDaytonaMode ? (
                           <>
                             <div className="text-center">
                               <p className="text-xs" style={{ color: '#2563eb' }}>{leftLabel}</p>
