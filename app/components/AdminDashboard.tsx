@@ -1273,9 +1273,10 @@ export default function AdminDashboard({
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Amount Per Skin ($)</label>
                     <input
-                      type="number" name="skins_amount" min="0" step="0.50"
+                      type="number" name="skins_amount" min="0" step="1"
                       value={skinsAmount}
                       onChange={(e) => setSkinsAmount(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => { if (skinsAmount === 0) e.target.value = '' }}
                       disabled={!skinsEnabled}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none disabled:opacity-40 disabled:bg-gray-50" />
                     <p className="text-xs text-gray-400 mt-1">Each other participant owes this amount to the skin winner per hole won.</p>
