@@ -1072,8 +1072,7 @@ export default function LeaderboardClient({
 
       <div className="max-w-lg mx-auto px-4 pt-5">
         <h2 className="text-lg font-bold text-gray-900 mb-2">Leaderboard</h2>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-3">
             <button
               onClick={() => setShowPayouts(true)}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
@@ -1090,31 +1089,32 @@ export default function LeaderboardClient({
               style={{ borderColor: navy, color: navy }}>
               Matchups
             </a>
+        </div>
+
+        {/* Leaderboard view toggle + Live indicator */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {(isDaytona
+              ? [{ view: 'group', label: 'Group Leaderboard' }, { view: 'individual', label: 'Individual Leaderboard' }]
+              : isTraditional
+              ? [{ view: 'individual', label: 'Individual Leaderboard' }, { view: 'group', label: 'Group Leaderboard' }]
+              : [{ view: 'team', label: 'Team Leaderboard' }, { view: 'individual', label: 'Individual Leaderboard' }]
+            ).map(({ view, label }) => (
+              <button
+                key={view}
+                onClick={() => setLeaderboardView(view as 'group' | 'team' | 'individual')}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition"
+                style={leaderboardView === view
+                  ? { background: navy, color: 'white', borderColor: navy }
+                  : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                {label}
+              </button>
+            ))}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <span className={`w-2 h-2 rounded-full inline-block${isComplete ? ' bg-red-500' : ' bg-green-500 animate-pulse'}`} />
             {isComplete ? 'Complete' : 'Live'}
           </div>
-        </div>
-
-        {/* Leaderboard view toggle */}
-        <div className="flex items-center gap-2 mb-3">
-          {(isDaytona
-            ? [{ view: 'group', label: 'Group Leaderboard' }, { view: 'individual', label: 'Individual Leaderboard' }]
-            : isTraditional
-            ? [{ view: 'individual', label: 'Individual Leaderboard' }, { view: 'group', label: 'Group Leaderboard' }]
-            : [{ view: 'team', label: 'Team Leaderboard' }, { view: 'individual', label: 'Individual Leaderboard' }]
-          ).map(({ view, label }) => (
-            <button
-              key={view}
-              onClick={() => setLeaderboardView(view as 'group' | 'team' | 'individual')}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition"
-              style={leaderboardView === view
-                ? { background: navy, color: 'white', borderColor: navy }
-                : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
-              {label}
-            </button>
-          ))}
         </div>
 
         {isDaytona && leaderboardView === 'group' && dtGroupRows.length > 1 ? (
