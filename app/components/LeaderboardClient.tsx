@@ -357,6 +357,9 @@ export default function LeaderboardClient({
   const [showSkinsSettlements, setShowSkinsSettlements] = useState(false)
   const [isAdmin, setIsAdmin] = useState(isAdminProp)
   const [scorecardTeamId, setScorecardTeamId] = useState(scorecardTeamIdProp)
+  const [leaderboardView, setLeaderboardView] = useState<'group' | 'team' | 'individual'>(
+    format === 'daytona' ? 'group' : format === 'traditional' ? 'individual' : 'team'
+  )
 
   const isDaytona = format === 'daytona'
   const isTraditional = format === 'traditional'
@@ -502,6 +505,49 @@ export default function LeaderboardClient({
     if (a.vspar !== b.vspar) return (a.vspar ?? 999) - (b.vspar ?? 999)
     return a.player.name.localeCompare(b.player.name)
   }) : []
+
+  // Daytona: flat cross-group individual ranking
+  const dtIndividualRows = isDaytona
+    ? dtGroupRows
+        .flatMap((g) => g.rows.map((r) => ({ ...r, groupName: g.team.name })))
+        .sort((a, b) => {
+          const aHas = a.thru > 0, bHas = b.thru > 0
+          if (!aHas && !bHas) return a.player.name.localeCompare(b.player.name)
+          if (!aHas) return 1; if (!bHas) return -1
+          return b.points - a.points
+        })
+    : []
+
+  // Ball game: individual stroke-play ranking
+  const ballIndividualRows = !isDaytona && !isTraditional
+    ? players
+        .map((p) => {
+          const ps = scores.filter((s) => s.player_id === p.id)
+          const holesPlayed = ps.length
+          const totalStrokes = ps.reduce((sum, s) => sum + s.strokes, 0)
+          const totalPar = holes.filter((h) => ps.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+          return { player: p, holesPlayed, vspar: holesPlayed > 0 ? totalStrokes - totalPar : null }
+        })
+        .sort((a, b) => {
+          const aHas = a.holesPlayed > 0, bHas = b.holesPlayed > 0
+          if (!aHas && !bHas) return a.player.name.localeCompare(b.player.name)
+          if (!aHas) return 1; if (!bHas) return -1
+          if (a.vspar !== b.vspar) return (a.vspar ?? 999) - (b.vspar ?? 999)
+          return a.player.name.localeCompare(b.player.name)
+        })
+    : []
+
+  // Traditional: players grouped by team (for group view)
+  const traditionalGroupRows = isTraditional
+    ? initialTeams
+        .map((team) => ({ team, rows: traditionalPlayerRows.filter((r) => r.player.team_id === team.id) }))
+        .filter((g) => g.rows.length > 0)
+        .sort((a, b) => {
+          const aBest = a.rows.find((r) => r.vspar !== null)?.vspar ?? 999
+          const bBest = b.rows.find((r) => r.vspar !== null)?.vspar ?? 999
+          return aBest !== bBest ? aBest - bBest : a.team.name.localeCompare(b.team.name)
+        })
+    : []
 
   // Payout computations (mirrors AdminDashboard)
   const frontHolesForPayouts = holes.filter((h) => h.hole_number <= 9)
@@ -1042,7 +1088,27 @@ export default function LeaderboardClient({
           </div>
         </div>
 
-        {isDaytona && dtGroupRows.length > 1 ? (
+        {/* Leaderboard view toggle */}
+        <div className="flex items-center gap-2 mb-3">
+          {(isDaytona
+            ? [{ view: 'group', label: 'Group Leaderboard' }, { view: 'individual', label: 'Individual Leaderboard' }]
+            : isTraditional
+            ? [{ view: 'individual', label: 'Individual Leaderboard' }, { view: 'group', label: 'Group Leaderboard' }]
+            : [{ view: 'team', label: 'Team Leaderboard' }, { view: 'individual', label: 'Individual Leaderboard' }]
+          ).map(({ view, label }) => (
+            <button
+              key={view}
+              onClick={() => setLeaderboardView(view as 'group' | 'team' | 'individual')}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition"
+              style={leaderboardView === view
+                ? { background: navy, color: 'white', borderColor: navy }
+                : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {isDaytona && leaderboardView === 'group' && dtGroupRows.length > 1 ? (
           <div className="space-y-4">
             {dtGroupRows.map((group) => {
               const variantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares'
@@ -1095,29 +1161,46 @@ export default function LeaderboardClient({
               )
             })}
           </div>
+        ) : isTraditional && leaderboardView === 'group' ? (
+          <div className="space-y-4">
+            {traditionalGroupRows.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No groups yet.</p>}
+            {traditionalGroupRows.map((group) => (
+              <div key={group.team.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div style={{ background: navy }}>
+                  <div className="flex items-center px-4 pt-3 pb-1.5">
+                    <span className="text-sm font-bold text-white flex-1">{group.team.name}</span>
+                  </div>
+                  <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
+                    <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
+                    <span className="flex-1 min-w-0" style={{ color: '#64748b' }}>Player</span>
+                    <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: navy }}>Score</span>
+                    <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem', color: '#64748b' }}>Thru</span>
+                  </div>
+                </div>
+                {group.rows.map((row, i) => {
+                  const vp = row.vspar
+                  const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
+                  const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                  return (
+                    <a key={row.player.id} href={`/player/${row.player.id}`}
+                      className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                      <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
+                      <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                      <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
+                      <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
+                    </a>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
         ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
           <div className="min-w-max w-full">
           {/* Header */}
           <div style={{ background: navy }}>
-            {isTraditional ? (
-              <div className="flex items-center px-4 py-2.5 text-xs font-semibold uppercase"
-                style={{ color: 'rgba(255,255,255,0.6)' }}>
-                <span className="w-5 mr-2 flex-shrink-0">#</span>
-                <span className="flex-1 min-w-0">Player</span>
-                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>Score</span>
-                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
-              </div>
-            ) : isDaytona ? (
-              <div className="flex items-center px-4 py-2.5 text-xs font-semibold uppercase"
-                style={{ color: 'rgba(255,255,255,0.6)' }}>
-                <span className="w-5 mr-2 flex-shrink-0">#</span>
-                <span className="flex-1 min-w-0">Player</span>
-                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>Points</span>
-                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
-              </div>
-            ) : (
+            {(!isDaytona && !isTraditional && leaderboardView === 'team') ? (
               <>
                 {/* Group labels row */}
                 <div className="flex items-center px-4 pt-2 pb-0 text-xs font-semibold uppercase tracking-wide">
@@ -1153,10 +1236,54 @@ export default function LeaderboardClient({
                   <span className="flex-shrink-0" style={{ width: '1.5rem' }} />
                 </div>
               </>
+            ) : (
+              <div className="flex items-center px-4 py-2.5 text-xs font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                <span className="w-5 mr-2 flex-shrink-0">#</span>
+                <span className="flex-1 min-w-0">Player</span>
+                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>{isDaytona ? 'Points' : 'Score'}</span>
+                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
+              </div>
             )}
           </div>
 
-          {isTraditional ? (
+          {isDaytona && leaderboardView === 'individual' ? (
+            <>
+              {dtIndividualRows.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No scores yet.</p>}
+              {dtIndividualRows.map((row, i) => {
+                const pts = row.thru > 0 ? row.points : null
+                const ptsColor = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
+                const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
+                return (
+                  <a key={row.player.id} href={`/player/${row.player.id}`}
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.thru > 0 ? i + 1 : '–'}</span>
+                    <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                    <span className="text-xs text-gray-400 mr-1 truncate max-w-[4rem]">{row.groupName}</span>
+                    <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: ptsColor }}>{ptsStr}</span>
+                    <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.thru === 0 ? '–' : row.thru === 18 ? 'F' : row.thru}</span>
+                  </a>
+                )
+              })}
+            </>
+          ) : !isDaytona && !isTraditional && leaderboardView === 'individual' ? (
+            <>
+              {ballIndividualRows.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No scores yet.</p>}
+              {ballIndividualRows.map((row, i) => {
+                const vp = row.vspar
+                const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
+                const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                return (
+                  <a key={row.player.id} href={`/player/${row.player.id}`}
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
+                    <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                    <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
+                    <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
+                  </a>
+                )
+              })}
+            </>
+          ) : isTraditional ? (
             <>
               {traditionalPlayerRows.length === 0 && (
                 <p className="text-center text-gray-500 text-sm py-8">No scores yet.</p>
