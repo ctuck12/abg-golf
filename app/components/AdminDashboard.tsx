@@ -464,6 +464,7 @@ export default function AdminDashboard({
   const [showAddTeamSuccess, setShowAddTeamSuccess] = useState(false)
   const [newTeamDaytonaType, setNewTeamDaytonaType] = useState('')
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
+  const [newTeamDaytonaEnabled, setNewTeamDaytonaEnabled] = useState(false)
 
   const [createState, createAction, createPending] = useActionState(createRound, null)
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
@@ -1345,6 +1346,40 @@ export default function AdminDashboard({
                           } />
                         </div>
                       )}
+                      {isTraditional && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
+                            <button type="button"
+                              onClick={() => { setNewTeamDaytonaEnabled(v => !v); setNewTeamDaytonaType(''); setNewTeamSubVariant('') }}
+                              className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                              {newTeamDaytonaEnabled ? 'On' : 'Off'}
+                            </button>
+                          </div>
+                          {newTeamDaytonaEnabled && (
+                            <div className="flex gap-2">
+                              <select value={newTeamDaytonaType} onChange={(e) => { setNewTeamDaytonaType(e.target.value); setNewTeamSubVariant('') }}
+                                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                <option value="" disabled>Type…</option>
+                                <option value="4">4-Man</option>
+                                <option value="5">5-Man</option>
+                              </select>
+                              {newTeamDaytonaType === '5' && (
+                                <select value={newTeamSubVariant} onChange={(e) => setNewTeamSubVariant(e.target.value)}
+                                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                  <option value="" disabled>Variant…</option>
+                                  <option value="normal">Normal</option>
+                                  <option value="flares">Flares</option>
+                                </select>
+                              )}
+                              <input type="hidden" name="daytona_variant" value={
+                                newTeamDaytonaType === '4' ? '4man' :
+                                newTeamDaytonaType === '5' ? `5man-${newTeamSubVariant || 'normal'}` : ''
+                              } />
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <input type="text" name="name" placeholder={isDaytona ? 'Group name' : 'Team name'} required
                           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
@@ -1352,7 +1387,7 @@ export default function AdminDashboard({
                           className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none" />
                         {/* Disabled only while the create action is in-flight (roundId not known yet) */}
                         <button type="submit"
-                          disabled={addTeamPending || createPending || (isDaytona && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant)))}
+                          disabled={addTeamPending || createPending || (isDaytona && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant))) || (isTraditional && newTeamDaytonaEnabled && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant)))}
                           className="text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
                           style={{ background: navy }}>{createPending ? '…' : 'Add'}</button>
                       </div>
@@ -1391,7 +1426,7 @@ export default function AdminDashboard({
                               <p className="font-semibold text-gray-900 text-sm">{team.name}</p>
                               <p className="text-xs text-gray-500">
                                 PIN: <span className="font-mono font-bold text-gray-800">{team.pin}</span>
-                                {isDaytona && team.daytona_variant && (
+                                {team.daytona_variant && (
                                   <> · <span className="font-medium text-gray-700">{
                                     team.daytona_variant === '5man-flares' ? 'Daytona 5-Man Flares' :
                                     team.daytona_variant === '5man-normal' ? 'Daytona 5-Man Normal' :

@@ -363,6 +363,8 @@ export default function LeaderboardClient({
 
   const isDaytona = format === 'daytona'
   const isTraditional = format === 'traditional'
+  const [traditionalGroupView, setTraditionalGroupView] = useState<Record<string, 'score' | 'points'>>({})
+
 
   // Re-fetch auth state on mount so navigating back from another page doesn't
   // show stale RSC props.  credentials:'include' + cache:'no-store' ensures the
@@ -546,10 +548,21 @@ export default function LeaderboardClient({
         })
     : []
 
-  // Traditional: players grouped by team (for group view)
+  // Traditional: players grouped by team (for group view), with optional Daytona points
   const traditionalGroupRows = isTraditional
     ? initialTeams
-        .map((team) => ({ team, rows: traditionalPlayerRows.filter((r) => r.player.team_id === team.id) }))
+        .map((team) => {
+          const rows = traditionalPlayerRows.filter((r) => r.player.team_id === team.id)
+          const hasDaytona = !!team.daytona_variant
+          let pointsMap: Map<string, number> | null = null
+          if (hasDaytona) {
+            const tpIds = rows.map((r) => r.player.id)
+            const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
+            const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+            pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!)
+          }
+          return { team, rows, hasDaytona, pointsMap }
+        })
         .filter((g) => g.rows.length > 0)
         .sort((a, b) => {
           const aBest = a.rows.find((r) => r.vspar !== null)?.vspar ?? 999
@@ -1173,35 +1186,75 @@ export default function LeaderboardClient({
         ) : isTraditional && leaderboardView === 'group' ? (
           <div className="space-y-4">
             {traditionalGroupRows.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No groups yet.</p>}
-            {traditionalGroupRows.map((group) => (
-              <div key={group.team.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div style={{ background: navy }}>
-                  <div className="flex items-center px-4 pt-3 pb-1.5">
-                    <span className="text-sm font-bold text-white flex-1">{group.team.name}</span>
+            {traditionalGroupRows.map((group) => {
+              const gView = traditionalGroupView[group.team.id] ?? 'score'
+              const showingPoints = gView === 'points' && group.hasDaytona && group.pointsMap
+              const sortedRows = showingPoints
+                ? [...group.rows].sort((a, b) => {
+                    const aPts = group.pointsMap!.get(a.player.id) ?? 0
+                    const bPts = group.pointsMap!.get(b.player.id) ?? 0
+                    if (aPts !== bPts) return bPts - aPts
+                    return a.player.name.localeCompare(b.player.name)
+                  })
+                : group.rows
+              return (
+                <div key={group.team.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div style={{ background: navy }}>
+                    <div className="flex items-center px-4 pt-3 pb-1.5">
+                      <span className="text-sm font-bold text-white flex-1">{group.team.name}</span>
+                      {group.hasDaytona && (
+                        <div className="flex items-center rounded-full overflow-hidden border text-[10px] font-semibold flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.35)' }}>
+                          <button onClick={() => setTraditionalGroupView((v) => ({ ...v, [group.team.id]: 'score' }))}
+                            className="px-2.5 py-0.5 transition"
+                            style={{ background: gView === 'score' ? 'white' : 'transparent', color: gView === 'score' ? navy : 'rgba(255,255,255,0.7)' }}>
+                            Score
+                          </button>
+                          <button onClick={() => setTraditionalGroupView((v) => ({ ...v, [group.team.id]: 'points' }))}
+                            className="px-2.5 py-0.5 transition"
+                            style={{ background: gView === 'points' ? 'white' : 'transparent', color: gView === 'points' ? navy : 'rgba(255,255,255,0.7)' }}>
+                            Points
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
+                      <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
+                      <span className="flex-1 min-w-0" style={{ color: '#64748b' }}>Player</span>
+                      <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: navy }}>{showingPoints ? 'Points' : 'Score'}</span>
+                      <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem', color: '#64748b' }}>Thru</span>
+                    </div>
                   </div>
-                  <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
-                    <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
-                    <span className="flex-1 min-w-0" style={{ color: '#64748b' }}>Player</span>
-                    <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: navy }}>Score</span>
-                    <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem', color: '#64748b' }}>Thru</span>
-                  </div>
+                  {sortedRows.map((row, i) => {
+                    if (showingPoints) {
+                      const pts = group.pointsMap!.get(row.player.id) ?? null
+                      const ptCol = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
+                      const ptStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
+                      return (
+                        <a key={row.player.id} href={`/player/${row.player.id}`}
+                          className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                          <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
+                          <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                          <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: ptCol }}>{ptStr}</span>
+                          <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
+                        </a>
+                      )
+                    }
+                    const vp = row.vspar
+                    const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
+                    const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                    return (
+                      <a key={row.player.id} href={`/player/${row.player.id}`}
+                        className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                        <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
+                        <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                        <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
+                        <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
+                      </a>
+                    )
+                  })}
                 </div>
-                {group.rows.map((row, i) => {
-                  const vp = row.vspar
-                  const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
-                  const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
-                  return (
-                    <a key={row.player.id} href={`/player/${row.player.id}`}
-                      className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
-                      <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
-                      <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
-                      <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
-                      <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
-                    </a>
-                  )
-                })}
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
