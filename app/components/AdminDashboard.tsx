@@ -1392,7 +1392,7 @@ export default function AdminDashboard({
                           className="text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
                           style={{ background: navy }}>{createPending ? '…' : 'Add'}</button>
                       </div>
-                      <p className="text-xs text-gray-400">PIN must be 4 digits — share with the {isDaytona || isTraditional ? 'group' : 'team'}.</p>
+                      <p className="text-xs text-gray-400">PIN must be 4 digits — share with the {isDaytona || isTraditional ? 'group scorekeeper' : 'team'}.</p>
                     </form>
                   </div>
                 )}
