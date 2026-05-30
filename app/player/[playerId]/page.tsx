@@ -35,6 +35,8 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
     assignments: DaytonaHoleAssignment[]
     allRoundScores: { player_id: string; hole_number: number; strokes: number }[]
     daytonaVariant?: string
+    pressedHoles?: Record<number, number>
+    dtPayoutValue?: number
   } | undefined
 
   if ((round.format ?? 'standard') === 'daytona') {
