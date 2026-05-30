@@ -1437,6 +1437,17 @@ export default function AdminDashboard({
                                 {' · '}
                                 {roundIsSettingUp ? (() => {
                                   if (isTraditional) {
+                                    if (team.daytona_variant) {
+                                      const required = team.daytona_variant.startsWith('5man') ? 5 : 4
+                                      const ok = teamPlayers.length === required
+                                      const over = teamPlayers.length > required
+                                      return (
+                                        <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>
+                                          {teamPlayers.length}/{required} players
+                                          {over ? ' ↑ too many' : ok ? ' ✓' : ''}
+                                        </span>
+                                      )
+                                    }
                                     const ok = teamPlayers.length >= 2 && teamPlayers.length <= 5
                                     const over = teamPlayers.length > 5
                                     return (
@@ -1544,7 +1555,7 @@ export default function AdminDashboard({
                               </div>
                             ))}
                             {(() => {
-                              const maxPlayers = isDaytona
+                              const maxPlayers = (isDaytona || (isTraditional && team.daytona_variant))
                                 ? (team.daytona_variant ?? '4man').startsWith('5man') ? 5 : 4
                                 : 5
                               if (teamPlayers.length >= maxPlayers) return null
