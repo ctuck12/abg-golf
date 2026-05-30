@@ -493,6 +493,7 @@ export default function AdminDashboard({
       router.refresh()
       setNewTeamDaytonaType('')
       setNewTeamSubVariant('')
+      setNewTeamDaytonaEnabled(false)
       setShowAddTeamSuccess(true)
       const t = setTimeout(() => setShowAddTeamSuccess(false), 5000)
       return () => clearTimeout(t)
