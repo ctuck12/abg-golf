@@ -1506,52 +1506,33 @@ export default function AdminDashboard({
                                   const label = v === '5man-flares' ? 'Daytona 5-Man Flares' : v === '5man-normal' ? 'Daytona 5-Man Normal' : 'Daytona 4-Man'
                                   return <> · <span className="font-medium text-gray-700">{label}{p && p !== '0' ? ` · $${p}/pt` : ''}</span></>
                                 })()}
-                                {' · '}
+                                {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
+                              </p>
+                              <p className="text-xs mt-0.5">
                                 {(() => {
                                   if (isTraditional) {
                                     if (team.daytona_variant) {
                                       const required = team.daytona_variant.split('|')[0].startsWith('5man') ? 5 : 4
                                       const ok = teamPlayers.length === required
                                       const over = teamPlayers.length > required
-                                      return (
-                                        <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>
-                                          {teamPlayers.length}/{required} players
-                                          {over ? ' ↑ too many' : ok ? ' ✓' : ''}
-                                        </span>
-                                      )
+                                      return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length}/{required} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                     }
                                     const ok = teamPlayers.length >= 2 && teamPlayers.length <= 5
                                     const over = teamPlayers.length > 5
-                                    return (
-                                      <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>
-                                        {teamPlayers.length}/2–5 players
-                                        {over ? ' ↑ too many' : ok ? ' ✓' : ''}
-                                      </span>
-                                    )
+                                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length}/2–5 players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                   }
                                   if (isDaytona) {
                                     const teamVariant = (team.daytona_variant ?? '4man').split('|')[0]
                                     const required = teamVariant.startsWith('5man') ? 5 : 4
                                     const ok = teamPlayers.length === required
                                     const over = teamPlayers.length > required
-                                    return (
-                                      <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>
-                                        {teamPlayers.length}/{required} players
-                                        {over ? ' ↑ too many' : ok ? ' ✓' : ''}
-                                      </span>
-                                    )
+                                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length}/{required} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                   }
                                   const required = round?.balls_count ?? 3
                                   const ok = teamPlayers.length >= required && teamPlayers.length <= 5
                                   const over = teamPlayers.length > 5
-                                  return (
-                                    <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>
-                                      {teamPlayers.length}/{required} players
-                                      {over ? ' ↑ too many' : ok ? ' ✓' : ''}
-                                    </span>
-                                  )
+                                  return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length}/{required} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                 })()}
-                                {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
                               </p>
                             </div>
                             <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 flex-shrink-0">
