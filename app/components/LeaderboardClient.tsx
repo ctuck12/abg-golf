@@ -506,15 +506,24 @@ export default function LeaderboardClient({
     return a.player.name.localeCompare(b.player.name)
   }) : []
 
-  // Daytona: flat cross-group individual ranking
+  // Daytona: flat cross-group individual ranking by stroke score vs par
   const dtIndividualRows = isDaytona
-    ? dtGroupRows
-        .flatMap((g) => g.rows.map((r) => ({ ...r, groupName: g.team.name })))
+    ? players
+        .map((p) => {
+          const ps = scores.filter((s) => s.player_id === p.id)
+          const holesPlayed = ps.length
+          const totalStrokes = ps.reduce((sum, s) => sum + s.strokes, 0)
+          const totalPar = holes.filter((h) => ps.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+          const vspar = holesPlayed > 0 ? totalStrokes - totalPar : null
+          const groupName = dtGroupRows.find((g) => g.rows.some((r) => r.player.id === p.id))?.team.name ?? ''
+          return { player: p, holesPlayed, vspar, groupName }
+        })
         .sort((a, b) => {
-          const aHas = a.thru > 0, bHas = b.thru > 0
+          const aHas = a.holesPlayed > 0, bHas = b.holesPlayed > 0
           if (!aHas && !bHas) return a.player.name.localeCompare(b.player.name)
           if (!aHas) return 1; if (!bHas) return -1
-          return b.points - a.points
+          if (a.vspar !== b.vspar) return (a.vspar ?? 999) - (b.vspar ?? 999)
+          return a.player.name.localeCompare(b.player.name)
         })
     : []
 
@@ -1240,7 +1249,7 @@ export default function LeaderboardClient({
               <div className="flex items-center px-4 py-2.5 text-xs font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 <span className="w-5 mr-2 flex-shrink-0">#</span>
                 <span className="flex-1 min-w-0">Player</span>
-                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>{isDaytona ? 'Points' : 'Score'}</span>
+                <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>{isDaytona && leaderboardView === 'group' ? 'Points' : 'Score'}</span>
                 <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
               </div>
             )}
@@ -1250,17 +1259,17 @@ export default function LeaderboardClient({
             <>
               {dtIndividualRows.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No scores yet.</p>}
               {dtIndividualRows.map((row, i) => {
-                const pts = row.thru > 0 ? row.points : null
-                const ptsColor = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
-                const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
+                const vp = row.vspar
+                const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
+                const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
                   <a key={row.player.id} href={`/player/${row.player.id}`}
                     className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
-                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.thru > 0 ? i + 1 : '–'}</span>
+                    <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                     <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
-                    <span className="text-xs text-gray-400 mr-1 truncate max-w-[4rem]">{row.groupName}</span>
-                    <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: ptsColor }}>{ptsStr}</span>
-                    <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.thru === 0 ? '–' : row.thru === 18 ? 'F' : row.thru}</span>
+                    <span className="text-xs text-gray-400 mr-1 truncate" style={{ maxWidth: '5rem' }}>{row.groupName}</span>
+                    <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
+                    <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
                   </a>
                 )
               })}
