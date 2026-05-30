@@ -182,6 +182,24 @@ export async function renameTeam(_prev: unknown, formData: FormData) {
   return { success: true }
 }
 
+export async function updateTeamSettings(_prev: unknown, formData: FormData) {
+  const teamId = formData.get('teamId') as string
+  const name = (formData.get('name') as string)?.trim()
+  const pin = (formData.get('pin') as string)?.trim()
+  const daytonaVariant = (formData.get('daytona_variant') as string) || null
+
+  if (!teamId || !name) return { error: 'Group name required.' }
+  if (pin && !/^\d{4}$/.test(pin)) return { error: 'PIN must be exactly 4 digits.' }
+
+  const supabase = createServerClient()
+  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant }
+  if (pin) updates.pin = pin
+
+  const { error } = await supabase.from('teams').update(updates).eq('id', teamId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function renamePlayer(_prev: unknown, formData: FormData) {
   const playerId = formData.get('playerId') as string
   const name = (formData.get('name') as string)?.trim()

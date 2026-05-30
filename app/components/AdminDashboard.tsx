@@ -6,7 +6,7 @@ import {
   createRound, addTeam, addPlayer, deleteTeam, deletePlayer,
   toggleTeamAdmin, resetTeamScores, activateRound, updateHolePars, updateBallValues,
   adminLogout, renameTeam, renamePlayer, movePlayer,
-  updateSkinsSettings, updatePlayerSkinsParticipation,
+  updateSkinsSettings, updatePlayerSkinsParticipation, updateTeamSettings,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -432,6 +432,13 @@ export default function AdminDashboard({
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPin, setEditPin] = useState('')
+  const [editDaytonaEnabled, setEditDaytonaEnabled] = useState(false)
+  const [editDaytonaType, setEditDaytonaType] = useState('')
+  const [editDaytonaSubVariant, setEditDaytonaSubVariant] = useState('')
+  const [editDaytonaPayout, setEditDaytonaPayout] = useState('')
   const [selectedCourse, setSelectedCourse] = useState('')
   const [selectedFormat, setSelectedFormat] = useState('')
   const [showNewRoundForm, setShowNewRoundForm] = useState(!round)
@@ -474,6 +481,7 @@ export default function AdminDashboard({
   const [ballState, ballAction, ballPending] = useActionState(updateBallValues, null)
   const [renameState, renameAction, renamePending] = useActionState(renameTeam, null)
   const [renamePlayerState, renamePlayerAction, renamePlayerPending] = useActionState(renamePlayer, null)
+  const [updateTeamState, updateTeamAction, updateTeamPending] = useActionState(updateTeamSettings, null)
   const [skinsState, skinsAction, skinsPending] = useActionState(updateSkinsSettings, null)
 
   // Optimistic "Setting Up" — three phases that together eliminate lag:
@@ -507,6 +515,9 @@ export default function AdminDashboard({
   useEffect(() => {
     if (renameState?.success) { router.refresh(); setRenamingTeam(null) }
   }, [renameState])
+  useEffect(() => {
+    if (updateTeamState?.success) { router.refresh(); setEditingTeamId(null) }
+  }, [updateTeamState])
   useEffect(() => {
     if (renamePlayerState?.success) { router.refresh(); setRenamingPlayer(null) }
   }, [renamePlayerState])
@@ -1423,17 +1434,66 @@ export default function AdminDashboard({
                   return (
                     <div key={team.id} className="border-2 border-gray-300 rounded-xl overflow-hidden">
                       <div className="px-4 py-3">
-                        {isRenaming ? (
-                          <form action={renameAction} className="flex gap-2" onSubmit={() => setRenamingTeam(null)}>
+                        {editingTeamId === team.id ? (
+                          <form action={updateTeamAction} className="space-y-2" onSubmit={() => setEditingTeamId(null)}>
                             <input type="hidden" name="teamId" value={team.id} />
-                            {renameState?.error && <p className="text-xs text-red-500">{renameState.error}</p>}
-                            <input type="text" name="name" defaultValue={team.name} required autoFocus
-                              className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                            <button type="submit" disabled={renamePending}
-                              className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60"
-                              style={{ background: navy }}>Save</button>
-                            <button type="button" onClick={() => setRenamingTeam(null)}
-                              className="text-gray-500 px-3 py-1.5 rounded-lg text-sm border border-gray-300">Cancel</button>
+                            {updateTeamState?.error && <p className="text-xs text-red-500">{updateTeamState.error}</p>}
+                            <div className="flex gap-2">
+                              <input type="text" name="name" value={editName} onChange={(e) => setEditName(e.target.value)} required placeholder="Group name"
+                                className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                              <input type="text" name="pin" value={editPin} onChange={(e) => setEditPin(e.target.value)} placeholder="PIN" maxLength={4} inputMode="numeric"
+                                className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
+                            </div>
+                            {isTraditional && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
+                                  <button type="button"
+                                    onClick={() => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout('') }}
+                                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                    {editDaytonaEnabled ? 'On' : 'Off'}
+                                  </button>
+                                </div>
+                                {editDaytonaEnabled && (
+                                  <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                      <select value={editDaytonaType} onChange={(e) => { setEditDaytonaType(e.target.value); setEditDaytonaSubVariant('') }}
+                                        className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                        <option value="" disabled>Type…</option>
+                                        <option value="4">4-Man</option>
+                                        <option value="5">5-Man</option>
+                                      </select>
+                                      {editDaytonaType === '5' && (
+                                        <select value={editDaytonaSubVariant} onChange={(e) => setEditDaytonaSubVariant(e.target.value)}
+                                          className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                          <option value="" disabled>Variant…</option>
+                                          <option value="normal">Normal</option>
+                                          <option value="flares">Flares</option>
+                                        </select>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
+                                      <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
+                                        value={editDaytonaPayout} onChange={(e) => setEditDaytonaPayout(e.target.value)}
+                                        onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
+                                        className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                    </div>
+                                  </div>
+                                )}
+                                <input type="hidden" name="daytona_variant" value={
+                                  editDaytonaEnabled && editDaytonaType === '4' ? `4man|${editDaytonaPayout || '0'}` :
+                                  editDaytonaEnabled && editDaytonaType === '5' ? `5man-${editDaytonaSubVariant || 'normal'}|${editDaytonaPayout || '0'}` : ''
+                                } />
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <button type="submit" disabled={updateTeamPending || (isTraditional && editDaytonaEnabled && (!editDaytonaType || (editDaytonaType === '5' && !editDaytonaSubVariant)))}
+                                className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60"
+                                style={{ background: navy }}>Save</button>
+                              <button type="button" onClick={() => setEditingTeamId(null)}
+                                className="text-gray-500 px-3 py-1.5 rounded-lg text-sm border border-gray-300">Cancel</button>
+                            </div>
                           </form>
                         ) : (
                           <div className="flex items-start gap-2">
@@ -1495,9 +1555,19 @@ export default function AdminDashboard({
                               </p>
                             </div>
                             <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 flex-shrink-0">
-                              <button onClick={() => setRenamingTeam(team.id)}
+                              <button onClick={() => {
+                                const v = team.daytona_variant ?? ''
+                                const [variant, payout] = v.includes('|') ? v.split('|') : [v, '']
+                                setEditingTeamId(team.id)
+                                setEditName(team.name)
+                                setEditPin(team.pin)
+                                setEditDaytonaEnabled(!!v)
+                                setEditDaytonaType(variant.startsWith('5man') ? '5' : variant === '4man' ? '4' : '')
+                                setEditDaytonaSubVariant(variant === '5man-flares' ? 'flares' : variant === '5man-normal' ? 'normal' : '')
+                                setEditDaytonaPayout(payout || '')
+                              }}
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
-                                Rename
+                                Edit
                               </button>
                               <button onClick={() => setSelectedTeam(isSelected ? null : team.id)}
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
