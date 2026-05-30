@@ -1381,7 +1381,7 @@ export default function AdminDashboard({
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <input type="text" name="name" placeholder={isDaytona ? 'Group name' : 'Team name'} required
+                        <input type="text" name="name" placeholder={(isDaytona || isTraditional) ? 'Group name' : 'Team name'} required
                           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                         <input type="text" name="pin" placeholder="PIN" maxLength={4} inputMode="numeric" required
                           className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none" />
@@ -1398,7 +1398,7 @@ export default function AdminDashboard({
 
                 {/* Teams list */}
                 {teams.length === 0 && (
-                  <div className="px-4 py-4 text-sm text-gray-400 text-center">No teams added yet.</div>
+                  <div className="px-4 py-4 text-sm text-gray-400 text-center">{(isDaytona || isTraditional) ? 'No groups added yet.' : 'No teams added yet.'}</div>
                 )}
                 <div className="p-3 space-y-2">
                 {teams.map((team) => {
