@@ -1324,7 +1324,7 @@ export default function AdminDashboard({
                       {/* Use the new round's ID as soon as it's available (before router.refresh() completes) */}
                       <input type="hidden" name="roundId" value={effectivePendingId ?? round.id} />
                       {addTeamState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{addTeamState.error}</p>}
-                      {showAddTeamSuccess && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">{isDaytona ? 'Group' : 'Team'} added!</p>}
+                      {showAddTeamSuccess && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">{(isDaytona || isTraditional) ? 'Group' : 'Team'} added!</p>}
                       {isDaytona && (
                         <div className="flex gap-2">
                           <select value={newTeamDaytonaType} onChange={(e) => { setNewTeamDaytonaType(e.target.value); setNewTeamSubVariant('') }} required
