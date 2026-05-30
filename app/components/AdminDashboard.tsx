@@ -504,6 +504,7 @@ export default function AdminDashboard({
       setNewTeamSubVariant('')
       setNewTeamDaytonaEnabled(false)
       setNewTeamDaytonaPayout('')
+      setShowAddTeamForm(false)
       setShowAddTeamSuccess(true)
       const t = setTimeout(() => setShowAddTeamSuccess(false), 5000)
       return () => clearTimeout(t)
