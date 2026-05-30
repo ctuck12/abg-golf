@@ -13,6 +13,11 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 const steelBlue = '#4a7fa5'
 const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
+
+function fmtAmt(val: number): string {
+  if (val === Math.floor(val)) return `$${val}`
+  return `$${val.toFixed(2).replace(/^0/, '')}`
+}
 const steelBlueBg = '#dbeafe'
 const BALL_LABELS = ['1B', '2B', '3B', '4B']
 
@@ -43,7 +48,7 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 })
 
 export default function ScorecardViewer({
-  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {},
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0,
 }: {
   teamName: string
   players: Player[]
@@ -55,6 +60,7 @@ export default function ScorecardViewer({
   dtAssignments?: DaytonaHoleAssignment[]
   isAdmin?: boolean
   pressedHoles?: Record<number, number>
+  dtPayoutValue?: number
 }) {
   const [scores, setScores] = useState(initialScores)
   const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
@@ -242,6 +248,7 @@ export default function ScorecardViewer({
             {isDaytona ? (
               <>
                 {(['left', 'right'] as const).map((side) => {
+
                   const label = side === 'left' ? leftLabel : rightLabel
                   const color = side === 'left' ? '#2563eb' : '#92400e'
                   const getDt = (d: typeof holeData[0]) => side === 'left' ? d.leftDt : d.rightDt
@@ -284,6 +291,28 @@ export default function ScorecardViewer({
                     </tr>
                   )
                 })}
+                {Object.keys(pressedHoles).length > 0 && (() => {
+                  const sortedRates = [...new Set(Object.values(pressedHoles))].sort((a, b) => a - b)
+                  const pressColor = (val: number) => PRESS_COLORS[sortedRates.indexOf(val) % PRESS_COLORS.length]
+                  return (
+                    <tr>
+                      <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
+                        const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
+                        return <td key={n} style={tdScore(false, true)}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
+                      })}
+                      <td style={tdScore(true, true)} />
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
+                        const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
+                        return <td key={n} style={tdScore(false, true)}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
+                      })}
+                      <td style={tdScore(true, true)} />
+                      <td style={tdScore(false, true)} />
+                    </tr>
+                  )
+                })()}
               </>
             ) : (
               Array.from({ length: ballsCount }, (_, bi) => (
