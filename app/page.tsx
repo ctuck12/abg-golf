@@ -29,6 +29,7 @@ export default async function HomePage() {
 
   const teamIds = teams.map((t) => t.id)
   const isDaytona = (round.format ?? 'standard') === 'daytona'
+  const isTraditional = (round.format ?? 'standard') === 'traditional'
 
   const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, { data: ballValuesRaw }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }] = await Promise.all([
     sb.from('players').select('id, team_id, name, position, skins_participant').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
