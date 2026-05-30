@@ -9,6 +9,12 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 const steelBlue = '#4a7fa5'
 const steelBlueBg = '#dbeafe'
+const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
+
+function fmtAmt(val: number): string {
+  if (val === Math.floor(val)) return `$${val}`
+  return `$${val.toFixed(2).replace(/^0/, '')}`
+}
 
 type Hole = { hole_number: number; par: number }
 type Score = { hole_number: number; strokes: number }
@@ -54,6 +60,8 @@ export default function PlayerScorecard({
     assignments: DaytonaHoleAssignment[]
     allRoundScores: RoundScore[]
     daytonaVariant?: string
+    pressedHoles?: Record<number, number>
+    dtPayoutValue?: number
   }
   isAdmin?: boolean
 }) {
@@ -327,67 +335,85 @@ export default function PlayerScorecard({
                   {thru > 0 ? totalStrokes : '–'}
                 </td>
               </tr>
-              {/* POINTS + TEAM rows — Daytona only */}
-              {isDaytona && (
-                <>
-                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
-                    {[1,2,3,4,5,6,7,8,9].map((n) => {
-                      const pts = holePointsMap.has(n) ? holePointsMap.get(n)! : null
-                      return (
-                        <td key={n} style={tdScore()}>
-                          <span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span>
-                        </td>
-                      )
-                    })}
-                    <td style={tdScore(true)}>
-                      <span style={{ fontWeight: 700, color: ptsColor(frontPoints) }}>{ptsStr(frontPoints)}</span>
-                    </td>
-                    {[10,11,12,13,14,15,16,17,18].map((n) => {
-                      const pts = holePointsMap.has(n) ? holePointsMap.get(n)! : null
-                      return (
-                        <td key={n} style={tdScore()}>
-                          <span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span>
-                        </td>
-                      )
-                    })}
-                    <td style={tdScore(true)}>
-                      <span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span>
-                    </td>
-                    <td style={{ ...tdScore(), fontWeight: 700, color: ptsColor(totalPoints) }}>
-                      {ptsStr(totalPoints)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
-                    {[1,2,3,4,5,6,7,8,9].map((n) => {
-                      const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
-                      const side = a?.side ?? null
-                      return (
-                        <td key={n} style={tdScore()}>
-                          {side != null
-                            ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? 'L' : 'R'}</span>
-                            : <span style={{ color: '#d1d5db' }}>–</span>}
-                        </td>
-                      )
-                    })}
-                    <td style={tdScore(true)} />
-                    {[10,11,12,13,14,15,16,17,18].map((n) => {
-                      const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
-                      const side = a?.side ?? null
-                      return (
-                        <td key={n} style={tdScore()}>
-                          {side != null
-                            ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? 'L' : 'R'}</span>
-                            : <span style={{ color: '#d1d5db' }}>–</span>}
-                        </td>
-                      )
-                    })}
-                    <td style={tdScore(true)} />
-                    <td style={tdScore()} />
-                  </tr>
-                </>
-              )}
+              {/* PTS + AMT + TEAM rows — Daytona only */}
+              {isDaytona && (() => {
+                const pressedHoles = dtData?.pressedHoles ?? {}
+                const dtPayoutValue = dtData?.dtPayoutValue ?? 0
+                const hasPress = Object.keys(pressedHoles).length > 0
+                const isFlares = daytonaVariant === '5man-flares'
+                const sortedRates = [...new Set(Object.values(pressedHoles))].sort((a, b) => a - b)
+                const pressColor = (val: number) => PRESS_COLORS[sortedRates.indexOf(val) % PRESS_COLORS.length]
+                return (
+                  <>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const pts = holePointsMap.has(n) ? holePointsMap.get(n)! : null
+                        return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span></td>
+                      })}
+                      <td style={tdScore(true)}><span style={{ fontWeight: 700, color: ptsColor(frontPoints) }}>{ptsStr(frontPoints)}</span></td>
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const pts = holePointsMap.has(n) ? holePointsMap.get(n)! : null
+                        return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span></td>
+                      })}
+                      <td style={tdScore(true)}><span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span></td>
+                      <td style={{ ...tdScore(), fontWeight: 700, color: ptsColor(totalPoints) }}>{ptsStr(totalPoints)}</td>
+                    </tr>
+                    {hasPress && (
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                        {[1,2,3,4,5,6,7,8,9].map((n) => {
+                          const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
+                          const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
+                          return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
+                        })}
+                        <td style={tdScore(true)} />
+                        {[10,11,12,13,14,15,16,17,18].map((n) => {
+                          const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
+                          const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
+                          return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
+                        })}
+                        <td style={tdScore(true)} />
+                        <td style={tdScore()} />
+                      </tr>
+                    )}
+                    <tr>
+                      <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
+                        const side = a?.side ?? null
+                        const par = holes.find((h) => h.hole_number === n)?.par ?? 4
+                        const leftChar = isFlares ? (par === 3 ? 'C' : 'O') : 'L'
+                        const rightChar = isFlares ? (par === 3 ? 'F' : 'I') : 'R'
+                        return (
+                          <td key={n} style={tdScore()}>
+                            {side != null
+                              ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? leftChar : rightChar}</span>
+                              : <span style={{ color: '#d1d5db' }}>–</span>}
+                          </td>
+                        )
+                      })}
+                      <td style={tdScore(true)} />
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
+                        const side = a?.side ?? null
+                        const par = holes.find((h) => h.hole_number === n)?.par ?? 4
+                        const leftChar = isFlares ? (par === 3 ? 'C' : 'O') : 'L'
+                        const rightChar = isFlares ? (par === 3 ? 'F' : 'I') : 'R'
+                        return (
+                          <td key={n} style={tdScore()}>
+                            {side != null
+                              ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? leftChar : rightChar}</span>
+                              : <span style={{ color: '#d1d5db' }}>–</span>}
+                          </td>
+                        )
+                      })}
+                      <td style={tdScore(true)} />
+                      <td style={tdScore()} />
+                    </tr>
+                  </>
+                )
+              })()}
             </tbody>
           </table>
         </div>

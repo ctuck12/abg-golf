@@ -42,20 +42,29 @@ export default async function PlayerPage({ params }: { params: Promise<{ playerI
     // must not bleed into this player's point calculations.
     const { data: teamPlayers } = await sb.from('players').select('id').eq('team_id', team!.id)
     const teamPlayerIds = (teamPlayers ?? []).map((p: { id: string }) => p.id)
-    const [{ data: assignmentsData }, { data: allScoresData }] = await Promise.all([
+    const [{ data: assignmentsData }, { data: allScoresData }, { data: holeValuesRaw }, { data: ballValuesRaw }] = await Promise.all([
       teamPlayerIds.length
         ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', teamPlayerIds)
         : Promise.resolve({ data: [] }),
       teamPlayerIds.length
         ? sb.from('scores').select('player_id, hole_number, strokes').in('player_id', teamPlayerIds)
         : Promise.resolve({ data: [] }),
+      sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', round.id).eq('team_id', team!.id),
+      sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id),
     ])
+    const pressedHoles: Record<number, number> = {}
+    for (const hv of (holeValuesRaw ?? []) as { hole_number: number; value_per_point: number }[]) {
+      pressedHoles[hv.hole_number] = hv.value_per_point
+    }
+    const dtPayoutValue = (ballValuesRaw as { ball_number: number; value_dollars: number }[] | null)?.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
     dtData = {
       roundId: round.id,
       allPlayerIds: teamPlayerIds,
       assignments: (assignmentsData ?? []) as DaytonaHoleAssignment[],
       allRoundScores: allScoresData ?? [],
       daytonaVariant: (team as { daytona_variant?: string | null }).daytona_variant ?? '4man',
+      pressedHoles,
+      dtPayoutValue,
     }
   }
 
