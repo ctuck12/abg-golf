@@ -1014,9 +1014,10 @@ export default function LeaderboardClient({
       )}
 
       {showAllScorecards && (() => {
+        const baseRows = isDaytona ? dtIndividualRows : isTraditional ? traditionalPlayerRows : ballIndividualRows
         const filteredRows = allScorecardsFilter === 'skins'
-          ? traditionalPlayerRows.filter((r) => r.player.skins_participant)
-          : traditionalPlayerRows
+          ? baseRows.filter((r) => r.player.skins_participant)
+          : baseRows
         const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
           background: highlight ? '#4a7fa5' : isHoleNum ? '#dde4ee' : navy,
           color: highlight ? 'white' : isHoleNum ? navy : 'white',
@@ -1215,13 +1216,7 @@ export default function LeaderboardClient({
               style={{ borderColor: navy, color: navy }}>
               Matchups
             </a>
-            {isDaytona && dtGroupRows.length <= 1 && (
-              <a href="/scorecards" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
-                style={{ borderColor: navy, color: navy }}>
-                All Scorecards
-              </a>
-            )}
-            {isTraditional && leaderboardView === 'individual' && (
+            {leaderboardView === 'individual' && (
               <button
                 onClick={() => setShowAllScorecards(true)}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
