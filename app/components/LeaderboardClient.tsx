@@ -1084,7 +1084,7 @@ export default function LeaderboardClient({
           <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAllScorecards(false)}>
             <div className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-                <h3 className="font-bold text-gray-900 text-base">All Scorecards</h3>
+                <h3 className="font-bold text-gray-900 text-base">{activeTeam ? activeTeam.name : 'All Scorecards'}</h3>
                 <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
               </div>
               {!isGroupView && skinsEnabled && (
