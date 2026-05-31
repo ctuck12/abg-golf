@@ -313,15 +313,17 @@ export default function AllScorecardsView({
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                               <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
                               {[1,2,3,4,5,6,7,8,9].map((n) => {
+                                const scored = scoreMap[n] != null
                                 const rate = teamVals[n] !== undefined ? teamVals[n] : dtPayoutValue
                                 const color = teamVals[n] !== undefined ? pressColor(teamVals[n]) : '#9ca3af'
-                                return <td key={n} style={tdCell()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
+                                return <td key={n} style={tdCell()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                               })}
                               <td style={tdCell(true)} />
                               {[10,11,12,13,14,15,16,17,18].map((n) => {
+                                const scored = scoreMap[n] != null
                                 const rate = teamVals[n] !== undefined ? teamVals[n] : dtPayoutValue
                                 const color = teamVals[n] !== undefined ? pressColor(teamVals[n]) : '#9ca3af'
-                                return <td key={n} style={tdCell()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
+                                return <td key={n} style={tdCell()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                               })}
                               <td style={tdCell(true)} />
                               <td style={tdCell()} />

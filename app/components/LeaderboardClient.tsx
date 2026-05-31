@@ -1181,16 +1181,18 @@ export default function LeaderboardClient({
                                 <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                                   <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
                                   {scFrontNine.map((h) => {
+                                  {scFrontNine.map((h) => {
+                                    const scored = scoreMap[h.hole_number] != null
                                     const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
                                     const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
-                                    return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span></td>
-                                  })}
+                                    return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                                   <td style={tdSc(true)} />
                                   {scBackNine.map((h) => {
+                                  {scBackNine.map((h) => {
+                                    const scored = scoreMap[h.hole_number] != null
                                     const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
                                     const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
-                                    return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span></td>
-                                  })}
+                                    return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                                   <td style={tdSc(true)} /><td style={tdSc()} />
                                 </tr>
                               )}

@@ -912,6 +912,23 @@ export default function ScoreEntry({
                           <td style={tdC(true)}><span style={{ fontWeight: 700, color: pCol(backPts) }}>{pStr(backPts)}</span></td>
                           <td style={{ ...tdC(), fontWeight: 700, color: pCol(totalPts) }}>{pStr(totalPts)}</td>
                         </tr>
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ ...tdC(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                          {frontHoles.map((h) => {
+                            const scored = scoreMap[h.hole_number] != null
+                            const rate = initialHoleValues[h.hole_number] !== undefined ? initialHoleValues[h.hole_number] : defaultDtPayoutValue
+                            const color = initialHoleValues[h.hole_number] !== undefined ? '#f59e0b' : '#9ca3af'
+                            return <td key={h.hole_number} style={tdC()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                          })}
+                          <td style={tdC(true)} />
+                          {backHoles.map((h) => {
+                            const scored = scoreMap[h.hole_number] != null
+                            const rate = initialHoleValues[h.hole_number] !== undefined ? initialHoleValues[h.hole_number] : defaultDtPayoutValue
+                            const color = initialHoleValues[h.hole_number] !== undefined ? '#f59e0b' : '#9ca3af'
+                            return <td key={h.hole_number} style={tdC()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                          })}
+                          <td style={tdC(true)} /><td style={tdC()} />
+                        </tr>
                         <tr>
                           <td style={{ ...tdC(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
                           {frontHoles.map((h) => {
