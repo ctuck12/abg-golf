@@ -683,7 +683,7 @@ export default function ScoreEntry({
               <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>
-          {!isDaytonaMode && (
+          {!isDaytonaMode && format !== 'traditional' && (
             <div className="flex gap-3">
               {([{ label: 'Front 9', s: frontSummary }, { label: 'Back 9', s: backSummary }] as const).map(({ label, s }) => (
                 <div key={label} className="flex-1">
@@ -703,6 +703,27 @@ export default function ScoreEntry({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Player score to par — Traditional (no side game) */}
+          {format === 'traditional' && !isDaytonaSideGame && (
+            <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
+              {players.map((p) => {
+                const pScores = savedScores.filter((s) => s.player_id === p.id)
+                const pStrokes = pScores.reduce((sum, s) => sum + s.strokes, 0)
+                const pPar = holes.filter((h) => pScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+                const vspar = pScores.length > 0 ? pStrokes - pPar : null
+                const vsparStr = vspar === null ? '–' : vspar === 0 ? 'E' : vspar > 0 ? `+${vspar}` : String(vspar)
+                return (
+                  <div key={p.id} className="flex items-center gap-1 text-xs">
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
+                    <span className="font-bold" style={{ color: vspar === null ? 'rgba(255,255,255,0.35)' : vspar < 0 ? '#4ade80' : vspar > 0 ? '#f87171' : 'rgba(255,255,255,0.55)' }}>
+                      {vsparStr}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           )}
 
