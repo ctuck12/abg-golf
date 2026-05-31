@@ -1341,6 +1341,11 @@ export default function LeaderboardClient({
                           </button>
                         </div>
                       )}
+                      <a href={`/scorecards?teamId=${group.team.id}`}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                        style={{ background: gold, color: navy }}>
+                        All Scorecards
+                      </a>
                     </div>
                     <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
                       <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
