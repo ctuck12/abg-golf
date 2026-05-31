@@ -1427,7 +1427,12 @@ export default function LeaderboardClient({
                 <div key={group.team.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                   <div style={{ background: navy }}>
                     <div className="flex items-center px-4 pt-3 pb-1.5 gap-2">
-                      <span className="text-sm font-bold text-white flex-1">{group.team.name}</span>
+                      <span className="text-sm font-bold text-white flex-1">
+                        {group.team.name}
+                        {group.team.daytona_variant?.startsWith('5man-flares') && (
+                          <span className="ml-1.5 text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>(Flares)</span>
+                        )}
+                      </span>
                       {group.hasDaytona && (
                         <div className="flex items-center rounded-full overflow-hidden border text-[10px] font-semibold flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.35)' }}>
                           <button onClick={() => setTraditionalGroupView((v) => ({ ...v, [group.team.id]: 'score' }))}
