@@ -563,7 +563,7 @@ export default function LeaderboardClient({
             const tpIds = rows.map((r) => r.player.id)
             const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
             const tScores = scores.filter((s) => tpIds.includes(s.player_id))
-            pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!)
+            pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
           }
           return { team, rows, hasDaytona, pointsMap }
         })
@@ -1027,7 +1027,7 @@ export default function LeaderboardClient({
         const groupVariant = activeTeam?.daytona_variant ?? null
         const groupHasDaytona = !!groupVariant
         const gIs5Man = groupVariant?.startsWith('5man') ?? false
-        const gIsFlares = groupVariant === '5man-flares'
+        const gIsFlares = groupVariant?.startsWith('5man-flares') ?? false
         const groupPlayerIds = new Set(groupRows.map((r) => r.player.id))
         const holePtsMaps = new Map<number, Map<string, number>>()
         if (groupHasDaytona) {

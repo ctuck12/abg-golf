@@ -540,7 +540,7 @@ export function computePlayerDaytonaPoints(
   variant: string = '4man'
 ): Map<string, number> {
   const totals = new Map<string, number>()
-  const is5Man = variant === '5man-normal' || variant === '5man-flares'
+  const is5Man = variant.startsWith('5man')
 
   for (const hole of holes) {
     const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
@@ -587,7 +587,7 @@ export function computePlayerDaytonaDollars(
   holeValueOverrides: Record<number, number> = {}
 ): Map<string, number> {
   const dollarTotals = new Map<string, number>()
-  const is5Man = variant === '5man-normal' || variant === '5man-flares'
+  const is5Man = variant.startsWith('5man')
 
   for (const hole of holes) {
     const dollarPerPoint = holeValueOverrides[hole.hole_number] ?? defaultDollarPerPoint
