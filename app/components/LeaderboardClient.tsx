@@ -348,6 +348,7 @@ export default function LeaderboardClient({
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [showPayouts, setShowPayouts] = useState(false)
   const [showAllScorecards, setShowAllScorecards] = useState(false)
+  const [allScorecardsGroupId, setAllScorecardsGroupId] = useState<string | null>(null)
   const [allScorecardsFilter, setAllScorecardsFilter] = useState<'all' | 'skins'>('all')
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showMatchupResults, setShowMatchupResults] = useState(false)
@@ -1015,9 +1016,10 @@ export default function LeaderboardClient({
 
       {showAllScorecards && (() => {
         const baseRows = isDaytona ? dtIndividualRows : isTraditional ? traditionalPlayerRows : ballIndividualRows
+        const groupRows = allScorecardsGroupId ? baseRows.filter((r) => r.player.team_id === allScorecardsGroupId) : baseRows
         const filteredRows = allScorecardsFilter === 'skins'
-          ? baseRows.filter((r) => r.player.skins_participant)
-          : baseRows
+          ? groupRows.filter((r) => r.player.skins_participant)
+          : groupRows
         const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
           background: highlight ? '#4a7fa5' : isHoleNum ? '#dde4ee' : navy,
           color: highlight ? 'white' : isHoleNum ? navy : 'white',
@@ -1218,7 +1220,7 @@ export default function LeaderboardClient({
             </a>
             {leaderboardView === 'individual' && (
               <button
-                onClick={() => setShowAllScorecards(true)}
+                onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
                 style={{ borderColor: navy, color: navy }}>
                 All Scorecards
@@ -1338,11 +1340,12 @@ export default function LeaderboardClient({
                           </button>
                         </div>
                       )}
-                      <a href={`/scorecards?teamId=${group.team.id}`}
+                      <button
+                        onClick={() => { setAllScorecardsGroupId(group.team.id); setShowAllScorecards(true) }}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
                         style={{ background: gold, color: navy }}>
                         All Scorecards
-                      </a>
+                      </button>
                     </div>
                     <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
                       <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
