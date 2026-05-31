@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   computeTeamBallSummary, computePlayerDaytonaPoints,
@@ -9,6 +9,7 @@ import {
   type DaytonaHoleAssignment, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
+import { ScoreNotation } from './ScoreNotation'
 
 type Team = { id: string; name: string; daytona_variant?: string | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean }
@@ -346,6 +347,8 @@ export default function LeaderboardClient({
   const [showPin, setShowPin] = useState(false)
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [showPayouts, setShowPayouts] = useState(false)
+  const [showAllScorecards, setShowAllScorecards] = useState(false)
+  const [allScorecardsFilter, setAllScorecardsFilter] = useState<'all' | 'skins'>('all')
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showMatchupResults, setShowMatchupResults] = useState(false)
   const [showSkinsResults, setShowSkinsResults] = useState(false)
@@ -600,6 +603,13 @@ export default function LeaderboardClient({
     scoreMapForMatchups[s.player_id][s.hole_number] = s.strokes
   }
   const matchupPayouts = computeMatchupPayouts(matchups, bestBallMatchups, players, scoreMapForMatchups, holes)
+
+  // Hole splits for All Scorecards panel
+  const scFrontNine = holes.filter((h) => h.hole_number <= 9).sort((a, b) => a.hole_number - b.hole_number)
+  const scBackNine = holes.filter((h) => h.hole_number >= 10).sort((a, b) => a.hole_number - b.hole_number)
+  const scFrontPar = scFrontNine.reduce((s, h) => s + h.par, 0)
+  const scBackPar = scBackNine.reduce((s, h) => s + h.par, 0)
+  const scTotalPar = holes.reduce((s, h) => s + h.par, 0)
 
   // Skins
   const skinsParticipants = players.filter((p) => p.skins_participant)
@@ -1003,6 +1013,113 @@ export default function LeaderboardClient({
         </div>
       )}
 
+      {showAllScorecards && (() => {
+        const filteredRows = allScorecardsFilter === 'skins'
+          ? traditionalPlayerRows.filter((r) => r.player.skins_participant)
+          : traditionalPlayerRows
+        const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
+          background: highlight ? '#4a7fa5' : isHoleNum ? '#dde4ee' : navy,
+          color: highlight ? 'white' : isHoleNum ? navy : 'white',
+          fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.4rem 0.25rem', whiteSpace: 'nowrap',
+        })
+        const tdPar = (highlight?: boolean): React.CSSProperties => ({
+          background: highlight ? '#dbeafe' : 'white',
+          color: highlight ? '#1e40af' : '#6b7280',
+          fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.35rem 0.25rem',
+        })
+        const tdSc = (highlight?: boolean): React.CSSProperties => ({
+          background: highlight ? '#dbeafe' : 'white',
+          fontWeight: highlight ? 700 : 400,
+          color: highlight ? '#1e40af' : undefined,
+          fontSize: '0.7rem', textAlign: 'center', padding: '0.25rem 0.2rem',
+        })
+        return (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAllScorecards(false)}>
+            <div className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+                <h3 className="font-bold text-gray-900 text-base">All Scorecards</h3>
+                <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
+              </div>
+              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden w-fit mx-4 mt-3">
+                <button onClick={() => setAllScorecardsFilter('all')}
+                  className="text-xs font-semibold px-3 py-1.5 transition"
+                  style={{ background: allScorecardsFilter === 'all' ? navy : 'white', color: allScorecardsFilter === 'all' ? 'white' : '#6b7280' }}>
+                  All Players
+                </button>
+                <button onClick={() => setAllScorecardsFilter('skins')}
+                  className="text-xs font-semibold px-3 py-1.5 transition border-l border-gray-200"
+                  style={{ background: allScorecardsFilter === 'skins' ? navy : 'white', color: allScorecardsFilter === 'skins' ? 'white' : '#6b7280' }}>
+                  Skins Only
+                </button>
+              </div>
+              <div className="px-4 py-4 space-y-4">
+                {filteredRows.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No players.</p>}
+                {filteredRows.map((row, i) => {
+                  const scoreMap = Object.fromEntries(scores.filter((s) => s.player_id === row.player.id).map((s) => [s.hole_number, s.strokes]))
+                  const frontScored = scFrontNine.filter((h) => scoreMap[h.hole_number] != null)
+                  const frontStrokes = frontScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0)
+                  const backScored = scBackNine.filter((h) => scoreMap[h.hole_number] != null)
+                  const backStrokes = backScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0)
+                  const totalStrokes = frontStrokes + backStrokes
+                  const thru = row.holesPlayed
+                  const vpStr = row.vspar === null ? '–' : row.vspar === 0 ? 'E' : row.vspar > 0 ? `+${row.vspar}` : `${row.vspar}`
+                  return (
+                    <div key={row.player.id} className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="flex items-center gap-3 px-4 py-1.5" style={{ background: navy }}>
+                        <span className="text-base font-bold w-8 flex-shrink-0" style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
+                          {thru > 0 ? `#${i + 1}` : '–'}
+                        </span>
+                        <span className="font-bold text-white text-sm flex-1">{row.player.name}</span>
+                        <span className="text-xs font-bold" style={{ color: row.vspar !== null && row.vspar < 0 ? '#f87171' : row.vspar !== null && row.vspar > 0 ? '#fbbf24' : 'rgba(255,255,255,0.7)' }}>{vpStr}</span>
+                      </div>
+                      <div className="overflow-x-auto bg-white">
+                        <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
+                          <thead style={{ borderTop: '1px solid #e5e7eb' }}>
+                            <tr>
+                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
+                              {scFrontNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
+                              {scFrontNine.length > 0 && <th style={thSt(true)}>Out</th>}
+                              {scBackNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
+                              {scBackNine.length > 0 && <th style={thSt(true)}>In</th>}
+                              <th style={thSt()}>TOT</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PAR</td>
+                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
+                              {scFrontNine.length > 0 && <td style={tdPar(true)}>{scFrontPar}</td>}
+                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
+                              {scBackNine.length > 0 && <td style={tdPar(true)}>{scBackPar}</td>}
+                              <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
+                            </tr>
+                            <tr>
+                              <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
+                              {scFrontNine.map((h) => {
+                                const s = scoreMap[h.hole_number] ?? null
+                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                              })}
+                              {scFrontNine.length > 0 && <td style={tdSc(true)}>{frontScored.length > 0 ? frontStrokes : '–'}</td>}
+                              {scBackNine.map((h) => {
+                                const s = scoreMap[h.hole_number] ?? null
+                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                              })}
+                              {scBackNine.length > 0 && <td style={tdSc(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>}
+                              <td style={{ ...tdSc(), fontWeight: 700, color: '#111827' }}>{thru > 0 ? totalStrokes : '–'}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="h-6" />
+            </div>
+          </div>
+        )
+      })()}
+
       <header className="text-white py-4 px-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
           {viewOnly ? (
@@ -1092,16 +1209,24 @@ export default function LeaderboardClient({
               style={{ borderColor: navy, color: navy }}>
               Payouts
             </button>
-            {(isTraditional || (isDaytona && dtGroupRows.length <= 1)) && (
+            <a href="/matchup" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
+              style={{ borderColor: navy, color: navy }}>
+              Matchups
+            </a>
+            {isDaytona && dtGroupRows.length <= 1 && (
               <a href="/scorecards" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
                 style={{ borderColor: navy, color: navy }}>
                 All Scorecards
               </a>
             )}
-            <a href="/matchup" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
-              style={{ borderColor: navy, color: navy }}>
-              Matchups
-            </a>
+            {isTraditional && leaderboardView === 'individual' && (
+              <button
+                onClick={() => setShowAllScorecards(true)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
+                style={{ borderColor: navy, color: navy }}>
+                All Scorecards
+              </button>
+            )}
         </div>
 
         {/* Leaderboard view toggle + Live indicator */}
@@ -1216,11 +1341,6 @@ export default function LeaderboardClient({
                           </button>
                         </div>
                       )}
-                      <a href={`/scorecards?teamId=${group.team.id}`}
-                        className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
-                        style={{ background: gold, color: navy }}>
-                        All Scorecards
-                      </a>
                     </div>
                     <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
                       <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
