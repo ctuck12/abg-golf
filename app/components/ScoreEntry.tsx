@@ -358,6 +358,7 @@ export default function ScoreEntry({
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [roundComplete, setRoundComplete] = useState(false)
   const [showPayoutsModal, setShowPayoutsModal] = useState(false)
+  const [playerPopup, setPlayerPopup] = useState<string | null>(null)
   const [payoutsData, setPayoutsData] = useState<PayoutsData | null>(null)
   const [payoutsLoading, setPayoutsLoading] = useState(false)
   const [showDaytonaResultsModal, setShowDaytonaResultsModal] = useState(false)
@@ -737,20 +738,17 @@ export default function ScoreEntry({
             <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
               {players.map((p) => {
                 const pts = playerPointTotals.get(p.id) ?? 0
-                const pScores = savedScores.filter((s) => s.player_id === p.id)
-                const pStrokes = pScores.reduce((sum, s) => sum + s.strokes, 0)
-                const pPar = holes.filter((h) => pScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
-                const vspar = pScores.length > 0 ? pStrokes - pPar : null
-                const vsparStr = vspar === null ? null : vspar === 0 ? 'E' : vspar > 0 ? `+${vspar}` : String(vspar)
                 return (
                   <div key={p.id} className="flex items-center gap-1 text-xs">
-                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
+                    <button
+                      onClick={() => setPlayerPopup((prev) => prev === p.id ? null : p.id)}
+                      className="font-medium underline-offset-2 hover:underline"
+                      style={{ color: 'rgba(255,255,255,0.55)' }}>
+                      {p.name.split(' ')[0]}:
+                    </button>
                     <span className="font-bold" style={{ color: pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {pts > 0 ? `+${pts}` : pts}
                     </span>
-                    {isDaytonaSideGame && vsparStr !== null && (
-                      <span style={{ color: 'rgba(255,255,255,0.45)' }}>({vsparStr})</span>
-                    )}
                   </div>
                 )
               })}
@@ -758,6 +756,45 @@ export default function ScoreEntry({
           )}
         </div>
       </header>
+
+      {playerPopup && (() => {
+        const p = players.find((pl) => pl.id === playerPopup)
+        if (!p) return null
+        const pScores = savedScores.filter((s) => s.player_id === p.id)
+        const frontScores = pScores.filter((s) => s.hole_number <= 9)
+        const backScores = pScores.filter((s) => s.hole_number >= 10)
+        const fStrokes = frontScores.reduce((s, sc) => s + sc.strokes, 0)
+        const bStrokes = backScores.reduce((s, sc) => s + sc.strokes, 0)
+        const fPar = holes.filter((h) => h.hole_number <= 9 && frontScores.some((s) => s.hole_number === h.hole_number)).reduce((s, h) => s + h.par, 0)
+        const bPar = holes.filter((h) => h.hole_number >= 10 && backScores.some((s) => s.hole_number === h.hole_number)).reduce((s, h) => s + h.par, 0)
+        const tStrokes = pScores.reduce((s, sc) => s + sc.strokes, 0)
+        const tPar = holes.filter((h) => pScores.some((s) => s.hole_number === h.hole_number)).reduce((s, h) => s + h.par, 0)
+        const fVp = frontScores.length > 0 ? fStrokes - fPar : null
+        const bVp = backScores.length > 0 ? bStrokes - bPar : null
+        const tVp = pScores.length > 0 ? tStrokes - tPar : null
+        const fmt = (v: number | null) => v === null ? '–' : v === 0 ? 'E' : v > 0 ? `+${v}` : String(v)
+        const col = (v: number | null) => v === null ? '#9ca3af' : v < 0 ? '#16a34a' : v > 0 ? '#dc2626' : '#111827'
+        return (
+          <div className="fixed inset-0 z-40" onClick={() => setPlayerPopup(null)}>
+            <div className="absolute left-4 right-4 mx-auto max-w-xs bg-white rounded-2xl shadow-xl border border-gray-200 p-4"
+              style={{ top: '5rem' }}
+              onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-bold text-gray-900 text-sm">{p.name}</p>
+                <button onClick={() => setPlayerPopup(null)} className="text-gray-400 text-lg font-bold leading-none">×</button>
+              </div>
+              <div className="flex justify-around text-center">
+                {[{ label: 'Front 9', v: fVp }, { label: 'Back 9', v: bVp }, { label: 'Total', v: tVp }].map(({ label, v }) => (
+                  <div key={label}>
+                    <p className="text-xs text-gray-400 mb-1">{label}</p>
+                    <p className="text-lg font-bold" style={{ color: col(v) }}>{fmt(v)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {showPayoutsModal && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayoutsModal(false)}>
