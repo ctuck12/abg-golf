@@ -433,6 +433,7 @@ export default function AdminDashboard({
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [confirmRemoveTeamId, setConfirmRemoveTeamId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editPin, setEditPin] = useState('')
   const [editDaytonaEnabled, setEditDaytonaEnabled] = useState(false)
@@ -1562,10 +1563,20 @@ export default function AdminDashboard({
                                   : { borderColor: gold, color: '#6b7280' }}>
                                 {team.is_admin ? 'Revoke Admin' : 'Make Admin'}
                               </button>
-                              <button type="button" onClick={() => handleDeleteTeam(team.id)}
-                                className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
-                                Remove
-                              </button>
+                              {confirmRemoveTeamId === team.id ? (
+                                <span className="flex items-center gap-1.5">
+                                  <span className="text-xs text-gray-500">Remove?</span>
+                                  <button type="button" onClick={async () => { setConfirmRemoveTeamId(null); await handleDeleteTeam(team.id) }}
+                                    className="text-xs font-semibold text-red-600 hover:text-red-800 transition">Yes</button>
+                                  <button type="button" onClick={() => setConfirmRemoveTeamId(null)}
+                                    className="text-xs text-gray-400 hover:text-gray-600 transition">Cancel</button>
+                                </span>
+                              ) : (
+                                <button type="button" onClick={() => setConfirmRemoveTeamId(team.id)}
+                                  className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
+                                  Remove
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}
