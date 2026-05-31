@@ -568,11 +568,7 @@ export default function LeaderboardClient({
           return { team, rows, hasDaytona, pointsMap }
         })
         .filter((g) => g.rows.length > 0)
-        .sort((a, b) => {
-          const aBest = a.rows.find((r) => r.vspar !== null)?.vspar ?? 999
-          const bBest = b.rows.find((r) => r.vspar !== null)?.vspar ?? 999
-          return aBest !== bBest ? aBest - bBest : a.team.name.localeCompare(b.team.name)
-        })
+        .sort((a, b) => a.team.name.localeCompare(b.team.name, undefined, { numeric: true, sensitivity: 'base' }))
     : []
 
   // Payout computations (mirrors AdminDashboard)
