@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import {
   computeTeamBallSummary, computePlayerDaytonaPoints,
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
-  computePlayerDaytonaDollars,
+  computePlayerDaytonaDollars, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
   type DaytonaHoleAssignment, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
@@ -1017,9 +1017,52 @@ export default function LeaderboardClient({
       {showAllScorecards && (() => {
         const baseRows = isDaytona ? dtIndividualRows : isTraditional ? traditionalPlayerRows : ballIndividualRows
         const groupRows = allScorecardsGroupId ? baseRows.filter((r) => r.player.team_id === allScorecardsGroupId) : baseRows
-        const filteredRows = allScorecardsFilter === 'skins'
+        const isGroupView = !!allScorecardsGroupId
+        const filteredRows = (!isGroupView && skinsEnabled && allScorecardsFilter === 'skins')
           ? groupRows.filter((r) => r.player.skins_participant)
           : groupRows
+
+        // Daytona side game for this group
+        const activeTeam = allScorecardsGroupId ? initialTeams.find((t) => t.id === allScorecardsGroupId) : null
+        const groupVariant = activeTeam?.daytona_variant ?? null
+        const groupHasDaytona = !!groupVariant
+        const gIs5Man = groupVariant?.startsWith('5man') ?? false
+        const gIsFlares = groupVariant === '5man-flares'
+        const groupPlayerIds = new Set(groupRows.map((r) => r.player.id))
+        const holePtsMaps = new Map<number, Map<string, number>>()
+        if (groupHasDaytona) {
+          for (const hole of holes) {
+            const ha = assignments.filter((a) => a.hole_number === hole.hole_number && groupPlayerIds.has(a.player_id))
+            const leftIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
+            const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
+            if (gIs5Man) {
+              if (leftIds.length >= 2 && rightIds.length >= 3)
+                holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, scores, hole.hole_number, hole.par))
+            } else if (leftIds.length >= 2 && rightIds.length >= 2) {
+              const leftSc = leftIds.map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+              const rightSc = rightIds.map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+              if (leftSc.length >= 2 && rightSc.length >= 2) {
+                const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftSc, rightSc, hole.par)
+                if (leftDt !== null && rightDt !== null) {
+                  const diff = Math.abs(leftDt - rightDt)
+                  const lWins = leftDt < rightDt, rWins = rightDt < leftDt
+                  const m = new Map<string, number>()
+                  for (const id of leftIds) m.set(id, lWins ? diff : rWins ? -diff : 0)
+                  for (const id of rightIds) m.set(id, rWins ? diff : lWins ? -diff : 0)
+                  holePtsMaps.set(hole.hole_number, m)
+                }
+              }
+            }
+          }
+        }
+        const teamHoleVals = allScorecardsGroupId ? (liveHoleValues[allScorecardsGroupId] ?? {}) : {}
+        const hasPress = Object.keys(teamHoleVals).length > 0
+        const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
+        const sortedPressRates = [...new Set(Object.values(teamHoleVals))].sort((a, b) => a - b)
+        const pressColor = (val: number) => PRESS_COLORS[sortedPressRates.indexOf(val) % PRESS_COLORS.length]
+        const pStr = (pts: number | null) => pts === null ? '–' : pts === 0 ? '0' : pts > 0 ? `+${pts}` : String(pts)
+        const pColor = (pts: number | null) => pts === null ? '#d1d5db' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#374151'
+
         const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
           background: highlight ? '#4a7fa5' : isHoleNum ? '#dde4ee' : navy,
           color: highlight ? 'white' : isHoleNum ? navy : 'white',
@@ -1043,7 +1086,7 @@ export default function LeaderboardClient({
                 <h3 className="font-bold text-gray-900 text-base">All Scorecards</h3>
                 <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
               </div>
-              {skinsEnabled && (
+              {!isGroupView && skinsEnabled && (
                 <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden w-fit mx-4 mt-3">
                   <button onClick={() => setAllScorecardsFilter('all')}
                     className="text-xs font-semibold px-3 py-1.5 transition"
@@ -1068,6 +1111,12 @@ export default function LeaderboardClient({
                   const totalStrokes = frontStrokes + backStrokes
                   const thru = row.holesPlayed
                   const vpStr = row.vspar === null ? '–' : row.vspar === 0 ? 'E' : row.vspar > 0 ? `+${row.vspar}` : `${row.vspar}`
+                  const frontPts = scFrontNine.some((h) => holePtsMaps.get(h.hole_number)?.has(row.player.id))
+                    ? scFrontNine.reduce((s, h) => s + (holePtsMaps.get(h.hole_number)?.get(row.player.id) ?? 0), 0) : null
+                  const backPts = scBackNine.some((h) => holePtsMaps.get(h.hole_number)?.has(row.player.id))
+                    ? scBackNine.reduce((s, h) => s + (holePtsMaps.get(h.hole_number)?.get(row.player.id) ?? 0), 0) : null
+                  const totalPts = holePtsMaps.size > 0 && [...holePtsMaps.values()].some((m) => m.has(row.player.id))
+                    ? [...holePtsMaps.values()].reduce((s, m) => s + (m.get(row.player.id) ?? 0), 0) : null
                   return (
                     <div key={row.player.id} className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       <div className="flex items-center gap-3 px-4 py-1.5" style={{ background: navy }}>
@@ -1098,7 +1147,7 @@ export default function LeaderboardClient({
                               {scBackNine.length > 0 && <td style={tdPar(true)}>{scBackPar}</td>}
                               <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
                             </tr>
-                            <tr>
+                            <tr style={{ borderBottom: groupHasDaytona ? '1px solid #e5e7eb' : undefined }}>
                               <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
                               {scFrontNine.map((h) => {
                                 const s = scoreMap[h.hole_number] ?? null
@@ -1112,6 +1161,58 @@ export default function LeaderboardClient({
                               {scBackNine.length > 0 && <td style={tdSc(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>}
                               <td style={{ ...tdSc(), fontWeight: 700, color: '#111827' }}>{thru > 0 ? totalStrokes : '–'}</td>
                             </tr>
+                            {groupHasDaytona && <>
+                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
+                                {scFrontNine.map((h) => {
+                                  const pts = holePtsMaps.get(h.hole_number)?.has(row.player.id) ? holePtsMaps.get(h.hole_number)!.get(row.player.id)! : null
+                                  return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, color: pColor(pts), fontSize: '0.7rem' }}>{pStr(pts)}</span></td>
+                                })}
+                                <td style={tdSc(true)}><span style={{ fontWeight: 700, color: pColor(frontPts) }}>{pStr(frontPts)}</span></td>
+                                {scBackNine.map((h) => {
+                                  const pts = holePtsMaps.get(h.hole_number)?.has(row.player.id) ? holePtsMaps.get(h.hole_number)!.get(row.player.id)! : null
+                                  return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, color: pColor(pts), fontSize: '0.7rem' }}>{pStr(pts)}</span></td>
+                                })}
+                                <td style={tdSc(true)}><span style={{ fontWeight: 700, color: pColor(backPts) }}>{pStr(backPts)}</span></td>
+                                <td style={{ ...tdSc(), fontWeight: 700, color: pColor(totalPts) }}>{pStr(totalPts)}</td>
+                              </tr>
+                              {hasPress && (
+                                <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                  <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                                  {scFrontNine.map((h) => {
+                                    const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : dtPayoutValue
+                                    const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
+                                    return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span></td>
+                                  })}
+                                  <td style={tdSc(true)} />
+                                  {scBackNine.map((h) => {
+                                    const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : dtPayoutValue
+                                    const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
+                                    return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span></td>
+                                  })}
+                                  <td style={tdSc(true)} /><td style={tdSc()} />
+                                </tr>
+                              )}
+                              <tr>
+                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
+                                {scFrontNine.map((h) => {
+                                  const a = assignments.find((a) => a.player_id === row.player.id && a.hole_number === h.hole_number)
+                                  const side = a?.side ?? null
+                                  const lChar = gIsFlares ? (h.par === 3 ? 'C' : 'O') : 'L'
+                                  const rChar = gIsFlares ? (h.par === 3 ? 'F' : 'I') : 'R'
+                                  return <td key={h.hole_number} style={tdSc()}>{side != null ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? lChar : rChar}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                })}
+                                <td style={tdSc(true)} />
+                                {scBackNine.map((h) => {
+                                  const a = assignments.find((a) => a.player_id === row.player.id && a.hole_number === h.hole_number)
+                                  const side = a?.side ?? null
+                                  const lChar = gIsFlares ? (h.par === 3 ? 'C' : 'O') : 'L'
+                                  const rChar = gIsFlares ? (h.par === 3 ? 'F' : 'I') : 'R'
+                                  return <td key={h.hole_number} style={tdSc()}>{side != null ? <span style={{ fontWeight: 700, fontSize: '0.7rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? lChar : rChar}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                })}
+                                <td style={tdSc(true)} /><td style={tdSc()} />
+                              </tr>
+                            </>}
                           </tbody>
                         </table>
                       </div>
