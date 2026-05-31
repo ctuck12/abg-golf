@@ -228,14 +228,14 @@ export default function PlayerScorecard({
           <div className="flex items-center gap-2 mt-1 flex-shrink-0">
             {scorecardTeamId ? (
               <a href={`/score/${scorecardTeamId}`}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                style={{ background: gold, color: navy }}>
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
                 Enter Scores
               </a>
             ) : (
               <a href="/"
-                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                className="text-xs px-3 py-1.5 rounded-lg border font-semibold"
+                style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
                 Team Pin
               </a>
             )}

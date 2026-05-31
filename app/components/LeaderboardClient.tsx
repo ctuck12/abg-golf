@@ -1200,7 +1200,7 @@ export default function LeaderboardClient({
               return (
                 <div key={group.team.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                   <div style={{ background: navy }}>
-                    <div className="flex items-center px-4 pt-3 pb-1.5">
+                    <div className="flex items-center px-4 pt-3 pb-1.5 gap-2">
                       <span className="text-sm font-bold text-white flex-1">{group.team.name}</span>
                       {group.hasDaytona && (
                         <div className="flex items-center rounded-full overflow-hidden border text-[10px] font-semibold flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.35)' }}>
@@ -1216,6 +1216,11 @@ export default function LeaderboardClient({
                           </button>
                         </div>
                       )}
+                      <a href={`/scorecards?teamId=${group.team.id}`}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                        style={{ background: gold, color: navy }}>
+                        All Scorecards
+                      </a>
                     </div>
                     <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
                       <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
