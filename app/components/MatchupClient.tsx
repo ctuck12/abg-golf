@@ -563,8 +563,10 @@ function computeMatchupPayouts(
 }
 
 export default function MatchupClient({
-  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null,
+  orgSlug, orgId, isMaster = false,
+  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard',
 }: {
+  orgSlug: string; orgId: string; isMaster?: boolean
   roundId: string
   players: Player[]
   holes: Hole[]
@@ -574,6 +576,7 @@ export default function MatchupClient({
   initialBestBallMatchups: BestBallMatchup[]
   isAdmin?: boolean
   scorecardTeamId?: string | null
+  format?: string
 }) {
   const [scores, setScores] = useState(initialScores)
   const [matchups, setMatchups] = useState(initialMatchups)
@@ -1078,19 +1081,19 @@ export default function MatchupClient({
               {isComplete ? 'Complete' : 'Live'}
             </div>
             {scorecardTeamId ? (
-              <a href={`/score/${scorecardTeamId}`}
+              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                 style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
                 Enter Scores
               </a>
             ) : (
-              <a href="/"
+              <a href={`/${orgSlug}`}
                 className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
                 style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                Team Pin
+                {format === 'daytona' || format === 'traditional' ? 'Group PIN' : 'Team Pin'}
               </a>
             )}
-            <a href="/leaderboard" className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
+            <a href={`/${orgSlug}`} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>

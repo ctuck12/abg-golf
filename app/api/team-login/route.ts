@@ -3,11 +3,9 @@ import { createServerClient } from '@/lib/supabase-server'
 
 export async function POST(request: NextRequest) {
   const { teamId, pin } = await request.json()
-
   if (!teamId || !pin) {
-    return NextResponse.json({ error: 'Select your team and enter your PIN.' }, { status: 400 })
+    return NextResponse.json({ error: 'Select your group and enter your PIN.' }, { status: 400 })
   }
-
   const supabase = createServerClient()
   const { data: team } = await supabase
     .from('teams')
@@ -20,19 +18,7 @@ export async function POST(request: NextRequest) {
   }
 
   const response = NextResponse.json({ success: true, teamId })
-  response.cookies.set(`team_auth_${teamId}`, 'true', {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24,
-    path: '/',
-  })
-  if (team.is_admin) {
-    response.cookies.set('admin_auth', 'true', {
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24,
-      path: '/',
-    })
-  }
+  const opts = { httpOnly: true, sameSite: 'lax' as const, maxAge: 60 * 60 * 24, path: '/' }
+  response.cookies.set(`team_auth_${teamId}`, 'true', opts)
   return response
 }

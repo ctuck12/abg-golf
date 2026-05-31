@@ -1,25 +1,30 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { getOrgAuth } from '@/lib/org-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import MatchupClient from '@/app/components/MatchupClient'
 
 export const dynamic = 'force-dynamic'
 
-export default async function MatchupPage() {
+export default async function OrgMatchupPage({ params }: { params: Promise<{ orgSlug: string }> }) {
+  const { orgSlug } = await params
+  const auth = await getOrgAuth(orgSlug)
+  if (!auth.ok) redirect(`/${orgSlug}`)
+
+  const { orgId, isAdmin, isMaster } = auth
   const cookieStore = await cookies()
-  const isAdmin = cookieStore.get('admin_auth')?.value === 'true'
   const sb = createServerClient()
 
   const { data: round } = await sb
     .from('rounds')
     .select('id, name, balls_count, format, is_started')
     .eq('is_active', true)
+    .eq('org_id', orgId)
     .single()
 
-  if (!round || !round.is_started) redirect('/')
+  if (!round || !round.is_started) redirect(`/${orgSlug}`)
 
-  const { data: teams } = await sb
-    .from('teams').select('id, name').eq('round_id', round.id).order('name')
+  const { data: teams } = await sb.from('teams').select('id, name').eq('round_id', round.id).order('name')
   const teamIds = (teams ?? []).map((t) => t.id)
 
   const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, { data: savedBestBall }] = await Promise.all([
@@ -29,9 +34,7 @@ export default async function MatchupPage() {
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
     sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', round.id).order('created_at'),
-    sb.from('best_ball_matchups')
-      .select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet')
-      .eq('round_id', round.id).order('created_at'),
+    sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', round.id).order('created_at'),
   ])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,16 +47,14 @@ export default async function MatchupPage() {
   }
 
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t.name]))
-  const players = (playersRaw ?? []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    teamName: teamMap[p.team_id] ?? '',
-  }))
-
+  const players = (playersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: teamMap[p.team_id] ?? '' }))
   const scorecardTeamId = (teams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
 
   return (
     <MatchupClient
+      orgSlug={orgSlug}
+      orgId={orgId}
+      isMaster={isMaster}
       roundId={round.id}
       players={players}
       holes={holes ?? []}

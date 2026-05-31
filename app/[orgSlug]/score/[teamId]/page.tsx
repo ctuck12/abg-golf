@@ -1,27 +1,31 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { getOrgAuth } from '@/lib/org-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import ScoreEntry from '@/app/components/ScoreEntry'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ScorePage({ params }: { params: Promise<{ teamId: string }> }) {
-  const { teamId } = await params
+export default async function OrgScorePage({ params }: { params: Promise<{ orgSlug: string; teamId: string }> }) {
+  const { orgSlug, teamId } = await params
   const cookieStore = await cookies()
-  if (!cookieStore.get(`team_auth_${teamId}`)?.value) redirect('/')
 
+  if (!cookieStore.get(`team_auth_${teamId}`)?.value) redirect(`/${orgSlug}`)
+
+  const auth = await getOrgAuth(orgSlug)
+  if (!auth.ok) redirect(`/${orgSlug}`)
+
+  const { orgId, isAdmin, isMaster } = auth
   const sb = createServerClient()
 
   const { data: team } = await sb.from('teams').select('id, name, round_id, is_admin, daytona_variant').eq('id', teamId).single()
-  if (!team) redirect('/')
+  if (!team) redirect(`/${orgSlug}`)
 
   const { data: round } = await sb
-    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total').eq('id', team.round_id).single()
-  if (!round || !round.is_active) redirect('/')
+    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id').eq('id', team.round_id).single()
+  if (!round || !round.is_active || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
-  const { data: players } = await sb
-    .from('players').select('id, name').eq('team_id', teamId).order('position', { ascending: true })
-
+  const { data: players } = await sb.from('players').select('id, name').eq('team_id', teamId).order('position', { ascending: true })
   const playerIds = (players ?? []).map((p) => p.id)
 
   const isDaytona = (round.format ?? 'standard') === 'daytona'
@@ -34,8 +38,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
 
   const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', team.round_id)
   const allTeamIds = (allTeams ?? []).map((t) => t.id)
-  const { data: allRoundPlayers } = await sb
-    .from('players').select('id').in('team_id', allTeamIds.length ? allTeamIds : [''])
+  const { data: allRoundPlayers } = await sb.from('players').select('id').in('team_id', allTeamIds.length ? allTeamIds : [''])
   const roundPlayerIds = (allRoundPlayers ?? []).map((p) => p.id)
 
   const [{ data: holes }, { data: scores }, { data: assignments }, { data: ballValuesRaw }, { data: holeValuesRaw }] = await Promise.all([
@@ -47,6 +50,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
     isDaytona ? sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number') : Promise.resolve({ data: [] }),
     (isDaytona || isDaytonaSideGame) ? sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', round.id).eq('team_id', team.id) : Promise.resolve({ data: [] }),
   ])
+
   const defaultDtPayoutValue = isDaytonaSideGame
     ? sideGamePayout
     : (isDaytona ? (ballValuesRaw ?? []).find((bv: { ball_number: number }) => bv.ball_number === 1) : null)?.value_dollars ?? 0.25
@@ -57,6 +61,9 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
 
   return (
     <ScoreEntry
+      orgSlug={orgSlug}
+      orgId={orgId}
+      isMaster={isMaster}
       team={{ id: team.id, name: team.name }}
       players={players ?? []}
       holes={holes ?? []}
@@ -65,7 +72,7 @@ export default async function ScorePage({ params }: { params: Promise<{ teamId: 
       format={round.format ?? 'standard'}
       daytonaVariant={isDaytonaSideGame ? parsedDaytonaVariant : ((team as { daytona_variant?: string | null }).daytona_variant?.split('|')[0] ?? round.daytona_variant ?? '4man')}
       isDaytonaSideGame={isDaytonaSideGame}
-      isAdmin={cookieStore.get('admin_auth')?.value === 'true'}
+      isAdmin={isAdmin}
       isStarted={round.is_started ?? false}
       roundId={round.id}
       initialAssignments={assignments ?? []}

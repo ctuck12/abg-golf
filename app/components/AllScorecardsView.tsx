@@ -38,8 +38,10 @@ function ptsColor(pts: number | null): string {
 }
 
 export default function AllScorecardsView({
+  orgSlug, orgId, isMaster = false,
   roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {}, dtPayoutValue = 0,
 }: {
+  orgSlug: string; orgId: string; isMaster?: boolean
   roundId: string
   players: PlayerInfo[]
   allPlayerIds: string[]
@@ -166,19 +168,19 @@ export default function AllScorecardsView({
           </div>
           <div className="flex items-center gap-2">
             {scorecardTeamId ? (
-              <a href={`/score/${scorecardTeamId}`}
+              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                 style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
                 Enter Scores
               </a>
             ) : (
-              <a href="/"
+              <a href={`/${orgSlug}`}
                 className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
                 style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                Team Pin
+                Group PIN
               </a>
             )}
-            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>

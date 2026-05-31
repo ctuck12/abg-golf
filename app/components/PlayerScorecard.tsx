@@ -46,8 +46,10 @@ function ptsColor(pts: number | null): string {
 }
 
 export default function PlayerScorecard({
+  orgSlug, orgId, isMaster = false,
   player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false,
 }: {
+  orgSlug: string; orgId: string; isMaster?: boolean
   player: { id: string; name: string }
   teamName: string
   teamId: string
@@ -227,19 +229,19 @@ export default function PlayerScorecard({
           </div>
           <div className="flex items-center gap-2 mt-1 flex-shrink-0">
             {scorecardTeamId ? (
-              <a href={`/score/${scorecardTeamId}`}
+              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                 style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
                 Enter Scores
               </a>
             ) : (
-              <a href="/"
+              <a href={`/${orgSlug}`}
                 className="text-xs px-3 py-1.5 rounded-lg border font-semibold"
                 style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
-                Team Pin
+                {format === 'daytona' || format === 'traditional' ? 'Group PIN' : 'Team Pin'}
               </a>
             )}
-            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>

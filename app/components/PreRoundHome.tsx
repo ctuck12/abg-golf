@@ -3,12 +3,21 @@
 import { useState } from 'react'
 
 type Team = { id: string; name: string }
-type Round = { name: string; date: string; course: string } | null
+type Round = { name: string; date: string; course: string; format?: string } | null
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
-export default function PreRoundHome({ teams, round }: { teams: Team[]; round: Round }) {
+export default function PreRoundHome({
+  teams, round, orgSlug, orgId, isMaster,
+}: {
+  teams: Team[]
+  round: Round
+  orgSlug: string
+  orgId: string
+  isMaster: boolean
+}) {
+  const isGroup = round?.format === 'daytona' || round?.format === 'traditional'
   const [showPin, setShowPin] = useState(false)
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
@@ -32,7 +41,7 @@ export default function PreRoundHome({ teams, round }: { teams: Team[]; round: R
       })
       const data = await res.json()
       if (data.success) {
-        window.location.href = `/score/${data.teamId}`
+        window.location.href = `/${orgSlug}/score/${data.teamId}`
       } else {
         setError(data.error ?? 'Login failed.')
       }
@@ -41,6 +50,15 @@ export default function PreRoundHome({ teams, round }: { teams: Team[]; round: R
     } finally {
       setPending(false)
     }
+  }
+
+  async function handleSignOut() {
+    await fetch('/api/org-logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orgId }),
+    })
+    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
   }
 
   return (
@@ -74,8 +92,14 @@ export default function PreRoundHome({ teams, round }: { teams: Team[]; round: R
             </div>
           )}
 
+          {isMaster && (
+            <a href="/master/dashboard" className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-semibold text-white text-sm transition active:scale-95" style={{ background: gold, color: navy }}>
+              ← Back to Master Admin
+            </a>
+          )}
+
           <a
-            href="/admin"
+            href={`/${orgSlug}/admin`}
             className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-semibold text-white text-sm transition active:scale-95"
             style={{ background: navy }}
           >
@@ -89,46 +113,32 @@ export default function PreRoundHome({ teams, round }: { teams: Team[]; round: R
               className="w-full py-3.5 rounded-xl font-semibold text-sm border-2 transition active:scale-95"
               style={{ borderColor: navy, color: navy, background: 'white' }}
             >
-              {showPin ? 'Hide PIN Entry' : 'Enter Team PIN'}
+              {showPin ? 'Hide PIN Entry' : isGroup ? 'Enter Group PIN' : 'Enter Team PIN'}
             </button>
           )}
 
           {showPin && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <h2 className="font-semibold text-gray-900 mb-3 text-sm">Select your team and enter PIN</h2>
+              <h2 className="font-semibold text-gray-900 mb-3 text-sm">{isGroup ? 'Select your group and enter PIN' : 'Select your team and enter PIN'}</h2>
               <form onSubmit={handlePinSubmit} className="space-y-3">
                 {error && (
                   <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
                 )}
-                <select
-                  name="teamId"
-                  required
-                  defaultValue=""
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none"
-                >
-                  <option value="" disabled>Select your team…</option>
+                <select name="teamId" required defaultValue="" className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none">
+                  <option value="" disabled>{isGroup ? 'Select your group…' : 'Select your team…'}</option>
                   {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                <input
-                  type="password"
-                  name="pin"
-                  inputMode="numeric"
-                  maxLength={4}
-                  required
-                  placeholder="4-digit PIN"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
-                  style={{ background: navy }}
-                >
+                <input type="password" name="pin" inputMode="numeric" maxLength={4} required placeholder="4-digit PIN" className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none" />
+                <button type="submit" disabled={pending} className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60 transition" style={{ background: navy }}>
                   {pending ? 'Verifying…' : 'Open Scorecard →'}
                 </button>
               </form>
             </div>
           )}
+
+          <button onClick={handleSignOut} className="w-full py-3 rounded-xl text-sm font-medium border border-gray-200 text-gray-500 bg-white">
+            {isMaster ? 'Back to Master Admin' : 'Sign Out of Group'}
+          </button>
         </div>
       </main>
     </div>

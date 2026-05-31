@@ -59,10 +59,11 @@ export async function adminLogin(_prev: unknown, formData: FormData) {
   return { success: true as const }
 }
 
-export async function adminLogout() {
+export async function adminLogout(orgSlug: string, orgId: string) {
   const cookieStore = await cookies()
-  cookieStore.delete('admin_auth')
-  redirect('/admin')
+  cookieStore.delete(`org_admin_${orgId}`)
+  cookieStore.delete(`org_member_${orgId}`)
+  redirect(`/${orgSlug}/admin`)
 }
 
 // ── Score submission ──────────────────────────────────────────────────────────
@@ -91,30 +92,44 @@ export async function submitHoleScores(
 export async function createRound(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
   const date = formData.get('date') as string
-  const courseKey = (formData.get('course') as string) || 'south'
+  const orgId = formData.get('orgId') as string
+  const courseSlug = (formData.get('course') as string) || 'south'
   const format = (formData.get('format') as string) || 'standard'
-  const daytonaVariant = null  // Daytona type is now configured per-group, not per-round
+  const daytonaVariant = null
   const ballsCount = (format === 'daytona' || format === 'traditional') ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
   const includeTotal = (format !== 'daytona' && format !== 'traditional') && formData.get('include_total') === 'true'
+  const isNineHoleFormat = format === 'daytona' || format === 'traditional'
+  const holeCount = isNineHoleFormat ? (parseInt(formData.get('holeCount') as string) || 18) : 18
+  const startHole = (holeCount === 9) ? (parseInt(formData.get('startHole') as string) || 1) : 1
 
-  if (!name || !date) return { error: 'Round name and date are required.' }
-
-  const courseName = COURSE_NAMES[courseKey] ?? courseKey
-  const pars = COURSE_PARS[courseKey] ?? Array(18).fill(4)
+  if (!name || !date || !orgId) return { error: 'Round name, date, and org are required.' }
 
   const supabase = createServerClient()
-  await supabase.from('rounds').update({ is_active: false }).eq('is_active', true)
+
+  // Try DB course first, fall back to hardcoded constants for backward compat
+  const { data: dbCourse } = await supabase
+    .from('courses').select('name, pars').eq('slug', courseSlug).single()
+
+  const courseName = dbCourse?.name ?? COURSE_NAMES[courseSlug] ?? courseSlug
+  const allParsRaw = dbCourse?.pars ?? COURSE_PARS[courseSlug] ?? Array(18).fill(4)
+  const allPars: number[] = Array.isArray(allParsRaw) ? allParsRaw : JSON.parse(String(allParsRaw))
+  const pars = holeCount === 9
+    ? (startHole === 10 ? allPars.slice(9) : allPars.slice(0, 9))
+    : allPars
+
+  // Deactivate only this org's previous active round
+  await supabase.from('rounds').update({ is_active: false }).eq('is_active', true).eq('org_id', orgId)
 
   const { data: round, error } = await supabase
     .from('rounds')
-    .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false })
+    .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false, org_id: orgId })
     .select().single()
 
   if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
 
   await Promise.all([
     supabase.from('holes').insert(
-      pars.map((par, i) => ({ round_id: round.id, hole_number: i + 1, par }))
+      pars.map((par, i) => ({ round_id: round.id, hole_number: startHole + i, par }))
     ),
     supabase.from('ball_values').insert(
       Array.from({ length: ballsCount }, (_, i) => ({ round_id: round.id, ball_number: i + 1, value_dollars: 0 }))
@@ -124,10 +139,10 @@ export async function createRound(_prev: unknown, formData: FormData) {
   return { success: true, roundId: round.id }
 }
 
-export async function activateRound(roundId: string) {
+export async function activateRound(roundId: string, orgSlug: string) {
   const supabase = createServerClient()
   await supabase.from('rounds').update({ is_started: true }).eq('id', roundId)
-  redirect('/admin/dashboard')
+  redirect(`/${orgSlug}/admin/dashboard`)
 }
 
 export async function updateHolePars(_prev: unknown, formData: FormData) {

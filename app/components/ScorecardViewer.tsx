@@ -48,8 +48,10 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 })
 
 export default function ScorecardViewer({
+  orgSlug, orgId, isMaster = false,
   teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0,
 }: {
+  orgSlug: string; orgId: string; isMaster?: boolean
   teamName: string
   players: Player[]
   holes: Hole[]
@@ -143,19 +145,19 @@ export default function ScorecardViewer({
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
             {scorecardTeamId ? (
-              <a href={`/score/${scorecardTeamId}`}
+              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                 style={{ background: gold, color: navy }}>
                 Enter Scores
               </a>
             ) : (
-              <a href="/"
+              <a href={`/${orgSlug}`}
                 className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
                 style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                Team Pin
+                {format === 'daytona' || format === 'traditional' ? 'Group PIN' : 'Team Pin'}
               </a>
             )}
-            <a href="/leaderboard" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>
