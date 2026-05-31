@@ -1040,18 +1040,20 @@ export default function LeaderboardClient({
                 <h3 className="font-bold text-gray-900 text-base">All Scorecards</h3>
                 <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
               </div>
-              <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden w-fit mx-4 mt-3">
-                <button onClick={() => setAllScorecardsFilter('all')}
-                  className="text-xs font-semibold px-3 py-1.5 transition"
-                  style={{ background: allScorecardsFilter === 'all' ? navy : 'white', color: allScorecardsFilter === 'all' ? 'white' : '#6b7280' }}>
-                  All Players
-                </button>
-                <button onClick={() => setAllScorecardsFilter('skins')}
-                  className="text-xs font-semibold px-3 py-1.5 transition border-l border-gray-200"
-                  style={{ background: allScorecardsFilter === 'skins' ? navy : 'white', color: allScorecardsFilter === 'skins' ? 'white' : '#6b7280' }}>
-                  Skins Only
-                </button>
-              </div>
+              {skinsEnabled && (
+                <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden w-fit mx-4 mt-3">
+                  <button onClick={() => setAllScorecardsFilter('all')}
+                    className="text-xs font-semibold px-3 py-1.5 transition"
+                    style={{ background: allScorecardsFilter === 'all' ? navy : 'white', color: allScorecardsFilter === 'all' ? 'white' : '#6b7280' }}>
+                    All Players
+                  </button>
+                  <button onClick={() => setAllScorecardsFilter('skins')}
+                    className="text-xs font-semibold px-3 py-1.5 transition border-l border-gray-200"
+                    style={{ background: allScorecardsFilter === 'skins' ? navy : 'white', color: allScorecardsFilter === 'skins' ? 'white' : '#6b7280' }}>
+                    Skins Only
+                  </button>
+                </div>
+              )}
               <div className="px-4 py-4 space-y-4">
                 {filteredRows.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No players.</p>}
                 {filteredRows.map((row, i) => {
