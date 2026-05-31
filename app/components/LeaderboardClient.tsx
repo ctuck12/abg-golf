@@ -1056,7 +1056,8 @@ export default function LeaderboardClient({
           }
         }
         const teamHoleVals = allScorecardsGroupId ? (liveHoleValues[allScorecardsGroupId] ?? {}) : {}
-        const hasPress = Object.keys(teamHoleVals).length > 0
+        const groupPayoutStr = groupVariant?.includes('|') ? groupVariant.split('|')[1] : null
+        const groupBaseRate = groupPayoutStr ? (parseFloat(groupPayoutStr) || 0) : dtPayoutValue
         const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
         const sortedPressRates = [...new Set(Object.values(teamHoleVals))].sort((a, b) => a - b)
         const pressColor = (val: number) => PRESS_COLORS[sortedPressRates.indexOf(val) % PRESS_COLORS.length]
@@ -1176,17 +1177,17 @@ export default function LeaderboardClient({
                                 <td style={tdSc(true)}><span style={{ fontWeight: 700, color: pColor(backPts) }}>{pStr(backPts)}</span></td>
                                 <td style={{ ...tdSc(), fontWeight: 700, color: pColor(totalPts) }}>{pStr(totalPts)}</td>
                               </tr>
-                              {hasPress && (
+                              {groupHasDaytona && (
                                 <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                                   <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
                                   {scFrontNine.map((h) => {
-                                    const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : dtPayoutValue
+                                    const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
                                     const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
                                     return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span></td>
                                   })}
                                   <td style={tdSc(true)} />
                                   {scBackNine.map((h) => {
-                                    const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : dtPayoutValue
+                                    const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
                                     const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
                                     return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span></td>
                                   })}
