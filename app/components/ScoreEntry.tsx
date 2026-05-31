@@ -666,7 +666,12 @@ export default function ScoreEntry({
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
-              <h1 className="font-bold text-lg">{team.name}</h1>
+              <h1 className="font-bold text-lg">
+                {team.name}
+                {daytonaVariant === '5man-flares' && isDaytonaSideGame && (
+                  <span className="ml-1.5 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>(Flares)</span>
+                )}
+              </h1>
             </div>
             <div className="flex items-center gap-2">
               {isAdmin
