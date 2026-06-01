@@ -11,7 +11,7 @@ export default async function MasterDashboardPage() {
   const sb = createServerClient()
   const [{ data: orgs }, { data: courses }, { data: activeRounds }] = await Promise.all([
     sb.from('organizations').select('id, name, slug, is_active, created_at').order('name'),
-    sb.from('courses').select('id, name, slug, pars, is_active').order('name'),
+    sb.from('courses').select('id, name, slug, pars, stroke_indexes, is_active').order('name'),
     sb.from('rounds')
       .select('id, name, date, course, format, is_started, org_id')
       .eq('is_active', true)

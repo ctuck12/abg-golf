@@ -108,7 +108,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
   // Try DB course first, fall back to hardcoded constants for backward compat
   const { data: dbCourse } = await supabase
-    .from('courses').select('name, pars').eq('slug', courseSlug).single()
+    .from('courses').select('name, pars, stroke_indexes').eq('slug', courseSlug).single()
 
   const courseName = dbCourse?.name ?? COURSE_NAMES[courseSlug] ?? courseSlug
   const allParsRaw = dbCourse?.pars ?? COURSE_PARS[courseSlug] ?? Array(18).fill(4)
@@ -116,6 +116,13 @@ export async function createRound(_prev: unknown, formData: FormData) {
   const pars = holeCount === 9
     ? (startHole === 10 ? allPars.slice(9) : allPars.slice(0, 9))
     : allPars
+  const allStrokeIndexesRaw = dbCourse?.stroke_indexes ?? null
+  const allStrokeIndexes: (number | null)[] = allStrokeIndexesRaw
+    ? (Array.isArray(allStrokeIndexesRaw) ? allStrokeIndexesRaw : JSON.parse(String(allStrokeIndexesRaw)))
+    : Array(18).fill(null)
+  const strokeIndexes = holeCount === 9
+    ? (startHole === 10 ? allStrokeIndexes.slice(9) : allStrokeIndexes.slice(0, 9))
+    : allStrokeIndexes
 
   // Deactivate only this org's previous active round
   await supabase.from('rounds').update({ is_active: false }).eq('is_active', true).eq('org_id', orgId)
@@ -129,7 +136,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
   await Promise.all([
     supabase.from('holes').insert(
-      pars.map((par, i) => ({ round_id: round.id, hole_number: startHole + i, par }))
+      pars.map((par, i) => ({ round_id: round.id, hole_number: startHole + i, par, stroke_index: strokeIndexes[i] ?? null }))
     ),
     supabase.from('ball_values').insert(
       Array.from({ length: ballsCount }, (_, i) => ({ round_id: round.id, ball_number: i + 1, value_dollars: 0 }))
@@ -250,6 +257,8 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
   const teamId = formData.get('teamId') as string
   const skinsParticipant = formData.get('skins_participant') === 'true'
+  const handicapRaw = formData.get('handicap') as string
+  const handicap = handicapRaw !== '' && handicapRaw != null ? parseFloat(handicapRaw) : null
   if (!name || !teamId) return { error: 'Player name required.' }
 
   const supabase = createServerClient()
@@ -272,8 +281,32 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
   const { data: existing } = await supabase
     .from('players').select('position').eq('team_id', teamId).order('position', { ascending: false }).limit(1)
   const nextPosition = existing?.[0]?.position != null ? existing[0].position + 1 : 0
-  const { error } = await supabase.from('players').insert({ name, team_id: teamId, position: nextPosition, skins_participant: skinsParticipant })
+  const { error } = await supabase.from('players').insert({ name, team_id: teamId, position: nextPosition, skins_participant: skinsParticipant, handicap: handicap ?? null })
   if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function updatePlayerHandicap(playerId: string, handicap: number | null) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('players').update({ handicap }).eq('id', playerId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function saveHoleStrokes(roundId: string, holeNumber: number, playerIds: string[]) {
+  const supabase = createServerClient()
+  // Delete existing strokes for this hole in this round, then re-insert
+  const { data: roundPlayers } = await supabase
+    .from('players')
+    .select('id')
+    .in('id', playerIds.length > 0 ? playerIds : [''])
+  const ids = (roundPlayers ?? []).map((p: { id: string }) => p.id)
+  await supabase.from('hole_strokes').delete().eq('round_id', roundId).eq('hole_number', holeNumber)
+  if (playerIds.length > 0) {
+    await supabase.from('hole_strokes').insert(
+      playerIds.map((pid) => ({ round_id: roundId, hole_number: holeNumber, player_id: pid }))
+    )
+  }
   return { success: true }
 }
 

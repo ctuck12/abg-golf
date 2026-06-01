@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, Fragment } from 'react'
-import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues } from '@/app/actions'
+import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes } from '@/app/actions'
 import { supabase } from '@/lib/supabase'
 import {
   computeHoleBallScores, computeTeamBallSummary,
@@ -12,8 +12,8 @@ import {
 } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 
-type Player = { id: string; name: string }
-type Hole = { hole_number: number; par: number }
+type Player = { id: string; name: string; handicap?: number | null }
+type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type Team = { id: string; name: string }
 type AssignmentMap = Record<number, Record<string, DaytonaSide>>
@@ -300,7 +300,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false,
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {},
 }: {
   orgSlug: string
   orgId: string
@@ -322,6 +322,9 @@ export default function ScoreEntry({
   initialHoleValues?: Record<number, number>
   defaultDtPayoutValue?: number
   isDaytonaSideGame?: boolean
+  autoHandicap?: boolean
+  allRoundPlayerHandicaps?: Record<string, number | null>
+  initialHoleStrokes?: Record<number, string[]>
 }) {
   const isDaytona = format === 'daytona'
   const isDaytonaMode = isDaytona || !!isDaytonaSideGame
@@ -372,6 +375,34 @@ export default function ScoreEntry({
   const [showMatchupResultsModal, setShowMatchupResultsModal] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
+  const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
+  const [strokesPending, setStrokesPending] = useState(false)
+
+  function getAutoStrokes(holeNumber: number): string[] {
+    if (!autoHandicap) return []
+    const hole = holes.find((h) => h.hole_number === holeNumber)
+    if (!hole?.stroke_index) return []
+    const allHandicaps = Object.values(allRoundPlayerHandicaps).filter((h): h is number => h != null)
+    if (allHandicaps.length === 0) return []
+    const minHcp = Math.min(...allHandicaps)
+    return players.filter((p) => {
+      const hcp = allRoundPlayerHandicaps[p.id] ?? null
+      if (hcp == null) return false
+      const strokes = Math.round(hcp - minHcp)
+      return strokes > 0 && hole.stroke_index! <= strokes
+    }).map((p) => p.id)
+  }
+
+  async function handleStrokesToggle(holeNumber: number, playerId: string) {
+    const current = holeStrokes[holeNumber] ?? []
+    const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
+    const updated = { ...holeStrokes, [holeNumber]: next }
+    setHoleStrokes(updated)
+    setStrokesPending(true)
+    await saveHoleStrokes(roundId, holeNumber, next)
+    setStrokesPending(false)
+  }
   const [showEnterPinModal, setShowEnterPinModal] = useState(false)
   const [pinTeams, setPinTeams] = useState<{ id: string; name: string }[]>([])
   const [pinTeamId, setPinTeamId] = useState('')
@@ -1468,6 +1499,11 @@ export default function ScoreEntry({
                   <p className="text-xs text-gray-400">Par</p>
                   <p className="font-semibold text-gray-600">{hole.par}</p>
                 </div>
+                {(holeStrokes[hole.hole_number] ?? []).length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dcfce7', color: '#15803d' }}>
+                    +{(holeStrokes[hole.hole_number] ?? []).length} stroke{(holeStrokes[hole.hole_number] ?? []).length > 1 ? 's' : ''}
+                  </span>
+                )}
                 <div className="flex-1" />
                 {isDaytonaMode && isSaved && holeValues[hole.hole_number] !== undefined && (
                   <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-1 flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>
@@ -1741,6 +1777,39 @@ export default function ScoreEntry({
                       </div>
                     )
                   })()}
+
+                  {/* ── Strokes panel ── */}
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Handicap Strokes</p>
+                      {autoHandicap && (
+                        <button type="button"
+                          onClick={() => {
+                            const auto = getAutoStrokes(hole.hole_number)
+                            setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: auto }))
+                            saveHoleStrokes(roundId, hole.hole_number, auto)
+                          }}
+                          className="text-xs text-blue-500 hover:text-blue-700">Auto-fill</button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {players.map((p) => {
+                        const hasStroke = (holeStrokes[hole.hole_number] ?? []).includes(p.id)
+                        return (
+                          <button key={p.id} type="button"
+                            onClick={() => handleStrokesToggle(hole.hole_number, p.id)}
+                            disabled={strokesPending}
+                            className={`text-xs px-2.5 py-1 rounded-full border font-medium transition ${hasStroke ? 'text-white border-transparent' : 'border-gray-300 text-gray-500'}`}
+                            style={hasStroke ? { background: '#16a34a' } : {}}>
+                            {p.name}{hasStroke ? ' +1' : ''}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {(holeStrokes[hole.hole_number] ?? []).length > 0 && (
+                      <p className="text-xs text-gray-400 mt-1">Net scores adjusted for stroke recipients</p>
+                    )}
+                  </div>
 
                   {(() => {
                     const allAssigned = !isDaytonaMode || players.every((p) => p.id in holeAssignments)

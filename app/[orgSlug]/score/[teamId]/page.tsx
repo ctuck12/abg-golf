@@ -22,14 +22,15 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
     sb.from('organizations').select('name').eq('id', orgId).single(),
     sb.from('teams').select('id, name, round_id, is_admin, daytona_variant').eq('id', teamId).single(),
   ])
+
   if (!team) redirect(`/${orgSlug}`)
   const orgName = orgRow?.name ?? orgSlug
 
   const { data: round } = await sb
-    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id').eq('id', team.round_id).single()
+    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap').eq('id', team.round_id).single()
   if (!round || !round.is_active || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
-  const { data: players } = await sb.from('players').select('id, name').eq('team_id', teamId).order('position', { ascending: true })
+  const { data: players } = await sb.from('players').select('id, name, handicap').eq('team_id', teamId).order('position', { ascending: true })
   const playerIds = (players ?? []).map((p) => p.id)
 
   const isDaytona = (round.format ?? 'standard') === 'daytona'
@@ -42,11 +43,23 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
 
   const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', team.round_id)
   const allTeamIds = (allTeams ?? []).map((t) => t.id)
-  const { data: allRoundPlayers } = await sb.from('players').select('id').in('team_id', allTeamIds.length ? allTeamIds : [''])
-  const roundPlayerIds = (allRoundPlayers ?? []).map((p) => p.id)
+  const [{ data: allRoundPlayersRaw }, { data: holeStrokesRaw }] = await Promise.all([
+    allTeamIds.length ? sb.from('players').select('id, handicap').in('team_id', allTeamIds) : Promise.resolve({ data: [] }),
+    sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id),
+  ])
+  const roundPlayerIds = (allRoundPlayersRaw ?? []).map((p: { id: string }) => p.id)
+  const allRoundPlayerHandicaps: Record<string, number | null> = {}
+  for (const p of (allRoundPlayersRaw ?? []) as { id: string; handicap?: number | null }[]) {
+    allRoundPlayerHandicaps[p.id] = p.handicap ?? null
+  }
+  const initialHoleStrokes: Record<number, string[]> = {}
+  for (const hs of (holeStrokesRaw ?? []) as { hole_number: number; player_id: string }[]) {
+    if (!initialHoleStrokes[hs.hole_number]) initialHoleStrokes[hs.hole_number] = []
+    initialHoleStrokes[hs.hole_number].push(hs.player_id)
+  }
 
   const [{ data: holes }, { data: scores }, { data: assignments }, { data: ballValuesRaw }, { data: holeValuesRaw }] = await Promise.all([
-    sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
+    sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
     (isDaytona || isDaytonaSideGame) && playerIds.length
       ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', playerIds)
@@ -85,6 +98,9 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       includeTotal={round.include_total ?? false}
       initialHoleValues={initialHoleValues}
       defaultDtPayoutValue={defaultDtPayoutValue}
+      autoHandicap={round.auto_handicap ?? false}
+      allRoundPlayerHandicaps={allRoundPlayerHandicaps}
+      initialHoleStrokes={initialHoleStrokes}
     />
   )
 }

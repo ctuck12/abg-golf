@@ -7,7 +7,7 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 
 type Org = { id: string; name: string; slug: string; is_active: boolean; created_at: string }
-type Course = { id: string; name: string; slug: string; pars: number[]; is_active: boolean }
+type Course = { id: string; name: string; slug: string; pars: number[]; stroke_indexes?: number[] | null; is_active: boolean }
 type ActiveRound = { id: string; name: string; date: string; course: string; format: string; is_started: boolean; org_id: string }
 
 export default function MasterDashboard({
@@ -38,6 +38,7 @@ export default function MasterDashboard({
   const [courseName, setCourseName] = useState('')
   const [courseSlug, setCourseSlug] = useState('')
   const [coursePars, setCoursePars] = useState<string>(Array(18).fill('4').join(','))
+  const [courseStrokeIndexes, setCourseStrokeIndexes] = useState<string>('')
   const [courseError, setCourseError] = useState('')
   const [coursePending, setCoursePending] = useState(false)
 
@@ -115,13 +116,14 @@ export default function MasterDashboard({
 
   function openNewCourse() {
     setEditingCourse(null)
-    setCourseName(''); setCourseSlug(''); setCoursePars(Array(18).fill('4').join(',')); setCourseError('')
+    setCourseName(''); setCourseSlug(''); setCoursePars(Array(18).fill('4').join(',')); setCourseStrokeIndexes(''); setCourseError('')
     setShowCourseForm(true)
   }
   function openEditCourse(c: Course) {
     setEditingCourse(c)
     setCourseName(c.name); setCourseSlug(c.slug)
     setCoursePars(Array.isArray(c.pars) ? c.pars.join(',') : String(c.pars))
+    setCourseStrokeIndexes(c.stroke_indexes ? c.stroke_indexes.join(',') : '')
     setCourseError(''); setShowCourseForm(true)
   }
 
@@ -131,8 +133,14 @@ export default function MasterDashboard({
     try {
       const pars = coursePars.split(',').map((p) => parseInt(p.trim())).filter((p) => !isNaN(p))
       if (pars.length !== 18) { setCourseError('Enter exactly 18 par values separated by commas.'); setCoursePending(false); return }
+      let stroke_indexes: number[] | undefined
+      if (courseStrokeIndexes.trim()) {
+        const si = courseStrokeIndexes.split(',').map((p) => parseInt(p.trim())).filter((p) => !isNaN(p))
+        if (si.length !== 18) { setCourseError('Enter exactly 18 stroke index values, or leave blank.'); setCoursePending(false); return }
+        stroke_indexes = si
+      }
       const url = editingCourse ? `/api/master/courses/${editingCourse.id}` : '/api/master/courses'
-      const res = await fetch(url, { method: editingCourse ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: courseName, slug: courseSlug, pars }) })
+      const res = await fetch(url, { method: editingCourse ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: courseName, slug: courseSlug, pars, stroke_indexes }) })
       const data = await res.json()
       if (data.error) { setCourseError(data.error); return }
       setShowCourseForm(false); router.refresh()
@@ -343,6 +351,11 @@ export default function MasterDashboard({
                     <label className="block text-xs font-medium text-gray-600 mb-1">Pars (18 values, comma-separated)</label>
                     <input value={coursePars} onChange={(e) => setCoursePars(e.target.value)} required placeholder="4,4,5,3,4,4,4,3,5,4,3,4,4,5,4,3,4,5" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
                     <p className="text-xs text-gray-400 mt-0.5">Total par: {coursePars.split(',').map((p) => parseInt(p.trim()) || 0).reduce((a, b) => a + b, 0)}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Stroke Indexes (18 values, comma-separated) <span className="text-gray-400 font-normal">— optional</span></label>
+                    <input value={courseStrokeIndexes} onChange={(e) => setCourseStrokeIndexes(e.target.value)} placeholder="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
+                    <p className="text-xs text-gray-400 mt-0.5">Rank each hole 1 (hardest) to 18 (easiest) — used for handicap stroke allocation</p>
                   </div>
                   <div className="flex gap-2">
                     <button type="submit" disabled={coursePending} className="flex-1 text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60" style={{ background: navy }}>

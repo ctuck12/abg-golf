@@ -7,6 +7,7 @@ import {
   toggleTeamAdmin, resetTeamScores, activateRound, updateHolePars, updateBallValues,
   adminLogout, renameTeam, renamePlayer, movePlayer,
   updateSkinsSettings, updatePlayerSkinsParticipation, updateTeamSettings,
+  updatePlayerHandicap,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -35,7 +36,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
 
 type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number } | null
 type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null }
-type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean }
+type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -435,6 +436,8 @@ export default function AdminDashboard({
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
+  const [editingHandicapId, setEditingHandicapId] = useState<string | null>(null)
+  const [handicapDraft, setHandicapDraft] = useState('')
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [confirmRemoveTeamId, setConfirmRemoveTeamId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -780,6 +783,12 @@ export default function AdminDashboard({
   }
   async function handleDeletePlayer(playerId: string) {
     await deletePlayer(playerId)
+    router.refresh()
+  }
+  async function handleUpdateHandicap(playerId: string) {
+    const val = handicapDraft.trim()
+    await updatePlayerHandicap(playerId, val === '' ? null : parseFloat(val))
+    setEditingHandicapId(null)
     router.refresh()
   }
   async function handleToggleSkinsParticipant(playerId: string, current: boolean) {
@@ -1673,6 +1682,21 @@ export default function AdminDashboard({
                                         className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none">▼</button>
                                     </div>
                                     <span className="flex-1 text-sm text-gray-800 font-medium">{p.name}</span>
+                                    {editingHandicapId === p.id ? (
+                                      <div className="flex items-center gap-1">
+                                        <input type="number" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
+                                          autoFocus min="0" max="54" step="0.1" placeholder="HCP"
+                                          className="w-14 border border-blue-300 rounded px-1.5 py-0.5 text-xs focus:outline-none"
+                                          onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateHandicap(p.id); if (e.key === 'Escape') setEditingHandicapId(null) }} />
+                                        <button type="button" onClick={() => handleUpdateHandicap(p.id)} className="text-xs text-blue-600 font-medium">✓</button>
+                                        <button type="button" onClick={() => setEditingHandicapId(null)} className="text-xs text-gray-400">✕</button>
+                                      </div>
+                                    ) : (
+                                      <button type="button" onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? String(p.handicap) : '') }}
+                                        className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition">
+                                        {p.handicap != null ? `HCP ${p.handicap}` : 'HCP —'}
+                                      </button>
+                                    )}
                                     {skinsEnabled && (
                                       <button type="button"
                                         onClick={() => handleToggleSkinsParticipant(p.id, p.skins_participant)}
@@ -1699,6 +1723,8 @@ export default function AdminDashboard({
                                   {addPlayerState?.error && <p className="text-xs text-red-500 w-full">{addPlayerState.error}</p>}
                                   <input type="text" name="name" placeholder="Player name" required
                                     className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                  <input type="number" name="handicap" placeholder="HCP" min="0" max="54" step="0.1"
+                                    className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                                   {skinsEnabled && (
                                     <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer self-center whitespace-nowrap">
                                       <input type="checkbox" name="skins_participant" value="true"
