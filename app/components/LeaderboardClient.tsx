@@ -1339,23 +1339,11 @@ export default function LeaderboardClient({
                     Enter Pin
                   </button>
                 )}
-                {isAdmin && scorecardTeamId
-                  ? <button onClick={() => setShowOptions(true)}
-                      className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                      style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
-                      Options
-                    </button>
-                  : isAdmin
-                    ? <a href={`/${orgSlug}/admin/dashboard`}
-                        className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                        style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
-                        Admin Hub
-                      </a>
-                    : <button onClick={() => setShowOptions(true)}
-                        className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                        style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                        Options
-                      </button>}
+                <button onClick={() => setShowOptions(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                  style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                  Options
+                </button>
               </div>
             </div>
           ) : (
@@ -1387,23 +1375,11 @@ export default function LeaderboardClient({
                     Enter Pin
                   </button>
                 )}
-                {isAdmin && scorecardTeamId
-                  ? <button onClick={() => setShowOptions(true)}
-                      className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                      style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
-                      Options
-                    </button>
-                  : isAdmin
-                    ? <a href={`/${orgSlug}/admin/dashboard`}
-                        className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                        style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
-                        Admin Hub
-                      </a>
-                    : <button onClick={() => setShowOptions(true)}
-                        className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                        style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                        Options
-                      </button>}
+                <button onClick={() => setShowOptions(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                  style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                  Options
+                </button>
               </div>
             </div>
           )}
