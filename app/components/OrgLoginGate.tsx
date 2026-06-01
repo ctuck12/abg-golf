@@ -66,7 +66,7 @@ export default function OrgLoginGate({
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Group password"
+                  placeholder="Group/Admin Password"
                   required
                   autoFocus
                   className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none"
