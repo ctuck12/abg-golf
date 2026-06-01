@@ -315,8 +315,13 @@ function vpColor(vp: number | null): string {
 }
 
 export default function LeaderboardClient({
+  orgSlug, orgId, orgName, isMaster = false,
   initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {},
 }: {
+  orgSlug: string
+  orgId: string
+  orgName: string
+  isMaster?: boolean
   initialTeams: Team[]
   players: Player[]
   holes: Hole[]
@@ -361,6 +366,8 @@ export default function LeaderboardClient({
   const [showSkinsSettlements, setShowSkinsSettlements] = useState(false)
   const [isAdmin, setIsAdmin] = useState(isAdminProp)
   const [scorecardTeamId, setScorecardTeamId] = useState(scorecardTeamIdProp)
+  const [showOptions, setShowOptions] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [leaderboardView, setLeaderboardView] = useState<'group' | 'team' | 'individual'>(
     format === 'daytona' ? 'group' : format === 'traditional' ? 'individual' : 'team'
   )
@@ -370,11 +377,23 @@ export default function LeaderboardClient({
   const [traditionalGroupView, setTraditionalGroupView] = useState<Record<string, 'score' | 'points'>>({})
 
 
+  async function handleChangeTeam() {
+    await fetch('/api/team-logout', { method: 'POST', credentials: 'include' })
+    setScorecardTeamId(null)
+    setShowOptions(false)
+    setShowPin(true)
+  }
+
+  async function handleSignOut() {
+    await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
+    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
+  }
+
   // Re-fetch auth state on mount so navigating back from another page doesn't
   // show stale RSC props.  credentials:'include' + cache:'no-store' ensures the
   // browser always sends cookies and never returns a cached response.
   useEffect(() => {
-    fetch('/api/auth-status', { credentials: 'include', cache: 'no-store' })
+    fetch(`/api/auth-status?orgId=${orgId}`, { credentials: 'include', cache: 'no-store' })
       .then((r) => r.json())
       .then(({ isAdmin: a, scorecardTeamId: t }: { isAdmin: boolean; scorecardTeamId: string | null }) => {
         setIsAdmin(a)
@@ -650,7 +669,66 @@ export default function LeaderboardClient({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
-      {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} />}
+      {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} isGroup={isDaytona || isTraditional} orgSlug={orgSlug} />}
+
+      {showOptions && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => { setShowOptions(false); setShowSignOutConfirm(false) }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900">Options</h2>
+              <button onClick={() => { setShowOptions(false); setShowSignOutConfirm(false) }} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {isAdmin ? (
+                <>
+                  <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
+                    Admin Hub
+                  </a>
+                  {scorecardTeamId && (
+                    <button onClick={handleChangeTeam} className="w-full py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+                      Change Team
+                    </button>
+                  )}
+                </>
+              ) : (
+                <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
+                  Admin Login
+                </a>
+              )}
+              {isMaster && (
+                <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>
+                  ← Master Admin
+                </a>
+              )}
+              {showSignOutConfirm ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-center text-gray-700 font-medium">Sign out of this group?</p>
+                  <div className="flex gap-2">
+                    <button onClick={handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>
+                      Sign Out
+                    </button>
+                    <button onClick={() => setShowSignOutConfirm(false)} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowSignOutConfirm(true)}
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white"
+                  style={{ background: '#6b7280' }}
+                >
+                  Sign Out of {orgName}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPayouts && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayouts(false)}>
@@ -1231,7 +1309,7 @@ export default function LeaderboardClient({
             <div className="flex items-start justify-between mb-2">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
-                  Anything But Golf Group
+                  {orgName}
                 </p>
                 <h1 className="text-lg font-bold leading-tight">{roundName}</h1>
                 <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
@@ -1240,7 +1318,7 @@ export default function LeaderboardClient({
               </div>
               <div className="flex flex-col items-end gap-1.5 mt-0.5 flex-shrink-0">
                 {scorecardTeamId ? (
-                  <a href={`/score/${scorecardTeamId}`}
+                  <a href={`/${orgSlug}/score/${scorecardTeamId}`}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
                     {isComplete ? 'Edit Scores' : 'Enter Scores'}
@@ -1249,20 +1327,26 @@ export default function LeaderboardClient({
                   <button onClick={() => setShowPin(true)}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
-                    Team Pin
+                    {isDaytona || isTraditional ? 'Group PIN' : 'Team Pin'}
                   </button>
                 )}
-                {isAdmin
-                  ? <a href="/admin/dashboard"
+                {isAdmin && scorecardTeamId
+                  ? <button onClick={() => setShowOptions(true)}
                       className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                       style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
-                      Admin Hub
-                    </a>
-                  : <a href="/admin"
-                      className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                      style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                      Admin Login
-                    </a>}
+                      Options
+                    </button>
+                  : isAdmin
+                    ? <a href={`/${orgSlug}/admin/dashboard`}
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                        style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
+                        Admin Hub
+                      </a>
+                    : <button onClick={() => setShowOptions(true)}
+                        className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                        style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                        Options
+                      </button>}
               </div>
             </div>
           ) : (
@@ -1276,7 +1360,7 @@ export default function LeaderboardClient({
               </p>
               <div className="absolute right-0 top-0 flex flex-col items-end gap-1.5">
                 {scorecardTeamId ? (
-                  <a href={`/score/${scorecardTeamId}`}
+                  <a href={`/${orgSlug}/score/${scorecardTeamId}`}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
                     {isComplete ? 'Edit Scores' : 'Enter Scores'}
@@ -1285,20 +1369,26 @@ export default function LeaderboardClient({
                   <button onClick={() => setShowPin(true)}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
-                    Team Pin
+                    {isDaytona || isTraditional ? 'Group PIN' : 'Team Pin'}
                   </button>
                 )}
-                {isAdmin
-                  ? <a href="/admin/dashboard"
+                {isAdmin && scorecardTeamId
+                  ? <button onClick={() => setShowOptions(true)}
                       className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                       style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
-                      Admin Hub
-                    </a>
-                  : <a href="/admin"
-                      className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                      style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                      Admin Login
-                    </a>}
+                      Options
+                    </button>
+                  : isAdmin
+                    ? <a href={`/${orgSlug}/admin/dashboard`}
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                        style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
+                        Admin Hub
+                      </a>
+                    : <button onClick={() => setShowOptions(true)}
+                        className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                        style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                        Options
+                      </button>}
               </div>
             </div>
           )}
@@ -1314,10 +1404,17 @@ export default function LeaderboardClient({
               style={{ borderColor: navy, color: navy }}>
               Payouts
             </button>
-            <a href="/matchup" className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
+            <a href={`/${orgSlug}/matchup`} className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
               style={{ borderColor: navy, color: navy }}>
               Matchups
             </a>
+            {isDaytona && initialTeams.length === 1 && (
+              <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
+                style={{ borderColor: navy, color: navy }}>
+                All Scorecards
+              </a>
+            )}
             {leaderboardView === 'individual' && (
               <button
                 onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
@@ -1367,7 +1464,7 @@ export default function LeaderboardClient({
                         <span className="text-sm font-bold text-white">{group.team.name}</span>
                         <span className="ml-2 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>· Daytona {variantLabel}</span>
                       </div>
-                      <a href={`/scorecards?teamId=${group.team.id}`}
+                      <a href={`/${orgSlug}/scorecards?teamId=${group.team.id}`}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ml-2"
                         style={{ background: gold, color: navy }}>
                         All Scorecards
@@ -1388,7 +1485,7 @@ export default function LeaderboardClient({
                     const ptsColor = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
                     const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                     return (
-                      <a key={row.player.id} href={`/player/${row.player.id}`}
+                      <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
                         className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
                         <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                           {hasScores ? i + 1 : '–'}
@@ -1465,7 +1562,7 @@ export default function LeaderboardClient({
                       const ptCol = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
                       const ptStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                       return (
-                        <a key={row.player.id} href={`/player/${row.player.id}`}
+                        <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
                           className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
                           <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                           <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
@@ -1478,7 +1575,7 @@ export default function LeaderboardClient({
                     const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
                     const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                     return (
-                      <a key={row.player.id} href={`/player/${row.player.id}`}
+                      <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
                         className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
                         <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                         <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
@@ -1551,7 +1648,7 @@ export default function LeaderboardClient({
                 const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
                 const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
-                  <a key={row.player.id} href={`/player/${row.player.id}`}
+                  <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
                     className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                     <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
@@ -1569,7 +1666,7 @@ export default function LeaderboardClient({
                 const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
                 const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
-                  <a key={row.player.id} href={`/player/${row.player.id}`}
+                  <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
                     className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                     <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
@@ -1590,7 +1687,7 @@ export default function LeaderboardClient({
                 const vpCol = vp !== null && vp < 0 ? '#dc2626' : '#111827'
                 const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
-                  <a key={row.player.id} href={`/player/${row.player.id}`}
+                  <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
                     className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                       {hasScores ? i + 1 : '–'}
@@ -1617,7 +1714,7 @@ export default function LeaderboardClient({
                 const ptsColor = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
                 const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                 return (
-                  <a key={row.player.id} href={`/player/${row.player.id}`}
+                  <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
                     className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                       {hasScores ? i + 1 : '–'}
@@ -1673,7 +1770,7 @@ export default function LeaderboardClient({
                     {isExpanded && (
                       <div className="bg-gray-50 border-t border-gray-100 px-4 py-2 space-y-1">
                         <div className="flex justify-end mb-1">
-                          <a href={`/scorecard/${row.team.id}`}
+                          <a href={`/${orgSlug}/scorecard/${row.team.id}`}
                             className="text-xs font-medium underline underline-offset-2"
                             style={{ color: navy }}>
                             Team Scorecard →
@@ -1692,7 +1789,7 @@ export default function LeaderboardClient({
                           const totalPar = holes.filter((h) => playerScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
                           const totalVp: number | null = playerScores.length > 0 ? playerScores.reduce((sum, s) => sum + s.strokes, 0) - totalPar : null
                           return (
-                            <a key={player.id} href={`/player/${player.id}`}
+                            <a key={player.id} href={`/${orgSlug}/player/${player.id}`}
                               className="w-full flex items-center py-1.5 pl-2 pr-0 rounded-lg hover:bg-white transition">
                               <span className="flex-1 text-sm text-gray-800">{player.name}</span>
                               <span className="flex items-center text-xs flex-shrink-0" style={{ gap: '0.6rem' }}>

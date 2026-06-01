@@ -421,11 +421,14 @@ function computeAdminMatchupPayouts(
 }
 
 export default function AdminDashboard({
+  orgSlug, orgId, orgName, isMaster = false,
   round, teams, players, holes, ballValues, scores, scorecardTeamId = null, dtAssignments = [],
-  matchups = [], bestBallMatchups = [], initialHoleValues = {},
+  matchups = [], bestBallMatchups = [], initialHoleValues = {}, courses = [],
 }: {
+  orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
   matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]; initialHoleValues?: Record<string, Record<number, number>>
+  courses?: { name: string; slug: string; pars: number[] }[]
 }) {
   const router = useRouter()
   const [showPinModal, setShowPinModal] = useState(false)
@@ -448,6 +451,8 @@ export default function AdminDashboard({
   const createFormRef = useRef<HTMLFormElement>(null)
   const [selectedBallsCount, setSelectedBallsCount] = useState('3')
   const [createIncludeTotal, setCreateIncludeTotal] = useState(false)
+  const [selectedHoleCount, setSelectedHoleCount] = useState('18')
+  const [selectedStartHole, setSelectedStartHole] = useState('1')
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showMatchupResults, setShowMatchupResults] = useState(false)
   const [showSkinsResults, setShowSkinsResults] = useState(false)
@@ -635,7 +640,7 @@ export default function AdminDashboard({
   }, [round?.id])
 
   const [pars, setPars] = useState<Record<number, number>>(
-    Object.fromEntries(Array.from({ length: 18 }, (_, i) => [i + 1, holes.find((h) => h.hole_number === i + 1)?.par ?? 4]))
+    Object.fromEntries(holes.map((h) => [h.hole_number, h.par]))
   )
   const [ballVals, setBallVals] = useState<Record<number, number>>(
     Object.fromEntries(ballValues.map((bv) => [bv.ball_number, bv.value_dollars]))
@@ -654,6 +659,9 @@ export default function AdminDashboard({
   const ballsCount = round?.balls_count ?? 3
   const isDaytona = round?.format === 'daytona'
   const isTraditional = round?.format === 'traditional'
+  const roundHoleCount = holes.length  // 9 or 18
+  const roundStartHole = holes.length > 0 ? holes[0].hole_number : 1
+  const is9HoleRound = (isDaytona || isTraditional) && roundHoleCount === 9
   const roundIncludeTotal = round?.include_total ?? false
   const numSegments = roundIncludeTotal ? 3 : 2          // Front + Back [+ Total]
   const isComplete = players.length > 0 && holes.length > 0 && players.every((p) => liveScores.filter((s) => s.player_id === p.id).length === holes.length)
@@ -994,16 +1002,16 @@ export default function AdminDashboard({
         )
       })()}
 
-      {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} />}
+      {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} />}
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Admin</p>
-            <h1 className="font-bold text-lg">Anything But Golf Group</h1>
+            <h1 className="font-bold text-lg">{orgName}</h1>
           </div>
           <div className="flex items-center gap-2">
             {scorecardTeamId ? (
-              <a href={`/score/${scorecardTeamId}`}
+              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                 style={{ background: gold, color: navy }}>
                 {isComplete ? 'Edit Scores' : 'Enter Scores'}
@@ -1014,11 +1022,14 @@ export default function AdminDashboard({
                 onClick={() => setShowPinModal(true)}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                 style={{ background: gold, color: navy }}>
-                Team Pin
+                {isDaytona || isTraditional ? 'Group PIN' : 'Team Pin'}
               </button>
             )}
-            <a href="/" className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10 text-white">Leaderboard</a>
-            <form action={adminLogout}>
+            {isMaster && (
+              <a href="/master/dashboard" className="text-xs px-3 py-1.5 rounded-lg font-semibold border" style={{ borderColor: '#f59e0b', color: '#fbbf24' }}>← Master Admin</a>
+            )}
+            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10 text-white">Leaderboard</a>
+            <form action={adminLogout.bind(null, orgSlug, orgId)}>
               <button type="submit" className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10">Sign out</button>
             </form>
           </div>
@@ -1071,6 +1082,7 @@ export default function AdminDashboard({
                 {createState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createState.error}</p>}
                 {createState?.success && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2 mb-2">Round created! Add teams and activate when ready.</p>}
                 <form ref={createFormRef} action={createAction} className="space-y-3">
+                  <input type="hidden" name="orgId" value={orgId} />
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Round Name</label>
                     <input type="text" name="name" placeholder="e.g. Saturday Scramble" required
@@ -1097,6 +1109,50 @@ export default function AdminDashboard({
                       </select>
                     </div>
                   </div>
+                  {(selectedFormat === 'daytona' || selectedFormat === 'traditional') && (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Holes</label>
+                        <div className="flex gap-2">
+                          {(['18', '9'] as const).map((hc) => (
+                            <button
+                              key={hc}
+                              type="button"
+                              onClick={() => setSelectedHoleCount(hc)}
+                              className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 transition ${
+                                selectedHoleCount === hc
+                                  ? 'border-gray-700 bg-gray-100 text-gray-800'
+                                  : 'border-gray-200 bg-white text-gray-500'
+                              }`}>
+                              {hc === '18' ? '18 Holes' : '9 Holes'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {selectedHoleCount === '9' && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">Starting Hole</label>
+                          <div className="flex gap-2">
+                            {([['1', 'Hole 1 (Front 9)'], ['10', 'Hole 10 (Back 9)']] as const).map(([val, label]) => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => setSelectedStartHole(val)}
+                                className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 transition ${
+                                  selectedStartHole === val
+                                    ? 'border-gray-700 bg-gray-100 text-gray-800'
+                                    : 'border-gray-200 bg-white text-gray-500'
+                                }`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <input type="hidden" name="holeCount" value={selectedHoleCount} />
+                      <input type="hidden" name="startHole" value={selectedStartHole} />
+                    </div>
+                  )}
                   {selectedFormat === 'standard' && (
                     <>
                       <div>
@@ -1129,13 +1185,21 @@ export default function AdminDashboard({
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
                     >
                       <option value="" disabled>Select course…</option>
-                      <option value="south">ACC South Course (Par 72)</option>
-                      <option value="north">ACC North Course (Par 71)</option>
-                      <option value="liveoak">Live Oak Golf Club (Par 71)</option>
-                      <option value="maxwell">Maxwell Golf Course (Par 71)</option>
-                      <option value="shadyoaks">Shady Oaks Golf Course (Par 70)</option>
-                      <option value="hideout">The Hideout Golf Club (Par 72)</option>
-                      <option value="canyonwest">Canyon West Golf Course (Par 72)</option>
+                      {courses.length > 0 ? courses.map((c) => {
+                        const pars: number[] = Array.isArray(c.pars) ? c.pars : JSON.parse(String(c.pars))
+                        const total = pars.reduce((a, b) => a + b, 0)
+                        return <option key={c.slug} value={c.slug}>{c.name} (Par {total})</option>
+                      }) : (
+                        <>
+                          <option value="south">ACC South Course (Par 72)</option>
+                          <option value="north">ACC North Course (Par 71)</option>
+                          <option value="liveoak">Live Oak Golf Club (Par 71)</option>
+                          <option value="maxwell">Maxwell Golf Course (Par 71)</option>
+                          <option value="shadyoaks">Shady Oaks Golf Course (Par 70)</option>
+                          <option value="hideout">The Hideout Golf Club (Par 72)</option>
+                          <option value="canyonwest">Canyon West Golf Course (Par 72)</option>
+                        </>
+                      )}
                     </select>
                     <p className="text-xs text-gray-400 mt-1">Course pars auto-load — edit them in the Par Per Hole section after creating.</p>
                   </div>
@@ -1191,6 +1255,7 @@ export default function AdminDashboard({
                       {new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       {' · '}{teams.length} {isDaytona ? 'groups' : 'teams'} · Par {parTotal}
                       {' · '}{isDaytona ? 'Daytona' : isTraditional ? 'Traditional' : `${ballsCount}-ball${roundIncludeTotal ? ' + total' : ''}`}
+                      {is9HoleRound && ` · 9 Holes (${roundStartHole === 10 ? 'Back 9' : 'Front 9'})`}
                     </p>
                   </div>
                 </div>
@@ -1731,7 +1796,7 @@ export default function AdminDashboard({
                       </ul>
                     </div>
                   )}
-                  <form action={activateRound.bind(null, round.id)}>
+                  <form action={activateRound.bind(null, round.id, orgSlug)}>
                     <button type="submit"
                       disabled={!canActivate}
                       className="w-full text-white py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"

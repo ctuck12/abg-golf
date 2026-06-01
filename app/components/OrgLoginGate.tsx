@@ -1,0 +1,93 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+const navy = '#0f172a'
+const gold = '#f59e0b'
+
+export default function OrgLoginGate({
+  orgSlug,
+  orgName,
+  error: initialError,
+}: {
+  orgSlug: string
+  orgName: string | null
+  error?: string
+}) {
+  const router = useRouter()
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState(initialError ?? '')
+  const [pending, setPending] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setPending(true)
+    try {
+      const res = await fetch('/api/org-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: orgSlug, password }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        router.refresh()
+      } else {
+        setError(data.error ?? 'Incorrect password.')
+      }
+    } catch {
+      setError('Network error.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
+      <header className="text-white py-8 px-4 text-center shadow-md" style={{ background: navy }}>
+        <h1 className="text-2xl font-bold" style={{ color: gold }}>{orgName ?? 'Group Login'}</h1>
+      </header>
+
+      <main className="flex-1 flex items-start justify-center px-4 pt-12">
+        <div className="w-full max-w-sm space-y-4">
+          {!orgName ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center">
+              <p className="text-sm font-semibold text-red-700">{initialError ?? 'Group not found.'}</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <h2 className="font-semibold text-gray-900 mb-4 text-sm">Enter Group Password</h2>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                {error && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+                )}
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Group password"
+                  required
+                  autoFocus
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className="w-full text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
+                  style={{ background: navy }}
+                >
+                  {pending ? 'Verifying…' : 'Enter Group'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          <a href="/" className="block text-center text-xs text-gray-400 hover:text-gray-600 py-2">
+            ← Back to Groups
+          </a>
+        </div>
+      </main>
+    </div>
+  )
+}

@@ -6,7 +6,7 @@ type Team = { id: string; name: string }
 
 const navy = '#0f172a'
 
-export default function PinLoginModal({ teams, onClose }: { teams: Team[]; onClose: () => void }) {
+export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug }: { teams: Team[]; onClose: () => void; isGroup?: boolean; orgSlug: string }) {
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
 
@@ -25,7 +25,7 @@ export default function PinLoginModal({ teams, onClose }: { teams: Team[]; onClo
       })
       const data = await res.json()
       if (data.success) {
-        window.location.href = `/score/${data.teamId}`
+        window.location.href = `/${orgSlug}/score/${data.teamId}`
       } else {
         setError(data.error ?? 'Login failed.')
       }
@@ -44,7 +44,7 @@ export default function PinLoginModal({ teams, onClose }: { teams: Team[]; onClo
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-gray-900">Enter Team PIN</h2>
+          <h2 className="font-bold text-gray-900">{isGroup ? 'Enter Group PIN' : 'Enter Team PIN'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -52,19 +52,19 @@ export default function PinLoginModal({ teams, onClose }: { teams: Team[]; onClo
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Your Team</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{isGroup ? 'Your Group' : 'Your Team'}</label>
             <select
               name="teamId"
               required
               defaultValue=""
               className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none"
             >
-              <option value="" disabled>Select your team…</option>
+              <option value="" disabled>{isGroup ? 'Select your group…' : 'Select your team…'}</option>
               {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Team PIN</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{isGroup ? 'Group PIN' : 'Team PIN'}</label>
             <input
               type="password"
               name="pin"

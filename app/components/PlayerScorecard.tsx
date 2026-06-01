@@ -46,8 +46,10 @@ function ptsColor(pts: number | null): string {
 }
 
 export default function PlayerScorecard({
+  orgSlug, orgId, orgName, isMaster = false,
   player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false,
 }: {
+  orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   player: { id: string; name: string }
   teamName: string
   teamId: string
@@ -68,6 +70,13 @@ export default function PlayerScorecard({
   const [scores, setScores] = useState(initialScores)
   const [allRoundScores, setAllRoundScores] = useState<RoundScore[]>(dtData?.allRoundScores ?? [])
   const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
+  const [showOptions, setShowOptions] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+
+  async function handleSignOut() {
+    await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
+    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
+  }
   const isDaytona = format === 'daytona'
   const assignments = dtData?.assignments ?? []
 
@@ -212,8 +221,40 @@ export default function PlayerScorecard({
     padding: '0.25rem 0.2rem',
   })
 
+  const optionsPopup = showOptions && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowOptions(false)}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-gray-900">Options</h2>
+          <button onClick={() => setShowOptions(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+        </div>
+        <div className="flex flex-col gap-3">
+          {isAdmin
+            ? <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Hub</a>
+            : <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Login</a>
+          }
+          {isMaster && <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>← Master Admin</a>}
+          {!isMaster && (showSignOutConfirm ? (
+            <div className="space-y-2">
+              <p className="text-sm text-center text-gray-700 font-medium">Sign out of this group?</p>
+              <div className="flex gap-2">
+                <button onClick={handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>Sign Out</button>
+                <button onClick={() => setShowSignOutConfirm(false)} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowSignOutConfirm(true)} className="w-full py-3 rounded-xl text-sm font-semibold text-white" style={{ background: '#6b7280' }}>
+              Sign Out of {orgName}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+      {optionsPopup}
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-4xl mx-auto flex items-start justify-between">
           <div>
@@ -227,19 +268,19 @@ export default function PlayerScorecard({
           </div>
           <div className="flex items-center gap-2 mt-1 flex-shrink-0">
             {scorecardTeamId ? (
-              <a href={`/score/${scorecardTeamId}`}
+              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                 style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
                 Enter Scores
               </a>
             ) : (
-              <a href="/"
-                className="text-xs px-3 py-1.5 rounded-lg border font-semibold"
-                style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
-                Team Pin
-              </a>
+              <button onClick={() => setShowOptions(true)}
+                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                Options
+              </button>
             )}
-            <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>
@@ -359,16 +400,18 @@ export default function PlayerScorecard({
                       <td style={tdScore(true)}><span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span></td>
                       <td style={{ ...tdScore(), fontWeight: 700, color: ptsColor(totalPoints) }}>{ptsStr(totalPoints)}</td>
                     </tr>
-                    {hasPress && (
+                    {(
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
                         {[1,2,3,4,5,6,7,8,9].map((n) => {
+                          if (!holePointsMap.has(n)) return <td key={n} style={tdScore()}><span style={{ color: '#d1d5db' }}>–</span></td>
                           const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
                           const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
                           return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
                         })}
                         <td style={tdScore(true)} />
                         {[10,11,12,13,14,15,16,17,18].map((n) => {
+                          if (!holePointsMap.has(n)) return <td key={n} style={tdScore()}><span style={{ color: '#d1d5db' }}>–</span></td>
                           const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
                           const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
                           return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>

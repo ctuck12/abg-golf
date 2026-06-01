@@ -299,8 +299,13 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 }
 
 export default function ScoreEntry({
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false,
+  orgSlug, orgId, orgName, isMaster = false,
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false,
 }: {
+  orgSlug: string
+  orgId: string
+  orgName: string
+  isMaster?: boolean
   team: Team
   players: Player[]
   holes: Hole[]
@@ -309,6 +314,7 @@ export default function ScoreEntry({
   format?: string
   daytonaVariant?: string
   isAdmin: boolean
+  isStarted?: boolean
   roundId?: string
   initialAssignments?: DaytonaHoleAssignment[]
   roundPlayerIds?: string[]
@@ -364,6 +370,18 @@ export default function ScoreEntry({
   const [payoutsLoading, setPayoutsLoading] = useState(false)
   const [showDaytonaResultsModal, setShowDaytonaResultsModal] = useState(false)
   const [showMatchupResultsModal, setShowMatchupResultsModal] = useState(false)
+  const [showOptions, setShowOptions] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+
+  async function handleChangeTeam() {
+    await fetch('/api/team-logout', { method: 'POST', credentials: 'include' })
+    window.location.href = `/${orgSlug}`
+  }
+
+  async function handleSignOut() {
+    await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
+    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
+  }
 
   // First hole that hasn't been saved yet — holes beyond this cannot be opened
   const currentHole = holes.find((h) => !savedHoles.has(h.hole_number))?.hole_number ?? null
@@ -662,6 +680,55 @@ export default function ScoreEntry({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+      {showOptions && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowOptions(false)}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900">Options</h2>
+              <button onClick={() => setShowOptions(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {isAdmin ? (
+                <>
+                  <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
+                    Admin Hub
+                  </a>
+                  <button onClick={handleChangeTeam} className="w-full py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+                    Change Team
+                  </button>
+                </>
+              ) : (
+                <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
+                  Admin Login
+                </a>
+              )}
+              {isMaster && (
+                <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>
+                  ← Master Admin
+                </a>
+              )}
+              {!isMaster && (showSignOutConfirm ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-center text-gray-700 font-medium">Sign out of this group?</p>
+                  <div className="flex gap-2">
+                    <button onClick={handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>Sign Out</button>
+                    <button onClick={() => setShowSignOutConfirm(false)} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowSignOutConfirm(true)} className="w-full py-3 rounded-xl text-sm font-semibold text-white" style={{ background: '#6b7280' }}>
+                  Sign Out of {orgName}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
@@ -676,18 +743,13 @@ export default function ScoreEntry({
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              {isAdmin
-                ? <a href="/admin/dashboard"
-                    className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                    style={{ background: navy, color: '#9ca3af', borderColor: 'rgba(255,255,255,0.2)' }}>
-                    Admin Hub
-                  </a>
-                : <a href="/admin"
-                    className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                    style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                    Admin Login
-                  </a>}
-              <a href="/" className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
+              <button
+                onClick={() => setShowOptions(true)}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                style={{ background: navy, color: '#9ca3af', borderColor: 'rgba(255,255,255,0.2)' }}>
+                Options
+              </button>
+              <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>
           {!isDaytonaMode && format !== 'traditional' && (
@@ -1202,9 +1264,15 @@ export default function ScoreEntry({
       )}
 
       <main className="max-w-lg mx-auto px-3 py-4 space-y-2 pb-24">
-        {savedHoles.size === 18 && (
+        {!isStarted && (
+          <div className="bg-amber-50 rounded-xl border-2 border-amber-300 px-4 py-4 text-center">
+            <p className="font-semibold text-amber-800">Waiting for Admin to Activate Round</p>
+            <p className="text-xs text-amber-600 mt-1">Score entry will be unlocked once the admin activates the round.</p>
+          </div>
+        )}
+        {isStarted && savedHoles.size === holes.length && holes.length > 0 && (
           <div className="bg-white rounded-xl border-2 px-4 py-3 text-center" style={{ borderColor: gold }}>
-            <p className="font-semibold" style={{ color: navy }}>All 18 holes submitted! ⛳</p>
+            <p className="font-semibold" style={{ color: navy }}>All {holes.length} holes submitted! ⛳</p>
             {roundComplete ? (
               <button onClick={openPayoutsModal} className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
                 Final Payouts →
@@ -1218,8 +1286,8 @@ export default function ScoreEntry({
         {holes.map((hole) => {
           const isSaved = savedHoles.has(hole.hole_number)
           const isPending = pendingHoles.has(hole.hole_number)
-          const isExpanded = expandedHole === hole.hole_number
-          const isLocked = !isSaved && currentHole !== null && hole.hole_number > currentHole
+          const isExpanded = isStarted && expandedHole === hole.hole_number
+          const isLocked = !isStarted || (!isSaved && currentHole !== null && hole.hole_number > currentHole)
           const error = errors[hole.hole_number]
           const holeLeftLabel = isFlares && hole.par === 3 ? 'Close' : leftLabel
           const holeRightLabel = isFlares && hole.par === 3 ? 'Far' : rightLabel
