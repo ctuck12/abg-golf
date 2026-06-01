@@ -735,6 +735,7 @@ export default function ScoreEntry({
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
+              {isAdmin && <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Admin</p>}
               <h1 className="font-bold text-lg">
                 {team.name}
                 {daytonaVariant === '5man-flares' && isDaytonaSideGame && (

@@ -1311,6 +1311,7 @@ export default function LeaderboardClient({
                 <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
                   {orgName}
                 </p>
+                {isAdmin && <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Admin</p>}
                 <h1 className="text-lg font-bold leading-tight">{roundName}</h1>
                 <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
                   {roundCourse && `${roundCourse} · `}{formattedDate}
@@ -1354,6 +1355,7 @@ export default function LeaderboardClient({
               <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
                 Anything But Golf Group
               </p>
+              {isAdmin && <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Admin</p>}
               <h1 className="text-2xl font-bold leading-tight">{roundName}</h1>
               <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 {roundCourse && `${roundCourse} · `}{formattedDate}

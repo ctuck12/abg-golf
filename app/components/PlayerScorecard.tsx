@@ -261,6 +261,7 @@ export default function PlayerScorecard({
             <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>
               Player Scorecard
             </p>
+            {isAdmin && <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Admin</p>}
             <h1 className="font-bold text-xl">{player.name}</h1>
             <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
               {teamName}

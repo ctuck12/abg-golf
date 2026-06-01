@@ -201,6 +201,7 @@ export default function AllScorecardsView({
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Daytona</p>
+            {isAdmin && <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Admin</p>}
             <h1 className="font-bold text-lg">All Scorecards</h1>
           </div>
           <div className="flex items-center gap-2">
