@@ -315,11 +315,12 @@ function vpColor(vp: number | null): string {
 }
 
 export default function LeaderboardClient({
-  orgSlug, orgId, isMaster = false,
+  orgSlug, orgId, orgName, isMaster = false,
   initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {},
 }: {
   orgSlug: string
   orgId: string
+  orgName: string
   isMaster?: boolean
   initialTeams: Team[]
   players: Player[]
@@ -366,6 +367,7 @@ export default function LeaderboardClient({
   const [isAdmin, setIsAdmin] = useState(isAdminProp)
   const [scorecardTeamId, setScorecardTeamId] = useState(scorecardTeamIdProp)
   const [showOptions, setShowOptions] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [leaderboardView, setLeaderboardView] = useState<'group' | 'team' | 'individual'>(
     format === 'daytona' ? 'group' : format === 'traditional' ? 'individual' : 'team'
   )
@@ -673,39 +675,56 @@ export default function LeaderboardClient({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
           style={{ background: 'rgba(0,0,0,0.5)' }}
-          onClick={() => setShowOptions(false)}
+          onClick={() => { setShowOptions(false); setShowSignOutConfirm(false) }}
         >
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-gray-900">Options</h2>
-              <button onClick={() => setShowOptions(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+              <button onClick={() => { setShowOptions(false); setShowSignOutConfirm(false) }} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
             <div className="flex flex-col gap-3">
-              <a
-                href={`/${orgSlug}/admin/dashboard`}
-                className="w-full text-center py-3 rounded-xl font-semibold text-sm"
-                style={{ background: navy, color: 'white' }}
-              >
-                Admin Hub
-              </a>
-              <button
-                onClick={handleChangeTeam}
-                className="w-full py-3 rounded-xl font-semibold text-sm border"
-                style={{ borderColor: navy, color: navy }}
-              >
-                Change Team
-              </button>
+              {isAdmin ? (
+                <>
+                  <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
+                    Admin Hub
+                  </a>
+                  {scorecardTeamId && (
+                    <button onClick={handleChangeTeam} className="w-full py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+                      Change Team
+                    </button>
+                  )}
+                </>
+              ) : (
+                <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
+                  Admin Login
+                </a>
+              )}
               {isMaster && (
                 <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>
                   ← Master Admin
                 </a>
               )}
-              <button
-                onClick={handleSignOut}
-                className="w-full py-3 rounded-xl font-semibold text-sm border border-gray-200 text-gray-500"
-              >
-                Sign Out of Group
-              </button>
+              {showSignOutConfirm ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-center text-gray-700 font-medium">Sign out of this group?</p>
+                  <div className="flex gap-2">
+                    <button onClick={handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>
+                      Sign Out
+                    </button>
+                    <button onClick={() => setShowSignOutConfirm(false)} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowSignOutConfirm(true)}
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white"
+                  style={{ background: '#6b7280' }}
+                >
+                  Sign Out of {orgName}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1290,7 +1309,7 @@ export default function LeaderboardClient({
             <div className="flex items-start justify-between mb-2">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
-                  Anything But Golf Group
+                  {orgName}
                 </p>
                 <h1 className="text-lg font-bold leading-tight">{roundName}</h1>
                 <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
@@ -1318,16 +1337,16 @@ export default function LeaderboardClient({
                       Options
                     </button>
                   : isAdmin
-                    ? <a href="/admin/dashboard"
+                    ? <a href={`/${orgSlug}/admin/dashboard`}
                         className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                         style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
                         Admin Hub
                       </a>
-                    : <a href={`/${orgSlug}/admin`}
+                    : <button onClick={() => setShowOptions(true)}
                         className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
                         style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                        Admin Login
-                      </a>}
+                        Options
+                      </button>}
               </div>
             </div>
           ) : (
@@ -1360,16 +1379,16 @@ export default function LeaderboardClient({
                       Options
                     </button>
                   : isAdmin
-                    ? <a href="/admin/dashboard"
+                    ? <a href={`/${orgSlug}/admin/dashboard`}
                         className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                         style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
                         Admin Hub
                       </a>
-                    : <a href={`/${orgSlug}/admin`}
+                    : <button onClick={() => setShowOptions(true)}
                         className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
                         style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                        Admin Login
-                      </a>}
+                        Options
+                      </button>}
               </div>
             </div>
           )}
@@ -1389,6 +1408,13 @@ export default function LeaderboardClient({
               style={{ borderColor: navy, color: navy }}>
               Matchups
             </a>
+            {isDaytona && initialTeams.length === 1 && (
+              <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
+                style={{ borderColor: navy, color: navy }}>
+                All Scorecards
+              </a>
+            )}
             {leaderboardView === 'individual' && (
               <button
                 onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}

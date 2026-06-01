@@ -581,6 +581,7 @@ export default function MatchupClient({
   const [scores, setScores] = useState(initialScores)
   const [matchups, setMatchups] = useState(initialMatchups)
   const [bestBallMatchups, setBestBallMatchups] = useState(initialBestBallMatchups)
+  const [showOptions, setShowOptions] = useState(false)
 
   const addH2HRef = useRef<HTMLDivElement>(null)
   const [newP1, setNewP1] = useState('')
@@ -850,6 +851,24 @@ export default function MatchupClient({
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
 
+      {showOptions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowOptions(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900">Options</h2>
+              <button onClick={() => setShowOptions(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {isAdmin
+                ? <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Hub</a>
+                : <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Login</a>
+              }
+              {isMaster && <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>← Master Admin</a>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Delete Confirmation Modal ── */}
       {confirmDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
@@ -1087,11 +1106,11 @@ export default function MatchupClient({
                 Enter Scores
               </a>
             ) : (
-              <a href={`/${orgSlug}`}
+              <button onClick={() => setShowOptions(true)}
                 className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
                 style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                {format === 'daytona' || format === 'traditional' ? 'Group PIN' : 'Team Pin'}
-              </a>
+                Options
+              </button>
             )}
             <a href={`/${orgSlug}`} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>

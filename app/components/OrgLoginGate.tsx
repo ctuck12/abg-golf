@@ -46,9 +46,6 @@ export default function OrgLoginGate({
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
       <header className="text-white py-8 px-4 text-center shadow-md" style={{ background: navy }}>
-        <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
-          Anything But Golf
-        </p>
         <h1 className="text-2xl font-bold">{orgName ?? 'Group Login'}</h1>
       </header>
 

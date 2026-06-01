@@ -49,6 +49,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
         round={round ? { name: round.name, date: round.date, course: round.course ?? '', format: round.format ?? '' } : null}
         orgSlug={orgSlug}
         orgId={orgId}
+        orgName={org.name}
         isMaster={isMaster}
       />
     )
@@ -92,6 +93,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     <LeaderboardClient
       orgSlug={orgSlug}
       orgId={orgId}
+      orgName={org.name}
       isMaster={isMaster}
       initialTeams={teams}
       players={players ?? []}

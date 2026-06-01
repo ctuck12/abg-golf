@@ -9,18 +9,20 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 
 export default function PreRoundHome({
-  teams, round, orgSlug, orgId, isMaster,
+  teams, round, orgSlug, orgId, orgName, isMaster,
 }: {
   teams: Team[]
   round: Round
   orgSlug: string
   orgId: string
+  orgName: string
   isMaster: boolean
 }) {
   const isGroup = round?.format === 'daytona' || round?.format === 'traditional'
   const [showPin, setShowPin] = useState(false)
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
   const formattedDate = round
     ? new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -65,7 +67,7 @@ export default function PreRoundHome({
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
       <header className="text-white py-8 px-4 text-center shadow-md" style={{ background: navy }}>
         <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
-          Anything But Golf Group
+          {orgName}
         </p>
         {round ? (
           <>
@@ -136,9 +138,27 @@ export default function PreRoundHome({
             </div>
           )}
 
-          <button onClick={handleSignOut} className="w-full py-3 rounded-xl text-sm font-medium border border-gray-200 text-gray-500 bg-white">
-            {isMaster ? 'Back to Master Admin' : 'Sign Out of Group'}
-          </button>
+          {isMaster ? (
+            <button onClick={handleSignOut} className="w-full py-3 rounded-xl text-sm font-semibold text-white" style={{ background: '#6b7280' }}>
+              Back to Master Admin
+            </button>
+          ) : showSignOutConfirm ? (
+            <div className="space-y-2">
+              <p className="text-sm text-center text-gray-700 font-medium">Sign out of this group?</p>
+              <div className="flex gap-2">
+                <button onClick={handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>
+                  Sign Out
+                </button>
+                <button onClick={() => setShowSignOutConfirm(false)} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowSignOutConfirm(true)} className="w-full py-3 rounded-xl text-sm font-semibold text-white" style={{ background: '#6b7280' }}>
+              Sign Out of {orgName}
+            </button>
+          )}
         </div>
       </main>
     </div>

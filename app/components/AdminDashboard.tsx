@@ -421,11 +421,11 @@ function computeAdminMatchupPayouts(
 }
 
 export default function AdminDashboard({
-  orgSlug, orgId, isMaster = false,
+  orgSlug, orgId, orgName, isMaster = false,
   round, teams, players, holes, ballValues, scores, scorecardTeamId = null, dtAssignments = [],
   matchups = [], bestBallMatchups = [], initialHoleValues = {}, courses = [],
 }: {
-  orgSlug: string; orgId: string; isMaster?: boolean
+  orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
   matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]; initialHoleValues?: Record<string, Record<number, number>>
   courses?: { name: string; slug: string; pars: number[] }[]
@@ -1007,7 +1007,7 @@ export default function AdminDashboard({
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Admin</p>
-            <h1 className="font-bold text-lg">Anything But Golf Group</h1>
+            <h1 className="font-bold text-lg">{orgName}</h1>
           </div>
           <div className="flex items-center gap-2">
             {scorecardTeamId ? (

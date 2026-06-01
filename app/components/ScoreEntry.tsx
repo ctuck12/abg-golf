@@ -685,20 +685,20 @@ export default function ScoreEntry({
               <button onClick={() => setShowOptions(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
             <div className="flex flex-col gap-3">
-              <a
-                href={`/${orgSlug}/admin/dashboard`}
-                className="w-full text-center py-3 rounded-xl font-semibold text-sm"
-                style={{ background: navy, color: 'white' }}
-              >
-                Admin Hub
-              </a>
-              <button
-                onClick={handleChangeTeam}
-                className="w-full py-3 rounded-xl font-semibold text-sm border"
-                style={{ borderColor: navy, color: navy }}
-              >
-                Change Team
-              </button>
+              {isAdmin ? (
+                <>
+                  <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
+                    Admin Hub
+                  </a>
+                  <button onClick={handleChangeTeam} className="w-full py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+                    Change Team
+                  </button>
+                </>
+              ) : (
+                <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
+                  Admin Login
+                </a>
+              )}
               {isMaster && (
                 <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>
                   ← Master Admin
@@ -723,18 +723,12 @@ export default function ScoreEntry({
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              {isAdmin
-                ? <button
-                    onClick={() => setShowOptions(true)}
-                    className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                    style={{ background: navy, color: '#9ca3af', borderColor: 'rgba(255,255,255,0.2)' }}>
-                    Options
-                  </button>
-                : <a href={`/${orgSlug}/admin`}
-                    className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                    style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                    Admin Login
-                  </a>}
+              <button
+                onClick={() => setShowOptions(true)}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
+                style={{ background: navy, color: '#9ca3af', borderColor: 'rgba(255,255,255,0.2)' }}>
+                Options
+              </button>
               <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>

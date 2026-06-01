@@ -13,6 +13,9 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
 
   const { orgId, isMaster } = auth
   const cookieStore = await cookies()
+  const sb2 = createServerClient()
+  const { data: orgRow } = await sb2.from('organizations').select('name').eq('id', orgId).single()
+  const orgName = orgRow?.name ?? orgSlug
   const sb = createServerClient()
 
   const { data: round } = await sb
@@ -65,6 +68,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
     <AdminDashboard
       orgSlug={orgSlug}
       orgId={orgId}
+      orgName={orgName}
       isMaster={isMaster}
       round={round ?? null}
       teams={teams}

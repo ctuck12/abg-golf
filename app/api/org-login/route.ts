@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createServerClient } from '@/lib/supabase-server'
 import { requireMasterAuth } from '@/lib/org-auth'
 
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (!org || !org.is_active) return NextResponse.json({ error: 'Group not found.' }, { status: 404 })
+
+  const cookieStore = await cookies()
+  const clear = { httpOnly: true, sameSite: 'lax' as const, maxAge: 0, path: '/' }
 
   // Master admin can enter any org without a password
   if (_masterOverride && (await requireMasterAuth())) {
@@ -37,5 +41,15 @@ export async function POST(request: NextRequest) {
   const opts = { httpOnly: true, sameSite: 'lax' as const, maxAge: 60 * 60 * 24 * 7, path: '/' }
   if (isMember || isAdmin) response.cookies.set(`org_member_${org.id}`, 'true', opts)
   if (isAdmin) response.cookies.set(`org_admin_${org.id}`, 'true', opts)
+
+  // Clear any stale team auth cookies so a fresh org sign-in always requires re-entering a PIN
+  if (isMember && !isAdmin) {
+    for (const c of cookieStore.getAll()) {
+      if (c.name.startsWith('team_auth_')) {
+        response.cookies.set(c.name, '', clear)
+      }
+    }
+  }
+
   return response
 }
