@@ -96,9 +96,11 @@ export async function createRound(_prev: unknown, formData: FormData) {
   const courseSlug = (formData.get('course') as string) || 'south'
   const format = (formData.get('format') as string) || 'standard'
   const daytonaVariant = null
-  const ballsCount = (format === 'daytona' || format === 'traditional') ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
-  const includeTotal = (format !== 'daytona' && format !== 'traditional') && formData.get('include_total') === 'true'
+  const isBanker = format === 'banker'
+  const ballsCount = (format === 'daytona' || format === 'traditional' || isBanker) ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
+  const includeTotal = (format !== 'daytona' && format !== 'traditional' && !isBanker) && formData.get('include_total') === 'true'
   const isNineHoleFormat = format === 'daytona' || format === 'traditional'
+  const bankerMinBet = isBanker ? (parseFloat(formData.get('banker_min_bet') as string) || 2) : null
   const holeCount = isNineHoleFormat ? (parseInt(formData.get('holeCount') as string) || 18) : 18
   const startHole = (holeCount === 9) ? (parseInt(formData.get('startHole') as string) || 1) : 1
 
@@ -129,7 +131,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
   const { data: round, error } = await supabase
     .from('rounds')
-    .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false, org_id: orgId })
+    .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}) })
     .select().single()
 
   if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
@@ -290,6 +292,33 @@ export async function updatePlayerHandicap(playerId: string, handicap: number | 
   const supabase = createServerClient()
   const { error } = await supabase.from('players').update({ handicap }).eq('id', playerId)
   if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function updateRoundAutoHandicap(roundId: string, autoHandicap: boolean) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('rounds').update({ auto_handicap: autoHandicap }).eq('id', roundId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function saveBankerHole(roundId: string, teamId: string, holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
+  const supabase = createServerClient()
+  await supabase.from('banker_holes').upsert(
+    { round_id: roundId, team_id: teamId, hole_number: holeNumber, banker_player_id: bankerPlayerId, max_bet: maxBet },
+    { onConflict: 'round_id,team_id,hole_number' }
+  )
+  return { success: true }
+}
+
+export async function saveBankerBets(roundId: string, teamId: string, holeNumber: number, bets: { playerId: string; baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }[]) {
+  const supabase = createServerClient()
+  await supabase.from('banker_bets').delete().eq('round_id', roundId).eq('team_id', teamId).eq('hole_number', holeNumber)
+  if (bets.length > 0) {
+    await supabase.from('banker_bets').insert(
+      bets.map((b) => ({ round_id: roundId, team_id: teamId, hole_number: holeNumber, player_id: b.playerId, base_bet: b.baseBet, player_doubled: b.playerDoubled, banker_doubled: b.bankerDoubled }))
+    )
+  }
   return { success: true }
 }
 

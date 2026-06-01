@@ -8,6 +8,7 @@ import {
   adminLogout, renameTeam, renamePlayer, movePlayer,
   updateSkinsSettings, updatePlayerSkinsParticipation, updateTeamSettings,
   updatePlayerHandicap,
+  updateRoundAutoHandicap,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -34,7 +35,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null } | null
 type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
@@ -482,6 +483,8 @@ export default function AdminDashboard({
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
   const [newTeamDaytonaEnabled, setNewTeamDaytonaEnabled] = useState(false)
   const [newTeamDaytonaPayout, setNewTeamDaytonaPayout] = useState('')
+  const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
+  const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
 
   const [createState, createAction, createPending] = useActionState(createRound, null)
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
@@ -785,6 +788,14 @@ export default function AdminDashboard({
     await deletePlayer(playerId)
     router.refresh()
   }
+  async function handleToggleAutoHandicap() {
+    if (!round) return
+    const next = !autoHandicap
+    setAutoHandicap(next)
+    await updateRoundAutoHandicap(round.id, next)
+    router.refresh()
+  }
+
   async function handleUpdateHandicap(playerId: string) {
     const val = handicapDraft.trim()
     await updatePlayerHandicap(playerId, val === '' ? null : parseFloat(val))
@@ -918,6 +929,7 @@ export default function AdminDashboard({
           standard: '3/4 Balls',
           daytona: 'Daytona',
           traditional: 'Traditional',
+          banker: 'Banker',
         }
         const formattedDate = newRoundDate
           ? new Date(newRoundDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -1115,6 +1127,7 @@ export default function AdminDashboard({
                         <option value="standard">3/4 Balls</option>
                         <option value="daytona">Daytona</option>
                         <option value="traditional">Traditional</option>
+                        <option value="banker">Banker</option>
                       </select>
                     </div>
                   </div>
@@ -1160,6 +1173,14 @@ export default function AdminDashboard({
                       )}
                       <input type="hidden" name="holeCount" value={selectedHoleCount} />
                       <input type="hidden" name="startHole" value={selectedStartHole} />
+                    </div>
+                  )}
+                  {selectedFormat === 'banker' && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Minimum Bet ($)</label>
+                      <input type="number" name="banker_min_bet" value={bankerMinBetInput} onChange={(e) => setBankerMinBetInput(e.target.value)}
+                        min="0.5" step="0.5" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                      <p className="text-xs text-gray-400 mt-0.5">Minimum bet each player must put up against the banker</p>
                     </div>
                   )}
                   {selectedFormat === 'standard' && (
@@ -1383,6 +1404,22 @@ export default function AdminDashboard({
                     Mark each player as a skins participant using the Skins toggle in the Teams / Groups → Players section below.
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* ── Auto Handicap toggle (Daytona / Banker) ── */}
+            {round && (isDaytona || round.format === 'banker') && round.is_started && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-semibold text-gray-900 text-sm mb-3">Handicap Settings</h3>
+                <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
+                  <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
+                    <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
+                    <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
+                  </div>
+                </div>
               </div>
             )}
 

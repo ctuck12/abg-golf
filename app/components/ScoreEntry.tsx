@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, Fragment } from 'react'
-import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes } from '@/app/actions'
+import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
+import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { supabase } from '@/lib/supabase'
 import {
   computeHoleBallScores, computeTeamBallSummary,
@@ -300,7 +300,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {},
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, initialBankerHoles = {}, initialBankerBets = {},
 }: {
   orgSlug: string
   orgId: string
@@ -325,6 +325,9 @@ export default function ScoreEntry({
   autoHandicap?: boolean
   allRoundPlayerHandicaps?: Record<string, number | null>
   initialHoleStrokes?: Record<number, string[]>
+  bankerMinBet?: number
+  initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
+  initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
 }) {
   const isDaytona = format === 'daytona'
   const isDaytonaMode = isDaytona || !!isDaytonaSideGame
@@ -378,6 +381,59 @@ export default function ScoreEntry({
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
   const [strokesPending, setStrokesPending] = useState(false)
+
+  const isBanker = format === 'banker'
+  const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
+  const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
+
+  function netSaved(playerId: string, holeNumber: number): number | undefined {
+    const gross = savedScores.find((s) => s.player_id === playerId && s.hole_number === holeNumber)?.strokes
+    if (gross === undefined) return undefined
+    return gross - ((holeStrokes[holeNumber] ?? []).includes(playerId) ? 1 : 0)
+  }
+  function netEdit(playerId: string, holeNumber: number, par: number): number {
+    const gross = strokes[playerId]?.[holeNumber] ?? par
+    return gross - ((holeStrokes[holeNumber] ?? []).includes(playerId) ? 1 : 0)
+  }
+
+  const bankerRunningTotals = useMemo(() => {
+    if (!isBanker) return {}
+    const totals: Record<string, number> = {}
+    for (const p of players) totals[p.id] = 0
+    for (const hole of holes) {
+      if (!savedHoles.has(hole.hole_number)) continue
+      const hd = bankerHoles[hole.hole_number]
+      if (!hd?.bankerPlayerId) continue
+      const bankerId = hd.bankerPlayerId
+      const bankerNet = netSaved(bankerId, hole.hole_number)
+      if (bankerNet === undefined) continue
+      for (const p of players) {
+        if (p.id === bankerId) continue
+        const playerNet = netSaved(p.id, hole.hole_number)
+        if (playerNet === undefined) continue
+        const bet = bankerBets[hole.hole_number]?.[p.id]
+        if (!bet || bet.baseBet <= 0) continue
+        const effective = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
+        let result = 0
+        if (playerNet < bankerNet) result = effective * (playerNet < hole.par ? 2 : 1)
+        else if (playerNet > bankerNet) result = -effective * (bankerNet < hole.par ? 2 : 1)
+        totals[p.id] = (totals[p.id] ?? 0) + result
+        totals[bankerId] = (totals[bankerId] ?? 0) - result
+      }
+    }
+    return totals
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBanker, savedHoles, bankerHoles, bankerBets, savedScores, holeStrokes, holes, players])
+
+  async function handleSaveBankerHole(holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
+    setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId, maxBet } }))
+    await saveBankerHole(roundId, team.id, holeNumber, bankerPlayerId, maxBet)
+  }
+  async function handleSaveBankerBets(holeNumber: number, bets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>) {
+    setBankerBets((prev) => ({ ...prev, [holeNumber]: bets }))
+    const arr = Object.entries(bets).map(([pid, b]) => ({ playerId: pid, ...b }))
+    await saveBankerBets(roundId, team.id, holeNumber, arr)
+  }
 
   function getAutoStrokes(holeNumber: number): string[] {
     if (!autoHandicap) return []
@@ -905,6 +961,23 @@ export default function ScoreEntry({
             </div>
           )}
 
+          {/* Banker running totals */}
+          {isBanker && Object.keys(bankerRunningTotals).length > 0 && (
+            <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
+              {players.map((p) => {
+                const amt = bankerRunningTotals[p.id] ?? 0
+                return (
+                  <div key={p.id} className="flex items-center gap-1 text-xs">
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
+                    <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
+                      {amt > 0 ? `+$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : '$0'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           {/* Player running point totals — Daytona / side game */}
           {isDaytonaMode && playerPointTotals.size > 0 && (
             <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
@@ -1407,15 +1480,15 @@ export default function ScoreEntry({
           })
           const holeBalls = !isDaytonaMode ? computeHoleBallScores(savedHolePlayerScores, ballsCount) : []
 
-          // Compute Left/Right DT for collapsed row using saved data
+          // Compute Left/Right DT for collapsed row using saved data (net scores)
           const holeAssignments = assignments[hole.hole_number] ?? {}
           const savedLeftScores = players
             .filter((p) => holeAssignments[p.id] === 'left')
-            .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
+            .map((p) => netSaved(p.id, hole.hole_number))
             .filter((s): s is number => s !== undefined)
           const savedRightScores = players
             .filter((p) => holeAssignments[p.id] === 'right')
-            .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
+            .map((p) => netSaved(p.id, hole.hole_number))
             .filter((s): s is number => s !== undefined)
           const { leftDt, rightDt } = isDaytonaMode
             ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par)
@@ -1441,10 +1514,11 @@ export default function ScoreEntry({
             const rightIds = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => p.id)
             if (is5Man) {
               if (leftIds.length < 2 || rightIds.length < 3) return new Map()
-              return computeHoleDaytonaPointsFiveMan(leftIds, rightIds, savedScores, hole.hole_number, hole.par)
+              const netScores = savedScores.map((s) => ({ ...s, strokes: s.strokes - ((holeStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+              return computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par)
             }
-            const lScores = leftIds.map((id) => savedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-            const rScores = rightIds.map((id) => savedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+            const lScores = leftIds.map((id) => netSaved(id, hole.hole_number)).filter((s): s is number => s !== undefined)
+            const rScores = rightIds.map((id) => netSaved(id, hole.hole_number)).filter((s): s is number => s !== undefined)
             if (lScores.length < 2 || rScores.length < 2) return new Map()
             const { leftDt, rightDt } = computeHoleDaytonaWithSides(lScores, rScores, hole.par)
             if (leftDt === null || rightDt === null) return new Map()
@@ -1456,13 +1530,13 @@ export default function ScoreEntry({
             return map
           })()
 
-          // Live preview during edit
+          // Live preview during edit (net scores)
           const editLeftScores = players
             .filter((p) => holeAssignments[p.id] === 'left')
-            .map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
+            .map((p) => netEdit(p.id, hole.hole_number, hole.par))
           const editRightScores = players
             .filter((p) => holeAssignments[p.id] === 'right')
-            .map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
+            .map((p) => netEdit(p.id, hole.hole_number, hole.par))
           const { leftDt: liveLeftDt, rightDt: liveRightDt } = isDaytonaMode
             ? computeHoleDaytonaWithSides(editLeftScores, editRightScores, hole.par)
             : { leftDt: null, rightDt: null }
@@ -1499,6 +1573,11 @@ export default function ScoreEntry({
                   <p className="text-xs text-gray-400">Par</p>
                   <p className="font-semibold text-gray-600">{hole.par}</p>
                 </div>
+                {isBanker && bankerHoles[hole.hole_number]?.bankerPlayerId && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+                    🏦 {players.find((p) => p.id === bankerHoles[hole.hole_number].bankerPlayerId)?.name.split(' ')[0] ?? 'Banker'}
+                  </span>
+                )}
                 {(holeStrokes[hole.hole_number] ?? []).length > 0 && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dcfce7', color: '#15803d' }}>
                     +{(holeStrokes[hole.hole_number] ?? []).length} stroke{(holeStrokes[hole.hole_number] ?? []).length > 1 ? 's' : ''}
@@ -1563,6 +1642,139 @@ export default function ScoreEntry({
               {/* Expanded score entry */}
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 py-3 space-y-2">
+
+                  {/* ── Banker hole setup ── */}
+                  {isBanker && (() => {
+                    const hd = bankerHoles[hole.hole_number] ?? { bankerPlayerId: null, maxBet: 5 }
+                    const bets = bankerBets[hole.hole_number] ?? {}
+                    const isLastTwo = hole.hole_number >= (holes.length > 9 ? 17 : holes[holes.length - 2]?.hole_number ?? 17)
+                    const suggestedBankerId = isLastTwo
+                      ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
+                      : null
+                    return (
+                      <div className="bg-blue-50 rounded-xl p-3 space-y-3 border border-blue-100">
+                        {/* Banker selector */}
+                        <div>
+                          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
+                            Select Banker{isLastTwo ? ' (auto: most down)' : ''}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {players.map((p) => {
+                              const isBankerPlayer = hd.bankerPlayerId === p.id
+                              const isSuggested = suggestedBankerId === p.id && !hd.bankerPlayerId
+                              return (
+                                <button key={p.id} type="button"
+                                  onClick={() => handleSaveBankerHole(hole.hole_number, p.id, hd.maxBet)}
+                                  className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold border transition ${isBankerPlayer ? 'text-white border-transparent' : 'border-gray-300 text-gray-600 bg-white'}`}
+                                  style={isBankerPlayer ? { background: navy } : isSuggested ? { borderColor: '#f59e0b', color: '#92400e' } : {}}>
+                                  {p.name}{isSuggested && !isBankerPlayer ? ' ★' : ''}
+                                </button>
+                              )
+                            })}
+                            {hd.bankerPlayerId && (
+                              <button type="button" onClick={() => handleSaveBankerHole(hole.hole_number, null, hd.maxBet)}
+                                className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-400">Clear</button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Max bet */}
+                        {hd.bankerPlayerId && (
+                          <div>
+                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
+                              Banker Sets Max Bet (min ${bankerMinBet})
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">$</span>
+                              <input type="number" value={hd.maxBet} min={bankerMinBet} step="0.5"
+                                onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, parseFloat(e.target.value) || bankerMinBet)}
+                                className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                              <span className="text-xs text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Player bets */}
+                        {hd.bankerPlayerId && (
+                          <div>
+                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Player Bets</p>
+                            <div className="space-y-2">
+                              {players.filter((p) => p.id !== hd.bankerPlayerId).map((p) => {
+                                const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+                                const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
+                                return (
+                                  <div key={p.id} className="bg-white rounded-lg p-2 border border-gray-100">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-xs text-gray-500">$</span>
+                                        <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="0.5"
+                                          onChange={(e) => {
+                                            const v = Math.min(Math.max(parseFloat(e.target.value) || bankerMinBet, bankerMinBet), hd.maxBet)
+                                            handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
+                                          }}
+                                          className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
+                                      </div>
+                                    </div>
+                                    {hole.par === 3 && (
+                                      <div className="flex gap-2">
+                                        <button type="button"
+                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
+                                          className={`text-xs px-2 py-1 rounded border font-medium transition ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-300 text-gray-500'}`}>
+                                          {p.name.split(' ')[0]} 2× in-air
+                                        </button>
+                                        <button type="button"
+                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, bankerDoubled: !pb.bankerDoubled } })}
+                                          className={`text-xs px-2 py-1 rounded border font-medium transition ${pb.bankerDoubled ? 'bg-orange-500 text-white border-orange-500' : 'border-gray-300 text-gray-500'}`}>
+                                          Banker 2×
+                                        </button>
+                                        {(pb.playerDoubled || pb.bankerDoubled) && (
+                                          <span className="text-xs text-gray-500 self-center">→ ${effective}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Hole result preview */}
+                        {hd.bankerPlayerId && Object.keys(bets).length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Projected Result (saved scores)</p>
+                            {isSaved && (() => {
+                              const bankerId = hd.bankerPlayerId!
+                              const bankerNet = netSaved(bankerId, hole.hole_number)
+                              if (bankerNet === undefined) return <p className="text-xs text-gray-400">Enter scores to see result</p>
+                              return (
+                                <div className="space-y-1">
+                                  {players.filter((p) => p.id !== bankerId).map((p) => {
+                                    const playerNet = netSaved(p.id, hole.hole_number)
+                                    if (playerNet === undefined) return null
+                                    const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+                                    const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
+                                    let result = 0
+                                    if (playerNet < bankerNet) result = effective * (playerNet < hole.par ? 2 : 1)
+                                    else if (playerNet > bankerNet) result = -effective * (bankerNet < hole.par ? 2 : 1)
+                                    const label = result === 0 ? 'Push' : result > 0 ? `+$${result.toFixed(2)}` : `-$${Math.abs(result).toFixed(2)}`
+                                    return (
+                                      <div key={p.id} className="flex items-center justify-between text-xs">
+                                        <span className="text-gray-600">{p.name}</span>
+                                        <span className={`font-semibold ${result > 0 ? 'text-green-600' : result < 0 ? 'text-red-600' : 'text-gray-400'}`}>{label}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {players.map((player, playerIdx) => {
                     const val = strokes[player.id]?.[hole.hole_number] ?? hole.par
                     const side = holeAssignments[player.id] as DaytonaSide | undefined

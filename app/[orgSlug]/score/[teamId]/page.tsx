@@ -27,7 +27,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
   const orgName = orgRow?.name ?? orgSlug
 
   const { data: round } = await sb
-    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap').eq('id', team.round_id).single()
+    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap, banker_min_bet').eq('id', team.round_id).single()
   if (!round || !round.is_active || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
   const { data: players } = await sb.from('players').select('id, name, handicap').eq('team_id', teamId).order('position', { ascending: true })
@@ -58,7 +58,8 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
     initialHoleStrokes[hs.hole_number].push(hs.player_id)
   }
 
-  const [{ data: holes }, { data: scores }, { data: assignments }, { data: ballValuesRaw }, { data: holeValuesRaw }] = await Promise.all([
+  const isBanker = (round.format ?? 'standard') === 'banker'
+  const [{ data: holes }, { data: scores }, { data: assignments }, { data: ballValuesRaw }, { data: holeValuesRaw }, { data: bankerHolesRaw }, { data: bankerBetsRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
     (isDaytona || isDaytonaSideGame) && playerIds.length
@@ -66,7 +67,19 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       : Promise.resolve({ data: [] }),
     isDaytona ? sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number') : Promise.resolve({ data: [] }),
     (isDaytona || isDaytonaSideGame) ? sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', round.id).eq('team_id', team.id) : Promise.resolve({ data: [] }),
+    isBanker ? sb.from('banker_holes').select('hole_number, banker_player_id, max_bet').eq('round_id', round.id).eq('team_id', team.id) : Promise.resolve({ data: [] }),
+    isBanker ? sb.from('banker_bets').select('hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', round.id).eq('team_id', team.id) : Promise.resolve({ data: [] }),
   ])
+
+  const initialBankerHoles: Record<number, { bankerPlayerId: string | null; maxBet: number }> = {}
+  for (const bh of (bankerHolesRaw ?? []) as { hole_number: number; banker_player_id: string | null; max_bet: number }[]) {
+    initialBankerHoles[bh.hole_number] = { bankerPlayerId: bh.banker_player_id, maxBet: bh.max_bet }
+  }
+  const initialBankerBets: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>> = {}
+  for (const bb of (bankerBetsRaw ?? []) as { hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
+    if (!initialBankerBets[bb.hole_number]) initialBankerBets[bb.hole_number] = {}
+    initialBankerBets[bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled }
+  }
 
   const defaultDtPayoutValue = isDaytonaSideGame
     ? sideGamePayout
@@ -101,6 +114,9 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       autoHandicap={round.auto_handicap ?? false}
       allRoundPlayerHandicaps={allRoundPlayerHandicaps}
       initialHoleStrokes={initialHoleStrokes}
+      bankerMinBet={round.banker_min_bet ?? 2}
+      initialBankerHoles={initialBankerHoles}
+      initialBankerBets={initialBankerBets}
     />
   )
 }
