@@ -42,8 +42,9 @@ export default function MasterDashboard({
   const [coursePending, setCoursePending] = useState(false)
 
   const [signOutPending, setSignOutPending] = useState(false)
-  const [confirmDeleteOrgId, setConfirmDeleteOrgId] = useState<string | null>(null)
-  const [confirmDeactivateRoundId, setConfirmDeactivateRoundId] = useState<string | null>(null)
+  const [confirmOrgModal, setConfirmOrgModal] = useState<{ action: 'delete' | 'deactivate'; org: Org } | null>(null)
+  const [confirmCourseModal, setConfirmCourseModal] = useState<Course | null>(null)
+  const [confirmRoundModal, setConfirmRoundModal] = useState<ActiveRound | null>(null)
   const [actionPending, setActionPending] = useState(false)
   const [actionError, setActionError] = useState('')
 
@@ -90,15 +91,26 @@ export default function MasterDashboard({
     finally { setActionPending(false) }
   }
 
+
   async function deleteOrg(orgId: string) {
     setActionError(''); setActionPending(true)
     try {
       const res = await fetch(`/api/master/orgs/${orgId}`, { method: 'DELETE' })
       const data = await res.json()
       if (data.error) { setActionError(data.error); return }
-      setConfirmDeleteOrgId(null); router.refresh()
+      setConfirmOrgModal(null); router.refresh()
     } catch { setActionError('Failed to delete group.') }
     finally { setActionPending(false) }
+  }
+
+  async function confirmOrgAction() {
+    if (!confirmOrgModal) return
+    if (confirmOrgModal.action === 'delete') {
+      await deleteOrg(confirmOrgModal.org.id)
+    } else {
+      await toggleOrgActive(confirmOrgModal.org)
+      setConfirmOrgModal(null)
+    }
   }
 
   function openNewCourse() {
@@ -132,7 +144,7 @@ export default function MasterDashboard({
     setActionError(''); setActionPending(true)
     try {
       await fetch(`/api/master/courses/${courseId}`, { method: 'DELETE' })
-      router.refresh()
+      setConfirmCourseModal(null); router.refresh()
     } catch { setActionError('Failed to delete course.') }
     finally { setActionPending(false) }
   }
@@ -141,7 +153,7 @@ export default function MasterDashboard({
     setActionError(''); setActionPending(true)
     try {
       await fetch(`/api/master/rounds/${roundId}/deactivate`, { method: 'POST' })
-      setConfirmDeactivateRoundId(null); router.refresh()
+      setConfirmRoundModal(null); router.refresh()
     } catch { setActionError('Failed to deactivate round.') }
     finally { setActionPending(false) }
   }
@@ -291,17 +303,10 @@ export default function MasterDashboard({
                           </button>
                         )}
                         <button onClick={() => openEditOrg(org)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 font-medium text-gray-700">Edit</button>
-                        <button onClick={() => toggleOrgActive(org)} disabled={actionPending} className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 font-medium text-gray-700 disabled:opacity-50">
+                        <button onClick={() => setConfirmOrgModal({ action: 'deactivate', org })} disabled={actionPending} className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 font-medium text-gray-700 disabled:opacity-50">
                           {org.is_active ? 'Deactivate' : 'Reactivate'}
                         </button>
-                        {confirmDeleteOrgId === org.id ? (
-                          <div className="flex gap-1">
-                            <button onClick={() => deleteOrg(org.id)} disabled={actionPending} className="text-xs px-2 py-1.5 rounded-lg font-semibold bg-red-600 text-white disabled:opacity-50">Delete</button>
-                            <button onClick={() => setConfirmDeleteOrgId(null)} className="text-xs px-2 py-1.5 rounded-lg border border-gray-300 text-gray-600">Cancel</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setConfirmDeleteOrgId(org.id)} className="text-xs px-3 py-1.5 rounded-lg border border-red-200 font-medium text-red-600">Delete</button>
-                        )}
+                        <button onClick={() => setConfirmOrgModal({ action: 'delete', org })} className="text-xs px-3 py-1.5 rounded-lg border border-red-200 font-medium text-red-600">Delete</button>
                       </div>
                     </div>
                   </div>
@@ -366,13 +371,93 @@ export default function MasterDashboard({
                       </div>
                       <div className="flex gap-1.5 flex-shrink-0">
                         <button onClick={() => openEditCourse(c)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 font-medium text-gray-700">Edit</button>
-                        <button onClick={() => deleteCourse(c.id)} disabled={actionPending} className="text-xs px-3 py-1.5 rounded-lg border border-red-200 font-medium text-red-600 disabled:opacity-50">Delete</button>
+                        <button onClick={() => setConfirmCourseModal(c)} className="text-xs px-3 py-1.5 rounded-lg border border-red-200 font-medium text-red-600">Delete</button>
                       </div>
                     </div>
                   </div>
                 )
               })
             )}
+          </div>
+        )}
+
+        {/* ── CONFIRM ORG MODAL ── */}
+        {confirmOrgModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => !actionPending && setConfirmOrgModal(null)}>
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-bold text-gray-900 text-base mb-2">
+                {confirmOrgModal.action === 'delete' ? 'Delete Group' : confirmOrgModal.org.is_active ? 'Deactivate Group' : 'Reactivate Group'}
+              </h3>
+              <p className="text-sm text-gray-600 mb-5">
+                {confirmOrgModal.action === 'delete'
+                  ? <>Are you sure you want to permanently delete <span className="font-semibold">{confirmOrgModal.org.name}</span>? This cannot be undone.</>
+                  : confirmOrgModal.org.is_active
+                    ? <>Are you sure you want to deactivate <span className="font-semibold">{confirmOrgModal.org.name}</span>? Members will not be able to access the group.</>
+                    : <>Are you sure you want to reactivate <span className="font-semibold">{confirmOrgModal.org.name}</span>?</>
+                }
+              </p>
+              {actionError && <p className="text-xs text-red-600 mb-3">{actionError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmOrgModal(null)}
+                  disabled={actionPending}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-600 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmOrgAction}
+                  disabled={actionPending}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                  style={{ background: confirmOrgModal.action === 'delete' ? '#dc2626' : navy }}
+                >
+                  {actionPending
+                    ? 'Please wait…'
+                    : confirmOrgModal.action === 'delete'
+                      ? 'Delete'
+                      : confirmOrgModal.org.is_active ? 'Deactivate' : 'Reactivate'
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── CONFIRM COURSE MODAL ── */}
+        {confirmCourseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => !actionPending && setConfirmCourseModal(null)}>
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-bold text-gray-900 text-base mb-2">Delete Course</h3>
+              <p className="text-sm text-gray-600 mb-5">
+                Are you sure you want to permanently delete <span className="font-semibold">{confirmCourseModal.name}</span>? This cannot be undone.
+              </p>
+              {actionError && <p className="text-xs text-red-600 mb-3">{actionError}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmCourseModal(null)} disabled={actionPending} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-600 disabled:opacity-50">Cancel</button>
+                <button onClick={() => deleteCourse(confirmCourseModal.id)} disabled={actionPending} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#dc2626' }}>
+                  {actionPending ? 'Please wait…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── CONFIRM ROUND MODAL ── */}
+        {confirmRoundModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => !actionPending && setConfirmRoundModal(null)}>
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-bold text-gray-900 text-base mb-2">Force End Round</h3>
+              <p className="text-sm text-gray-600 mb-5">
+                Are you sure you want to force end <span className="font-semibold">{confirmRoundModal.name}</span>? This will immediately end the round for all players.
+              </p>
+              {actionError && <p className="text-xs text-red-600 mb-3">{actionError}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmRoundModal(null)} disabled={actionPending} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-600 disabled:opacity-50">Cancel</button>
+                <button onClick={() => forceDeactivateRound(confirmRoundModal.id)} disabled={actionPending} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: '#dc2626' }}>
+                  {actionPending ? 'Please wait…' : 'Force End'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -408,14 +493,7 @@ export default function MasterDashboard({
                             View
                           </a>
                         )}
-                        {confirmDeactivateRoundId === r.id ? (
-                          <div className="flex gap-1">
-                            <button onClick={() => forceDeactivateRound(r.id)} disabled={actionPending} className="text-xs px-2 py-1.5 rounded-lg font-semibold bg-red-600 text-white disabled:opacity-50">Force End</button>
-                            <button onClick={() => setConfirmDeactivateRoundId(null)} className="text-xs px-2 py-1.5 rounded-lg border border-gray-300 text-gray-600">Cancel</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setConfirmDeactivateRoundId(r.id)} className="text-xs px-3 py-1.5 rounded-lg border border-red-200 font-medium text-red-600">Force End</button>
-                        )}
+                        <button onClick={() => setConfirmRoundModal(r)} className="text-xs px-3 py-1.5 rounded-lg border border-red-200 font-medium text-red-600">Force End</button>
                       </div>
                     </div>
                   </div>
