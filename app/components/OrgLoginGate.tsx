@@ -46,7 +46,7 @@ export default function OrgLoginGate({
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
       <header className="text-white py-8 px-4 text-center shadow-md" style={{ background: navy }}>
-        <h1 className="text-2xl font-bold">{orgName ?? 'Group Login'}</h1>
+        <h1 className="text-2xl font-bold" style={{ color: gold }}>{orgName ?? 'Group Login'}</h1>
       </header>
 
       <main className="flex-1 flex items-start justify-center px-4 pt-12">
@@ -77,7 +77,7 @@ export default function OrgLoginGate({
                   className="w-full text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
                   style={{ background: navy }}
                 >
-                  {pending ? 'Verifying…' : 'Enter Group →'}
+                  {pending ? 'Verifying…' : 'Enter Group'}
                 </button>
               </form>
             </div>
