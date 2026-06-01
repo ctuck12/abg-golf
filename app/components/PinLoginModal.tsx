@@ -81,7 +81,7 @@ export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug
             className="w-full text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-60 transition active:scale-95"
             style={{ background: navy }}
           >
-            {pending ? 'Verifying…' : 'Open Scorecard →'}
+            {pending ? 'Verifying…' : 'Open Scorecard'}
           </button>
         </form>
       </div>

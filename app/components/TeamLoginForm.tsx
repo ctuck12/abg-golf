@@ -56,7 +56,7 @@ export default function TeamLoginForm({ teams, round }: { teams: Team[]; round: 
             <button type="submit" disabled={pending}
               className="w-full text-white py-3 rounded-xl font-semibold transition active:scale-95 disabled:opacity-60"
               style={{ background: navy }}>
-              {pending ? 'Verifying…' : 'Open Scorecard →'}
+              {pending ? 'Verifying…' : 'Open Scorecard'}
             </button>
           </form>
         </div>

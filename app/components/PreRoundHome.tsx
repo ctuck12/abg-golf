@@ -132,7 +132,7 @@ export default function PreRoundHome({
                 </select>
                 <input type="password" name="pin" inputMode="numeric" maxLength={4} required placeholder="4-digit PIN" className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none" />
                 <button type="submit" disabled={pending} className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60 transition" style={{ background: navy }}>
-                  {pending ? 'Verifying…' : 'Open Scorecard →'}
+                  {pending ? 'Verifying…' : 'Open Scorecard'}
                 </button>
               </form>
             </div>
