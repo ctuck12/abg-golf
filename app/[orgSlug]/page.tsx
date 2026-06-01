@@ -31,7 +31,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount')
+    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, mixed_groups')
     .eq('is_active', true)
     .eq('org_id', orgId)
     .single()
@@ -40,12 +40,31 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     ? await sb.from('teams').select('id, name, daytona_variant').eq('round_id', round.id).order('name')
     : { data: [] }
   const teams = teamsRaw ?? []
-  const scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
+
+  const isMixedGroups = round?.mixed_groups ?? false
+
+  // In mixed groups mode, look for playing group auth cookies instead of team auth
+  let scorecardTeamId: string | null = null
+  let scorecardGroupId: string | null = null
+
+  if (isMixedGroups && round) {
+    const { data: pgroups } = await sb.from('playing_groups').select('id').eq('round_id', round.id)
+    scorecardGroupId = (pgroups ?? []).find((g) => cookieStore.get(`playing_group_auth_${g.id}`)?.value === 'true')?.id ?? null
+  } else {
+    scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
+  }
 
   if (!round || !round.is_started) {
+    // Fetch playing groups for pre-round PIN entry in mixed mode
+    const { data: playingGroupsRaw } = isMixedGroups && round
+      ? await sb.from('playing_groups').select('id, name').eq('round_id', round.id).order('name')
+      : { data: [] }
+
     return (
       <PreRoundHome
-        teams={teams}
+        teams={isMixedGroups ? [] : teams}
+        playingGroups={isMixedGroups ? (playingGroupsRaw ?? []) : []}
+        isMixedGroups={isMixedGroups}
         round={round ? { name: round.name, date: round.date, course: round.course ?? '', format: round.format ?? '' } : null}
         orgSlug={orgSlug}
         orgId={orgId}
@@ -54,6 +73,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       />
     )
   }
+
+  // For live mixed-groups rounds: scorecardTeamId stays null, scorecardGroupId used for "Enter Scores" link
 
   const teamIds = teams.map((t) => t.id)
   const isDaytona = (round.format ?? 'standard') === 'daytona'
@@ -117,6 +138,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       viewOnly
       isAdmin={isAdmin}
       scorecardTeamId={scorecardTeamId}
+      scorecardGroupId={scorecardGroupId}
+      isMixedGroups={isMixedGroups}
     />
   )
 }

@@ -3,15 +3,18 @@
 import { useState } from 'react'
 
 type Team = { id: string; name: string }
+type PlayingGroup = { id: string; name: string }
 type Round = { name: string; date: string; course: string; format?: string } | null
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
 export default function PreRoundHome({
-  teams, round, orgSlug, orgId, orgName, isMaster,
+  teams, playingGroups = [], isMixedGroups = false, round, orgSlug, orgId, orgName, isMaster,
 }: {
   teams: Team[]
+  playingGroups?: PlayingGroup[]
+  isMixedGroups?: boolean
   round: Round
   orgSlug: string
   orgId: string
@@ -34,19 +37,34 @@ export default function PreRoundHome({
     setError('')
     setPending(true)
     const form = e.currentTarget
-    const teamId = (form.elements.namedItem('teamId') as HTMLSelectElement).value
     const pin = (form.elements.namedItem('pin') as HTMLInputElement).value
     try {
-      const res = await fetch('/api/team-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId, pin }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        window.location.href = `/${orgSlug}/score/${data.teamId}`
+      if (isMixedGroups) {
+        const groupId = (form.elements.namedItem('groupId') as HTMLSelectElement).value
+        const res = await fetch('/api/playing-group-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupId, pin }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          window.location.href = `/${orgSlug}/score/group/${data.groupId}`
+        } else {
+          setError(data.error ?? 'Login failed.')
+        }
       } else {
-        setError(data.error ?? 'Login failed.')
+        const teamId = (form.elements.namedItem('teamId') as HTMLSelectElement).value
+        const res = await fetch('/api/team-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamId, pin }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          window.location.href = `/${orgSlug}/score/${data.teamId}`
+        } else {
+          setError(data.error ?? 'Login failed.')
+        }
       }
     } catch {
       setError('Network error. Please try again.')
@@ -109,7 +127,7 @@ export default function PreRoundHome({
             Admin Login →
           </a>
 
-          {teams.length > 0 && (
+          {(isMixedGroups ? playingGroups.length > 0 : teams.length > 0) && (
             <button
               type="button"
               onClick={() => setShowPin((v) => !v)}
@@ -122,15 +140,24 @@ export default function PreRoundHome({
 
           {showPin && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <h2 className="font-semibold text-gray-900 mb-3 text-sm">{isGroup ? 'Select your group and enter PIN' : 'Select your team and enter PIN'}</h2>
+              <h2 className="font-semibold text-gray-900 mb-3 text-sm">
+                {isMixedGroups ? 'Select your playing group and enter PIN' : isGroup ? 'Select your group and enter PIN' : 'Select your team and enter PIN'}
+              </h2>
               <form onSubmit={handlePinSubmit} className="space-y-3">
                 {error && (
                   <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
                 )}
-                <select name="teamId" required defaultValue="" className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none">
-                  <option value="" disabled>{isGroup ? 'Select your group…' : 'Select your team…'}</option>
-                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                {isMixedGroups ? (
+                  <select name="groupId" required defaultValue="" className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none">
+                    <option value="" disabled>Select your playing group…</option>
+                    {playingGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                ) : (
+                  <select name="teamId" required defaultValue="" className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none">
+                    <option value="" disabled>{isGroup ? 'Select your group…' : 'Select your team…'}</option>
+                    {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                )}
                 <div className="relative">
                   <input type={showPinValue ? 'text' : 'password'} name="pin" inputMode="numeric" maxLength={4} required placeholder="4-digit PIN" className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-10 text-gray-900 text-sm focus:outline-none" />
                   <button type="button" tabIndex={-1} onClick={() => setShowPinValue(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none">

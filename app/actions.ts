@@ -295,6 +295,53 @@ export async function updatePlayerHandicap(playerId: string, handicap: number | 
   return { success: true }
 }
 
+export async function toggleMixedGroups(roundId: string, value: boolean) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('rounds').update({ mixed_groups: value }).eq('id', roundId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function createPlayingGroup(roundId: string, name: string, pin: string) {
+  const supabase = createServerClient()
+  const { data, error } = await supabase.from('playing_groups').insert({ round_id: roundId, name, pin }).select('id').single()
+  if (error) return { error: error.message }
+  return { success: true, id: data.id }
+}
+
+export async function deletePlayingGroup(groupId: string) {
+  const supabase = createServerClient()
+  await supabase.from('playing_groups').delete().eq('id', groupId)
+  return { success: true }
+}
+
+export async function setPlayerGroup(playerId: string, groupId: string | null) {
+  const supabase = createServerClient()
+  await supabase.from('playing_group_players').delete().eq('player_id', playerId)
+  if (groupId) {
+    await supabase.from('playing_group_players').insert({ playing_group_id: groupId, player_id: playerId })
+  }
+  return { success: true }
+}
+
+export async function submitGroupHoleScores(
+  groupId: string,
+  holeNumber: number,
+  playerScores: { playerId: string; strokes: number }[]
+) {
+  const cookieStore = await cookies()
+  if (!cookieStore.get(`playing_group_auth_${groupId}`)?.value) return { error: 'Session expired. Please log in again.' }
+  const supabase = createServerClient()
+  for (const { playerId, strokes } of playerScores) {
+    if (strokes < 1 || strokes > 20) continue
+    await supabase.from('scores').upsert(
+      { player_id: playerId, hole_number: holeNumber, strokes },
+      { onConflict: 'player_id,hole_number' }
+    )
+  }
+  return { success: true }
+}
+
 export async function updateRoundAutoHandicap(roundId: string, autoHandicap: boolean) {
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ auto_handicap: autoHandicap }).eq('id', roundId)

@@ -316,7 +316,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {},
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false,
 }: {
   orgSlug: string
   orgId: string
@@ -335,6 +335,8 @@ export default function LeaderboardClient({
   daytonaVariant?: string
   viewOnly?: boolean
   scorecardTeamId?: string | null
+  scorecardGroupId?: string | null
+  isMixedGroups?: boolean
   isAdmin?: boolean
   roundId?: string
   initialAssignments?: DaytonaHoleAssignment[]
@@ -1326,8 +1328,8 @@ export default function LeaderboardClient({
                 )}
               </div>
               <div className="flex flex-col items-end gap-1.5 mt-0.5 flex-shrink-0">
-                {scorecardTeamId ? (
-                  <a href={`/${orgSlug}/score/${scorecardTeamId}`}
+                {(isMixedGroups ? scorecardGroupId : scorecardTeamId) ? (
+                  <a href={isMixedGroups ? `/${orgSlug}/score/group/${scorecardGroupId}` : `/${orgSlug}/score/${scorecardTeamId}`}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
                     {isComplete ? 'Edit Scores' : 'Enter Scores'}
@@ -1355,15 +1357,15 @@ export default function LeaderboardClient({
               <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 {roundCourse && `${roundCourse} · `}{formattedDate}
               </p>
-              {(isAdmin || scorecardTeamId) && (
+              {(isAdmin || scorecardTeamId || scorecardGroupId) && (
                 <div className="flex items-center justify-center gap-1.5 mt-1">
                   {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
-                  {scorecardTeamId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                  {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
                 </div>
               )}
               <div className="absolute right-0 top-0 flex flex-col items-end gap-1.5">
-                {scorecardTeamId ? (
-                  <a href={`/${orgSlug}/score/${scorecardTeamId}`}
+                {(isMixedGroups ? scorecardGroupId : scorecardTeamId) ? (
+                  <a href={isMixedGroups ? `/${orgSlug}/score/group/${scorecardGroupId}` : `/${orgSlug}/score/${scorecardTeamId}`}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
                     {isComplete ? 'Edit Scores' : 'Enter Scores'}

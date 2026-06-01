@@ -9,6 +9,10 @@ import {
   updateSkinsSettings, updatePlayerSkinsParticipation, updateTeamSettings,
   updatePlayerHandicap,
   updateRoundAutoHandicap,
+  toggleMixedGroups,
+  createPlayingGroup,
+  deletePlayingGroup,
+  setPlayerGroup,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -35,7 +39,9 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null; mixed_groups?: boolean } | null
+type PlayingGroup = { id: string; name: string; pin: string }
+type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
@@ -426,11 +432,14 @@ export default function AdminDashboard({
   orgSlug, orgId, orgName, isMaster = false,
   round, teams, players, holes, ballValues, scores, scorecardTeamId = null, dtAssignments = [],
   matchups = [], bestBallMatchups = [], initialHoleValues = {}, courses = [],
+  playingGroups = [], playingGroupPlayers = [],
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
   matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]; initialHoleValues?: Record<string, Record<number, number>>
   courses?: { name: string; slug: string; pars: number[] }[]
+  playingGroups?: PlayingGroup[]
+  playingGroupPlayers?: PlayingGroupPlayer[]
 }) {
   const router = useRouter()
   const [showPinModal, setShowPinModal] = useState(false)
@@ -485,6 +494,14 @@ export default function AdminDashboard({
   const [newTeamDaytonaPayout, setNewTeamDaytonaPayout] = useState('')
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
+  const [mixedGroups, setMixedGroups] = useState(round?.mixed_groups ?? false)
+  const [livePlayingGroups, setLivePlayingGroups] = useState<PlayingGroup[]>(playingGroups)
+  const [liveGroupPlayers, setLiveGroupPlayers] = useState<PlayingGroupPlayer[]>(playingGroupPlayers)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupPin, setNewGroupPin] = useState('')
+  const [newGroupPending, setNewGroupPending] = useState(false)
+  const [showNewGroupPin, setShowNewGroupPin] = useState(false)
+  const [groupError, setGroupError] = useState('')
 
   const [createState, createAction, createPending] = useActionState(createRound, null)
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
@@ -788,6 +805,36 @@ export default function AdminDashboard({
     await deletePlayer(playerId)
     router.refresh()
   }
+  async function handleToggleMixedGroups() {
+    if (!round) return
+    const next = !mixedGroups
+    setMixedGroups(next)
+    await toggleMixedGroups(round.id, next)
+    router.refresh()
+  }
+  async function handleCreateGroup() {
+    if (!round || !newGroupName.trim() || !newGroupPin.trim()) return
+    if (!/^\d{4}$/.test(newGroupPin)) { setGroupError('PIN must be exactly 4 digits.'); return }
+    setGroupError(''); setNewGroupPending(true)
+    const res = await createPlayingGroup(round.id, newGroupName.trim(), newGroupPin.trim())
+    setNewGroupPending(false)
+    if (res.error) { setGroupError(res.error); return }
+    setLivePlayingGroups((prev) => [...prev, { id: res.id!, name: newGroupName.trim(), pin: newGroupPin.trim() }])
+    setNewGroupName(''); setNewGroupPin('')
+  }
+  async function handleDeleteGroup(groupId: string) {
+    await deletePlayingGroup(groupId)
+    setLivePlayingGroups((prev) => prev.filter((g) => g.id !== groupId))
+    setLiveGroupPlayers((prev) => prev.filter((gp) => gp.playing_group_id !== groupId))
+  }
+  async function handleSetPlayerGroup(playerId: string, groupId: string | null) {
+    setLiveGroupPlayers((prev) => {
+      const filtered = prev.filter((gp) => gp.player_id !== playerId)
+      return groupId ? [...filtered, { playing_group_id: groupId, player_id: playerId }] : filtered
+    })
+    await setPlayerGroup(playerId, groupId)
+  }
+
   async function handleToggleAutoHandicap() {
     if (!round) return
     const next = !autoHandicap
@@ -1420,6 +1467,101 @@ export default function AdminDashboard({
                     <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Mixed Groups toggle (standard format only) ── */}
+            {round && round.format === 'standard' && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+                <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleMixedGroups}>
+                  <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${mixedGroups ? 'bg-green-500' : 'bg-gray-300'}`}>
+                    <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${mixedGroups ? 'translate-x-3' : 'translate-x-0'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Mixed Groups</p>
+                    <p className="text-xs text-gray-400">Playing groups on the course are different from the ball-game teams — each group gets its own scorekeeper PIN</p>
+                  </div>
+                </div>
+
+                {mixedGroups && (
+                  <div className="space-y-3 border-t border-gray-100 pt-3">
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Playing Groups</p>
+                    {groupError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1.5">{groupError}</p>}
+
+                    {/* Create group form */}
+                    <div className="flex gap-2 flex-wrap">
+                      <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
+                        placeholder="Group name" className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                      <div className="relative">
+                        <input type={showNewGroupPin ? 'text' : 'password'} value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
+                          placeholder="4-digit PIN" maxLength={4} inputMode="numeric"
+                          className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 pr-8 text-sm focus:outline-none" />
+                        <button type="button" tabIndex={-1} onClick={() => setShowNewGroupPin(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                          {showNewGroupPin ? '🙈' : '👁'}
+                        </button>
+                      </div>
+                      <button type="button" onClick={handleCreateGroup} disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim()}
+                        className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
+                        + Add
+                      </button>
+                    </div>
+
+                    {/* Group list */}
+                    {livePlayingGroups.map((g) => {
+                      const assignedPlayerIds = liveGroupPlayers.filter((gp) => gp.playing_group_id === g.id).map((gp) => gp.player_id)
+                      const assignedPlayers = players.filter((p) => assignedPlayerIds.includes(p.id))
+                      return (
+                        <div key={g.id} className="bg-gray-50 rounded-xl border border-gray-200 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{g.name}</p>
+                              <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
+                            </div>
+                            <button type="button" onClick={() => handleDeleteGroup(g.id)} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {assignedPlayers.map((p) => (
+                              <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: '#dbeafe', color: '#1e40af' }}>
+                                {p.name}
+                                <button type="button" onClick={() => handleSetPlayerGroup(p.id, null)} className="ml-0.5 hover:text-red-600">×</button>
+                              </span>
+                            ))}
+                            {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned</p>}
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {/* Unassigned players */}
+                    {(() => {
+                      const assignedIds = new Set(liveGroupPlayers.map((gp) => gp.player_id))
+                      const unassigned = players.filter((p) => !assignedIds.has(p.id))
+                      if (unassigned.length === 0) return null
+                      return (
+                        <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
+                          <p className="text-xs font-semibold text-amber-700 mb-2">Unassigned Players — assign to a group:</p>
+                          <div className="space-y-1.5">
+                            {unassigned.map((p) => (
+                              <div key={p.id} className="flex items-center gap-2">
+                                <span className="text-sm text-gray-700 flex-1">{p.name}</span>
+                                <select defaultValue="" onChange={(e) => { if (e.target.value) handleSetPlayerGroup(p.id, e.target.value) }}
+                                  className="text-xs border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none">
+                                  <option value="" disabled>Assign to…</option>
+                                  {livePlayingGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                </select>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {livePlayingGroups.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-2">Create playing groups above, then assign players</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

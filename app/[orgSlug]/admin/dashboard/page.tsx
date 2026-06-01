@@ -20,7 +20,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, auto_handicap')
+    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, auto_handicap, mixed_groups')
     .eq('is_active', true)
     .eq('org_id', orgId)
     .single()
@@ -62,7 +62,13 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
     matchups = (fallback.data ?? []).map((m) => ({ ...m, press: [] }))
   }
 
-  const { data: courses } = await sb.from('courses').select('name, slug, pars').eq('is_active', true).order('name')
+  const [{ data: courses }, { data: playingGroupsRaw }, { data: playingGroupPlayersRaw }] = await Promise.all([
+    sb.from('courses').select('name, slug, pars').eq('is_active', true).order('name'),
+    roundId ? sb.from('playing_groups').select('id, name, pin').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
+    roundId ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id',
+      (await sb.from('playing_groups').select('id').eq('round_id', roundId)).data?.map((g) => g.id) ?? []
+    ) : Promise.resolve({ data: [] }),
+  ])
 
   return (
     <AdminDashboard
@@ -82,6 +88,8 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
       bestBallMatchups={bestBallRes.data ?? []}
       initialHoleValues={initialHoleValues}
       courses={courses ?? []}
+      playingGroups={playingGroupsRaw ?? []}
+      playingGroupPlayers={playingGroupPlayersRaw ?? []}
     />
   )
 }
