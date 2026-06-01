@@ -843,7 +843,12 @@ export default function AdminDashboard({
   async function handleSaveRosterPlayer() {
     if (!rosterForm.name.trim()) { setRosterError('Name is required.'); return }
     setRosterError(''); setRosterPending(true)
-    const hcp = rosterForm.handicap !== '' ? parseFloat(rosterForm.handicap) : null
+    const hcp = (() => {
+      const s = rosterForm.handicap.trim()
+      if (!s) return null
+      if (s.startsWith('+')) { const n = parseFloat(s.slice(1)); return isNaN(n) ? null : -n }
+      const n = parseFloat(s); return isNaN(n) ? null : n
+    })()
     if (editingRosterId) {
       const res = await updateRosterPlayer(editingRosterId, rosterForm.name, rosterForm.ghin || null, hcp, rosterForm.email || null)
       if (res.error) { setRosterError(res.error); setRosterPending(false); return }
@@ -1259,8 +1264,8 @@ export default function AdminDashboard({
                               </div>
                               <div>
                                 <label className="text-xs text-gray-500 mb-0.5 block">Handicap</label>
-                                <input type="number" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
-                                  placeholder="e.g. 8.4 or -2 for +2" min="-10" max="54" step="0.1"
+                                <input type="text" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
+                                  placeholder="e.g. 8.4 or +2"
                                   className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                               </div>
                               <div>
@@ -1322,8 +1327,8 @@ export default function AdminDashboard({
                       </div>
                       <div>
                         <label className="text-xs text-gray-500 mb-0.5 block">Handicap Index</label>
-                        <input type="number" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
-                          placeholder="e.g. 8.4 or -2 for +2" min="-10" max="54" step="0.1"
+                        <input type="text" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
+                          placeholder="e.g. 8.4 or +2"
                           className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                       </div>
                       <div>
