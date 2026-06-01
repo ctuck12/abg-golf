@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { teamLogin } from '@/app/actions'
 
 type Team = { id: string; name: string }
@@ -11,6 +11,7 @@ const gold = '#f59e0b'
 
 export default function TeamLoginForm({ teams, round }: { teams: Team[]; round: Round }) {
   const [state, action, pending] = useActionState(teamLogin, null)
+  const [showPin, setShowPin] = useState(false)
   const ballLabels = Array.from({ length: round.balls_count }, (_, i) => `${i + 1}-ball`).join(', ')
   const formattedDate = new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
@@ -48,9 +49,16 @@ export default function TeamLoginForm({ teams, round }: { teams: Team[]; round: 
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Team PIN</label>
-              <input type="password" name="pin" inputMode="numeric" maxLength={4} required
-                placeholder="4-digit PIN"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 focus:outline-none" />
+              <div className="relative">
+                <input type={showPin ? 'text' : 'password'} name="pin" inputMode="numeric" maxLength={4} required
+                  placeholder="4-digit PIN"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-10 text-gray-900 focus:outline-none" />
+                <button type="button" tabIndex={-1} onClick={() => setShowPin(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                  {showPin
+                    ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'1rem',height:'1rem'}}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    : <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'1rem',height:'1rem'}}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+                </button>
+              </div>
               <p className="text-xs text-gray-500 mt-1">Your PIN was set when the team was created.</p>
             </div>
             <button type="submit" disabled={pending}
