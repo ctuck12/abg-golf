@@ -1311,7 +1311,9 @@ export default function LeaderboardClient({
                 <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
                   {orgName}
                 </p>
-                {isAdmin && <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Admin</p>}
+                {isAdmin
+                  ? <p className="text-xs font-bold uppercase tracking-widest"><span className="px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span></p>
+                  : scorecardTeamId && <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</p>}
                 <h1 className="text-lg font-bold leading-tight">{roundName}</h1>
                 <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
                   {roundCourse && `${roundCourse} · `}{formattedDate}

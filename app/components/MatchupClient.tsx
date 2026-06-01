@@ -1111,7 +1111,9 @@ export default function MatchupClient({
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>Matchups</p>
-            {isAdmin && <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Admin</p>}
+            {isAdmin
+              ? <p className="text-xs font-bold uppercase tracking-wide"><span className="px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span></p>
+              : scorecardTeamId && <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Scorer</p>}
             <h1 className="font-bold text-lg">{roundName}</h1>
           </div>
           <div className="flex items-center gap-2">

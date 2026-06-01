@@ -180,7 +180,9 @@ export default function ScorecardViewer({
         <div className="max-w-4xl mx-auto flex items-start justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
-            {isAdmin && <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Admin</p>}
+            {isAdmin
+              ? <p className="text-xs font-bold uppercase tracking-wide"><span className="px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span></p>
+              : scorecardTeamId && <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Scorer</p>}
             <h1 className="font-bold text-lg">{teamName}</h1>
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
