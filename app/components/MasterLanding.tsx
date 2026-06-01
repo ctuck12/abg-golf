@@ -115,7 +115,7 @@ export default function MasterLanding({ orgs }: { orgs: Org[] }) {
                   className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
                   style={{ background: navy }}
                 >
-                  {masterPending ? 'Verifying…' : 'Sign In →'}
+                  {masterPending ? 'Verifying…' : 'Sign In'}
                 </button>
               </form>
             </div>

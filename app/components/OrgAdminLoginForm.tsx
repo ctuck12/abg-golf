@@ -79,7 +79,7 @@ export default function OrgAdminLoginForm({ orgSlug, orgName }: { orgSlug: strin
                 className="w-full text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
                 style={{ background: navy }}
               >
-                {pending ? 'Verifying…' : 'Sign In →'}
+                {pending ? 'Verifying…' : 'Sign In'}
               </button>
             </form>
           </div>
