@@ -1327,7 +1327,7 @@ export default function LeaderboardClient({
                   <button onClick={() => setShowPin(true)}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
-                    {isDaytona || isTraditional ? 'Group PIN' : 'Team Pin'}
+                    Enter Pin
                   </button>
                 )}
                 {isAdmin && scorecardTeamId
@@ -1369,7 +1369,7 @@ export default function LeaderboardClient({
                   <button onClick={() => setShowPin(true)}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                     style={{ background: gold, color: navy }}>
-                    {isDaytona || isTraditional ? 'Group PIN' : 'Team Pin'}
+                    Enter Pin
                   </button>
                 )}
                 {isAdmin && scorecardTeamId

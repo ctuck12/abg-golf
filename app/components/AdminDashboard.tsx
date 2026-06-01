@@ -1022,7 +1022,7 @@ export default function AdminDashboard({
                 onClick={() => setShowPinModal(true)}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                 style={{ background: gold, color: navy }}>
-                {isDaytona || isTraditional ? 'Group PIN' : 'Team Pin'}
+                Enter Pin
               </button>
             )}
             {isMaster && (
@@ -1621,13 +1621,7 @@ export default function AdminDashboard({
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
                                 {isSelected ? 'Close' : 'Players'}
                               </button>
-                              <button type="button" onClick={() => handleToggleAdmin(team.id, !team.is_admin)}
-                                className="text-xs border px-2 py-1 rounded"
-                                style={team.is_admin
-                                  ? { background: gold, borderColor: gold, color: navy }
-                                  : { borderColor: gold, color: '#6b7280' }}>
-                                {team.is_admin ? 'Revoke Admin' : 'Make Admin'}
-                              </button>
+
                               {confirmRemoveTeamId === team.id ? (
                                 <span className="flex items-center gap-1.5">
                                   <span className="text-xs text-gray-500">Remove?</span>

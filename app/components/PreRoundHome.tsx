@@ -115,7 +115,7 @@ export default function PreRoundHome({
               className="w-full py-3.5 rounded-xl font-semibold text-sm border-2 transition active:scale-95"
               style={{ borderColor: navy, color: navy, background: 'white' }}
             >
-              {showPin ? 'Hide PIN Entry' : isGroup ? 'Enter Group PIN' : 'Enter Team PIN'}
+              {showPin ? 'Hide PIN Entry' : 'Enter Pin'}
             </button>
           )}
 
