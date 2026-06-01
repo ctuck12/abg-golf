@@ -295,6 +295,63 @@ export async function updatePlayerHandicap(playerId: string, handicap: number | 
   return { success: true }
 }
 
+// ── Org Player Roster ─────────────────────────────────────────────────────────
+
+export async function createRosterPlayer(orgId: string, name: string, ghinNumber: string | null, handicapIndex: number | null, email: string | null) {
+  const supabase = createServerClient()
+  const { data, error } = await supabase
+    .from('org_players')
+    .insert({ org_id: orgId, name: name.trim(), ghin_number: ghinNumber || null, handicap_index: handicapIndex, email: email || null })
+    .select('id').single()
+  if (error) return { error: error.code === '23505' ? `A player named "${name}" already exists in the roster.` : error.message }
+  return { success: true, id: data.id }
+}
+
+export async function updateRosterPlayer(playerId: string, name: string, ghinNumber: string | null, handicapIndex: number | null, email: string | null) {
+  const supabase = createServerClient()
+  const { error } = await supabase
+    .from('org_players')
+    .update({ name: name.trim(), ghin_number: ghinNumber || null, handicap_index: handicapIndex, email: email || null })
+    .eq('id', playerId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function deleteRosterPlayer(playerId: string) {
+  const supabase = createServerClient()
+  await supabase.from('org_players').delete().eq('id', playerId)
+  return { success: true }
+}
+
+export async function addRosterPlayerToTeam(teamId: string, rosterPlayerId: string) {
+  const supabase = createServerClient()
+
+  const { data: rp } = await supabase.from('org_players').select('name, handicap_index').eq('id', rosterPlayerId).single()
+  if (!rp) return { error: 'Roster player not found.' }
+
+  const { data: teamRow } = await supabase.from('teams').select('round_id').eq('id', teamId).single()
+  if (teamRow?.round_id) {
+    const { data: allTeams } = await supabase.from('teams').select('id').eq('round_id', teamRow.round_id)
+    const allTeamIds = (allTeams ?? []).map((t: { id: string }) => t.id)
+    if (allTeamIds.length > 0) {
+      const { data: allPlayers } = await supabase.from('players').select('name').in('team_id', allTeamIds)
+      if ((allPlayers ?? []).some((p: { name: string }) => p.name.trim().toLowerCase() === rp.name.toLowerCase())) {
+        return { error: `${rp.name} is already in this round.` }
+      }
+    }
+  }
+
+  const { data: existing } = await supabase.from('players').select('position').eq('team_id', teamId).order('position', { ascending: false }).limit(1)
+  const nextPosition = existing?.[0]?.position != null ? existing[0].position + 1 : 0
+
+  const { error } = await supabase.from('players').insert({
+    name: rp.name, team_id: teamId, position: nextPosition,
+    handicap: rp.handicap_index ?? null, roster_player_id: rosterPlayerId,
+  })
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function toggleMixedGroups(roundId: string, value: boolean) {
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ mixed_groups: value }).eq('id', roundId)

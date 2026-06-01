@@ -13,6 +13,10 @@ import {
   createPlayingGroup,
   deletePlayingGroup,
   setPlayerGroup,
+  createRosterPlayer,
+  updateRosterPlayer,
+  deleteRosterPlayer,
+  addRosterPlayerToTeam,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -42,6 +46,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
 type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null; mixed_groups?: boolean } | null
 type PlayingGroup = { id: string; name: string; pin: string }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
+type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
@@ -432,7 +437,7 @@ export default function AdminDashboard({
   orgSlug, orgId, orgName, isMaster = false,
   round, teams, players, holes, ballValues, scores, scorecardTeamId = null, dtAssignments = [],
   matchups = [], bestBallMatchups = [], initialHoleValues = {}, courses = [],
-  playingGroups = [], playingGroupPlayers = [],
+  playingGroups = [], playingGroupPlayers = [], roster = [],
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
@@ -440,6 +445,7 @@ export default function AdminDashboard({
   courses?: { name: string; slug: string; pars: number[] }[]
   playingGroups?: PlayingGroup[]
   playingGroupPlayers?: PlayingGroupPlayer[]
+  roster?: RosterPlayer[]
 }) {
   const router = useRouter()
   const [showPinModal, setShowPinModal] = useState(false)
@@ -492,6 +498,16 @@ export default function AdminDashboard({
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
   const [newTeamDaytonaEnabled, setNewTeamDaytonaEnabled] = useState(false)
   const [newTeamDaytonaPayout, setNewTeamDaytonaPayout] = useState('')
+  // Roster state
+  const [liveRoster, setLiveRoster] = useState<RosterPlayer[]>(roster)
+  const [showRoster, setShowRoster] = useState(false)
+  const [editingRosterId, setEditingRosterId] = useState<string | null>(null)
+  const [rosterForm, setRosterForm] = useState({ name: '', ghin: '', handicap: '', email: '' })
+  const [rosterPending, setRosterPending] = useState(false)
+  const [rosterError, setRosterError] = useState('')
+  const [rosterPickerTeamId, setRosterPickerTeamId] = useState<string | null>(null)
+  const [rosterSearch, setRosterSearch] = useState('')
+
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
   const [mixedGroups, setMixedGroups] = useState(round?.mixed_groups ?? false)
@@ -805,6 +821,32 @@ export default function AdminDashboard({
     await deletePlayer(playerId)
     router.refresh()
   }
+  async function handleSaveRosterPlayer() {
+    if (!rosterForm.name.trim()) { setRosterError('Name is required.'); return }
+    setRosterError(''); setRosterPending(true)
+    const hcp = rosterForm.handicap !== '' ? parseFloat(rosterForm.handicap) : null
+    if (editingRosterId) {
+      const res = await updateRosterPlayer(editingRosterId, rosterForm.name, rosterForm.ghin || null, hcp, rosterForm.email || null)
+      if (res.error) { setRosterError(res.error); setRosterPending(false); return }
+      setLiveRoster((prev) => prev.map((p) => p.id === editingRosterId ? { ...p, name: rosterForm.name, ghin_number: rosterForm.ghin || null, handicap_index: hcp, email: rosterForm.email || null } : p))
+      setEditingRosterId(null)
+    } else {
+      const res = await createRosterPlayer(orgId, rosterForm.name, rosterForm.ghin || null, hcp, rosterForm.email || null)
+      if (res.error) { setRosterError(res.error); setRosterPending(false); return }
+      setLiveRoster((prev) => [...prev, { id: res.id!, name: rosterForm.name, ghin_number: rosterForm.ghin || null, handicap_index: hcp, email: rosterForm.email || null }])
+    }
+    setRosterForm({ name: '', ghin: '', handicap: '', email: '' }); setRosterPending(false)
+  }
+  async function handleDeleteRosterPlayer(id: string) {
+    await deleteRosterPlayer(id)
+    setLiveRoster((prev) => prev.filter((p) => p.id !== id))
+  }
+  async function handleAddFromRoster(teamId: string, rosterPlayerId: string) {
+    const res = await addRosterPlayerToTeam(teamId, rosterPlayerId)
+    if (res.error) { alert(res.error); return }
+    setRosterPickerTeamId(null); router.refresh()
+  }
+
   async function handleToggleMixedGroups() {
     if (!round) return
     const next = !mixedGroups
@@ -914,6 +956,41 @@ export default function AdminDashboard({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+
+      {/* ── Roster picker modal ── */}
+      {rosterPickerTeamId && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => { setRosterPickerTeamId(null); setRosterSearch('') }}>
+          <div className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-gray-900">Pick from Roster</h3>
+              <button onClick={() => { setRosterPickerTeamId(null); setRosterSearch('') }} className="text-gray-400 text-xl leading-none">✕</button>
+            </div>
+            <input value={rosterSearch} onChange={(e) => setRosterSearch(e.target.value)}
+              placeholder="Search players…" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none mb-3" />
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {liveRoster
+                .filter((rp) => rp.name.toLowerCase().includes(rosterSearch.toLowerCase()))
+                .map((rp) => (
+                  <button key={rp.id} type="button"
+                    onClick={() => handleAddFromRoster(rosterPickerTeamId, rp.id)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition text-left">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{rp.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {rp.handicap_index != null && <span className="text-xs text-gray-500">HCP {rp.handicap_index}</span>}
+                        {rp.ghin_number && <span className="text-xs font-mono text-blue-500">GHIN {rp.ghin_number}</span>}
+                      </div>
+                    </div>
+                    <span className="text-blue-500 text-sm font-semibold">Add →</span>
+                  </button>
+                ))}
+              {liveRoster.filter((rp) => rp.name.toLowerCase().includes(rosterSearch.toLowerCase())).length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">No players found</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── New Round confirmation modal ── */}
       {showNewRoundWarning && (
@@ -1118,6 +1195,128 @@ export default function AdminDashboard({
 
         {/* ── CONTENT ──────────────────────────────────────────────────── */}
         <div className="space-y-4">
+
+          {/* ── Player Roster ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            <button type="button" onClick={() => setShowRoster((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-3">
+                <h3 className="font-semibold text-gray-900 text-sm">Player Roster</h3>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{liveRoster.length} players</span>
+              </div>
+              <span className="text-gray-400 text-sm">{showRoster ? '▲' : '▼'}</span>
+            </button>
+
+            {showRoster && (
+              <div className="border-t border-gray-100 px-5 pb-5 space-y-4">
+                {rosterError && <p className="text-xs text-red-500 bg-red-50 rounded px-3 py-2">{rosterError}</p>}
+
+                {/* Roster list */}
+                {liveRoster.length > 0 && (
+                  <div className="space-y-2 mt-3">
+                    {liveRoster.map((rp) => (
+                      <div key={rp.id} className="bg-gray-50 rounded-xl border border-gray-100">
+                        {editingRosterId === rp.id ? (
+                          <div className="p-3 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-xs text-gray-500 mb-0.5 block">Name</label>
+                                <input value={rosterForm.name} onChange={(e) => setRosterForm((f) => ({ ...f, name: e.target.value }))}
+                                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500 mb-0.5 block">Handicap</label>
+                                <input type="number" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
+                                  placeholder="e.g. 8.4" min="0" max="54" step="0.1"
+                                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500 mb-0.5 block">GHIN #</label>
+                                <input value={rosterForm.ghin} onChange={(e) => setRosterForm((f) => ({ ...f, ghin: e.target.value }))}
+                                  placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-mono" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-gray-500 mb-0.5 block">Email</label>
+                                <input type="email" value={rosterForm.email} onChange={(e) => setRosterForm((f) => ({ ...f, email: e.target.value }))}
+                                  placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={handleSaveRosterPlayer} disabled={rosterPending}
+                                className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: navy }}>
+                                {rosterPending ? 'Saving…' : 'Save'}
+                              </button>
+                              <button type="button" onClick={() => { setEditingRosterId(null); setRosterForm({ name: '', ghin: '', handicap: '', email: '' }) }}
+                                className="px-4 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-600">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 px-3 py-2.5">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800">{rp.name}</p>
+                              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                {rp.handicap_index != null && (
+                                  <span className="text-xs text-gray-500">HCP {rp.handicap_index}</span>
+                                )}
+                                {rp.ghin_number && (
+                                  <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">GHIN {rp.ghin_number}</span>
+                                )}
+                                {rp.email && (
+                                  <span className="text-xs text-gray-400">{rp.email}</span>
+                                )}
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => { setEditingRosterId(rp.id); setRosterForm({ name: rp.name, ghin: rp.ghin_number ?? '', handicap: rp.handicap_index != null ? String(rp.handicap_index) : '', email: rp.email ?? '' }) }}
+                              className="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                            <button type="button" onClick={() => handleDeleteRosterPlayer(rp.id)}
+                              className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add new roster player */}
+                {editingRosterId === null && (
+                  <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add to Roster</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-0.5 block">Name <span className="text-red-400">*</span></label>
+                        <input value={rosterForm.name} onChange={(e) => setRosterForm((f) => ({ ...f, name: e.target.value }))}
+                          placeholder="Full name" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-0.5 block">Handicap Index</label>
+                        <input type="number" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
+                          placeholder="e.g. 8.4" min="0" max="54" step="0.1"
+                          className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-0.5 block">GHIN # <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <input value={rosterForm.ghin} onChange={(e) => setRosterForm((f) => ({ ...f, ghin: e.target.value }))}
+                          placeholder="e.g. 1234567" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-mono" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-0.5 block">Email <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <input type="email" value={rosterForm.email} onChange={(e) => setRosterForm((f) => ({ ...f, email: e.target.value }))}
+                          placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                      </div>
+                    </div>
+                    <button type="button" onClick={handleSaveRosterPlayer} disabled={rosterPending || !rosterForm.name.trim()}
+                      className="w-full py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 mt-1" style={{ background: navy }}>
+                      {rosterPending ? 'Adding…' : '+ Add to Roster'}
+                    </button>
+                  </div>
+                )}
+
+                {liveRoster.length === 0 && editingRosterId === null && (
+                  <p className="text-xs text-gray-400 text-center py-1">No players in roster yet — add them above</p>
+                )}
+              </div>
+            )}
+          </div>
             {/* Create round */}
             {/* Collapse immediately on submit (createPending) or while refresh is pending (effectivePendingId) */}
             {round && (!showNewRoundForm || createPending || !!effectivePendingId) ? (
@@ -1897,10 +2096,17 @@ export default function AdminDashboard({
                                 : 5
                               if (teamPlayers.length >= maxPlayers) return null
                               return (
-                                <form action={addPlayerAction} className="flex flex-wrap gap-2 mt-2">
+                                <>
+                                {liveRoster.length > 0 && (
+                                  <button type="button" onClick={() => { setRosterPickerTeamId(team.id); setRosterSearch('') }}
+                                    className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 font-medium mt-2 hover:bg-blue-50 transition">
+                                    Pick from Roster
+                                  </button>
+                                )}
+                                <form action={addPlayerAction} className="flex flex-wrap gap-2 mt-1">
                                   <input type="hidden" name="teamId" value={team.id} />
                                   {addPlayerState?.error && <p className="text-xs text-red-500 w-full">{addPlayerState.error}</p>}
-                                  <input type="text" name="name" placeholder="Player name" required
+                                  <input type="text" name="name" placeholder="Or enter name manually" required
                                     className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
                                   <input type="number" name="handicap" placeholder="HCP" min="0" max="54" step="0.1"
                                     className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
@@ -1915,6 +2121,7 @@ export default function AdminDashboard({
                                     className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60"
                                     style={{ background: navy }}>Add</button>
                                 </form>
+                                </>
                               )
                             })()}
                             <button type="button" onClick={() => setResetConfirmTeamId(team.id)}
