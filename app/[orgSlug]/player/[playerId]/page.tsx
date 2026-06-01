@@ -16,6 +16,9 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
   const cookieStore = await cookies()
   const sb = createServerClient()
 
+  const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
+  const orgName = orgRow?.name ?? orgSlug
+
   const { data: player } = await sb.from('players').select('id, name, team_id').eq('id', playerId).single()
   if (!player) redirect(`/${orgSlug}`)
 
@@ -65,6 +68,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
     <PlayerScorecard
       orgSlug={orgSlug}
       orgId={orgId}
+      orgName={orgName}
       isMaster={isMaster}
       player={{ id: player.id, name: player.name }}
       teamName={team.name}

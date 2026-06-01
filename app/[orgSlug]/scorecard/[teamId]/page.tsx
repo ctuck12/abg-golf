@@ -14,6 +14,9 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
   const { orgId, isAdmin, isMaster } = auth
   const sb = createServerClient()
 
+  const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
+  const orgName = orgRow?.name ?? orgSlug
+
   const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant').eq('id', teamId).single()
   if (!team) redirect(`/${orgSlug}`)
 
@@ -44,6 +47,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
     <ScorecardViewer
       orgSlug={orgSlug}
       orgId={orgId}
+      orgName={orgName}
       isMaster={isMaster}
       teamName={team.name}
       players={players ?? []}

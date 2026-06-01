@@ -23,6 +23,9 @@ export default async function OrgAllScorecardsPage({
   const sb = createServerClient()
   const { teamId } = await searchParams
 
+  const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
+  const orgName = orgRow?.name ?? orgSlug
+
   const { data: round } = await sb.from('rounds').select('id, format, daytona_variant').eq('is_active', true).eq('org_id', orgId).single()
   if (!round || round.format !== 'daytona') redirect(`/${orgSlug}`)
 
@@ -71,6 +74,7 @@ export default async function OrgAllScorecardsPage({
     <AllScorecardsView
       orgSlug={orgSlug}
       orgId={orgId}
+      orgName={orgName}
       isMaster={isMaster}
       roundId={round.id}
       players={rankedPlayers}

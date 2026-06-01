@@ -15,6 +15,9 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   const cookieStore = await cookies()
   const sb = createServerClient()
 
+  const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
+  const orgName = orgRow?.name ?? orgSlug
+
   const { data: round } = await sb
     .from('rounds')
     .select('id, name, balls_count, format, is_started')
@@ -54,6 +57,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
     <MatchupClient
       orgSlug={orgSlug}
       orgId={orgId}
+      orgName={orgName}
       isMaster={isMaster}
       roundId={round.id}
       players={players}

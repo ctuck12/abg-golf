@@ -299,11 +299,12 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 }
 
 export default function ScoreEntry({
-  orgSlug, orgId, isMaster = false,
+  orgSlug, orgId, orgName, isMaster = false,
   team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false,
 }: {
   orgSlug: string
   orgId: string
+  orgName: string
   isMaster?: boolean
   team: Team
   players: Player[]
@@ -370,10 +371,16 @@ export default function ScoreEntry({
   const [showDaytonaResultsModal, setShowDaytonaResultsModal] = useState(false)
   const [showMatchupResultsModal, setShowMatchupResultsModal] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
   async function handleChangeTeam() {
     await fetch('/api/team-logout', { method: 'POST', credentials: 'include' })
     window.location.href = `/${orgSlug}`
+  }
+
+  async function handleSignOut() {
+    await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
+    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
   }
 
   // First hole that hasn't been saved yet — holes beyond this cannot be opened
@@ -704,6 +711,19 @@ export default function ScoreEntry({
                   ← Master Admin
                 </a>
               )}
+              {!isMaster && (showSignOutConfirm ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-center text-gray-700 font-medium">Sign out of this group?</p>
+                  <div className="flex gap-2">
+                    <button onClick={handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>Sign Out</button>
+                    <button onClick={() => setShowSignOutConfirm(false)} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowSignOutConfirm(true)} className="w-full py-3 rounded-xl text-sm font-semibold text-white" style={{ background: '#6b7280' }}>
+                  Sign Out of {orgName}
+                </button>
+              ))}
             </div>
           </div>
         </div>

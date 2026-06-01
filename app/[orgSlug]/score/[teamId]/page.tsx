@@ -18,8 +18,12 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
   const { orgId, isAdmin, isMaster } = auth
   const sb = createServerClient()
 
-  const { data: team } = await sb.from('teams').select('id, name, round_id, is_admin, daytona_variant').eq('id', teamId).single()
+  const [{ data: orgRow }, { data: team }] = await Promise.all([
+    sb.from('organizations').select('name').eq('id', orgId).single(),
+    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant').eq('id', teamId).single(),
+  ])
   if (!team) redirect(`/${orgSlug}`)
+  const orgName = orgRow?.name ?? orgSlug
 
   const { data: round } = await sb
     .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id').eq('id', team.round_id).single()
@@ -63,6 +67,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
     <ScoreEntry
       orgSlug={orgSlug}
       orgId={orgId}
+      orgName={orgName}
       isMaster={isMaster}
       team={{ id: team.id, name: team.name }}
       players={players ?? []}

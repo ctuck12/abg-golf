@@ -46,10 +46,10 @@ function ptsColor(pts: number | null): string {
 }
 
 export default function PlayerScorecard({
-  orgSlug, orgId, isMaster = false,
+  orgSlug, orgId, orgName, isMaster = false,
   player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false,
 }: {
-  orgSlug: string; orgId: string; isMaster?: boolean
+  orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   player: { id: string; name: string }
   teamName: string
   teamId: string
@@ -71,6 +71,12 @@ export default function PlayerScorecard({
   const [allRoundScores, setAllRoundScores] = useState<RoundScore[]>(dtData?.allRoundScores ?? [])
   const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
   const [showOptions, setShowOptions] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+
+  async function handleSignOut() {
+    await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
+    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
+  }
   const isDaytona = format === 'daytona'
   const assignments = dtData?.assignments ?? []
 
@@ -228,6 +234,19 @@ export default function PlayerScorecard({
             : <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Login</a>
           }
           {isMaster && <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>← Master Admin</a>}
+          {!isMaster && (showSignOutConfirm ? (
+            <div className="space-y-2">
+              <p className="text-sm text-center text-gray-700 font-medium">Sign out of this group?</p>
+              <div className="flex gap-2">
+                <button onClick={handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>Sign Out</button>
+                <button onClick={() => setShowSignOutConfirm(false)} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowSignOutConfirm(true)} className="w-full py-3 rounded-xl text-sm font-semibold text-white" style={{ background: '#6b7280' }}>
+              Sign Out of {orgName}
+            </button>
+          ))}
         </div>
       </div>
     </div>
