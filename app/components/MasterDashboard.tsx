@@ -18,7 +18,59 @@ export default function MasterDashboard({
   activeRounds: ActiveRound[]
 }) {
   const router = useRouter()
-  const [tab, setTab] = useState<'groups' | 'courses' | 'rounds'>('groups')
+  const [tab, setTab] = useState<'groups' | 'courses' | 'rounds' | 'rosters'>('groups')
+
+  // Roster tab state
+  type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
+  const [selectedRosterOrgId, setSelectedRosterOrgId] = useState<string | null>(null)
+  const [orgRosters, setOrgRosters] = useState<Record<string, RosterPlayer[]>>({})
+  const [rosterLoading, setRosterLoading] = useState(false)
+  const [rosterForm, setRosterForm] = useState({ name: '', ghin: '', handicap: '', email: '' })
+  const [editingRosterId, setEditingRosterId] = useState<string | null>(null)
+  const [rosterPending, setRosterPending] = useState(false)
+  const [rosterError, setRosterError] = useState('')
+
+  async function loadRoster(orgId: string) {
+    if (orgRosters[orgId]) return
+    setRosterLoading(true)
+    const res = await fetch(`/api/master/orgs/${orgId}/roster`)
+    const data = await res.json()
+    setOrgRosters((prev) => ({ ...prev, [orgId]: data.players ?? [] }))
+    setRosterLoading(false)
+  }
+
+  async function handleSelectRosterOrg(orgId: string) {
+    setSelectedRosterOrgId(orgId)
+    setEditingRosterId(null)
+    setRosterForm({ name: '', ghin: '', handicap: '', email: '' })
+    setRosterError('')
+    await loadRoster(orgId)
+  }
+
+  async function handleSaveMasterRosterPlayer() {
+    if (!selectedRosterOrgId || !rosterForm.name.trim()) { setRosterError('Name is required.'); return }
+    setRosterError(''); setRosterPending(true)
+    const body = { name: rosterForm.name, ghin_number: rosterForm.ghin, handicap_index: rosterForm.handicap !== '' ? parseFloat(rosterForm.handicap) : null, email: rosterForm.email }
+    if (editingRosterId) {
+      const res = await fetch(`/api/master/orgs/${selectedRosterOrgId}/roster/${editingRosterId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json()
+      if (data.error) { setRosterError(data.error); setRosterPending(false); return }
+      setOrgRosters((prev) => ({ ...prev, [selectedRosterOrgId]: (prev[selectedRosterOrgId] ?? []).map((p) => p.id === editingRosterId ? { ...p, ...body, ghin_number: body.ghin_number || null, email: body.email || null } : p) }))
+      setEditingRosterId(null)
+    } else {
+      const res = await fetch(`/api/master/orgs/${selectedRosterOrgId}/roster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json()
+      if (data.error) { setRosterError(data.error); setRosterPending(false); return }
+      setOrgRosters((prev) => ({ ...prev, [selectedRosterOrgId]: [...(prev[selectedRosterOrgId] ?? []), { id: data.id, name: body.name, ghin_number: body.ghin_number || null, handicap_index: body.handicap_index, email: body.email || null }].sort((a, b) => a.name.localeCompare(b.name)) }))
+    }
+    setRosterForm({ name: '', ghin: '', handicap: '', email: '' }); setRosterPending(false)
+  }
+
+  async function handleDeleteMasterRosterPlayer(playerId: string) {
+    if (!selectedRosterOrgId) return
+    await fetch(`/api/master/orgs/${selectedRosterOrgId}/roster/${playerId}`, { method: 'DELETE' })
+    setOrgRosters((prev) => ({ ...prev, [selectedRosterOrgId]: (prev[selectedRosterOrgId] ?? []).filter((p) => p.id !== playerId) }))
+  }
 
   // Org form state
   const [showOrgForm, setShowOrgForm] = useState(false)
@@ -204,15 +256,15 @@ export default function MasterDashboard({
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 bg-white rounded-xl border border-gray-200 p-1">
-          {(['groups', 'courses', 'rounds'] as const).map((t) => (
+        <div className="flex gap-1 bg-white rounded-xl border border-gray-200 p-1">
+          {(['groups', 'courses', 'rounds', 'rosters'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={`flex-1 py-2 rounded-lg text-sm font-semibold transition ${tab === t ? 'text-white' : 'text-gray-500'}`}
               style={tab === t ? { background: navy } : {}}
             >
-              {t === 'groups' ? 'Groups' : t === 'courses' ? 'Courses' : 'Active Rounds'}
+              {t === 'groups' ? 'Groups' : t === 'courses' ? 'Courses' : t === 'rounds' ? 'Rounds' : 'Rosters'}
             </button>
           ))}
         </div>
@@ -512,6 +564,145 @@ export default function MasterDashboard({
                   </div>
                 )
               })
+            )}
+          </div>
+        )}
+
+        {/* ── ROSTERS ── */}
+        {tab === 'rosters' && (
+          <div className="space-y-3">
+            <h2 className="font-semibold text-gray-900">Player Rosters</h2>
+
+            {/* Org selector */}
+            <div className="flex flex-wrap gap-2">
+              {orgs.map((org) => (
+                <button key={org.id} type="button"
+                  onClick={() => handleSelectRosterOrg(org.id)}
+                  className={`text-sm px-3 py-1.5 rounded-lg font-semibold border transition ${selectedRosterOrgId === org.id ? 'text-white border-transparent' : 'border-gray-300 text-gray-600 bg-white'}`}
+                  style={selectedRosterOrgId === org.id ? { background: navy } : {}}>
+                  {org.name}
+                </button>
+              ))}
+            </div>
+
+            {!selectedRosterOrgId && (
+              <div className="bg-white rounded-xl border border-gray-200 px-4 py-6 text-center">
+                <p className="text-gray-400 text-sm">Select a group above to view and manage their player roster</p>
+              </div>
+            )}
+
+            {selectedRosterOrgId && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    {orgs.find((o) => o.id === selectedRosterOrgId)?.name} — Roster
+                  </h3>
+                  <span className="text-xs text-gray-400">{(orgRosters[selectedRosterOrgId] ?? []).length} players</span>
+                </div>
+
+                {rosterError && <p className="text-xs text-red-500 bg-red-50 rounded px-3 py-2">{rosterError}</p>}
+
+                {rosterLoading ? (
+                  <p className="text-sm text-gray-400 text-center py-4">Loading…</p>
+                ) : (
+                  <>
+                    {/* Player list */}
+                    <div className="space-y-2">
+                      {(orgRosters[selectedRosterOrgId] ?? []).map((rp) => (
+                        <div key={rp.id} className="bg-gray-50 rounded-xl border border-gray-100">
+                          {editingRosterId === rp.id ? (
+                            <div className="p-3 space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-0.5 block">Name</label>
+                                  <input value={rosterForm.name} onChange={(e) => setRosterForm((f) => ({ ...f, name: e.target.value }))}
+                                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-0.5 block">Handicap</label>
+                                  <input type="number" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
+                                    placeholder="e.g. 8.4" min="0" max="54" step="0.1"
+                                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-0.5 block">GHIN #</label>
+                                  <input value={rosterForm.ghin} onChange={(e) => setRosterForm((f) => ({ ...f, ghin: e.target.value }))}
+                                    placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-mono" />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 mb-0.5 block">Email</label>
+                                  <input type="email" value={rosterForm.email} onChange={(e) => setRosterForm((f) => ({ ...f, email: e.target.value }))}
+                                    placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button type="button" onClick={handleSaveMasterRosterPlayer} disabled={rosterPending}
+                                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: navy }}>
+                                  {rosterPending ? 'Saving…' : 'Save'}
+                                </button>
+                                <button type="button" onClick={() => { setEditingRosterId(null); setRosterForm({ name: '', ghin: '', handicap: '', email: '' }) }}
+                                  className="px-4 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-600">Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3 px-3 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{rp.name}</p>
+                                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                  {rp.handicap_index != null && <span className="text-xs text-gray-500">HCP {rp.handicap_index}</span>}
+                                  {rp.ghin_number && <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">GHIN {rp.ghin_number}</span>}
+                                  {rp.email && <span className="text-xs text-gray-400">{rp.email}</span>}
+                                </div>
+                              </div>
+                              <button type="button" onClick={() => { setEditingRosterId(rp.id); setRosterForm({ name: rp.name, ghin: rp.ghin_number ?? '', handicap: rp.handicap_index != null ? String(rp.handicap_index) : '', email: rp.email ?? '' }) }}
+                                className="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                              <button type="button" onClick={() => handleDeleteMasterRosterPlayer(rp.id)}
+                                className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {(orgRosters[selectedRosterOrgId] ?? []).length === 0 && (
+                        <p className="text-xs text-gray-400 text-center py-2">No players in roster yet</p>
+                      )}
+                    </div>
+
+                    {/* Add player form */}
+                    {editingRosterId === null && (
+                      <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Player</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-gray-500 mb-0.5 block">Name <span className="text-red-400">*</span></label>
+                            <input value={rosterForm.name} onChange={(e) => setRosterForm((f) => ({ ...f, name: e.target.value }))}
+                              placeholder="Full name" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 mb-0.5 block">Handicap</label>
+                            <input type="number" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
+                              placeholder="e.g. 8.4" min="0" max="54" step="0.1"
+                              className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 mb-0.5 block">GHIN #</label>
+                            <input value={rosterForm.ghin} onChange={(e) => setRosterForm((f) => ({ ...f, ghin: e.target.value }))}
+                              placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-mono" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 mb-0.5 block">Email</label>
+                            <input type="email" value={rosterForm.email} onChange={(e) => setRosterForm((f) => ({ ...f, email: e.target.value }))}
+                              placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                          </div>
+                        </div>
+                        <button type="button" onClick={handleSaveMasterRosterPlayer} disabled={rosterPending || !rosterForm.name.trim()}
+                          className="w-full py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 mt-1" style={{ background: navy }}>
+                          {rosterPending ? 'Adding…' : '+ Add to Roster'}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </div>
         )}
