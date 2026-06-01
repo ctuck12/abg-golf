@@ -6,7 +6,7 @@ type Team = { id: string; name: string }
 
 const navy = '#0f172a'
 
-export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug }: { teams: Team[]; onClose: () => void; isGroup?: boolean; orgSlug: string }) {
+export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug, onBeforeNavigate }: { teams: Team[]; onClose: () => void; isGroup?: boolean; orgSlug: string; onBeforeNavigate?: () => Promise<void> }) {
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const [showPin, setShowPin] = useState(false)
@@ -26,6 +26,7 @@ export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug
       })
       const data = await res.json()
       if (data.success) {
+        if (onBeforeNavigate) await onBeforeNavigate()
         window.location.href = `/${orgSlug}/score/${data.teamId}`
       } else {
         setError(data.error ?? 'Login failed.')

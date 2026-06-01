@@ -377,11 +377,14 @@ export default function LeaderboardClient({
   const [traditionalGroupView, setTraditionalGroupView] = useState<Record<string, 'score' | 'points'>>({})
 
 
-  async function handleChangeTeam() {
-    await fetch('/api/team-logout', { method: 'POST', credentials: 'include' })
-    setScorecardTeamId(null)
+  function handleChangeTeam() {
     setShowOptions(false)
     setShowPin(true)
+  }
+
+  async function logoutCurrentTeam() {
+    await fetch('/api/team-logout', { method: 'POST', credentials: 'include' })
+    setScorecardTeamId(null)
   }
 
   async function handleSignOut() {
@@ -669,7 +672,7 @@ export default function LeaderboardClient({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
-      {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} isGroup={isDaytona || isTraditional} orgSlug={orgSlug} />}
+      {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} isGroup={isDaytona || isTraditional} orgSlug={orgSlug} onBeforeNavigate={scorecardTeamId ? logoutCurrentTeam : undefined} />}
 
       {showOptions && (
         <div
@@ -690,7 +693,7 @@ export default function LeaderboardClient({
                   </a>
                   {scorecardTeamId && (
                     <button onClick={handleChangeTeam} className="w-full py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
-                      Change Team
+                      Enter New PIN
                     </button>
                   )}
                 </>

@@ -372,10 +372,39 @@ export default function ScoreEntry({
   const [showMatchupResultsModal, setShowMatchupResultsModal] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  const [showEnterPinModal, setShowEnterPinModal] = useState(false)
+  const [pinTeams, setPinTeams] = useState<{ id: string; name: string }[]>([])
+  const [pinTeamId, setPinTeamId] = useState('')
+  const [pinValue, setPinValue] = useState('')
+  const [showPinValue, setShowPinValue] = useState(false)
+  const [pinError, setPinError] = useState('')
+  const [pinPending, setPinPending] = useState(false)
 
-  async function handleChangeTeam() {
-    await fetch('/api/team-logout', { method: 'POST', credentials: 'include' })
-    window.location.href = `/${orgSlug}`
+  async function openEnterPinModal() {
+    setShowOptions(false)
+    setPinTeamId(''); setPinValue(''); setPinError(''); setShowPinValue(false)
+    setShowEnterPinModal(true)
+    if (pinTeams.length === 0) {
+      const { data } = await supabase.from('teams').select('id, name').eq('round_id', roundId).order('name')
+      setPinTeams(data ?? [])
+    }
+  }
+
+  async function handleEnterPin(e: React.FormEvent) {
+    e.preventDefault()
+    setPinError(''); setPinPending(true)
+    try {
+      const res = await fetch('/api/team-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: pinTeamId, pin: pinValue }),
+      })
+      const data = await res.json()
+      if (!data.success) { setPinError(data.error ?? 'Incorrect PIN. Try again.'); return }
+      await fetch('/api/team-logout', { method: 'POST', credentials: 'include' })
+      window.location.href = `/${orgSlug}/score/${data.teamId}`
+    } catch { setPinError('Network error. Please try again.') }
+    finally { setPinPending(false) }
   }
 
   async function handleSignOut() {
@@ -697,8 +726,8 @@ export default function ScoreEntry({
                   <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
                     Admin Hub
                   </a>
-                  <button onClick={handleChangeTeam} className="w-full py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
-                    Change Team
+                  <button onClick={openEnterPinModal} className="w-full py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+                    Enter New PIN
                   </button>
                 </>
               ) : (
@@ -725,6 +754,51 @@ export default function ScoreEntry({
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enter New PIN modal */}
+      {showEnterPinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => !pinPending && setShowEnterPinModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900">Enter New PIN</h2>
+              <button onClick={() => setShowEnterPinModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <form onSubmit={handleEnterPin} className="space-y-3">
+              {pinError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{pinError}</p>}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Team</label>
+                <select value={pinTeamId} onChange={(e) => setPinTeamId(e.target.value)} required className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none">
+                  <option value="" disabled>Select your team…</option>
+                  {pinTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Team PIN</label>
+                <div className="relative">
+                  <input
+                    type={showPinValue ? 'text' : 'password'}
+                    value={pinValue}
+                    onChange={(e) => setPinValue(e.target.value)}
+                    inputMode="numeric"
+                    maxLength={4}
+                    required
+                    placeholder="4-digit PIN"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-10 text-gray-900 text-sm focus:outline-none"
+                  />
+                  <button type="button" tabIndex={-1} onClick={() => setShowPinValue(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                    {showPinValue
+                      ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'1rem',height:'1rem'}}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      : <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:'1rem',height:'1rem'}}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+                  </button>
+                </div>
+              </div>
+              <button type="submit" disabled={pinPending} className="w-full text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-60 transition active:scale-95" style={{ background: navy }}>
+                {pinPending ? 'Verifying…' : 'Open Scorecard'}
+              </button>
+            </form>
           </div>
         </div>
       )}
