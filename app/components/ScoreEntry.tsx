@@ -380,7 +380,7 @@ export default function ScoreEntry({
 
   async function handleSignOut() {
     await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
-    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
+    window.location.href = isMaster ? '/master/dashboard' : '/'
   }
 
   // First hole that hasn't been saved yet — holes beyond this cannot be opened

@@ -71,7 +71,7 @@ export default function ScorecardViewer({
 
   async function handleSignOut() {
     await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
-    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
+    window.location.href = isMaster ? '/master/dashboard' : '/'
   }
   const isDaytona = format === 'daytona'
   const isFlares = daytonaVariant === '5man-flares'

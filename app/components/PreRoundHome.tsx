@@ -61,7 +61,7 @@ export default function PreRoundHome({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orgId }),
     })
-    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
+    window.location.href = isMaster ? '/master/dashboard' : '/'
   }
 
   return (

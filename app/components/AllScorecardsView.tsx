@@ -62,7 +62,7 @@ export default function AllScorecardsView({
 
   async function handleSignOut() {
     await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
-    window.location.href = isMaster ? '/master/dashboard' : `/${orgSlug}`
+    window.location.href = isMaster ? '/master/dashboard' : '/'
   }
   const is5Man = daytonaVariant.startsWith('5man')
   const isFlares = daytonaVariant === '5man-flares'
