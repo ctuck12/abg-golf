@@ -188,9 +188,11 @@ export async function addTeam(_prev: unknown, formData: FormData) {
   if (!/^\d{4}$/.test(pin)) return { error: 'PIN must be exactly 4 digits.' }
 
   const daytonaVariant = (formData.get('daytona_variant') as string) || null
+  const bankerSideGame = formData.get('banker_side_game') === 'true'
+  const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
 
   const supabase = createServerClient()
-  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant })
+  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null })
   if (error) return { error: error.code === '23505' ? 'A team with that name already exists.' : error.message }
   return { success: true }
 }
@@ -215,8 +217,11 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
   if (!teamId || !name) return { error: 'Group name required.' }
   if (pin && !/^\d{4}$/.test(pin)) return { error: 'PIN must be exactly 4 digits.' }
 
+  const bankerSideGame = formData.get('banker_side_game') === 'true'
+  const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
+
   const supabase = createServerClient()
-  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant }
+  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null }
   if (pin) updates.pin = pin
 
   const { error } = await supabase.from('teams').update(updates).eq('id', teamId)

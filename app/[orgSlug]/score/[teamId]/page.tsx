@@ -20,7 +20,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
 
   const [{ data: orgRow }, { data: team }] = await Promise.all([
     sb.from('organizations').select('name').eq('id', orgId).single(),
-    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant').eq('id', teamId).single(),
+    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant, banker_side_game, banker_side_game_min_bet').eq('id', teamId).single(),
   ])
 
   if (!team) redirect(`/${orgSlug}`)
@@ -35,8 +35,11 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
 
   const isDaytona = (round.format ?? 'standard') === 'daytona'
   const isTraditional = (round.format ?? 'standard') === 'traditional'
+  const isStandard = (round.format ?? 'standard') === 'standard'
   const teamDaytonaRaw = (team as { daytona_variant?: string | null }).daytona_variant ?? null
-  const isDaytonaSideGame = isTraditional && !!teamDaytonaRaw
+  const isDaytonaSideGame = (isTraditional || isStandard) && !!teamDaytonaRaw
+  const teamBankerSideGame = !!(team as { banker_side_game?: boolean }).banker_side_game
+  const teamBankerMinBet = (team as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
   const [parsedDaytonaVariant, parsedPayoutStr] = teamDaytonaRaw?.includes('|')
     ? teamDaytonaRaw.split('|') : [teamDaytonaRaw ?? '4man', null]
   const sideGamePayout = parsedPayoutStr ? (parseFloat(parsedPayoutStr) || 0) : 0
@@ -114,7 +117,8 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       autoHandicap={round.auto_handicap ?? false}
       allRoundPlayerHandicaps={allRoundPlayerHandicaps}
       initialHoleStrokes={initialHoleStrokes}
-      bankerMinBet={round.banker_min_bet ?? 2}
+      bankerMinBet={teamBankerSideGame ? teamBankerMinBet : (round.banker_min_bet ?? 2)}
+      bankerSideGame={teamBankerSideGame}
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}
     />

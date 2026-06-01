@@ -47,7 +47,7 @@ type Round = { id: string; name: string; date: string; course: string; balls_cou
 type PlayingGroup = { id: string; name: string; pin: string }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
-type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null }
+type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -498,6 +498,10 @@ export default function AdminDashboard({
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
   const [newTeamDaytonaEnabled, setNewTeamDaytonaEnabled] = useState(false)
   const [newTeamDaytonaPayout, setNewTeamDaytonaPayout] = useState('')
+  const [newTeamBankerEnabled, setNewTeamBankerEnabled] = useState(false)
+  const [newTeamBankerMinBet, setNewTeamBankerMinBet] = useState('2')
+  const [editBankerEnabled, setEditBankerEnabled] = useState(false)
+  const [editBankerMinBet, setEditBankerMinBet] = useState('2')
   // Roster state
   const [liveRoster, setLiveRoster] = useState<RosterPlayer[]>(roster)
   const [showRoster, setShowRoster] = useState(false)
@@ -549,6 +553,8 @@ export default function AdminDashboard({
       setNewTeamSubVariant('')
       setNewTeamDaytonaEnabled(false)
       setNewTeamDaytonaPayout('')
+      setNewTeamBankerEnabled(false)
+      setNewTeamBankerMinBet('2')
       setShowAddTeamForm(false)
       setShowAddTeamSuccess(true)
       const t = setTimeout(() => setShowAddTeamSuccess(false), 5000)
@@ -698,6 +704,7 @@ export default function AdminDashboard({
   const ballsCount = round?.balls_count ?? 3
   const isDaytona = round?.format === 'daytona'
   const isTraditional = round?.format === 'traditional'
+  const isStandard = round?.format === 'standard'
   const roundHoleCount = holes.length  // 9 or 18
   const roundStartHole = holes.length > 0 ? holes[0].hole_number : 1
   const is9HoleRound = (isDaytona || isTraditional) && roundHoleCount === 9
@@ -1814,8 +1821,9 @@ export default function AdminDashboard({
                           } />
                         </div>
                       )}
-                      {isTraditional && (
+                      {(isTraditional || isStandard) && (
                         <div className="space-y-2">
+                          {/* Daytona Side Game */}
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                             <button type="button"
@@ -1844,11 +1852,8 @@ export default function AdminDashboard({
                               </div>
                               <div className="flex items-center gap-2">
                                 <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
-                                <input
-                                  type="number" min="0" step="0.25"
-                                  placeholder="e.g. 0.25"
-                                  value={newTeamDaytonaPayout}
-                                  onChange={(e) => setNewTeamDaytonaPayout(e.target.value)}
+                                <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
+                                  value={newTeamDaytonaPayout} onChange={(e) => setNewTeamDaytonaPayout(e.target.value)}
                                   onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
                                   className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                               </div>
@@ -1858,6 +1863,25 @@ export default function AdminDashboard({
                               } />
                             </div>
                           )}
+                          {/* Banker Side Game */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
+                            <button type="button"
+                              onClick={() => setNewTeamBankerEnabled(v => !v)}
+                              className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                              {newTeamBankerEnabled ? 'On' : 'Off'}
+                            </button>
+                          </div>
+                          {newTeamBankerEnabled && (
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
+                              <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
+                                value={newTeamBankerMinBet} onChange={(e) => setNewTeamBankerMinBet(e.target.value)}
+                                className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                            </div>
+                          )}
+                          <input type="hidden" name="banker_side_game" value={newTeamBankerEnabled ? 'true' : 'false'} />
+                          {newTeamBankerEnabled && <input type="hidden" name="banker_side_game_min_bet" value={newTeamBankerMinBet} />}
                         </div>
                       )}
                       <div className="flex gap-2">
@@ -1898,8 +1922,9 @@ export default function AdminDashboard({
                               <input type="text" name="pin" value={editPin} onChange={(e) => setEditPin(e.target.value)} placeholder="PIN" maxLength={4} inputMode="numeric"
                                 className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
                             </div>
-                            {isTraditional && (
+                            {(isTraditional || isStandard) && (
                               <div className="space-y-2">
+                                {/* Daytona Side Game */}
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                   <button type="button"
@@ -1939,6 +1964,25 @@ export default function AdminDashboard({
                                   editDaytonaEnabled && editDaytonaType === '4' ? `4man|${editDaytonaPayout || '0'}` :
                                   editDaytonaEnabled && editDaytonaType === '5' ? `5man-${editDaytonaSubVariant || 'normal'}|${editDaytonaPayout || '0'}` : ''
                                 } />
+                                {/* Banker Side Game */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
+                                  <button type="button"
+                                    onClick={() => setEditBankerEnabled(v => !v)}
+                                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                    {editBankerEnabled ? 'On' : 'Off'}
+                                  </button>
+                                </div>
+                                {editBankerEnabled && (
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
+                                    <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
+                                      value={editBankerMinBet} onChange={(e) => setEditBankerMinBet(e.target.value)}
+                                      className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                  </div>
+                                )}
+                                <input type="hidden" name="banker_side_game" value={editBankerEnabled ? 'true' : 'false'} />
+                                {editBankerEnabled && <input type="hidden" name="banker_side_game_min_bet" value={editBankerMinBet} />}
                               </div>
                             )}
                             <div className="flex gap-2">
@@ -2000,6 +2044,8 @@ export default function AdminDashboard({
                                 setEditDaytonaType(variant.startsWith('5man') ? '5' : variant === '4man' ? '4' : '')
                                 setEditDaytonaSubVariant(variant === '5man-flares' ? 'flares' : variant === '5man-normal' ? 'normal' : '')
                                 setEditDaytonaPayout(payout || '')
+                                setEditBankerEnabled(!!team.banker_side_game)
+                                setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
                               }}
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
                                 Edit

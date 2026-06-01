@@ -300,7 +300,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, initialBankerHoles = {}, initialBankerBets = {},
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {},
 }: {
   orgSlug: string
   orgId: string
@@ -326,6 +326,7 @@ export default function ScoreEntry({
   allRoundPlayerHandicaps?: Record<string, number | null>
   initialHoleStrokes?: Record<number, string[]>
   bankerMinBet?: number
+  bankerSideGame?: boolean
   initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
 }) {
@@ -382,7 +383,13 @@ export default function ScoreEntry({
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
   const [strokesPending, setStrokesPending] = useState(false)
 
-  const isBanker = format === 'banker'
+  const isBanker = format === 'banker' || bankerSideGame
+
+  function bankerMultiplier(net: number, par: number): number {
+    if (net <= par - 2) return 3  // eagle or better → 3×
+    if (net === par - 1) return 2  // birdie → 2×
+    return 1
+  }
   const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
   const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
 
@@ -415,8 +422,8 @@ export default function ScoreEntry({
         if (!bet || bet.baseBet <= 0) continue
         const effective = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
         let result = 0
-        if (playerNet < bankerNet) result = effective * (playerNet < hole.par ? 2 : 1)
-        else if (playerNet > bankerNet) result = -effective * (bankerNet < hole.par ? 2 : 1)
+        if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
+        else if (playerNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
         totals[p.id] = (totals[p.id] ?? 0) + result
         totals[bankerId] = (totals[bankerId] ?? 0) - result
       }
@@ -1756,8 +1763,8 @@ export default function ScoreEntry({
                                     const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
                                     const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
                                     let result = 0
-                                    if (playerNet < bankerNet) result = effective * (playerNet < hole.par ? 2 : 1)
-                                    else if (playerNet > bankerNet) result = -effective * (bankerNet < hole.par ? 2 : 1)
+                                    if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
+                                    else if (playerNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
                                     const label = result === 0 ? 'Push' : result > 0 ? `+$${result.toFixed(2)}` : `-$${Math.abs(result).toFixed(2)}`
                                     return (
                                       <div key={p.id} className="flex items-center justify-between text-xs">
