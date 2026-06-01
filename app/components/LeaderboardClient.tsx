@@ -1311,13 +1311,16 @@ export default function LeaderboardClient({
                 <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
                   {orgName}
                 </p>
-                {isAdmin
-                  ? <p className="text-xs font-bold uppercase tracking-widest"><span className="px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span></p>
-                  : scorecardTeamId && <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</p>}
                 <h1 className="text-lg font-bold leading-tight">{roundName}</h1>
                 <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
                   {roundCourse && `${roundCourse} · `}{formattedDate}
                 </p>
+                {(isAdmin || scorecardTeamId) && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
+                    {scorecardTeamId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                  </div>
+                )}
               </div>
               <div className="flex flex-col items-end gap-1.5 mt-0.5 flex-shrink-0">
                 {scorecardTeamId ? (
@@ -1357,11 +1360,16 @@ export default function LeaderboardClient({
               <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
                 Anything But Golf Group
               </p>
-              {isAdmin && <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Admin</p>}
               <h1 className="text-2xl font-bold leading-tight">{roundName}</h1>
               <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 {roundCourse && `${roundCourse} · `}{formattedDate}
               </p>
+              {(isAdmin || scorecardTeamId) && (
+                <div className="flex items-center justify-center gap-1.5 mt-1">
+                  {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
+                  {scorecardTeamId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                </div>
+              )}
               <div className="absolute right-0 top-0 flex flex-col items-end gap-1.5">
                 {scorecardTeamId ? (
                   <a href={`/${orgSlug}/score/${scorecardTeamId}`}

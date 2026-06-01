@@ -735,15 +735,16 @@ export default function ScoreEntry({
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
-              {isAdmin
-                ? <p className="text-xs font-bold uppercase tracking-wide"><span className="px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span></p>
-                : <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Scorer</p>}
               <h1 className="font-bold text-lg">
                 {team.name}
                 {daytonaVariant === '5man-flares' && isDaytonaSideGame && (
                   <span className="ml-1.5 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>(Flares)</span>
                 )}
               </h1>
+              <div className="flex items-center gap-1.5 mt-1">
+                {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button

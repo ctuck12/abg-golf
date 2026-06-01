@@ -261,13 +261,16 @@ export default function PlayerScorecard({
             <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>
               Player Scorecard
             </p>
-            {isAdmin
-              ? <p className="text-xs font-bold uppercase tracking-wide"><span className="px-2 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span></p>
-              : scorecardTeamId && <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#16a34a' }}>Scorer</p>}
             <h1 className="font-bold text-xl">{player.name}</h1>
             <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
               {teamName}
             </p>
+            {(isAdmin || scorecardTeamId) && (
+              <div className="flex items-center gap-1.5 mt-1">
+                {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
+                {scorecardTeamId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-1 flex-shrink-0">
             {scorecardTeamId ? (
