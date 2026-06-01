@@ -97,7 +97,8 @@ export async function createRound(_prev: unknown, formData: FormData) {
   const format = (formData.get('format') as string) || 'standard'
   const daytonaVariant = null
   const isBanker = format === 'banker'
-  const ballsCount = (format === 'daytona' || format === 'traditional' || isBanker) ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
+  const isHammer = format === 'hammer'
+  const ballsCount = (format === 'daytona' || format === 'traditional' || isBanker || isHammer) ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
   const includeTotal = (format !== 'daytona' && format !== 'traditional' && !isBanker) && formData.get('include_total') === 'true'
   const isNineHoleFormat = format === 'daytona' || format === 'traditional'
   const bankerMinBet = isBanker ? (parseFloat(formData.get('banker_min_bet') as string) || 2) : null
@@ -297,6 +298,59 @@ export async function updatePlayerHandicap(playerId: string, handicap: number | 
   const supabase = createServerClient()
   const { error } = await supabase.from('players').update({ handicap }).eq('id', playerId)
   if (error) return { error: error.message }
+  return { success: true }
+}
+
+// ── Hammer ────────────────────────────────────────────────────────────────────
+
+export async function createHammerMatchup(roundId: string, team1Id: string, team2Id: string, baseBet: number, autoHandicap: boolean) {
+  const supabase = createServerClient()
+  const { data, error } = await supabase.from('hammer_matchups')
+    .insert({ round_id: roundId, team1_id: team1Id, team2_id: team2Id, base_bet: baseBet, auto_handicap: autoHandicap })
+    .select('id').single()
+  if (error) return { error: error.message }
+  return { success: true, id: data.id }
+}
+
+export async function deleteHammerMatchup(matchupId: string) {
+  const supabase = createServerClient()
+  await supabase.from('hammer_matchups').delete().eq('id', matchupId)
+  return { success: true }
+}
+
+export async function saveHammerHole(
+  matchupId: string,
+  holeNumber: number,
+  state: { stake: number; lastHammerTeam: number | null; foldedTeam: number | null; preTeeUsed: boolean }
+) {
+  const supabase = createServerClient()
+  await supabase.from('hammer_holes').upsert(
+    { matchup_id: matchupId, hole_number: holeNumber, stake: state.stake, last_hammer_team: state.lastHammerTeam, folded_team: state.foldedTeam, pre_tee_used: state.preTeeUsed },
+    { onConflict: 'matchup_id,hole_number' }
+  )
+  return { success: true }
+}
+
+export async function submitHammerHoleScores(
+  matchupId: string,
+  holeNumber: number,
+  playerScores: { playerId: string; strokes: number }[]
+) {
+  const cookieStore = await cookies()
+  const supabase = createServerClient()
+  // Check auth for either team in the matchup
+  const { data: matchup } = await supabase.from('hammer_matchups').select('team1_id, team2_id').eq('id', matchupId).single()
+  if (!matchup) return { error: 'Matchup not found.' }
+  const hasAuth = cookieStore.get(`team_auth_${matchup.team1_id}`)?.value === 'true' ||
+                  cookieStore.get(`team_auth_${matchup.team2_id}`)?.value === 'true'
+  if (!hasAuth) return { error: 'Session expired. Please log in again.' }
+  for (const { playerId, strokes } of playerScores) {
+    if (strokes < 1 || strokes > 20) continue
+    await supabase.from('scores').upsert(
+      { player_id: playerId, hole_number: holeNumber, strokes },
+      { onConflict: 'player_id,hole_number' }
+    )
+  }
   return { success: true }
 }
 

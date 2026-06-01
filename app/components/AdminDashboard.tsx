@@ -17,6 +17,8 @@ import {
   updateRosterPlayer,
   deleteRosterPlayer,
   addRosterPlayerToTeam,
+  createHammerMatchup,
+  deleteHammerMatchup,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -47,6 +49,7 @@ type Round = { id: string; name: string; date: string; course: string; balls_cou
 type PlayingGroup = { id: string; name: string; pin: string }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
+type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
 type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
@@ -437,7 +440,7 @@ export default function AdminDashboard({
   orgSlug, orgId, orgName, isMaster = false,
   round, teams, players, holes, ballValues, scores, scorecardTeamId = null, dtAssignments = [],
   matchups = [], bestBallMatchups = [], initialHoleValues = {}, courses = [],
-  playingGroups = [], playingGroupPlayers = [], roster = [],
+  playingGroups = [], playingGroupPlayers = [], roster = [], hammerMatchups = [],
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
@@ -446,6 +449,7 @@ export default function AdminDashboard({
   playingGroups?: PlayingGroup[]
   playingGroupPlayers?: PlayingGroupPlayer[]
   roster?: RosterPlayer[]
+  hammerMatchups?: HammerMatchup[]
 }) {
   const router = useRouter()
   const [showPinModal, setShowPinModal] = useState(false)
@@ -511,6 +515,14 @@ export default function AdminDashboard({
   const [rosterError, setRosterError] = useState('')
   const [rosterPickerTeamId, setRosterPickerTeamId] = useState<string | null>(null)
   const [rosterSearch, setRosterSearch] = useState('')
+
+  const [liveHammerMatchups, setLiveHammerMatchups] = useState<HammerMatchup[]>(hammerMatchups)
+  const [newHammerTeam1, setNewHammerTeam1] = useState('')
+  const [newHammerTeam2, setNewHammerTeam2] = useState('')
+  const [newHammerBet, setNewHammerBet] = useState('1')
+  const [newHammerAutoHcp, setNewHammerAutoHcp] = useState(false)
+  const [hammerPending, setHammerPending] = useState(false)
+  const [hammerError, setHammerError] = useState('')
 
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
@@ -852,6 +864,20 @@ export default function AdminDashboard({
     const res = await addRosterPlayerToTeam(teamId, rosterPlayerId)
     if (res.error) { alert(res.error); return }
     setRosterPickerTeamId(null); router.refresh()
+  }
+
+  async function handleCreateHammerMatchup() {
+    if (!round || !newHammerTeam1 || !newHammerTeam2 || newHammerTeam1 === newHammerTeam2) { setHammerError('Select two different teams.'); return }
+    setHammerError(''); setHammerPending(true)
+    const res = await createHammerMatchup(round.id, newHammerTeam1, newHammerTeam2, parseFloat(newHammerBet) || 1, newHammerAutoHcp)
+    setHammerPending(false)
+    if (res.error) { setHammerError(res.error); return }
+    setLiveHammerMatchups((prev) => [...prev, { id: res.id!, team1_id: newHammerTeam1, team2_id: newHammerTeam2, base_bet: parseFloat(newHammerBet) || 1, auto_handicap: newHammerAutoHcp }])
+    setNewHammerTeam1(''); setNewHammerTeam2(''); setNewHammerBet('1'); setNewHammerAutoHcp(false)
+  }
+  async function handleDeleteHammerMatchup(id: string) {
+    await deleteHammerMatchup(id)
+    setLiveHammerMatchups((prev) => prev.filter((m) => m.id !== id))
   }
 
   async function handleToggleMixedGroups() {
@@ -1381,6 +1407,7 @@ export default function AdminDashboard({
                         <option value="daytona">Daytona</option>
                         <option value="traditional">Traditional</option>
                         <option value="banker">Banker</option>
+                        <option value="hammer">Hammer</option>
                       </select>
                     </div>
                   </div>
@@ -1672,6 +1699,69 @@ export default function AdminDashboard({
                     <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
                     <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Hammer Matchups (Standard + Traditional, and standalone Hammer format) ── */}
+            {round && (isStandard || isTraditional || round.format === 'hammer') && round.is_started && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+                <h3 className="font-semibold text-gray-900 text-sm">Hammer Matchups</h3>
+                {hammerError && <p className="text-xs text-red-500 bg-red-50 rounded px-3 py-2">{hammerError}</p>}
+
+                {liveHammerMatchups.map((m) => {
+                  const t1 = teams.find((t) => t.id === m.team1_id)
+                  const t2 = teams.find((t) => t.id === m.team2_id)
+                  return (
+                    <div key={m.id} className="flex items-center justify-between bg-orange-50 rounded-xl px-3 py-2.5 border border-orange-100">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{t1?.name ?? '?'} vs {t2?.name ?? '?'}</p>
+                        <p className="text-xs text-gray-500">Base bet ${m.base_bet}{m.auto_handicap ? ' · Auto HCP' : ''}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a href={`/${orgSlug}/score/hammer/${m.id}`} className="text-xs px-2.5 py-1 rounded-lg font-semibold text-white" style={{ background: '#ea580c' }}>Open</a>
+                        <button type="button" onClick={() => handleDeleteHammerMatchup(m.id)} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">New Hammer Matchup</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-0.5 block">Team 1</label>
+                      <select value={newHammerTeam1} onChange={(e) => setNewHammerTeam1(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none bg-white">
+                        <option value="" disabled>Select…</option>
+                        {teams.filter((t) => !t.is_admin).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-0.5 block">Team 2</label>
+                      <select value={newHammerTeam2} onChange={(e) => setNewHammerTeam2(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none bg-white">
+                        <option value="" disabled>Select…</option>
+                        {teams.filter((t) => !t.is_admin && t.id !== newHammerTeam1).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-0.5 block">Base Bet ($)</label>
+                      <input type="number" value={newHammerBet} onChange={(e) => setNewHammerBet(e.target.value)} min="0.5" step="0.5"
+                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                    </div>
+                    <div className="flex items-center gap-2 self-end pb-1.5">
+                      <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center cursor-pointer ${newHammerAutoHcp ? 'bg-green-500' : 'bg-gray-300'}`}
+                        onClick={() => setNewHammerAutoHcp((v) => !v)}>
+                        <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${newHammerAutoHcp ? 'translate-x-3' : 'translate-x-0'}`} />
+                      </div>
+                      <label className="text-xs text-gray-600 cursor-pointer" onClick={() => setNewHammerAutoHcp((v) => !v)}>Auto HCP</label>
+                    </div>
+                  </div>
+                  <button type="button" onClick={handleCreateHammerMatchup} disabled={hammerPending || !newHammerTeam1 || !newHammerTeam2}
+                    className="w-full py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#ea580c' }}>
+                    {hammerPending ? 'Creating…' : '+ Add Hammer Matchup'}
+                  </button>
                 </div>
               </div>
             )}

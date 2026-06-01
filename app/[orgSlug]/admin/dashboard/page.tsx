@@ -62,13 +62,14 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
     matchups = (fallback.data ?? []).map((m) => ({ ...m, press: [] }))
   }
 
-  const [{ data: courses }, { data: playingGroupsRaw }, { data: playingGroupPlayersRaw }, { data: rosterRaw }] = await Promise.all([
+  const [{ data: courses }, { data: playingGroupsRaw }, { data: playingGroupPlayersRaw }, { data: rosterRaw }, { data: hammerMatchupsRaw }] = await Promise.all([
     sb.from('courses').select('name, slug, pars').eq('is_active', true).order('name'),
     roundId ? sb.from('playing_groups').select('id, name, pin').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
     roundId ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id',
       (await sb.from('playing_groups').select('id').eq('round_id', roundId)).data?.map((g) => g.id) ?? []
     ) : Promise.resolve({ data: [] }),
     sb.from('org_players').select('id, name, ghin_number, handicap_index, email').eq('org_id', orgId).order('name'),
+    roundId ? sb.from('hammer_matchups').select('id, team1_id, team2_id, base_bet, auto_handicap').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
   ])
 
   return (
@@ -92,6 +93,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
       playingGroups={playingGroupsRaw ?? []}
       playingGroupPlayers={playingGroupPlayersRaw ?? []}
       roster={rosterRaw ?? []}
+      hammerMatchups={hammerMatchupsRaw ?? []}
     />
   )
 }

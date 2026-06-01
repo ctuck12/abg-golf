@@ -57,3 +57,27 @@ BEGIN
 END $$;
 
 -- NOTE: After running, change the default org passwords in Master Admin → Edit Group.
+
+-- Hammer format tables
+CREATE TABLE IF NOT EXISTS hammer_matchups (
+  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  round_id        UUID NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+  team1_id        UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  team2_id        UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  base_bet        NUMERIC(10,2) NOT NULL DEFAULT 1,
+  auto_handicap   BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_hammer_matchups_round_id ON hammer_matchups(round_id);
+
+CREATE TABLE IF NOT EXISTS hammer_holes (
+  id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  matchup_id        UUID NOT NULL REFERENCES hammer_matchups(id) ON DELETE CASCADE,
+  hole_number       INTEGER NOT NULL,
+  stake             NUMERIC(10,2) NOT NULL,
+  last_hammer_team  INTEGER,
+  folded_team       INTEGER,
+  pre_tee_used      BOOLEAN NOT NULL DEFAULT FALSE,
+  UNIQUE (matchup_id, hole_number)
+);
+CREATE INDEX IF NOT EXISTS idx_hammer_holes_matchup_id ON hammer_holes(matchup_id);
