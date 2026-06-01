@@ -1010,7 +1010,7 @@ export default function AdminDashboard({
                     <div>
                       <p className="text-sm font-medium text-gray-800">{rp.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        {rp.handicap_index != null && <span className="text-xs text-gray-500">HCP {rp.handicap_index}</span>}
+                        {rp.handicap_index != null && <span className="text-xs text-gray-500">HCP {rp.handicap_index < 0 ? `+${Math.abs(rp.handicap_index)}` : rp.handicap_index}</span>}
                         {rp.ghin_number && <span className="text-xs font-mono text-blue-500">GHIN {rp.ghin_number}</span>}
                       </div>
                     </div>
@@ -1260,7 +1260,7 @@ export default function AdminDashboard({
                               <div>
                                 <label className="text-xs text-gray-500 mb-0.5 block">Handicap</label>
                                 <input type="number" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
-                                  placeholder="e.g. 8.4" min="0" max="54" step="0.1"
+                                  placeholder="e.g. 8.4 or -2 for +2" min="-10" max="54" step="0.1"
                                   className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                               </div>
                               <div>
@@ -1289,7 +1289,7 @@ export default function AdminDashboard({
                               <p className="text-sm font-medium text-gray-800">{rp.name}</p>
                               <div className="flex items-center gap-2 flex-wrap mt-0.5">
                                 {rp.handicap_index != null && (
-                                  <span className="text-xs text-gray-500">HCP {rp.handicap_index}</span>
+                                  <span className="text-xs text-gray-500">HCP {rp.handicap_index < 0 ? `+${Math.abs(rp.handicap_index)}` : rp.handicap_index}</span>
                                 )}
                                 {rp.ghin_number && (
                                   <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">GHIN {rp.ghin_number}</span>
@@ -1323,7 +1323,7 @@ export default function AdminDashboard({
                       <div>
                         <label className="text-xs text-gray-500 mb-0.5 block">Handicap Index</label>
                         <input type="number" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
-                          placeholder="e.g. 8.4" min="0" max="54" step="0.1"
+                          placeholder="e.g. 8.4 or -2 for +2" min="-10" max="54" step="0.1"
                           className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                       </div>
                       <div>
