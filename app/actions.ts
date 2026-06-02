@@ -420,6 +420,10 @@ export async function addRosterPlayerToTeam(teamId: string, rosterPlayerId: stri
 
 export async function toggleMixedGroups(roundId: string, value: boolean) {
   const supabase = createServerClient()
+  if (value) {
+    // Clear any existing playing groups so each enable starts fresh
+    await supabase.from('playing_groups').delete().eq('round_id', roundId)
+  }
   const { error } = await supabase.from('rounds').update({ mixed_groups: value }).eq('id', roundId)
   if (error) return { error: error.message }
   return { success: true }

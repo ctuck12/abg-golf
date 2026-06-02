@@ -1044,6 +1044,10 @@ export default function AdminDashboard({
   async function handleToggleMixedGroups(value: boolean) {
     if (!round) return
     setMixedGroups(value)
+    if (value) {
+      setLivePlayingGroups([])
+      setLiveGroupPlayers([])
+    }
     await toggleMixedGroups(round.id, value)
     router.refresh()
   }
@@ -1109,11 +1113,22 @@ export default function AdminDashboard({
   const canStartRound = startMissingItems.length === 0
 
   // ── Setup wizard lock states ──────────────────────────────────────────────
-  // Only enforce locks during new-round setup (roundIsSettingUp). When live/complete,
-  // everything is fully editable.
+  // Sequential: each section must be saved before the next unlocks.
+  // When live/complete (round.is_started), everything is fully editable.
+  const live = !!(round?.is_started)
+  const setupBase = roundIsSettingUp && !createPending && !effectivePendingId
   const effectivePayoutSaved = payoutSaved || isTraditional   // Traditional has no payout step
-  const skinsAndPayoutEnabled = !!(round?.is_started) || (roundIsSettingUp && !createPending && !effectivePendingId)
-  const teamsAddEnabled = !!(round?.is_started) || (roundIsSettingUp && !createPending && !effectivePendingId && skinsSaved && effectivePayoutSaved)
+  const mixedGroupsSaved = !isStandard || mixedGroups !== null  // non-standard skips this step
+  // Step 1 — Payout: unlocks immediately after round creation
+  const payoutSectionEnabled = live || setupBase
+  // Step 2 — Skins: unlocks after payout saved
+  const skinsSectionEnabled = live || (setupBase && effectivePayoutSaved)
+  // Step 3 — Mixed Groups (standard only): unlocks after skins saved
+  const mixedGroupsSectionEnabled = live || (setupBase && skinsSaved)
+  // Step 4 — Teams: unlocks after payout + skins + mixed groups all saved
+  const teamsAddEnabled = live || (setupBase && skinsSaved && effectivePayoutSaved && mixedGroupsSaved)
+  // Legacy alias used in a few spots below
+  const skinsAndPayoutEnabled = payoutSectionEnabled
 
   // ── Player count requirements per format ──────────────────────────────────
   // Daytona 4-Man: exactly 4 · Daytona 5-Man: exactly 5 (per group's own type)
@@ -1130,11 +1145,12 @@ export default function AdminDashboard({
     return count >= (round?.balls_count ?? 3) && count <= 5
   })
 
-  const canActivate = roundIsSettingUp && skinsSaved && effectivePayoutSaved && teamsSaved && allTeamsMeetRequirement
+  const canActivate = roundIsSettingUp && skinsSaved && effectivePayoutSaved && mixedGroupsSaved && teamsSaved && allTeamsMeetRequirement
   const activateMissingItems: string[] = []
   if (roundIsSettingUp) {
-    if (!skinsSaved) activateMissingItems.push('Save Skins Settings')
     if (!effectivePayoutSaved) activateMissingItems.push('Save Payout Value')
+    if (!skinsSaved) activateMissingItems.push('Save Skins Settings')
+    if (isStandard && !mixedGroupsSaved) activateMissingItems.push('Save Mixed Groups setting')
     if (!teamsSaved) activateMissingItems.push((isDaytona || isTraditional) ? 'Save Group(s)' : 'Save Teams')
     if (teamsSaved && !allTeamsMeetRequirement) {
       if (isDaytona) {
@@ -1785,10 +1801,10 @@ export default function AdminDashboard({
 
             {/* ── Skins Game ── */}
             {round && (
-              <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {!skinsAndPayoutEnabled && roundIsSettingUp && (
+              <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {!skinsSectionEnabled && roundIsSettingUp && (
                   <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    Complete the round form above to unlock
+                    Save Payout Value above to unlock
                   </p>
                 )}
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
@@ -1931,7 +1947,12 @@ export default function AdminDashboard({
 
             {/* ── Mixed Groups (standard format only) ── */}
             {round && round.format === 'standard' && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+              <div className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {!mixedGroupsSectionEnabled && roundIsSettingUp && (
+                  <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
+                    Save Skins Settings above to unlock
+                  </p>
+                )}
                 <h3 className="font-semibold text-gray-900 text-sm">Mixed Groups</h3>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-2">Are playing groups different from ball-game teams?</label>
@@ -2079,7 +2100,7 @@ export default function AdminDashboard({
                 </div>
                 {!teamsAddEnabled && roundIsSettingUp && (
                   <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
-                    <p className="text-xs text-gray-400 text-center">Save skins and payout settings above to unlock</p>
+                    <p className="text-xs text-gray-400 text-center">Complete all sections above to unlock</p>
                   </div>
                 )}
 
