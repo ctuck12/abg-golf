@@ -3349,7 +3349,7 @@ export default function AdminDashboard({
                                       </div>
                                     ) : (
                                       <button type="button" onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? String(p.handicap) : '') }}
-                                        className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition w-20 text-center">
+                                        className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition w-16 text-center">
                                         {p.handicap != null ? (p.handicap < 0 ? `HCP +${Math.abs(p.handicap)}` : `HCP ${p.handicap}`) : 'HCP —'}
                                       </button>
                                     )}
