@@ -144,7 +144,7 @@ type PlayingGroup = { id: string; name: string; pin: string }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
-type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null }
+type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }
 type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -623,8 +623,10 @@ export default function AdminDashboard({
   const [newTeamDaytonaPayout, setNewTeamDaytonaPayout] = useState('')
   const [newTeamBankerEnabled, setNewTeamBankerEnabled] = useState(false)
   const [newTeamBankerMinBet, setNewTeamBankerMinBet] = useState('2')
+  const [newTeamAutoStrokes, setNewTeamAutoStrokes] = useState(false)
   const [editBankerEnabled, setEditBankerEnabled] = useState(false)
   const [editBankerMinBet, setEditBankerMinBet] = useState('2')
+  const [editAutoStrokes, setEditAutoStrokes] = useState(false)
   // Roster state
   const [liveRoster, setLiveRoster] = useState<RosterPlayer[]>(roster)
   const [showRoster, setShowRoster] = useState(false)
@@ -2743,65 +2745,86 @@ export default function AdminDashboard({
                       )}
                       {(isTraditional || isStandard) && (
                         <div className="space-y-2">
-                          {/* Daytona Side Game */}
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
-                            <button type="button"
-                              onClick={() => { setNewTeamDaytonaEnabled(v => !v); setNewTeamDaytonaType(''); setNewTeamSubVariant('') }}
-                              className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                              {newTeamDaytonaEnabled ? 'On' : 'Off'}
-                            </button>
-                          </div>
-                          {newTeamDaytonaEnabled && (
-                            <div className="space-y-2">
-                              <div className="flex gap-2">
-                                <select value={newTeamDaytonaType} onChange={(e) => { setNewTeamDaytonaType(e.target.value); setNewTeamSubVariant('') }}
-                                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                                  <option value="" disabled>Type…</option>
-                                  <option value="4">4-Man</option>
-                                  <option value="5">5-Man</option>
-                                </select>
-                                {newTeamDaytonaType === '5' && (
-                                  <select value={newTeamSubVariant} onChange={(e) => setNewTeamSubVariant(e.target.value)}
-                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                                    <option value="" disabled>Variant…</option>
-                                    <option value="normal">Normal</option>
-                                    <option value="flares">Flares</option>
-                                  </select>
-                                )}
-                              </div>
+                          {/* Daytona Side Game — hidden when Banker is On */}
+                          {!newTeamBankerEnabled && (
+                            <>
                               <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
-                                <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
-                                  value={newTeamDaytonaPayout} onChange={(e) => setNewTeamDaytonaPayout(e.target.value)}
-                                  onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
-                                  className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                                <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
+                                <button type="button"
+                                  onClick={() => { setNewTeamDaytonaEnabled(v => !v); setNewTeamDaytonaType(''); setNewTeamSubVariant(''); setNewTeamAutoStrokes(false) }}
+                                  className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                  {newTeamDaytonaEnabled ? 'On' : 'Off'}
+                                </button>
                               </div>
-                              <input type="hidden" name="daytona_variant" value={
-                                newTeamDaytonaType === '4' ? `4man|${newTeamDaytonaPayout || '0'}` :
-                                newTeamDaytonaType === '5' ? `5man-${newTeamSubVariant || 'normal'}|${newTeamDaytonaPayout || '0'}` : ''
-                              } />
-                            </div>
+                              {newTeamDaytonaEnabled && (
+                                <div className="space-y-2">
+                                  <div className="flex gap-2">
+                                    <select value={newTeamDaytonaType} onChange={(e) => { setNewTeamDaytonaType(e.target.value); setNewTeamSubVariant('') }}
+                                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                      <option value="" disabled>Type…</option>
+                                      <option value="4">4-Man</option>
+                                      <option value="5">5-Man</option>
+                                    </select>
+                                    {newTeamDaytonaType === '5' && (
+                                      <select value={newTeamSubVariant} onChange={(e) => setNewTeamSubVariant(e.target.value)}
+                                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                        <option value="" disabled>Variant…</option>
+                                        <option value="normal">Normal</option>
+                                        <option value="flares">Flares</option>
+                                      </select>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
+                                    <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
+                                      value={newTeamDaytonaPayout} onChange={(e) => setNewTeamDaytonaPayout(e.target.value)}
+                                      onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
+                                      className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                                  </div>
+                                  <input type="hidden" name="daytona_variant" value={
+                                    newTeamDaytonaType === '4' ? `4man|${newTeamDaytonaPayout || '0'}` :
+                                    newTeamDaytonaType === '5' ? `5man-${newTeamSubVariant || 'normal'}|${newTeamDaytonaPayout || '0'}` : ''
+                                  } />
+                                </div>
+                              )}
+                            </>
                           )}
-                          {/* Banker Side Game */}
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
-                            <button type="button"
-                              onClick={() => setNewTeamBankerEnabled(v => !v)}
-                              className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                              {newTeamBankerEnabled ? 'On' : 'Off'}
-                            </button>
-                          </div>
-                          {newTeamBankerEnabled && (
-                            <div className="flex items-center gap-2">
-                              <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
-                              <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
-                                value={newTeamBankerMinBet} onChange={(e) => setNewTeamBankerMinBet(e.target.value)}
-                                className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-                            </div>
+                          {/* Banker Side Game — hidden when Daytona is On */}
+                          {!newTeamDaytonaEnabled && (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
+                                <button type="button"
+                                  onClick={() => { setNewTeamBankerEnabled(v => !v); setNewTeamAutoStrokes(false) }}
+                                  className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                  {newTeamBankerEnabled ? 'On' : 'Off'}
+                                </button>
+                              </div>
+                              {newTeamBankerEnabled && (
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
+                                  <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
+                                    value={newTeamBankerMinBet} onChange={(e) => setNewTeamBankerMinBet(e.target.value)}
+                                    className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                                </div>
+                              )}
+                            </>
                           )}
                           <input type="hidden" name="banker_side_game" value={newTeamBankerEnabled ? 'true' : 'false'} />
                           {newTeamBankerEnabled && <input type="hidden" name="banker_side_game_min_bet" value={newTeamBankerMinBet} />}
+                          {/* Auto Strokes — shown when either side game is On */}
+                          {(newTeamDaytonaEnabled || newTeamBankerEnabled) && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <span className="text-xs font-medium text-gray-600">Auto Strokes</span>
+                              <button type="button"
+                                onClick={() => setNewTeamAutoStrokes(v => !v)}
+                                className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamAutoStrokes ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                {newTeamAutoStrokes ? 'On' : 'Off'}
+                              </button>
+                              <span className="text-xs text-gray-400">Auto-calculate strokes from player handicaps</span>
+                            </div>
+                          )}
+                          <input type="hidden" name="auto_strokes" value={(newTeamDaytonaEnabled || newTeamBankerEnabled) && newTeamAutoStrokes ? 'true' : 'false'} />
                         </div>
                       )}
                       <div className="flex gap-2">
@@ -2848,65 +2871,86 @@ export default function AdminDashboard({
                             </div>
                             {(isTraditional || isStandard) && (
                               <div className="space-y-2">
-                                {/* Daytona Side Game */}
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
-                                  <button type="button"
-                                    onClick={() => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout('') }}
-                                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                                    {editDaytonaEnabled ? 'On' : 'Off'}
-                                  </button>
-                                </div>
-                                {editDaytonaEnabled && (
-                                  <div className="space-y-2">
-                                    <div className="flex gap-2">
-                                      <select value={editDaytonaType} onChange={(e) => { setEditDaytonaType(e.target.value); setEditDaytonaSubVariant('') }}
-                                        className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
-                                        <option value="" disabled>Type…</option>
-                                        <option value="4">4-Man</option>
-                                        <option value="5">5-Man</option>
-                                      </select>
-                                      {editDaytonaType === '5' && (
-                                        <select value={editDaytonaSubVariant} onChange={(e) => setEditDaytonaSubVariant(e.target.value)}
-                                          className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
-                                          <option value="" disabled>Variant…</option>
-                                          <option value="normal">Normal</option>
-                                          <option value="flares">Flares</option>
-                                        </select>
-                                      )}
-                                    </div>
+                                {/* Daytona Side Game — hidden when Banker is On */}
+                                {!editBankerEnabled && (
+                                  <>
                                     <div className="flex items-center gap-2">
-                                      <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
-                                      <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
-                                        value={editDaytonaPayout} onChange={(e) => setEditDaytonaPayout(e.target.value)}
-                                        onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
-                                        className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                      <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
+                                      <button type="button"
+                                        onClick={() => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditAutoStrokes(false) }}
+                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                        {editDaytonaEnabled ? 'On' : 'Off'}
+                                      </button>
                                     </div>
-                                  </div>
+                                    {editDaytonaEnabled && (
+                                      <div className="space-y-2">
+                                        <div className="flex gap-2">
+                                          <select value={editDaytonaType} onChange={(e) => { setEditDaytonaType(e.target.value); setEditDaytonaSubVariant('') }}
+                                            className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                            <option value="" disabled>Type…</option>
+                                            <option value="4">4-Man</option>
+                                            <option value="5">5-Man</option>
+                                          </select>
+                                          {editDaytonaType === '5' && (
+                                            <select value={editDaytonaSubVariant} onChange={(e) => setEditDaytonaSubVariant(e.target.value)}
+                                              className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                              <option value="" disabled>Variant…</option>
+                                              <option value="normal">Normal</option>
+                                              <option value="flares">Flares</option>
+                                            </select>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
+                                          <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
+                                            value={editDaytonaPayout} onChange={(e) => setEditDaytonaPayout(e.target.value)}
+                                            onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
+                                            className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
                                 )}
                                 <input type="hidden" name="daytona_variant" value={
                                   editDaytonaEnabled && editDaytonaType === '4' ? `4man|${editDaytonaPayout || '0'}` :
                                   editDaytonaEnabled && editDaytonaType === '5' ? `5man-${editDaytonaSubVariant || 'normal'}|${editDaytonaPayout || '0'}` : ''
                                 } />
-                                {/* Banker Side Game */}
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
-                                  <button type="button"
-                                    onClick={() => setEditBankerEnabled(v => !v)}
-                                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                                    {editBankerEnabled ? 'On' : 'Off'}
-                                  </button>
-                                </div>
-                                {editBankerEnabled && (
-                                  <div className="flex items-center gap-2">
-                                    <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
-                                    <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
-                                      value={editBankerMinBet} onChange={(e) => setEditBankerMinBet(e.target.value)}
-                                      className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                                  </div>
+                                {/* Banker Side Game — hidden when Daytona is On */}
+                                {!editDaytonaEnabled && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
+                                      <button type="button"
+                                        onClick={() => { setEditBankerEnabled(v => !v); setEditAutoStrokes(false) }}
+                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                        {editBankerEnabled ? 'On' : 'Off'}
+                                      </button>
+                                    </div>
+                                    {editBankerEnabled && (
+                                      <div className="flex items-center gap-2">
+                                        <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
+                                        <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
+                                          value={editBankerMinBet} onChange={(e) => setEditBankerMinBet(e.target.value)}
+                                          className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                      </div>
+                                    )}
+                                  </>
                                 )}
                                 <input type="hidden" name="banker_side_game" value={editBankerEnabled ? 'true' : 'false'} />
                                 {editBankerEnabled && <input type="hidden" name="banker_side_game_min_bet" value={editBankerMinBet} />}
+                                {/* Auto Strokes — shown when either side game is On */}
+                                {(editDaytonaEnabled || editBankerEnabled) && (
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <span className="text-xs font-medium text-gray-600">Auto Strokes</span>
+                                    <button type="button"
+                                      onClick={() => setEditAutoStrokes(v => !v)}
+                                      className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editAutoStrokes ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                      {editAutoStrokes ? 'On' : 'Off'}
+                                    </button>
+                                    <span className="text-xs text-gray-400">Auto-calculate strokes from player handicaps</span>
+                                  </div>
+                                )}
+                                <input type="hidden" name="auto_strokes" value={(editDaytonaEnabled || editBankerEnabled) && editAutoStrokes ? 'true' : 'false'} />
                               </div>
                             )}
                             <div className="flex gap-2">
@@ -2970,6 +3014,7 @@ export default function AdminDashboard({
                                 setEditDaytonaPayout(payout || '')
                                 setEditBankerEnabled(!!team.banker_side_game)
                                 setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
+                                setEditAutoStrokes(!!team.auto_strokes)
                               }}
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
                                 Edit

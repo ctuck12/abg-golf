@@ -198,9 +198,10 @@ export async function addTeam(_prev: unknown, formData: FormData) {
   const daytonaVariant = (formData.get('daytona_variant') as string) || null
   const bankerSideGame = formData.get('banker_side_game') === 'true'
   const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
+  const autoStrokes = formData.get('auto_strokes') === 'true'
 
   const supabase = createServerClient()
-  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null })
+  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes })
   if (error) return { error: error.code === '23505' ? 'A team with that name already exists.' : error.message }
   return { success: true }
 }
@@ -227,9 +228,10 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
 
   const bankerSideGame = formData.get('banker_side_game') === 'true'
   const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
+  const autoStrokes = formData.get('auto_strokes') === 'true'
 
   const supabase = createServerClient()
-  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null }
+  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes }
   if (pin) updates.pin = pin
 
   const { error } = await supabase.from('teams').update(updates).eq('id', teamId)

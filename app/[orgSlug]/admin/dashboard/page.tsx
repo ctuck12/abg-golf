@@ -31,7 +31,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const isDaytona = (round?.format ?? 'standard') === 'daytona'
 
   const [teamsRes, holesRes, ballValuesRes] = await Promise.all([
-    roundId ? sb.from('teams').select('id, name, pin, is_admin, daytona_variant, banker_side_game, banker_side_game_min_bet').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
+    roundId ? sb.from('teams').select('id, name, pin, is_admin, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
     roundId ? sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', roundId).order('hole_number') : Promise.resolve({ data: [] }),
     roundId ? sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number') : Promise.resolve({ data: [] }),
   ])

@@ -20,7 +20,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
 
   const [{ data: orgRow }, { data: team }] = await Promise.all([
     sb.from('organizations').select('name').eq('id', orgId).single(),
-    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant, banker_side_game, banker_side_game_min_bet').eq('id', teamId).single(),
+    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('id', teamId).single(),
   ])
 
   if (!team) redirect(`/${orgSlug}`)
@@ -40,6 +40,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
   const isDaytonaSideGame = (isTraditional || isStandard) && !!teamDaytonaRaw
   const teamBankerSideGame = !!(team as { banker_side_game?: boolean }).banker_side_game
   const teamBankerMinBet = (team as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
+  const teamAutoStrokes = !!(team as { auto_strokes?: boolean }).auto_strokes
   const [parsedDaytonaVariant, parsedPayoutStr] = teamDaytonaRaw?.includes('|')
     ? teamDaytonaRaw.split('|') : [teamDaytonaRaw ?? '4man', null]
   const sideGamePayout = parsedPayoutStr ? (parseFloat(parsedPayoutStr) || 0) : 0
@@ -114,8 +115,18 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       includeTotal={round.include_total ?? false}
       initialHoleValues={initialHoleValues}
       defaultDtPayoutValue={defaultDtPayoutValue}
-      autoHandicap={round.auto_handicap ?? false}
-      allRoundPlayerHandicaps={allRoundPlayerHandicaps}
+      autoHandicap={(isDaytonaSideGame || teamBankerSideGame) ? teamAutoStrokes : (round.auto_handicap ?? false)}
+      allRoundPlayerHandicaps={(() => {
+        // For side games, use team-only handicaps so strokes are relative to best player on the team
+        if (isDaytonaSideGame || teamBankerSideGame) {
+          const teamHcps: Record<string, number | null> = {}
+          for (const p of (players ?? []) as { id: string; handicap?: number | null }[]) {
+            teamHcps[p.id] = p.handicap ?? null
+          }
+          return teamHcps
+        }
+        return allRoundPlayerHandicaps
+      })()}
       initialHoleStrokes={initialHoleStrokes}
       bankerMinBet={teamBankerSideGame ? teamBankerMinBet : (round.banker_min_bet ?? 2)}
       bankerSideGame={teamBankerSideGame}
