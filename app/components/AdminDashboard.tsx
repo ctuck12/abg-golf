@@ -672,6 +672,10 @@ export default function AdminDashboard({
   const [mixedGroups, setMixedGroups] = useState<boolean | null>(
     round?.mixed_groups ?? null
   )
+  const [mixedGroupsAnswered, setMixedGroupsAnswered] = useState<boolean>(() => {
+    const ls = getSetupLS(round?.id)
+    return ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true)
+  })
   const [targetGroupCount, setTargetGroupCount] = useState(round?.playing_group_count ?? 0)
   const [groupCountSaved, setGroupCountSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
@@ -791,6 +795,7 @@ export default function AdminDashboard({
     setSkinsSaved(ls.skinsSaved ?? false)
     setTeamsSaved(ls.teamsSaved ?? false)
     setGroupCountSaved(ls.groupCountSaved ?? !!(round?.playing_group_count && round.playing_group_count > 0))
+    setMixedGroupsAnswered(ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true))
     setMixedGroups(round?.mixed_groups ?? null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round?.id])
@@ -1124,6 +1129,8 @@ export default function AdminDashboard({
   async function handleToggleMixedGroups(value: boolean) {
     if (!round) return
     setMixedGroups(value)
+    setMixedGroupsAnswered(true)
+    setSetupLS(round.id, 'mixedGroupsAnswered', true)
     if (value) {
       setLivePlayingGroups([])
       setLiveGroupPlayers([])
@@ -1208,7 +1215,7 @@ export default function AdminDashboard({
   const setupBase = roundIsSettingUp && !createPending && !effectivePendingId
   const effectivePayoutSaved = payoutSaved || isTraditional   // Traditional has no payout step
   // Mixed groups is "done" when: not standard, OR chose No, OR chose Yes + Set clicked + all groups created
-  const mixedGroupsSaved = !isStandard || (mixedGroups === false) || (mixedGroups === true && groupCountSaved && targetGroupCount > 0 && livePlayingGroups.length === targetGroupCount)
+  const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupCountSaved && targetGroupCount > 0 && livePlayingGroups.length === targetGroupCount)
   // Step 1 — Payout: unlocks immediately after round creation
   const payoutSectionEnabled = live || setupBase
   // Step 2 — Skins: unlocks after payout saved
