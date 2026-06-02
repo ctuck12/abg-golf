@@ -10,6 +10,7 @@ import {
   updatePlayerHandicap,
   updateRoundAutoHandicap,
   toggleMixedGroups,
+  setPlayingGroupCount,
   createPlayingGroup,
   deletePlayingGroup,
   setPlayerGroup,
@@ -20,6 +21,8 @@ import {
   createHammerMatchup,
   deleteHammerMatchup,
   bulkCreateTeams,
+  addManualPlayerToGroup,
+  removeManualPlayerFromGroup,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -136,13 +139,13 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null; mixed_groups?: boolean } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number } | null
 type PlayingGroup = { id: string; name: string; pin: string }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
 type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null }
-type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
+type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -530,6 +533,18 @@ function computeAdminMatchupPayouts(
   return { rows, net, involvedIds }
 }
 
+function getSetupLS(roundId: string | undefined): Record<string, boolean> {
+  if (!roundId || typeof window === 'undefined') return {}
+  try { return JSON.parse(localStorage.getItem(`abg_setup_${roundId}`) ?? '{}') } catch { return {} }
+}
+function setSetupLS(roundId: string | undefined, key: string, val: boolean) {
+  if (!roundId || typeof window === 'undefined') return
+  try {
+    const cur = getSetupLS(roundId)
+    localStorage.setItem(`abg_setup_${roundId}`, JSON.stringify({ ...cur, [key]: val }))
+  } catch {}
+}
+
 export default function AdminDashboard({
   orgSlug, orgId, orgName, isMaster = false,
   round, teams, players, holes, ballValues, scores, scorecardTeamId = null, dtAssignments = [],
@@ -554,6 +569,7 @@ export default function AdminDashboard({
   const [handicapDraft, setHandicapDraft] = useState('')
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [confirmRemoveTeamId, setConfirmRemoveTeamId] = useState<string | null>(null)
+  const [confirmRemovePlayerId, setConfirmRemovePlayerId] = useState<string | null>(null)
   const [confirmRemoveRosterId, setConfirmRemoveRosterId] = useState<string | null>(null)
   const [showAddRosterForm, setShowAddRosterForm] = useState(false)
   const [editName, setEditName] = useState('')
@@ -586,13 +602,20 @@ export default function AdminDashboard({
   const [valueSaved, setValueSaved] = useState(false)
   const [showStartTooltip, setShowStartTooltip] = useState(false)
   const [showAddTeamForm, setShowAddTeamForm] = useState(false)
-  const [skinsSaved, setSkinsSaved] = useState(false)
-  const [payoutSaved, setPayoutSaved] = useState(false)
-  const [teamsSaved, setTeamsSaved] = useState(false)
+  const [skinsSaved, setSkinsSaved] = useState<boolean>(() => {
+    const ls = getSetupLS(round?.id)
+    return ls.skinsSaved ?? false
+  })
+  const [payoutSaved, setPayoutSaved] = useState<boolean>(() => {
+    const ls = getSetupLS(round?.id)
+    return ls.payoutSaved ?? (ballValues.length > 0 || round?.format === 'traditional')
+  })
+  const [teamsSaved, setTeamsSaved] = useState<boolean>(() => {
+    const ls = getSetupLS(round?.id)
+    return ls.teamsSaved ?? (teams.length > 0)
+  })
   const [showActivateTooltip, setShowActivateTooltip] = useState(false)
   const [resetConfirmTeamId, setResetConfirmTeamId] = useState<string | null>(null)
-  const [showSkinsSuccess, setShowSkinsSuccess] = useState(false)
-  const [showBallSuccess, setShowBallSuccess] = useState(false)
   const [showAddTeamSuccess, setShowAddTeamSuccess] = useState(false)
   const [newTeamDaytonaType, setNewTeamDaytonaType] = useState('')
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
@@ -638,8 +661,13 @@ export default function AdminDashboard({
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
   const [mixedGroups, setMixedGroups] = useState<boolean | null>(
-    round && !round.is_started ? null : (round?.mixed_groups ?? false)
+    round?.mixed_groups ?? null
   )
+  const [targetGroupCount, setTargetGroupCount] = useState(round?.playing_group_count ?? 0)
+  const [groupCountSaved, setGroupCountSaved] = useState<boolean>(() => {
+    const ls = getSetupLS(round?.id)
+    return ls.groupCountSaved ?? !!(round?.playing_group_count && round.playing_group_count > 0)
+  })
   const [livePlayingGroups, setLivePlayingGroups] = useState<PlayingGroup[]>(playingGroups)
   const [liveGroupPlayers, setLiveGroupPlayers] = useState<PlayingGroupPlayer[]>(playingGroupPlayers)
   const [newGroupName, setNewGroupName] = useState('')
@@ -647,6 +675,13 @@ export default function AdminDashboard({
   const [newGroupPending, setNewGroupPending] = useState(false)
   const [showNewGroupPin, setShowNewGroupPin] = useState(false)
   const [groupError, setGroupError] = useState('')
+  const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null)
+  const [expandedGroupAssign, setExpandedGroupAssign] = useState<string | null>(null)
+  const [groupAssignSearch, setGroupAssignSearch] = useState('')
+  const [manualGroupName, setManualGroupName] = useState('')
+  const [manualGroupPending, setManualGroupPending] = useState(false)
+  const [liveManualPlayers, setLiveManualPlayers] = useState<Player[]>([])
+  const [skinsOverrides, setSkinsOverrides] = useState<Record<string, boolean>>({})
 
   const [createPending, setCreatePending] = useState(false)
   const [createError, setCreateError] = useState('')
@@ -697,27 +732,34 @@ export default function AdminDashboard({
     if (ballState?.success) {
       router.refresh()
       setPayoutSaved(true)
-      setShowBallSuccess(true)
+      setSetupLS(round?.id, 'payoutSaved', true)
     }
   }, [ballState])
   useEffect(() => {
     if (skinsState?.success) {
       router.refresh()
       setSkinsSaved(true)
-      setShowSkinsSuccess(true)
+      setSetupLS(round?.id, 'skinsSaved', true)
     }
   }, [skinsState])
 
   // When the active round changes (new round created + router.refresh() delivers new props),
   // sync local UI state so skins/ball values always reflect what's in the DB for the new round.
   useEffect(() => {
-    setSkinsEnabled(round && !round.is_started ? null : (round?.skins_enabled ?? false))
+    setSkinsEnabled(round?.skins_enabled ?? null)
     setSkinsAmount(round?.skins_amount ?? 0)
     setBallVals(
       ballValues.length > 0
         ? Object.fromEntries(ballValues.map((bv) => [bv.ball_number, bv.value_dollars]))
         : { 1: 0 }
     )
+    // Restore setup wizard progress from localStorage for the current round
+    const ls = getSetupLS(round?.id)
+    setPayoutSaved(ls.payoutSaved ?? (ballValues.length > 0 || round?.format === 'traditional'))
+    setSkinsSaved(ls.skinsSaved ?? false)
+    setTeamsSaved(ls.teamsSaved ?? false)
+    setGroupCountSaved(ls.groupCountSaved ?? !!(round?.playing_group_count && round.playing_group_count > 0))
+    setMixedGroups(round?.mixed_groups ?? null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round?.id])
 
@@ -808,7 +850,7 @@ export default function AdminDashboard({
     Object.fromEntries(ballValues.map((bv) => [bv.ball_number, bv.value_dollars]))
   )
   const [skinsEnabled, setSkinsEnabled] = useState<boolean | null>(
-    round && !round.is_started ? null : (round?.skins_enabled ?? false)
+    round?.skins_enabled ?? null
   )
   const [skinsAmount, setSkinsAmount] = useState(round?.skins_amount ?? 0)
 
@@ -816,6 +858,9 @@ export default function AdminDashboard({
   const [liveMatchups, setLiveMatchups] = useState(matchups)
   const [liveBestBallMatchups, setLiveBestBallMatchups] = useState(bestBallMatchups)
   const [liveScores, setLiveScores] = useState(scores)
+
+  // Exclude manual (team-less) group guests from all ball-game scoring
+  const teamPlayers = players.filter((p): p is Player & { team_id: string } => p.team_id !== null)
 
   const parTotal = Object.values(pars).reduce((a, b) => a + b, 0)
   const ballsCount = round?.balls_count ?? 3
@@ -827,35 +872,35 @@ export default function AdminDashboard({
   const is9HoleRound = (isDaytona || isTraditional) && roundHoleCount === 9
   const roundIncludeTotal = round?.include_total ?? false
   const numSegments = roundIncludeTotal ? 3 : 2          // Front + Back [+ Total]
-  const isComplete = players.length > 0 && holes.length > 0 && players.every((p) => liveScores.filter((s) => s.player_id === p.id).length === holes.length)
+  const isComplete = teamPlayers.length > 0 && holes.length > 0 && teamPlayers.every((p) => liveScores.filter((s) => s.player_id === p.id).length === holes.length)
 
   // Standard ball payouts
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
   const backHoles = holes.filter((h) => h.hole_number >= 10)
   const frontSummaries = !isDaytona ? new Map(teams.map((team) => {
-    const tp = players.filter((p) => p.team_id === team.id)
+    const tp = teamPlayers.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(frontHoles, tp.map((p) => p.id), liveScores, ballsCount)]
   })) : new Map()
   const backSummaries = !isDaytona ? new Map(teams.map((team) => {
-    const tp = players.filter((p) => p.team_id === team.id)
+    const tp = teamPlayers.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(backHoles, tp.map((p) => p.id), liveScores, ballsCount)]
   })) : new Map()
   const totalSummaries = (!isDaytona && roundIncludeTotal) ? new Map(teams.map((team) => {
-    const tp = players.filter((p) => p.team_id === team.id)
+    const tp = teamPlayers.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(holes, tp.map((p) => p.id), liveScores, ballsCount)]
   })) : undefined
 
   const perBallValue = ballVals[1] ?? 5
   const emptyPoolResult: ReturnType<typeof calculatePoolPayouts> = { results: [] as BallHalfResult[], playerNet: {} as Record<string, number>, potTotal: 0, perBallResult: 0, perPlayerContribution: 0, numDecidedResults: 0, settlements: [] }
   const poolResults = !isDaytona
-    ? calculatePoolPayouts(teams, players, frontSummaries, backSummaries, perBallValue, ballsCount, totalSummaries)
+    ? calculatePoolPayouts(teams, teamPlayers, frontSummaries, backSummaries, perBallValue, ballsCount, totalSummaries)
     : emptyPoolResult
   const ballResults = poolResults.results
 
   // Daytona Left/Right summaries per team
   const dtSummaries = isDaytona
     ? new Map(teams.map((team) => {
-        const teamPlayerIds = players.filter((p) => p.team_id === team.id).map((p) => p.id)
+        const teamPlayerIds = teamPlayers.filter((p) => p.team_id === team.id).map((p) => p.id)
         const teamAssignments = dtAssignments.filter((a) => teamPlayerIds.includes(a.player_id))
         return [team.id, computeDaytonaSidesSummary(holes, liveScores, teamAssignments)]
       }))
@@ -877,7 +922,10 @@ export default function AdminDashboard({
   )
 
   // Skins — declared before combinedDaytonaNet / combinedStandardNet which consume playerNet
-  const skinsParticipants = useMemo(() => players.filter((p) => p.skins_participant), [players])
+  const skinsParticipants = useMemo(
+    () => players.filter((p) => skinsOverrides[p.id] ?? p.skins_participant),
+    [players, skinsOverrides]
+  )
   const skinsResults = useMemo(
     () => skinsEnabled && skinsParticipants.length > 0
       ? computeSkinsResults(holes, liveScores, skinsParticipants, skinsAmount)
@@ -1047,6 +1095,9 @@ export default function AdminDashboard({
     if (value) {
       setLivePlayingGroups([])
       setLiveGroupPlayers([])
+      setTargetGroupCount(0)
+      setGroupCountSaved(false)
+      setSetupLS(round.id, 'groupCountSaved', false)
     }
     await toggleMixedGroups(round.id, value)
     router.refresh()
@@ -1054,6 +1105,9 @@ export default function AdminDashboard({
   async function handleCreateGroup() {
     if (!round || !newGroupName.trim() || !newGroupPin.trim()) return
     if (!/^\d{4}$/.test(newGroupPin)) { setGroupError('PIN must be exactly 4 digits.'); return }
+    if (livePlayingGroups.some(g => g.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
+      setGroupError('A group with that name already exists.'); return
+    }
     setGroupError(''); setNewGroupPending(true)
     const res = await createPlayingGroup(round.id, newGroupName.trim(), newGroupPin.trim())
     setNewGroupPending(false)
@@ -1088,9 +1142,10 @@ export default function AdminDashboard({
     setEditingHandicapId(null)
     router.refresh()
   }
-  async function handleToggleSkinsParticipant(playerId: string, current: boolean) {
-    await updatePlayerSkinsParticipation(playerId, !current)
-    router.refresh()
+  function handleToggleSkinsParticipant(playerId: string, current: boolean) {
+    const next = !current
+    setSkinsOverrides(prev => ({ ...prev, [playerId]: next }))
+    updatePlayerSkinsParticipation(playerId, next).then(() => router.refresh())
   }
   async function handleMovePlayer(playerId: string, direction: 'up' | 'down') {
     await movePlayer(playerId, direction)
@@ -1118,7 +1173,8 @@ export default function AdminDashboard({
   const live = !!(round?.is_started)
   const setupBase = roundIsSettingUp && !createPending && !effectivePendingId
   const effectivePayoutSaved = payoutSaved || isTraditional   // Traditional has no payout step
-  const mixedGroupsSaved = !isStandard || mixedGroups !== null  // non-standard skips this step
+  // Mixed groups is "done" when: not standard, OR chose No, OR chose Yes + Set clicked + all groups created
+  const mixedGroupsSaved = !isStandard || (mixedGroups === false) || (mixedGroups === true && groupCountSaved && targetGroupCount > 0 && livePlayingGroups.length === targetGroupCount)
   // Step 1 — Payout: unlocks immediately after round creation
   const payoutSectionEnabled = live || setupBase
   // Step 2 — Skins: unlocks after payout saved
@@ -1249,6 +1305,72 @@ export default function AdminDashboard({
       )}
       {/* ── Create Round confirmation modal is now rendered inside the <form> below ── */}
 
+      {/* ── Remove Team confirmation modal ── */}
+      {confirmRemoveTeamId && (() => {
+        const teamName = teams.find(t => t.id === confirmRemoveTeamId)?.name ?? 'this team'
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg font-bold">!</div>
+                <div>
+                  <h2 className="font-semibold text-gray-900 text-base leading-snug">Remove team?</h2>
+                  <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                    This will permanently remove <span className="font-semibold text-gray-800">{teamName}</span> and all its players. This cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setConfirmRemoveTeamId(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                  Cancel
+                </button>
+                <button type="button"
+                  onClick={async () => { const id = confirmRemoveTeamId; setConfirmRemoveTeamId(null); await handleDeleteTeam(id) }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                  style={{ background: '#dc2626' }}>
+                  Yes, Remove Team
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Remove Player confirmation modal ── */}
+      {confirmRemovePlayerId && (() => {
+        const playerName = players.find(p => p.id === confirmRemovePlayerId)?.name ?? 'this player'
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg font-bold">!</div>
+                <div>
+                  <h2 className="font-semibold text-gray-900 text-base leading-snug">Remove player?</h2>
+                  <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                    This will remove <span className="font-semibold text-gray-800">{playerName}</span> from the team and delete all their scores for this round. This cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setConfirmRemovePlayerId(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                  Cancel
+                </button>
+                <button type="button"
+                  onClick={async () => { const id = confirmRemovePlayerId; setConfirmRemovePlayerId(null); await handleDeletePlayer(id) }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                  style={{ background: '#dc2626' }}>
+                  Yes, Remove Player
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Reset Scores confirmation modal ── */}
       {resetConfirmTeamId && (() => {
         const teamName = teams.find(t => t.id === resetConfirmTeamId)?.name ?? 'this team'
@@ -1317,6 +1439,43 @@ export default function AdminDashboard({
                     const id = confirmRemoveRosterId
                     setConfirmRemoveRosterId(null)
                     await handleDeleteRosterPlayer(id)
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                  style={{ background: '#dc2626' }}>
+                  Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Remove Playing Group confirmation modal ── */}
+      {confirmRemoveGroupId && (() => {
+        const grpName = livePlayingGroups.find(g => g.id === confirmRemoveGroupId)?.name ?? 'this group'
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg font-bold">!</div>
+                <div>
+                  <h2 className="font-semibold text-gray-900 text-base leading-snug">Remove playing group?</h2>
+                  <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                    This will permanently remove <span className="font-semibold text-gray-800">{grpName}</span> and unassign all its players.
+                  </p>
+                </div>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setConfirmRemoveGroupId(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                  Cancel
+                </button>
+                <button type="button"
+                  onClick={async () => {
+                    const id = confirmRemoveGroupId
+                    setConfirmRemoveGroupId(null)
+                    await handleDeleteGroup(id)
                   }}
                   className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
                   style={{ background: '#dc2626' }}>
@@ -1770,7 +1929,7 @@ export default function AdminDashboard({
                 <form action={ballAction} className="space-y-3">
                   <input type="hidden" name="roundId" value={round.id} />
                   <input type="hidden" name="ballsCount" value={isDaytona ? 1 : round.balls_count} />
-                  {showBallSuccess && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Values saved!</p>}
+                  {payoutSaved && roundIsSettingUp && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Values saved!</p>}
                   {isDaytona ? (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Value Per Point ($)</label>
@@ -1812,7 +1971,7 @@ export default function AdminDashboard({
                   <input type="hidden" name="roundId" value={round.id} />
                   <input type="hidden" name="skins_enabled" value={String(skinsEnabled ?? false)} />
                   {skinsState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{skinsState.error}</p>}
-                  {showSkinsSuccess && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Skins settings saved!</p>}
+                  {skinsSaved && roundIsSettingUp && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Skins settings saved!</p>}
                   {/* Yes / No toggle */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-2">Is there a skins game?</label>
@@ -1983,81 +2142,223 @@ export default function AdminDashboard({
 
                 {mixedGroups && (
                   <div className="space-y-3 border-t border-gray-100 pt-3">
-                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Playing Groups</p>
-                    {groupError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1.5">{groupError}</p>}
-
-                    {/* Create group form */}
-                    <div className="flex gap-2 flex-wrap">
-                      <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-                        placeholder="Group name" className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                      <div className="relative">
-                        <input type={showNewGroupPin ? 'text' : 'password'} value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
-                          placeholder="4-digit PIN" maxLength={4} inputMode="numeric"
-                          className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 pr-8 text-sm focus:outline-none" />
-                        <button type="button" tabIndex={-1} onClick={() => setShowNewGroupPin(v => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-                          {showNewGroupPin ? '🙈' : '👁'}
+                    {/* Step 1: set number of groups */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Number of Playing Groups</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" min="1" max="20"
+                          value={targetGroupCount || ''}
+                          placeholder="e.g. 4"
+                          onChange={e => {
+                            setTargetGroupCount(Math.max(0, parseInt(e.target.value) || 0))
+                            setGroupCountSaved(false)
+                          }}
+                          className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          disabled={targetGroupCount === 0}
+                          onClick={async () => {
+                            if (round && targetGroupCount > 0) {
+                              await setPlayingGroupCount(round.id, targetGroupCount)
+                              setGroupCountSaved(true)
+                              setSetupLS(round.id, 'groupCountSaved', true)
+                            }
+                          }}
+                          className="px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition"
+                          style={{ background: navy }}>
+                          Set
                         </button>
+                        {groupCountSaved && targetGroupCount > 0 && (
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${livePlayingGroups.length === targetGroupCount ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {livePlayingGroups.length} / {targetGroupCount} added
+                          </span>
+                        )}
                       </div>
-                      <button type="button" onClick={handleCreateGroup} disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim()}
-                        className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
-                        + Add
-                      </button>
+                      {!groupCountSaved && (
+                        <p className="text-xs text-amber-700 mt-1.5">Enter the number of groups then click <strong>Set</strong> to continue.</p>
+                      )}
                     </div>
 
-                    {/* Group list */}
-                    {livePlayingGroups.map((g) => {
-                      const assignedPlayerIds = liveGroupPlayers.filter((gp) => gp.playing_group_id === g.id).map((gp) => gp.player_id)
-                      const assignedPlayers = players.filter((p) => assignedPlayerIds.includes(p.id))
+                    {/* Step 2: add groups (only after Set is clicked) */}
+                    {groupCountSaved && targetGroupCount > 0 && (
+                      <>
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Playing Groups</p>
+                        {groupError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1.5">{groupError}</p>}
+
+                        {/* Create group form — hidden when at capacity */}
+                        {livePlayingGroups.length < targetGroupCount ? (
+                          <div className="flex gap-2 flex-wrap">
+                            <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
+                              placeholder="Group name" className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                            <div className="relative">
+                              <input type={showNewGroupPin ? 'text' : 'password'} value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
+                                placeholder="4-digit PIN" maxLength={4} inputMode="numeric"
+                                className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 pr-8 text-sm focus:outline-none" />
+                              <button type="button" tabIndex={-1} onClick={() => setShowNewGroupPin(v => !v)}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                                {showNewGroupPin ? '🙈' : '👁'}
+                              </button>
+                            </div>
+                            <button type="button" onClick={handleCreateGroup} disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim()}
+                              className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
+                              + Add
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-green-700 bg-green-50 rounded px-3 py-2 font-medium">All {targetGroupCount} groups added ✓</p>
+                        )}
+                      </>
+                    )}
+
+                    {/* Group cards — each has inline player assignment */}
+                    {groupCountSaved && livePlayingGroups.map((g) => {
+                      const allKnownPlayers = [...players, ...liveManualPlayers]
+                      const assignedPlayerIds = new Set(liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).map(gp => gp.player_id))
+                      const assignedPlayers = allKnownPlayers.filter(p => assignedPlayerIds.has(p.id))
+                      const allAssignedIds = new Set(liveGroupPlayers.map(gp => gp.player_id))
+                      // Only show team players (non-null team_id) in the "assign from team" list
+                      const unassignedTeamPlayers = players.filter(p => p.team_id !== null && !allAssignedIds.has(p.id))
+                      const groupFull = assignedPlayers.length >= 5
+                      const isExpanded = expandedGroupAssign === g.id
                       return (
-                        <div key={g.id} className="bg-gray-50 rounded-xl border border-gray-200 p-3">
-                          <div className="flex items-center justify-between mb-2">
+                        <div key={g.id} className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-2.5">
+                          {/* Header */}
+                          <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold text-gray-800">{g.name}</p>
                               <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
                             </div>
-                            <button type="button" onClick={() => handleDeleteGroup(g.id)} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                            <button type="button" onClick={() => setConfirmRemoveGroupId(g.id)}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
                           </div>
+
+                          {/* Assigned player chips */}
                           <div className="flex flex-wrap gap-1.5">
                             {assignedPlayers.map((p) => (
-                              <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: '#dbeafe', color: '#1e40af' }}>
+                              <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
                                 {p.name}
-                                <button type="button" onClick={() => handleSetPlayerGroup(p.id, null)} className="ml-0.5 hover:text-red-600">×</button>
+                                {p.team_id === null && <span className="text-xs opacity-60">·guest</span>}
+                                <button type="button"
+                                  onClick={async () => {
+                                    setLiveGroupPlayers(prev => prev.filter(gp => gp.player_id !== p.id))
+                                    if (p.team_id === null) {
+                                      setLiveManualPlayers(prev => prev.filter(mp => mp.id !== p.id))
+                                      await removeManualPlayerFromGroup(p.id)
+                                    } else {
+                                      await setPlayerGroup(p.id, null)
+                                    }
+                                  }}
+                                  className="ml-0.5 hover:text-red-600 leading-none">×</button>
                               </span>
                             ))}
-                            {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned</p>}
+                            {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned yet</p>}
                           </div>
+
+                          {/* Inline add-player panel */}
+                          {!groupFull && (
+                            isExpanded ? (
+                              <div className="border border-gray-200 rounded-lg bg-white p-2.5 space-y-2">
+                                {/* Team players search */}
+                                <input
+                                  type="text"
+                                  placeholder="Search team players…"
+                                  value={groupAssignSearch}
+                                  onChange={e => setGroupAssignSearch(e.target.value)}
+                                  autoFocus
+                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                                />
+                                <div className="max-h-36 overflow-y-auto space-y-0.5">
+                                  {unassignedTeamPlayers
+                                    .filter(p => p.name.toLowerCase().includes(groupAssignSearch.toLowerCase()))
+                                    .map(p => {
+                                      const teamName = teams.find(t => t.id === p.team_id)?.name
+                                      return (
+                                        <button key={p.id} type="button"
+                                          onClick={() => handleSetPlayerGroup(p.id, g.id)}
+                                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-blue-50 text-left transition">
+                                          <div>
+                                            <span className="text-sm text-gray-800">{p.name}</span>
+                                            {teamName && <span className="text-xs text-gray-400 ml-1.5">{teamName}</span>}
+                                          </div>
+                                          <span className="text-xs text-blue-600 font-semibold flex-shrink-0">+ Add</span>
+                                        </button>
+                                      )
+                                    })}
+                                  {unassignedTeamPlayers.filter(p => p.name.toLowerCase().includes(groupAssignSearch.toLowerCase())).length === 0 && (
+                                    <p className="text-xs text-gray-400 text-center py-2">
+                                      {unassignedTeamPlayers.length === 0 ? 'All team players are assigned' : 'No matches'}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Manual add */}
+                                <div className="border-t border-gray-100 pt-2">
+                                  <p className="text-xs text-gray-500 mb-1.5">Or add guest manually:</p>
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Guest name"
+                                      value={manualGroupName}
+                                      onChange={e => setManualGroupName(e.target.value)}
+                                      onKeyDown={async e => {
+                                        if (e.key === 'Enter' && manualGroupName.trim()) {
+                                          setManualGroupPending(true)
+                                          const res = await addManualPlayerToGroup(g.id, manualGroupName.trim())
+                                          setManualGroupPending(false)
+                                          if (!res.error && res.id) {
+                                            const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false }
+                                            setLiveManualPlayers(prev => [...prev, newP])
+                                            setLiveGroupPlayers(prev => [...prev, { playing_group_id: g.id, player_id: res.id! }])
+                                            setManualGroupName('')
+                                          }
+                                        }
+                                      }}
+                                      className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={!manualGroupName.trim() || manualGroupPending}
+                                      onClick={async () => {
+                                        if (!manualGroupName.trim()) return
+                                        setManualGroupPending(true)
+                                        const res = await addManualPlayerToGroup(g.id, manualGroupName.trim())
+                                        setManualGroupPending(false)
+                                        if (!res.error && res.id) {
+                                          const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false }
+                                          setLiveManualPlayers(prev => [...prev, newP])
+                                          setLiveGroupPlayers(prev => [...prev, { playing_group_id: g.id, player_id: res.id! }])
+                                          setManualGroupName('')
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition"
+                                      style={{ background: navy }}>
+                                      {manualGroupPending ? '…' : 'Add'}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <button type="button"
+                                  onClick={() => { setExpandedGroupAssign(null); setGroupAssignSearch(''); setManualGroupName('') }}
+                                  className="text-xs text-gray-400 hover:text-gray-600">
+                                  Done
+                                </button>
+                              </div>
+                            ) : (
+                              <button type="button"
+                                onClick={() => { setExpandedGroupAssign(g.id); setGroupAssignSearch(''); setManualGroupName('') }}
+                                className="text-xs text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 font-medium transition">
+                                + Add Player
+                              </button>
+                            )
+                          )}
+                          {groupFull && (
+                            <p className="text-xs text-gray-400 italic">Group is full (5 players max)</p>
+                          )}
                         </div>
                       )
                     })}
-
-                    {/* Unassigned players */}
-                    {(() => {
-                      const assignedIds = new Set(liveGroupPlayers.map((gp) => gp.player_id))
-                      const unassigned = players.filter((p) => !assignedIds.has(p.id))
-                      if (unassigned.length === 0) return null
-                      return (
-                        <div className="bg-amber-50 rounded-xl border border-amber-200 p-3">
-                          <p className="text-xs font-semibold text-amber-700 mb-2">Unassigned Players — assign to a group:</p>
-                          <div className="space-y-1.5">
-                            {unassigned.map((p) => (
-                              <div key={p.id} className="flex items-center gap-2">
-                                <span className="text-sm text-gray-700 flex-1">{p.name}</span>
-                                <select defaultValue="" onChange={(e) => { if (e.target.value) handleSetPlayerGroup(p.id, e.target.value) }}
-                                  className="text-xs border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none">
-                                  <option value="" disabled>Assign to…</option>
-                                  {livePlayingGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                                </select>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    })()}
-
-                    {livePlayingGroups.length === 0 && (
-                      <p className="text-xs text-gray-400 text-center py-2">Create playing groups above, then assign players</p>
-                    )}
                   </div>
                 )}
               </div>
@@ -2678,20 +2979,10 @@ export default function AdminDashboard({
                                 {isSelected ? 'Close' : 'Players'}
                               </button>
 
-                              {confirmRemoveTeamId === team.id ? (
-                                <span className="flex items-center gap-1.5">
-                                  <span className="text-xs text-gray-500">Remove?</span>
-                                  <button type="button" onClick={async () => { setConfirmRemoveTeamId(null); await handleDeleteTeam(team.id) }}
-                                    className="text-xs font-semibold text-red-600 hover:text-red-800 transition">Yes</button>
-                                  <button type="button" onClick={() => setConfirmRemoveTeamId(null)}
-                                    className="text-xs text-gray-400 hover:text-gray-600 transition">Cancel</button>
-                                </span>
-                              ) : (
-                                <button type="button" onClick={() => setConfirmRemoveTeamId(team.id)}
-                                  className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
-                                  Remove
-                                </button>
-                              )}
+                              <button type="button" onClick={() => setConfirmRemoveTeamId(team.id)}
+                                className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
+                                Remove
+                              </button>
                             </div>
                           </div>
                         )}
@@ -2746,14 +3037,14 @@ export default function AdminDashboard({
                                     )}
                                     {skinsEnabled && (
                                       <button type="button"
-                                        onClick={() => handleToggleSkinsParticipant(p.id, p.skins_participant)}
-                                        className={`text-xs px-2 py-0.5 rounded border transition ${p.skins_participant ? 'bg-amber-100 border-amber-400 text-amber-800 font-semibold' : 'border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-600'}`}>
+                                        onClick={() => handleToggleSkinsParticipant(p.id, skinsOverrides[p.id] ?? p.skins_participant)}
+                                        className={`text-xs px-2 py-0.5 rounded border transition ${(skinsOverrides[p.id] ?? p.skins_participant) ? 'bg-amber-100 border-amber-400 text-amber-800 font-semibold' : 'border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-600'}`}>
                                         Skins
                                       </button>
                                     )}
                                     <button type="button" onClick={() => setRenamingPlayer(p.id)}
                                       className="text-xs text-blue-500 hover:text-blue-700">Rename</button>
-                                    <button type="button" onClick={() => handleDeletePlayer(p.id)}
+                                    <button type="button" onClick={() => setConfirmRemovePlayerId(p.id)}
                                       className="text-xs text-red-500 hover:text-red-700 ml-1">Remove</button>
                                   </div>
                                 )}
@@ -2815,7 +3106,7 @@ export default function AdminDashboard({
                     )}
                     <button
                       type="button"
-                      onClick={() => setTeamsSaved(true)}
+                      onClick={() => { setTeamsSaved(true); setSetupLS(round?.id, 'teamsSaved', true) }}
                       disabled={teams.length === 0 || !allTeamsMeetRequirement}
                       className="w-full py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed text-white"
                       style={{ background: navy }}>
@@ -2832,6 +3123,14 @@ export default function AdminDashboard({
                           : `Each team needs at least ${round?.balls_count ?? 3} and no more than 5 players`}
                       </p>
                     ) : null}
+                    {skinsEnabled === true && (
+                      <div className="mt-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                        <span className="text-amber-500 text-base leading-none mt-0.5 flex-shrink-0">⚠</span>
+                        <p className="text-xs text-amber-800">
+                          <span className="font-semibold">Skins Game is enabled.</span> Open each team's Players section and tap the <span className="font-semibold text-amber-700 bg-amber-100 px-1 rounded">Skins</span> button for every player who is participating in skins.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -420,11 +420,42 @@ export async function addRosterPlayerToTeam(teamId: string, rosterPlayerId: stri
 
 export async function toggleMixedGroups(roundId: string, value: boolean) {
   const supabase = createServerClient()
+  const update: Record<string, unknown> = { mixed_groups: value }
   if (value) {
-    // Clear any existing playing groups so each enable starts fresh
+    // Clear any existing playing groups and reset count so each enable starts fresh
     await supabase.from('playing_groups').delete().eq('round_id', roundId)
+    update.playing_group_count = 0
   }
-  const { error } = await supabase.from('rounds').update({ mixed_groups: value }).eq('id', roundId)
+  const { error } = await supabase.from('rounds').update(update).eq('id', roundId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function addManualPlayerToGroup(groupId: string, name: string) {
+  const supabase = createServerClient()
+  const { data: player, error: pe } = await supabase
+    .from('players')
+    .insert({ name, position: null, skins_participant: false })
+    .select('id')
+    .single()
+  if (pe) return { error: pe.message }
+  const { error: ge } = await supabase
+    .from('playing_group_players')
+    .insert({ playing_group_id: groupId, player_id: player.id })
+  if (ge) return { error: ge.message }
+  return { success: true, id: player.id as string }
+}
+
+export async function removeManualPlayerFromGroup(playerId: string) {
+  const supabase = createServerClient()
+  await supabase.from('playing_group_players').delete().eq('player_id', playerId)
+  await supabase.from('players').delete().eq('id', playerId).is('team_id', null)
+  return { success: true }
+}
+
+export async function setPlayingGroupCount(roundId: string, count: number) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('rounds').update({ playing_group_count: count }).eq('id', roundId)
   if (error) return { error: error.message }
   return { success: true }
 }

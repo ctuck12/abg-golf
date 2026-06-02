@@ -20,7 +20,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
 
   const { data: roundRows } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, auto_handicap, mixed_groups')
+    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, auto_handicap, mixed_groups, playing_group_count')
     .eq('is_active', true)
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
@@ -41,7 +41,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
 
   const [playersRes, scoresRes, assignmentsRes, matchupsRaw, bestBallRes, holeValuesRes] = await Promise.all([
-    teamIds.length ? sb.from('players').select('id, team_id, name, position, skins_participant, handicap').in('team_id', teamIds).order('position', { ascending: true }) : Promise.resolve({ data: [] }),
+    teamIds.length ? sb.from('players').select('id, team_id, name, position, skins_participant, handicap').in('team_id', teamIds).order('position', { ascending: true }) : Promise.resolve({ data: [] as { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap: number | null }[] }),
     roundId ? sb.from('scores').select('player_id, hole_number, strokes') : Promise.resolve({ data: [] }),
     roundId && isDaytona ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId) : Promise.resolve({ data: [] }),
     roundId ? sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [], error: null }),
@@ -74,6 +74,15 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
     roundId ? sb.from('hammer_matchups').select('id, team1_id, team2_id, base_bet, auto_handicap').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
   ])
 
+  // Also include non-team (manual) players assigned to playing groups for this round
+  const teamPlayers = playersRes.data ?? []
+  const teamPlayerIdSet = new Set(teamPlayers.map((p) => p.id))
+  const pgPlayerIds = (playingGroupPlayersRaw ?? []).map((gp) => gp.player_id).filter((id) => !teamPlayerIdSet.has(id))
+  const { data: manualGroupPlayersRaw } = pgPlayerIds.length
+    ? await sb.from('players').select('id, team_id, name, position, skins_participant, handicap').in('id', pgPlayerIds)
+    : { data: [] as typeof teamPlayers }
+  const allPlayers = [...teamPlayers, ...(manualGroupPlayersRaw ?? [])]
+
   return (
     <AdminDashboard
       orgSlug={orgSlug}
@@ -82,7 +91,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
       isMaster={isMaster}
       round={round ?? null}
       teams={teams}
-      players={playersRes.data ?? []}
+      players={allPlayers}
       holes={holesRes.data ?? []}
       ballValues={ballValuesRes.data ?? []}
       scores={scoresRes.data ?? []}
