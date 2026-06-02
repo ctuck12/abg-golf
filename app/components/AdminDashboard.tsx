@@ -2010,6 +2010,7 @@ export default function AdminDashboard({
                       <input type="number" name="ball_1" min="0" step="0.25"
                         value={ballVals[1] ?? 0.25}
                         onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
+                        onFocus={(e) => { if ((ballVals[1] ?? 0) === 0) e.target.value = '' }}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                       <p className="text-xs text-gray-400 mt-1">Each point = this dollar amount. Points are the DT score difference per hole per player.</p>
                     </div>
@@ -2019,6 +2020,7 @@ export default function AdminDashboard({
                       <input type="number" name="ball_1" min="0" step="1"
                         value={ballVals[1] ?? 5}
                         onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
+                        onFocus={(e) => { if ((ballVals[1] ?? 0) === 0) e.target.value = '' }}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                       <p className="text-xs text-gray-400 mt-1">Dollar amount each ball result is worth per player. Winning team splits the pot. Ties wash.</p>
                     </div>
