@@ -145,7 +145,7 @@ type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: s
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
-type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }
+type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null }
 type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -625,9 +625,15 @@ export default function AdminDashboard({
   const [newTeamBankerEnabled, setNewTeamBankerEnabled] = useState(false)
   const [newTeamBankerMinBet, setNewTeamBankerMinBet] = useState('2')
   const [newTeamAutoStrokes, setNewTeamAutoStrokes] = useState(false)
+  const [newTeamHammerEnabled, setNewTeamHammerEnabled] = useState(false)
+  const [newTeamHammerBaseBet, setNewTeamHammerBaseBet] = useState('1')
+  const [newTeamHammerFormat, setNewTeamHammerFormat] = useState('stroke')
   const [editBankerEnabled, setEditBankerEnabled] = useState(false)
   const [editBankerMinBet, setEditBankerMinBet] = useState('2')
   const [editAutoStrokes, setEditAutoStrokes] = useState(false)
+  const [editHammerEnabled, setEditHammerEnabled] = useState(false)
+  const [editHammerBaseBet, setEditHammerBaseBet] = useState('1')
+  const [editHammerFormat, setEditHammerFormat] = useState('stroke')
   // Roster state
   const [liveRoster, setLiveRoster] = useState<RosterPlayer[]>(roster)
   const [showRoster, setShowRoster] = useState(false)
@@ -679,6 +685,7 @@ export default function AdminDashboard({
   const [showNewGroupPin, setShowNewGroupPin] = useState(false)
   const [groupError, setGroupError] = useState('')
   const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null)
+  const [confirmRemoveGroupPlayer, setConfirmRemoveGroupPlayer] = useState<{ playerId: string; playerName: string; isManual: boolean } | null>(null)
   const [expandedGroupAssign, setExpandedGroupAssign] = useState<string | null>(null)
   const [groupAssignSearch, setGroupAssignSearch] = useState('')
   const [manualGroupName, setManualGroupName] = useState('')
@@ -1514,6 +1521,46 @@ export default function AdminDashboard({
         )
       })()}
 
+      {/* ── Remove player from group confirmation modal ── */}
+      {confirmRemoveGroupPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg font-bold">!</div>
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base leading-snug">Remove player from group?</h2>
+                <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                  This will remove <span className="font-semibold text-gray-800">{confirmRemoveGroupPlayer.playerName}</span> from this playing group.
+                </p>
+              </div>
+            </div>
+            <div className="border-t border-gray-100" />
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setConfirmRemoveGroupPlayer(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button type="button"
+                onClick={async () => {
+                  const { playerId, isManual } = confirmRemoveGroupPlayer
+                  setConfirmRemoveGroupPlayer(null)
+                  setLiveGroupPlayers(prev => prev.filter(gp => gp.player_id !== playerId))
+                  if (isManual) {
+                    setLiveManualPlayers(prev => prev.filter(mp => mp.id !== playerId))
+                    await removeManualPlayerFromGroup(playerId)
+                  } else {
+                    await setPlayerGroup(playerId, null)
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                style={{ background: '#dc2626' }}>
+                Yes, Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} />}
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
@@ -2068,8 +2115,8 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Hammer Matchups (Standard + Traditional, and standalone Hammer format) ── */}
-            {round && (isStandard || isTraditional || round.format === 'hammer') && round.is_started && (
+            {/* ── Hammer Matchups (standalone Hammer format only) ── */}
+            {round && round.format === 'hammer' && round.is_started && (
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                 <h3 className="font-semibold text-gray-900 text-sm">Hammer Matchups</h3>
                 {hammerError && <p className="text-xs text-red-500 bg-red-50 rounded px-3 py-2">{hammerError}</p>}
@@ -2268,15 +2315,7 @@ export default function AdminDashboard({
                                 {p.name}
                                 {p.team_id === null && <span className="text-xs opacity-60">·guest</span>}
                                 <button type="button"
-                                  onClick={async () => {
-                                    setLiveGroupPlayers(prev => prev.filter(gp => gp.player_id !== p.id))
-                                    if (p.team_id === null) {
-                                      setLiveManualPlayers(prev => prev.filter(mp => mp.id !== p.id))
-                                      await removeManualPlayerFromGroup(p.id)
-                                    } else {
-                                      await setPlayerGroup(p.id, null)
-                                    }
-                                  }}
+                                  onClick={() => setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null })}
                                   className="ml-0.5 hover:text-red-600 leading-none">×</button>
                               </span>
                             ))}
@@ -2976,6 +3015,41 @@ export default function AdminDashboard({
                             </div>
                           )}
                           <input type="hidden" name="auto_strokes" value={(newTeamDaytonaEnabled || newTeamBankerEnabled) && newTeamAutoStrokes ? 'true' : 'false'} />
+                          {/* Hammer Side Game — hidden when Daytona or Banker On */}
+                          {!newTeamDaytonaEnabled && !newTeamBankerEnabled && (
+                            <>
+                              <div className="flex items-center gap-2 pt-1">
+                                <span className="text-xs font-medium text-gray-600">Hammer Side Game</span>
+                                <button type="button"
+                                  onClick={() => setNewTeamHammerEnabled(v => !v)}
+                                  className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamHammerEnabled ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                  {newTeamHammerEnabled ? 'On' : 'Off'}
+                                </button>
+                                <span className="text-xs text-gray-400">2-player or 4-player only</span>
+                              </div>
+                              {newTeamHammerEnabled && (
+                                <div className="space-y-2 pl-1">
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-500 whitespace-nowrap">Base Bet ($)</label>
+                                    <input type="number" min="0.5" step="0.5" value={newTeamHammerBaseBet}
+                                      onChange={e => setNewTeamHammerBaseBet(e.target.value)}
+                                      className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-500 whitespace-nowrap">Scoring Format</label>
+                                    <select value={newTeamHammerFormat} onChange={e => setNewTeamHammerFormat(e.target.value)}
+                                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                      <option value="stroke">Stroke Play</option>
+                                      <option value="match">Match Play</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                          <input type="hidden" name="hammer_side_game" value={newTeamHammerEnabled ? 'true' : 'false'} />
+                          {newTeamHammerEnabled && <input type="hidden" name="hammer_base_bet" value={newTeamHammerBaseBet} />}
+                          {newTeamHammerEnabled && <input type="hidden" name="hammer_format" value={newTeamHammerFormat} />}
                         </div>
                       )}
                       <div className="flex gap-2">
@@ -3102,6 +3176,41 @@ export default function AdminDashboard({
                                   </div>
                                 )}
                                 <input type="hidden" name="auto_strokes" value={(editDaytonaEnabled || editBankerEnabled) && editAutoStrokes ? 'true' : 'false'} />
+                                {/* Hammer Side Game — hidden when Daytona or Banker On */}
+                                {!editDaytonaEnabled && !editBankerEnabled && (
+                                  <>
+                                    <div className="flex items-center gap-2 pt-1">
+                                      <span className="text-xs font-medium text-gray-600">Hammer Side Game</span>
+                                      <button type="button"
+                                        onClick={() => setEditHammerEnabled(v => !v)}
+                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editHammerEnabled ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                        {editHammerEnabled ? 'On' : 'Off'}
+                                      </button>
+                                      <span className="text-xs text-gray-400">2-player or 4-player only</span>
+                                    </div>
+                                    {editHammerEnabled && (
+                                      <div className="space-y-2 pl-1">
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-xs text-gray-500 whitespace-nowrap">Base Bet ($)</label>
+                                          <input type="number" min="0.5" step="0.5" value={editHammerBaseBet}
+                                            onChange={e => setEditHammerBaseBet(e.target.value)}
+                                            className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-xs text-gray-500 whitespace-nowrap">Scoring Format</label>
+                                          <select value={editHammerFormat} onChange={e => setEditHammerFormat(e.target.value)}
+                                            className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                            <option value="stroke">Stroke Play</option>
+                                            <option value="match">Match Play</option>
+                                          </select>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                                <input type="hidden" name="hammer_side_game" value={editHammerEnabled ? 'true' : 'false'} />
+                                {editHammerEnabled && <input type="hidden" name="hammer_base_bet" value={editHammerBaseBet} />}
+                                {editHammerEnabled && <input type="hidden" name="hammer_format" value={editHammerFormat} />}
                               </div>
                             )}
                             <div className="flex gap-2">
@@ -3123,6 +3232,7 @@ export default function AdminDashboard({
                                   const label = v === '5man-flares' ? 'Daytona 5-Man Flares' : v === '5man-normal' ? 'Daytona 5-Man Normal' : 'Daytona 4-Man'
                                   return <> · <span className="font-medium text-gray-700">{label}{p && p !== '0' ? ` · $${p}/pt` : ''}</span></>
                                 })()}
+                                {team.hammer_side_game && <> · <span className="font-medium text-orange-700">Hammer · {team.hammer_format === 'match' ? 'Match' : 'Stroke'} · ${team.hammer_base_bet ?? 1}/hole</span></>}
                                 {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
                               </p>
                               <p className="text-xs mt-0.5">
@@ -3166,6 +3276,9 @@ export default function AdminDashboard({
                                 setEditBankerEnabled(!!team.banker_side_game)
                                 setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
                                 setEditAutoStrokes(!!team.auto_strokes)
+                                setEditHammerEnabled(!!team.hammer_side_game)
+                                setEditHammerBaseBet(team.hammer_base_bet != null ? String(team.hammer_base_bet) : '1')
+                                setEditHammerFormat(team.hammer_format ?? 'stroke')
                               }}
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
                                 Edit
@@ -3329,6 +3442,17 @@ export default function AdminDashboard({
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── Round Active banner — shown after activation ── */}
+            {round && round.is_started && (
+              <div className="bg-green-50 border border-green-200 rounded-2xl px-5 py-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center text-white text-lg flex-shrink-0">✓</div>
+                <div>
+                  <p className="font-semibold text-green-800 text-sm">Round is now Active!</p>
+                  <p className="text-xs text-green-700 mt-0.5">The leaderboard is live — players can enter scores.</p>
+                </div>
               </div>
             )}
 

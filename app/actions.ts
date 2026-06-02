@@ -199,9 +199,12 @@ export async function addTeam(_prev: unknown, formData: FormData) {
   const bankerSideGame = formData.get('banker_side_game') === 'true'
   const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
   const autoStrokes = formData.get('auto_strokes') === 'true'
+  const hammerSideGame = formData.get('hammer_side_game') === 'true'
+  const hammerBaseBet = formData.get('hammer_base_bet') ? parseFloat(formData.get('hammer_base_bet') as string) : 1
+  const hammerFormat = (formData.get('hammer_format') as string) || 'stroke'
 
   const supabase = createServerClient()
-  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes })
+  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null })
   if (error) return { error: error.code === '23505' ? 'A team with that name already exists.' : error.message }
   return { success: true }
 }
@@ -229,9 +232,12 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
   const bankerSideGame = formData.get('banker_side_game') === 'true'
   const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
   const autoStrokes = formData.get('auto_strokes') === 'true'
+  const hammerSideGame = formData.get('hammer_side_game') === 'true'
+  const hammerBaseBet = formData.get('hammer_base_bet') ? parseFloat(formData.get('hammer_base_bet') as string) : 1
+  const hammerFormat = (formData.get('hammer_format') as string) || 'stroke'
 
   const supabase = createServerClient()
-  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes }
+  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null }
   if (pin) updates.pin = pin
 
   const { error } = await supabase.from('teams').update(updates).eq('id', teamId)
