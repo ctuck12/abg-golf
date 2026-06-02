@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase-server'
 import { getOrgAuth } from '@/lib/org-auth'
 import OrgLoginGate from '@/app/components/OrgLoginGate'
@@ -28,6 +29,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
 
   const cookieStore = await cookies()
   const { orgId, isAdmin, isMaster } = auth
+
+  if (isAdmin) redirect(`/${orgSlug}/admin/dashboard`)
 
   const { data: round } = await sb
     .from('rounds')
