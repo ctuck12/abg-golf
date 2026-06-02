@@ -23,6 +23,7 @@ import {
   bulkCreateTeams,
   addManualPlayerToGroup,
   removeManualPlayerFromGroup,
+  updatePlayingGroupSettings,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -140,7 +141,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
 }
 
 type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number } | null
-type PlayingGroup = { id: string; name: string; pin: string }
+type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
@@ -683,6 +684,27 @@ export default function AdminDashboard({
   const [manualGroupName, setManualGroupName] = useState('')
   const [manualGroupPending, setManualGroupPending] = useState(false)
   const [liveManualPlayers, setLiveManualPlayers] = useState<Player[]>([])
+  type GroupSideGame = { daytonaEnabled: boolean; daytonaType: string; daytonaSubVariant: string; daytonaPayout: string; bankerEnabled: boolean; bankerMinBet: string; autoStrokes: boolean; saving: boolean; saved: boolean }
+  const initGroupSideGame = (g: PlayingGroup): GroupSideGame => {
+    const raw = g.daytona_variant ?? ''
+    const [variant, payout] = raw.includes('|') ? raw.split('|') : [raw, '']
+    return {
+      daytonaEnabled: !!g.daytona_variant,
+      daytonaType: variant.startsWith('5man') ? '5' : variant === '4man' ? '4' : '',
+      daytonaSubVariant: variant === '5man-flares' ? 'flares' : variant === '5man-normal' ? 'normal' : '',
+      daytonaPayout: payout || '',
+      bankerEnabled: !!g.banker_side_game,
+      bankerMinBet: g.banker_side_game_min_bet != null ? String(g.banker_side_game_min_bet) : '2',
+      autoStrokes: !!g.auto_strokes,
+      saving: false, saved: false,
+    }
+  }
+  const [groupSideGames, setGroupSideGames] = useState<Record<string, GroupSideGame>>(() =>
+    Object.fromEntries(playingGroups.map(g => [g.id, initGroupSideGame(g)]))
+  )
+  function updateGroupSG(groupId: string, patch: Partial<GroupSideGame>) {
+    setGroupSideGames(prev => ({ ...prev, [groupId]: { ...prev[groupId], ...patch } }))
+  }
   const [skinsOverrides, setSkinsOverrides] = useState<Record<string, boolean>>({})
 
   const [createPending, setCreatePending] = useState(false)
@@ -1114,7 +1136,9 @@ export default function AdminDashboard({
     const res = await createPlayingGroup(round.id, newGroupName.trim(), newGroupPin.trim())
     setNewGroupPending(false)
     if (res.error) { setGroupError(res.error); return }
-    setLivePlayingGroups((prev) => [...prev, { id: res.id!, name: newGroupName.trim(), pin: newGroupPin.trim() }])
+    const newGroup: PlayingGroup = { id: res.id!, name: newGroupName.trim(), pin: newGroupPin.trim() }
+    setLivePlayingGroups((prev) => [...prev, newGroup])
+    setGroupSideGames(prev => ({ ...prev, [res.id!]: initGroupSideGame(newGroup) }))
     setNewGroupName(''); setNewGroupPin('')
   }
   async function handleDeleteGroup(groupId: string) {
@@ -2358,6 +2382,115 @@ export default function AdminDashboard({
                           {groupFull && (
                             <p className="text-xs text-gray-400 italic">Group is full (5 players max)</p>
                           )}
+
+                          {/* ── Side Game settings (only when group has players) ── */}
+                          {assignedPlayers.length > 0 && (() => {
+                            const sg = groupSideGames[g.id] ?? initGroupSideGame(g)
+                            return (
+                              <div className="border-t border-gray-100 pt-2.5 space-y-2">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Side Game</p>
+
+                                {/* Daytona — hidden when Banker On */}
+                                {!sg.bankerEnabled && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
+                                      <button type="button"
+                                        onClick={() => updateGroupSG(g.id, { daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: false })}
+                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.daytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                        {sg.daytonaEnabled ? 'On' : 'Off'}
+                                      </button>
+                                    </div>
+                                    {sg.daytonaEnabled && (
+                                      <div className="space-y-1.5 pl-1">
+                                        <div className="flex gap-2">
+                                          <select value={sg.daytonaType} onChange={e => updateGroupSG(g.id, { daytonaType: e.target.value, daytonaSubVariant: '' })}
+                                            className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none">
+                                            <option value="" disabled>Type…</option>
+                                            <option value="4">4-Man</option>
+                                            <option value="5">5-Man</option>
+                                          </select>
+                                          {sg.daytonaType === '5' && (
+                                            <select value={sg.daytonaSubVariant} onChange={e => updateGroupSG(g.id, { daytonaSubVariant: e.target.value })}
+                                              className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none">
+                                              <option value="" disabled>Variant…</option>
+                                              <option value="normal">Normal</option>
+                                              <option value="flares">Flares</option>
+                                            </select>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
+                                          <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
+                                            value={sg.daytonaPayout} onChange={e => updateGroupSG(g.id, { daytonaPayout: e.target.value })}
+                                            className="w-24 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+
+                                {/* Banker — hidden when Daytona On */}
+                                {!sg.daytonaEnabled && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
+                                      <button type="button"
+                                        onClick={() => updateGroupSG(g.id, { bankerEnabled: !sg.bankerEnabled, autoStrokes: false })}
+                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.bankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                        {sg.bankerEnabled ? 'On' : 'Off'}
+                                      </button>
+                                    </div>
+                                    {sg.bankerEnabled && (
+                                      <div className="flex items-center gap-2 pl-1">
+                                        <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
+                                        <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
+                                          value={sg.bankerMinBet} onChange={e => updateGroupSG(g.id, { bankerMinBet: e.target.value })}
+                                          className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+
+                                {/* Auto Strokes — only when a side game is On */}
+                                {(sg.daytonaEnabled || sg.bankerEnabled) && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-gray-600">Auto Strokes</span>
+                                    <button type="button"
+                                      onClick={() => updateGroupSG(g.id, { autoStrokes: !sg.autoStrokes })}
+                                      className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.autoStrokes ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                      {sg.autoStrokes ? 'On' : 'Off'}
+                                    </button>
+                                    <span className="text-xs text-gray-400">Based on handicaps</span>
+                                  </div>
+                                )}
+
+                                {/* Save button */}
+                                <div className="flex items-center gap-2 pt-0.5">
+                                  <button type="button"
+                                    disabled={sg.saving || (sg.daytonaEnabled && !sg.daytonaType)}
+                                    onClick={async () => {
+                                      updateGroupSG(g.id, { saving: true, saved: false })
+                                      const daytonaVariant = sg.daytonaEnabled
+                                        ? sg.daytonaType === '4' ? `4man|${sg.daytonaPayout || '0'}` : sg.daytonaType === '5' ? `5man-${sg.daytonaSubVariant || 'normal'}|${sg.daytonaPayout || '0'}` : null
+                                        : null
+                                      await updatePlayingGroupSettings(g.id, {
+                                        daytona_variant: daytonaVariant,
+                                        banker_side_game: sg.bankerEnabled,
+                                        banker_side_game_min_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMinBet) || 2) : null,
+                                        auto_strokes: (sg.daytonaEnabled || sg.bankerEnabled) ? sg.autoStrokes : false,
+                                      })
+                                      updateGroupSG(g.id, { saving: false, saved: true })
+                                    }}
+                                    className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white disabled:opacity-40 transition"
+                                    style={{ background: navy }}>
+                                    {sg.saving ? 'Saving…' : 'Save'}
+                                  </button>
+                                  {sg.saved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
+                                </div>
+                              </div>
+                            )
+                          })()}
                         </div>
                       )
                     })}
@@ -2743,7 +2876,7 @@ export default function AdminDashboard({
                           } />
                         </div>
                       )}
-                      {(isTraditional || isStandard) && (
+                      {(isTraditional || isStandard) && !mixedGroups && (
                         <div className="space-y-2">
                           {/* Daytona Side Game — hidden when Banker is On */}
                           {!newTeamBankerEnabled && (
@@ -2869,7 +3002,7 @@ export default function AdminDashboard({
                                   className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
                               )}
                             </div>
-                            {(isTraditional || isStandard) && (
+                            {(isTraditional || isStandard) && !mixedGroups && (
                               <div className="space-y-2">
                                 {/* Daytona Side Game — hidden when Banker is On */}
                                 {!editBankerEnabled && (

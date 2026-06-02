@@ -462,6 +462,18 @@ export async function setPlayingGroupCount(roundId: string, count: number) {
   return { success: true }
 }
 
+export async function updatePlayingGroupSettings(groupId: string, settings: {
+  daytona_variant: string | null
+  banker_side_game: boolean
+  banker_side_game_min_bet: number | null
+  auto_strokes: boolean
+}) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('playing_groups').update(settings).eq('id', groupId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function createPlayingGroup(roundId: string, name: string, pin: string) {
   const supabase = createServerClient()
   const { data, error } = await supabase.from('playing_groups').insert({ round_id: roundId, name, pin }).select('id').single()
