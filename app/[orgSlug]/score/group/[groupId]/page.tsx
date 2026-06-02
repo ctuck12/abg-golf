@@ -24,7 +24,7 @@ export default async function PlayingGroupScorecardPage({
 
   const { data: group } = await sb
     .from('playing_groups')
-    .select('id, name, round_id')
+    .select('id, name, round_id, daytona_variant')
     .eq('id', groupId)
     .single()
   if (!group) redirect(`/${orgSlug}`)
@@ -56,6 +56,12 @@ export default async function PlayingGroupScorecardPage({
     .order('position', { ascending: true })
   const groupPlayers = groupPlayersRaw ?? []
 
+  const groupDaytonaRaw = (group as { daytona_variant?: string | null }).daytona_variant ?? null
+  const isDaytonaSideGame = !!groupDaytonaRaw
+  const [parsedDaytonaVariant, parsedPayoutStr] = groupDaytonaRaw?.includes('|')
+    ? groupDaytonaRaw.split('|') : [groupDaytonaRaw ?? '4man', null]
+  const defaultDtPayoutValue = parsedPayoutStr ? (parseFloat(parsedPayoutStr) || 0.25) : 0.25
+
   // Fetch all teams in this round to get full team rosters for ball score popup
   const { data: allTeams } = await sb.from('teams').select('id, name').eq('round_id', round.id)
   const allTeamIds = (allTeams ?? []).map((t) => t.id)
@@ -68,10 +74,13 @@ export default async function PlayingGroupScorecardPage({
   const allPlayers = allPlayersRaw ?? []
   const allPlayerIds = allPlayers.map((p) => p.id)
 
-  const [{ data: holes }, { data: allScores }, { data: ballValuesRaw }] = await Promise.all([
+  const [{ data: holes }, { data: allScores }, { data: ballValuesRaw }, { data: assignmentsRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds.length ? allPlayerIds : ['']),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
+    isDaytonaSideGame && groupPlayerIds.length
+      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', groupPlayerIds)
+      : Promise.resolve({ data: [] }),
   ])
 
   // Build team player map: teamId -> playerIds (in order)
@@ -108,6 +117,10 @@ export default async function PlayingGroupScorecardPage({
       includeTotal={round.include_total ?? false}
       ballValues={ballValuesRaw ?? []}
       isStarted={round.is_started ?? false}
+      daytonaVariant={isDaytonaSideGame ? parsedDaytonaVariant : undefined}
+      isDaytonaSideGame={isDaytonaSideGame}
+      defaultDtPayoutValue={defaultDtPayoutValue}
+      initialAssignments={(assignmentsRaw ?? []) as { player_id: string; hole_number: number; side: string }[]}
     />
   )
 }

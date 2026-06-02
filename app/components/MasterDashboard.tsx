@@ -175,7 +175,9 @@ export default function MasterDashboard({
     setEditingCourse(c)
     setCourseName(c.name); setCourseSlug(c.slug)
     setCoursePars(Array.isArray(c.pars) ? c.pars.join(',') : String(c.pars))
-    setCourseStrokeIndexes(c.stroke_indexes ? c.stroke_indexes.join(',') : '')
+    const siRaw = c.stroke_indexes
+    const siArr = Array.isArray(siRaw) ? siRaw : (siRaw ? (() => { try { return JSON.parse(String(siRaw)) } catch { return null } })() : null)
+    setCourseStrokeIndexes(Array.isArray(siArr) ? siArr.join(',') : '')
     setCourseError(''); setShowCourseForm(true)
   }
 

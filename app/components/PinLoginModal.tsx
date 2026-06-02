@@ -3,33 +3,60 @@
 import { useState } from 'react'
 
 type Team = { id: string; name: string }
+type PlayingGroup = { id: string; name: string }
 
 const navy = '#0f172a'
 
-export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug, onBeforeNavigate }: { teams: Team[]; onClose: () => void; isGroup?: boolean; orgSlug: string; onBeforeNavigate?: () => Promise<void> }) {
+export default function PinLoginModal({
+  teams, onClose, isGroup = false, orgSlug, onBeforeNavigate, playingGroups,
+}: {
+  teams: Team[]
+  onClose: () => void
+  isGroup?: boolean
+  orgSlug: string
+  onBeforeNavigate?: () => Promise<void>
+  playingGroups?: PlayingGroup[]
+}) {
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const [showPin, setShowPin] = useState(false)
+
+  const useMixedGroups = !!(playingGroups && playingGroups.length > 0)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
     setPending(true)
     const form = e.currentTarget
-    const teamId = (form.elements.namedItem('teamId') as HTMLSelectElement).value
+    const id = (form.elements.namedItem('entityId') as HTMLSelectElement).value
     const pin = (form.elements.namedItem('pin') as HTMLInputElement).value
     try {
-      const res = await fetch('/api/team-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId, pin }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        if (onBeforeNavigate) await onBeforeNavigate()
-        window.location.href = `/${orgSlug}/score/${data.teamId}`
+      if (useMixedGroups) {
+        const res = await fetch('/api/playing-group-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupId: id, pin }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          if (onBeforeNavigate) await onBeforeNavigate()
+          window.location.href = `/${orgSlug}/score/group/${id}`
+        } else {
+          setError(data.error ?? 'Login failed.')
+        }
       } else {
-        setError(data.error ?? 'Login failed.')
+        const res = await fetch('/api/team-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamId: id, pin }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          if (onBeforeNavigate) await onBeforeNavigate()
+          window.location.href = `/${orgSlug}/score/${data.teamId}`
+        } else {
+          setError(data.error ?? 'Login failed.')
+        }
       }
     } catch {
       setError('Network error. Please try again.')
@@ -37,6 +64,9 @@ export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug
       setPending(false)
     }
   }
+
+  const entityLabel = useMixedGroups ? 'Group' : isGroup ? 'Group' : 'Team'
+  const options = useMixedGroups ? (playingGroups ?? []) : teams
 
   return (
     <div
@@ -46,7 +76,7 @@ export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-gray-900">{isGroup ? 'Enter Group PIN' : 'Enter Team PIN'}</h2>
+          <h2 className="font-bold text-gray-900">Enter {entityLabel} PIN</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -54,19 +84,19 @@ export default function PinLoginModal({ teams, onClose, isGroup = false, orgSlug
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{isGroup ? 'Your Group' : 'Your Team'}</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Your {entityLabel}</label>
             <select
-              name="teamId"
+              name="entityId"
               required
               defaultValue=""
               className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none"
             >
-              <option value="" disabled>{isGroup ? 'Select your group…' : 'Select your team…'}</option>
-              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              <option value="" disabled>Select your {entityLabel.toLowerCase()}…</option>
+              {options.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{isGroup ? 'Group PIN' : 'Team PIN'}</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{entityLabel} PIN</label>
             <div className="relative">
               <input
                 type={showPin ? 'text' : 'password'}

@@ -1561,7 +1561,7 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} />}
+      {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} playingGroups={mixedGroups === true ? livePlayingGroups : undefined} />}
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
