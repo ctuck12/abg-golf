@@ -2,15 +2,16 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { submitGroupHoleScores, saveDaytonaAssignments } from '@/app/actions'
+import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan } from '@/lib/scoring'
+import { ScoreNotation } from './ScoreNotation'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
 type Player = { id: string; name: string; team_id: string; position: number | null; handicap?: number | null }
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type BallValue = { ball_number: number; value_dollars: number }
 
@@ -39,6 +40,7 @@ export default function PlayingGroupScoreEntry({
   players, holes, initialScores, allScores: initialAllScores,
   ballsCount, teamPlayerMap, teamMap, includeTotal, ballValues, isStarted,
   daytonaVariant, isDaytonaSideGame, defaultDtPayoutValue, initialAssignments,
+  initialHoleStrokes = {}, initialHoleValues = {},
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster: boolean; isAdmin: boolean
   groupId: string; groupName: string; roundId: string; roundName: string; roundDate: string; roundCourse: string
@@ -47,6 +49,8 @@ export default function PlayingGroupScoreEntry({
   includeTotal: boolean; ballValues: BallValue[]; isStarted: boolean
   daytonaVariant?: string | null; isDaytonaSideGame?: boolean; defaultDtPayoutValue?: number
   initialAssignments?: { player_id: string; hole_number: number; side: string }[]
+  initialHoleStrokes?: Record<number, string[]>
+  initialHoleValues?: Record<number, number>
 }) {
   const isDaytonaMode = !!isDaytonaSideGame
   const isFlares = daytonaVariant === '5man-flares'
@@ -101,15 +105,25 @@ export default function PlayingGroupScoreEntry({
     return m
   })
 
+  const [holeValues, setHoleValues] = useState<Record<number, number>>(initialHoleValues)
+  const [pressShowInput, setPressShowInput] = useState<Record<number, boolean>>({})
+  const [pressValueStr, setPressValueStr] = useState<Record<number, string>>({})
+  const [pressScope, setPressScope] = useState<Record<number, 'this' | 'forward'>>({})
+  const [pressConfirmHole, setPressConfirmHole] = useState<number | null>(null)
+  const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
+  const [strokesPending, setStrokesPending] = useState(false)
+
   const formattedDate = roundDate
     ? new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : ''
 
-  function setSideExplicit(holeNumber: number, playerId: string, side: 'left' | 'right') {
-    setAssignments((prev) => {
-      const holeMap = prev[holeNumber] ?? {}
-      return { ...prev, [holeNumber]: { ...holeMap, [playerId]: side } }
-    })
+  async function handleStrokesToggle(holeNumber: number, playerId: string) {
+    const current = holeStrokes[holeNumber] ?? []
+    const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
+    setHoleStrokes((prev) => ({ ...prev, [holeNumber]: next }))
+    setStrokesPending(true)
+    await saveHoleStrokes(roundId, holeNumber, next)
+    setStrokesPending(false)
   }
 
   function expandHole(holeNumber: number) {
@@ -146,6 +160,19 @@ export default function PlayingGroupScoreEntry({
     setErrors((prev) => { const e = { ...prev }; delete e[holeNumber]; return e })
 
     const holeAssignments = assignments[holeNumber] ?? {}
+
+    // Collect press entries to save
+    const pressEntries: { holeNumber: number; valuePerPoint: number | null }[] = []
+    if (isDaytonaMode && pressShowInput[holeNumber]) {
+      const rawVal = parseFloat(pressValueStr[holeNumber] ?? '')
+      const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
+      const scope = pressScope[holeNumber] ?? 'this'
+      const affectedHoles = scope === 'forward'
+        ? holes.filter((h) => h.hole_number >= holeNumber && !savedHoles.has(h.hole_number)).map((h) => h.hole_number)
+        : [holeNumber]
+      for (const hn of affectedHoles) pressEntries.push({ holeNumber: hn, valuePerPoint: pressVal })
+    }
+
     const [res] = await Promise.all([
       submitGroupHoleScores(groupId, holeNumber, playerScores),
       isDaytonaMode
@@ -155,7 +182,21 @@ export default function PlayingGroupScoreEntry({
             Object.entries(holeAssignments).map(([playerId, side]) => ({ playerId, side }))
           )
         : Promise.resolve(),
+      isDaytonaMode && pressEntries.length > 0
+        ? saveDaytonaHoleValues(roundId, groupId, pressEntries)
+        : Promise.resolve(),
     ])
+
+    if (pressEntries.length > 0) {
+      setHoleValues((prev) => {
+        const next = { ...prev }
+        for (const e of pressEntries) { if (e.valuePerPoint === null) delete next[e.holeNumber]; else next[e.holeNumber] = e.valuePerPoint }
+        return next
+      })
+      setPressShowInput((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
+      setPressValueStr((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
+      setPressScope((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
+    }
 
     setPendingHoles((prev) => { const s = new Set(prev); s.delete(holeNumber); return s })
     if (res.error) { setErrors((prev) => ({ ...prev, [holeNumber]: res.error! })); return }
@@ -338,19 +379,28 @@ export default function PlayingGroupScoreEntry({
           const holeLeftLabel = isFlares && hole.par === 3 ? 'Close' : leftLabel
           const holeRightLabel = isFlares && hole.par === 3 ? 'Far' : rightLabel
 
-          // DT scores for collapsed preview
-          const savedLeftScores = players.filter((p) => holeAssignments[p.id] === 'left').map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-          const savedRightScores = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+          const holeStrokeIds = holeStrokes[hole.hole_number] ?? []
+          // Net = gross - 1 if player has a stroke on this hole
+          const netSaved = (pid: string) => {
+            const gross = savedScores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
+            if (gross === undefined) return undefined
+            return gross - (holeStrokeIds.includes(pid) ? 1 : 0)
+          }
+
+          // DT scores for collapsed preview (net)
+          const savedLeftScores = players.filter((p) => holeAssignments[p.id] === 'left').map((p) => netSaved(p.id)).filter((s): s is number => s !== undefined)
+          const savedRightScores = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => netSaved(p.id)).filter((s): s is number => s !== undefined)
           const { leftDt, rightDt } = isDaytonaMode ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par) : { leftDt: null, rightDt: null }
 
-          // Per-player DT points for inline label
+          // Per-player DT points for inline label (net scores)
           const holePlayerPoints: Map<string, number> = (() => {
             if (!isDaytonaMode || !isSaved) return new Map()
             const leftIds = players.filter((p) => holeAssignments[p.id] === 'left').map((p) => p.id)
             const rightIds = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => p.id)
             if (is5Man) {
               if (leftIds.length < 2 || rightIds.length < 3) return new Map()
-              return computeHoleDaytonaPointsFiveMan(leftIds, rightIds, savedScores, hole.hole_number, hole.par)
+              const netScores = savedScores.map((s) => ({ ...s, strokes: s.strokes - (holeStrokeIds.includes(s.player_id) ? 1 : 0) }))
+              return computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par)
             }
             if (savedLeftScores.length < 2 || savedRightScores.length < 2) return new Map()
             const { leftDt: lDt, rightDt: rDt } = computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par)
@@ -378,6 +428,22 @@ export default function PlayingGroupScoreEntry({
                   <p className="text-xs text-gray-400">Par</p>
                   <p className="font-semibold text-gray-600">{hole.par}</p>
                 </div>
+                {hole.stroke_index != null && (
+                  <div className="text-center flex-shrink-0">
+                    <p className="text-xs text-gray-400">HCP</p>
+                    <p className="text-xs font-semibold text-gray-500">{hole.stroke_index}</p>
+                  </div>
+                )}
+                {holeStrokeIds.length > 0 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dcfce7', color: '#15803d' }}>
+                    +{holeStrokeIds.length} stroke{holeStrokeIds.length > 1 ? 's' : ''}
+                  </span>
+                )}
+                {isDaytonaMode && isSaved && holeValues[hole.hole_number] !== undefined && (
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>
+                    ↑${holeValues[hole.hole_number]}
+                  </span>
+                )}
                 <div className="flex-1" />
                 {isSaved && (
                   <div className="flex items-center gap-3 mr-2">
@@ -452,7 +518,7 @@ export default function PlayingGroupScoreEntry({
                           </button>
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
-                          {player.name}
+                          {player.name}{holeStrokeIds.includes(player.id) ? <span className="text-blue-500 font-bold">*</span> : ''}
                           {isDaytonaMode && isSaved && (() => {
                             const pts = holePlayerPoints.get(player.id)
                             if (!pts) return null
@@ -465,7 +531,9 @@ export default function PlayingGroupScoreEntry({
                           className={`w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center flex-shrink-0 transition${canScore ? ' hover:bg-gray-200 active:scale-90' : ' cursor-not-allowed'}`}
                           style={{ color: canScore ? '#374151' : '#d1d5db' }}>−</button>
                         <div className="w-11 flex items-center justify-center flex-shrink-0">
-                          <span className="text-2xl font-bold" style={{ color: canScore ? '#111827' : '#d1d5db' }}>{val}</span>
+                          {canScore
+                            ? <ScoreNotation strokes={val} par={hole.par} />
+                            : <span className="text-2xl font-bold" style={{ color: '#d1d5db' }}>{val}</span>}
                         </div>
                         <button type="button"
                           disabled={!canScore}
@@ -475,12 +543,87 @@ export default function PlayingGroupScoreEntry({
                       </div>
                     )
                   })}
+
                   {isDaytonaMode && (() => {
                     const allAssigned = players.every((p) => p.id in holeAssignments)
                     if (!allAssigned) return <p className="text-xs text-red-500 mt-1">Select 2 {holeLeftLabel} players</p>
                     if (leftCount !== 2) return <p className="text-xs text-red-500 mt-1">{is5Man ? `Need exactly 2 ${holeLeftLabel} & 3 ${holeRightLabel}` : `Need exactly 2 ${holeLeftLabel} & 2 ${holeRightLabel}`}</p>
                     return null
                   })()}
+
+                  {/* ── Handicap Strokes ── */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Handicap Strokes</p>
+                    <div className="flex flex-wrap gap-2">
+                      {players.map((p) => {
+                        const hasStroke = holeStrokeIds.includes(p.id)
+                        return (
+                          <button key={p.id} type="button"
+                            onClick={() => handleStrokesToggle(hole.hole_number, p.id)}
+                            disabled={strokesPending}
+                            className={`text-xs px-2.5 py-1 rounded-full border font-medium transition ${hasStroke ? 'text-white border-transparent' : 'border-gray-300 text-gray-500'}`}
+                            style={hasStroke ? { background: '#16a34a' } : {}}>
+                            {p.name.split(' ')[0]}{hasStroke ? ' +1' : ''}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {holeStrokeIds.length > 0 && <p className="text-xs text-gray-400 mt-1">Net scores adjusted for stroke recipients</p>}
+                  </div>
+
+                  {/* ── Press (custom payout) ── */}
+                  {isDaytonaMode && (() => {
+                    const isActive = !!pressShowInput[hole.hole_number]
+                    const existingVal = holeValues[hole.hole_number]
+                    const currentScope = pressScope[hole.hole_number] ?? 'this'
+                    return (
+                      <div className="pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <button type="button"
+                            onClick={() => {
+                              if (isActive) {
+                                setPressShowInput((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
+                                setPressValueStr((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
+                              } else {
+                                const prefill = existingVal !== undefined ? String(existingVal) : String(defaultDtPayoutValue ?? 0.25)
+                                setPressShowInput((p) => ({ ...p, [hole.hole_number]: true }))
+                                setPressValueStr((p) => ({ ...p, [hole.hole_number]: prefill }))
+                                setPressScope((p) => ({ ...p, [hole.hole_number]: 'this' }))
+                              }
+                            }}
+                            className="text-xs font-semibold px-2.5 py-1 rounded-lg border transition"
+                            style={isActive || existingVal !== undefined
+                              ? { background: '#fef3c7', color: '#92400e', borderColor: '#fcd34d' }
+                              : { background: 'white', color: '#6b7280', borderColor: '#e5e7eb' }}>
+                            {existingVal !== undefined && !isActive ? `↑ Press $${existingVal}` : isActive ? '✕ Press' : '↑ Press'}
+                          </button>
+                        </div>
+                        {isActive && (
+                          <div className="mt-2 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500">$</span>
+                              <input type="number" value={pressValueStr[hole.hole_number] ?? ''} min="0" step="0.25"
+                                onChange={(e) => setPressValueStr((p) => ({ ...p, [hole.hole_number]: e.target.value }))}
+                                onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
+                                className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none" />
+                              <span className="text-xs text-gray-400">per point</span>
+                            </div>
+                            <div className="flex gap-2">
+                              {(['this', 'forward'] as const).map((scope) => (
+                                <button key={scope} type="button"
+                                  onClick={() => setPressScope((p) => ({ ...p, [hole.hole_number]: scope }))}
+                                  className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition ${currentScope === scope ? 'text-white border-transparent' : 'border-gray-200 text-gray-500'}`}
+                                  style={currentScope === scope ? { background: navy } : {}}>
+                                  {scope === 'this' ? 'This hole' : 'Forward holes'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {error && <p className="text-xs text-red-500">{error}</p>}
                   <button type="button"
                     onClick={() => saveHole(hole.hole_number)}

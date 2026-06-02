@@ -74,14 +74,30 @@ export default async function PlayingGroupScorecardPage({
   const allPlayers = allPlayersRaw ?? []
   const allPlayerIds = allPlayers.map((p) => p.id)
 
-  const [{ data: holes }, { data: allScores }, { data: ballValuesRaw }, { data: assignmentsRaw }] = await Promise.all([
-    sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
+  const [{ data: holes }, { data: allScores }, { data: ballValuesRaw }, { data: assignmentsRaw }, { data: holeStrokesRaw }, { data: holeValuesRaw }] = await Promise.all([
+    sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds.length ? allPlayerIds : ['']),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
     isDaytonaSideGame && groupPlayerIds.length
       ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', groupPlayerIds)
       : Promise.resolve({ data: [] }),
+    groupPlayerIds.length
+      ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id).in('player_id', groupPlayerIds)
+      : Promise.resolve({ data: [] }),
+    isDaytonaSideGame
+      ? sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', round.id).eq('team_id', groupId)
+      : Promise.resolve({ data: [] }),
   ])
+
+  const initialHoleStrokes: Record<number, string[]> = {}
+  for (const hs of (holeStrokesRaw ?? []) as { hole_number: number; player_id: string }[]) {
+    if (!initialHoleStrokes[hs.hole_number]) initialHoleStrokes[hs.hole_number] = []
+    initialHoleStrokes[hs.hole_number].push(hs.player_id)
+  }
+  const initialHoleValues: Record<number, number> = {}
+  for (const hv of (holeValuesRaw ?? []) as { hole_number: number; value_per_point: number }[]) {
+    initialHoleValues[hv.hole_number] = hv.value_per_point
+  }
 
   // Build team player map: teamId -> playerIds (in order)
   const teamPlayerMap: Record<string, string[]> = {}
@@ -121,6 +137,8 @@ export default async function PlayingGroupScorecardPage({
       isDaytonaSideGame={isDaytonaSideGame}
       defaultDtPayoutValue={defaultDtPayoutValue}
       initialAssignments={(assignmentsRaw ?? []) as { player_id: string; hole_number: number; side: string }[]}
+      initialHoleStrokes={initialHoleStrokes}
+      initialHoleValues={initialHoleValues}
     />
   )
 }
