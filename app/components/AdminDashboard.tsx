@@ -605,8 +605,7 @@ export default function AdminDashboard({
   const [showNewGroupPin, setShowNewGroupPin] = useState(false)
   const [groupError, setGroupError] = useState('')
 
-  const [createError, setCreateError] = useState('')
-  const [createPending, setCreatePending] = useState(false)
+  const [createState, createAction, createPending] = useActionState(createRound, null)
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
   const [addPlayerState, addPlayerAction, addPlayerPending] = useActionState(addPlayer, null)
   const [parState, parAction, parPending] = useActionState(updateHolePars, null)
@@ -619,6 +618,12 @@ export default function AdminDashboard({
   const roundIsSettingUp = !!(round && !round.is_started)
   const effectivePendingId = null
   const isSettingUp = roundIsSettingUp || createPending
+
+  useEffect(() => {
+    if ((createState as { success?: boolean } | null)?.success) {
+      window.location.href = `/${orgSlug}/admin/dashboard`
+    }
+  }, [createState, orgSlug])
   useEffect(() => {
     if (addTeamState?.success) {
       router.refresh()
@@ -1243,22 +1248,10 @@ export default function AdminDashboard({
                   Edit
                 </button>
                 <button
-                  type="button"
+                  type="submit"
+                  form="create-round-form"
                   disabled={createPending}
-                  onClick={async () => {
-                    if (!createFormRef.current) return
-                    setShowCreateConfirm(false)
-                    setCreateError('')
-                    setCreatePending(true)
-                    const formData = new FormData(createFormRef.current)
-                    const result = await createRound(null, formData)
-                    setCreatePending(false)
-                    if (result?.error) {
-                      setCreateError(result.error)
-                    } else {
-                      window.location.href = `/${orgSlug}/admin/dashboard`
-                    }
-                  }}
+                  onClick={() => setShowCreateConfirm(false)}
                   className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
                   style={{ background: navy }}>
                   {createPending ? 'Creating…' : 'Confirm'}
@@ -1560,8 +1553,8 @@ export default function AdminDashboard({
                     This will end the current round and start a new one.
                   </p>
                 )}
-                {createError && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createError}</p>}
-                <form ref={createFormRef} className="space-y-3">
+                {(createState as { error?: string } | null)?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{(createState as { error?: string } | null)?.error}</p>}
+                <form id="create-round-form" ref={createFormRef} action={createAction} className="space-y-3">
                   <input type="hidden" name="orgId" value={orgId} />
                   <input type="hidden" name="orgSlug" value={orgSlug} />
                   <div>
