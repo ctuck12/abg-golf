@@ -111,11 +111,17 @@ function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number): Ge
   }
 
   return slots.map((teamPlayers, i) => {
-    const withHcp = teamPlayers.filter(p => p.handicap != null)
+    const sorted = [...teamPlayers].sort((a, b) => {
+      if (a.handicap == null && b.handicap == null) return 0
+      if (a.handicap == null) return 1
+      if (b.handicap == null) return -1
+      return a.handicap - b.handicap
+    })
+    const withHcp = sorted.filter(p => p.handicap != null)
     const avg = withHcp.length
       ? +(withHcp.reduce((s, p) => s + p.handicap!, 0) / withHcp.length).toFixed(1)
       : null
-    return { name: `Team ${i + 1}`, pin: randomPin(), players: teamPlayers, avgHandicap: avg }
+    return { name: `Team ${i + 1}`, pin: randomPin(), players: sorted, avgHandicap: avg }
   })
 }
 
