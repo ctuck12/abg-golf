@@ -1242,13 +1242,17 @@ export default function AdminDashboard({
     return count >= (round?.balls_count ?? 3) && count <= 5
   })
 
-  const canActivate = roundIsSettingUp && skinsSaved && effectivePayoutSaved && mixedGroupsSaved && teamsSaved && allTeamsMeetRequirement
+  const allGroupsMeetMinimum = mixedGroups !== true || livePlayingGroups.every(g =>
+    liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).length >= 3
+  )
+  const canActivate = roundIsSettingUp && skinsSaved && effectivePayoutSaved && mixedGroupsSaved && teamsSaved && allTeamsMeetRequirement && allGroupsMeetMinimum
   const activateMissingItems: string[] = []
   if (roundIsSettingUp) {
     if (!effectivePayoutSaved) activateMissingItems.push('Save Payout Value')
     if (!skinsSaved) activateMissingItems.push('Save Skins Settings')
     if (isStandard && !mixedGroupsSaved) activateMissingItems.push('Save Mixed Groups setting')
     if (!teamsSaved) activateMissingItems.push((isDaytona || isTraditional) ? 'Save Group(s)' : 'Save Teams')
+    if (mixedGroups === true && !allGroupsMeetMinimum) activateMissingItems.push('Each playing group needs at least 3 players')
     if (teamsSaved && !allTeamsMeetRequirement) {
       if (isDaytona) {
         activateMissingItems.push('Each group needs the correct number of players')
