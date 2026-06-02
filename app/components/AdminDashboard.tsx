@@ -19,6 +19,7 @@ import {
   addRosterPlayerToTeam,
   createHammerMatchup,
   deleteHammerMatchup,
+  bulkCreateTeams,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -33,6 +34,55 @@ import { supabase } from '@/lib/supabase'
 const navy = '#0f172a'
 const gold = '#f59e0b'
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
+
+function randomPin(): string {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
+
+function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number): GeneratedTeam[] {
+  const sorted = [...players].sort((a, b) => {
+    if (a.handicap == null && b.handicap == null) return 0
+    if (a.handicap == null) return 1
+    if (b.handicap == null) return -1
+    return a.handicap - b.handicap
+  })
+
+  const n = sorted.length
+  const slots: GeneratedPlayer[][] = Array.from({ length: numTeams }, () => [])
+
+  if (n % numTeams === 0) {
+    // Even split — snake draft is optimal: pairs best+worst, 2nd+2nd-worst, etc.
+    sorted.forEach((player, i) => {
+      const round = Math.floor(i / numTeams)
+      const pos = i % numTeams
+      const idx = round % 2 === 0 ? pos : numTeams - 1 - pos
+      slots[idx].push(player)
+    })
+  } else {
+    // Uneven split — greedy min-sum assignment handles remainders far better than snake.
+    // Each player goes to the team with the lowest handicap total so far (capped at ceil size).
+    const maxSize = Math.ceil(n / numTeams)
+    const sums: number[] = Array(numTeams).fill(0)
+    for (const player of sorted) {
+      let bestTeam = 0
+      let bestSum = Infinity
+      for (let t = 0; t < numTeams; t++) {
+        if (slots[t].length >= maxSize) continue
+        if (sums[t] < bestSum) { bestSum = sums[t]; bestTeam = t }
+      }
+      slots[bestTeam].push(player)
+      sums[bestTeam] += player.handicap ?? 0
+    }
+  }
+
+  return slots.map((teamPlayers, i) => {
+    const withHcp = teamPlayers.filter(p => p.handicap != null)
+    const avg = withHcp.length
+      ? +(withHcp.reduce((s, p) => s + p.handicap!, 0) / withHcp.length).toFixed(1)
+      : null
+    return { name: `Team ${i + 1}`, pin: randomPin(), players: teamPlayers, avgHandicap: avg }
+  })
+}
 
 // Match the server-side constants for course par preview
 const COURSE_PARS_CLIENT: Record<string, number[]> = {
@@ -63,6 +113,9 @@ type BestBallMatchup = {
   team2_player1_id: string; team2_player2_id: string
   bet: string
 }
+type GeneratedPlayer = { id: string; name: string; handicap: number | null; source: 'roster' | 'manual' }
+type GeneratedTeam = { name: string; pin: string; players: GeneratedPlayer[]; avgHandicap: number | null }
+
 type MatchupBetType = 'nassau' | 'straight'
 type MatchupScoringType = 'stroke' | 'match'
 type MatchupPayoutSegment = {
@@ -516,6 +569,21 @@ export default function AdminDashboard({
   const [rosterPickerTeamId, setRosterPickerTeamId] = useState<string | null>(null)
   const [rosterSearch, setRosterSearch] = useState('')
 
+  // Team Generator state
+  const [showTeamGenerator, setShowTeamGenerator] = useState(false)
+  const [genSelectedRosterIds, setGenSelectedRosterIds] = useState<Set<string>>(new Set())
+  const [genManualPlayers, setGenManualPlayers] = useState<{ tempId: string; name: string; handicap: string }[]>([])
+  const [genManualName, setGenManualName] = useState('')
+  const [genManualHcp, setGenManualHcp] = useState('')
+  const [genNumTeams, setGenNumTeams] = useState('2')
+  const [generatedTeams, setGeneratedTeams] = useState<GeneratedTeam[] | null>(null)
+  const [genEditNames, setGenEditNames] = useState<string[]>([])
+  const [genEditPins, setGenEditPins] = useState<string[]>([])
+  const [genPending, setGenPending] = useState(false)
+  const [genError, setGenError] = useState('')
+  const [confirmGenUse, setConfirmGenUse] = useState(false)
+  const [genRosterSearch, setGenRosterSearch] = useState('')
+
   const [liveHammerMatchups, setLiveHammerMatchups] = useState<HammerMatchup[]>(hammerMatchups)
   const [newHammerTeam1, setNewHammerTeam1] = useState('')
   const [newHammerTeam2, setNewHammerTeam2] = useState('')
@@ -827,6 +895,56 @@ export default function AdminDashboard({
   async function handleDeleteTeam(teamId: string) {
     await deleteTeam(teamId)
     router.refresh()
+  }
+
+  function handleGenerateTeams() {
+    const numTeams = parseInt(genNumTeams, 10)
+    if (isNaN(numTeams) || numTeams < 2) { setGenError('Enter at least 2 teams.'); return }
+
+    const rosterPlayers: GeneratedPlayer[] = liveRoster
+      .filter(rp => genSelectedRosterIds.has(rp.id))
+      .map(rp => ({ id: rp.id, name: rp.name, handicap: rp.handicap_index ?? null, source: 'roster' as const }))
+
+    const manualPlayersConverted: GeneratedPlayer[] = genManualPlayers.map(p => ({
+      id: p.tempId, name: p.name,
+      handicap: p.handicap !== '' ? parseFloat(p.handicap) : null,
+      source: 'manual' as const,
+    }))
+
+    const allPlayers = [...rosterPlayers, ...manualPlayersConverted]
+    if (allPlayers.length < numTeams) {
+      setGenError(`Need at least ${numTeams} players to fill ${numTeams} teams.`)
+      return
+    }
+
+    setGenError('')
+    setConfirmGenUse(false)
+    const result = generateBalancedTeams(allPlayers, numTeams)
+    setGeneratedTeams(result)
+    setGenEditNames(result.map(t => t.name))
+    setGenEditPins(result.map(t => t.pin))
+  }
+
+  async function handleUseGeneratedTeams() {
+    if (!round || !generatedTeams) return
+    setGenPending(true)
+    setGenError('')
+    const teamsToCreate = generatedTeams.map((t, i) => ({
+      name: genEditNames[i] || t.name,
+      pin: genEditPins[i] || t.pin,
+      players: t.players.map(p => ({ name: p.name, handicap: p.handicap })),
+    }))
+    const result = await bulkCreateTeams(round.id, teamsToCreate)
+    setGenPending(false)
+    if (result.error) { setGenError(result.error); return }
+    router.refresh()
+    setShowTeamGenerator(false)
+    setGeneratedTeams(null)
+    setGenSelectedRosterIds(new Set())
+    setGenManualPlayers([])
+    setConfirmGenUse(false)
+    setGenEditNames([])
+    setGenEditPins([])
   }
   async function handleToggleAdmin(teamId: string, isAdmin: boolean) {
     await toggleTeamAdmin(teamId, isAdmin)
@@ -1871,7 +1989,28 @@ export default function AdminDashboard({
               <div className={`bg-white rounded-2xl border border-gray-200 overflow-hidden ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {/* Header */}
                 <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
-                  <h3 className="font-semibold text-gray-900 text-sm">Teams / Groups</h3>
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-semibold text-gray-900 text-sm">Teams / Groups</h3>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showTeamGenerator}
+                        onChange={e => {
+                          setShowTeamGenerator(e.target.checked)
+                          if (e.target.checked) {
+                            setGenSelectedRosterIds(new Set(liveRoster.map(r => r.id)))
+                            setShowAddTeamForm(false)
+                          } else {
+                            setGeneratedTeams(null)
+                            setConfirmGenUse(false)
+                            setGenError('')
+                          }
+                        }}
+                        className="w-3.5 h-3.5 accent-indigo-600"
+                      />
+                      <span className="text-xs font-medium text-indigo-700">Team Generator</span>
+                    </label>
+                  </div>
                   <button
                     type="button"
                     onClick={() => { setShowAddTeamForm((v) => !v); setSelectedTeam(null) }}
@@ -1883,6 +2022,327 @@ export default function AdminDashboard({
                 {!teamsAddEnabled && roundIsSettingUp && (
                   <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
                     <p className="text-xs text-gray-400 text-center">Save skins and payout settings above to unlock</p>
+                  </div>
+                )}
+
+                {/* ── Team Generator panel ── */}
+                {showTeamGenerator && (
+                  <div className="border-b border-indigo-100 bg-indigo-50 px-4 py-4 space-y-4">
+                    <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">Team Generator</p>
+
+                    {/* Player pool */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-gray-700">Select Players for the Round</p>
+
+                      {/* Roster search + list */}
+                      {liveRoster.length > 0 && (
+                        <div className="bg-white rounded-xl border border-indigo-200 p-3 space-y-2 max-h-52 overflow-y-auto">
+                          <input
+                            type="text"
+                            placeholder="Search roster…"
+                            value={genRosterSearch}
+                            onChange={e => setGenRosterSearch(e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                          />
+                          <div className="flex gap-3 mb-1">
+                            <button type="button" onClick={() => setGenSelectedRosterIds(new Set(liveRoster.map(r => r.id)))}
+                              className="text-xs text-indigo-600 hover:underline">Select all</button>
+                            <button type="button" onClick={() => setGenSelectedRosterIds(new Set())}
+                              className="text-xs text-gray-400 hover:underline">Clear</button>
+                          </div>
+                          {liveRoster
+                            .filter(rp => !genRosterSearch || rp.name.toLowerCase().includes(genRosterSearch.toLowerCase()))
+                            .map(rp => (
+                              <label key={rp.id} className="flex items-center gap-2 cursor-pointer py-0.5">
+                                <input
+                                  type="checkbox"
+                                  checked={genSelectedRosterIds.has(rp.id)}
+                                  onChange={e => {
+                                    setGenSelectedRosterIds(prev => {
+                                      const next = new Set(prev)
+                                      e.target.checked ? next.add(rp.id) : next.delete(rp.id)
+                                      return next
+                                    })
+                                    setGeneratedTeams(null)
+                                  }}
+                                  className="w-3.5 h-3.5 accent-indigo-600 flex-shrink-0"
+                                />
+                                <span className="text-sm text-gray-800 flex-1">{rp.name}</span>
+                                <span className="text-xs text-gray-400 whitespace-nowrap">
+                                  {rp.handicap_index != null
+                                    ? rp.handicap_index < 0
+                                      ? `+${Math.abs(rp.handicap_index)} HCP`
+                                      : `HCP ${rp.handicap_index}`
+                                    : 'No HCP'}
+                                </span>
+                              </label>
+                            ))}
+                          {liveRoster.filter(rp => !genRosterSearch || rp.name.toLowerCase().includes(genRosterSearch.toLowerCase())).length === 0 && (
+                            <p className="text-xs text-gray-400">No matches.</p>
+                          )}
+                        </div>
+                      )}
+                      {liveRoster.length === 0 && (
+                        <p className="text-xs text-gray-400">No roster players. Add players manually below.</p>
+                      )}
+
+                      {/* Manual add */}
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 mb-1.5">Add player not in roster:</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Name"
+                            value={genManualName}
+                            onChange={e => setGenManualName(e.target.value)}
+                            className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
+                          />
+                          <input
+                            type="text"
+                            placeholder="HCP (e.g. +2 or 14)"
+                            value={genManualHcp}
+                            onChange={e => setGenManualHcp(e.target.value)}
+                            className="w-32 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!genManualName.trim()) return
+                              const hcpStr = genManualHcp.trim()
+                              const handicap = (() => {
+                                if (!hcpStr) return ''
+                                if (hcpStr.startsWith('+')) {
+                                  const n = parseFloat(hcpStr.slice(1))
+                                  return isNaN(n) ? '' : String(-n)
+                                }
+                                const n = parseFloat(hcpStr)
+                                return isNaN(n) ? '' : String(n)
+                              })()
+                              setGenManualPlayers(prev => [...prev, {
+                                tempId: `manual-${Date.now()}`,
+                                name: genManualName.trim(),
+                                handicap,
+                              }])
+                              setGenManualName('')
+                              setGenManualHcp('')
+                              setGeneratedTeams(null)
+                            }}
+                            className="text-white px-3 py-1.5 rounded-lg text-sm font-medium"
+                            style={{ background: navy }}>
+                            Add
+                          </button>
+                        </div>
+                        {genManualPlayers.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {genManualPlayers.map(p => (
+                              <div key={p.tempId} className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
+                                <span className="text-sm text-gray-800 flex-1">{p.name}</span>
+                                <span className="text-xs text-gray-400">
+                                  {p.handicap !== ''
+                                    ? parseFloat(p.handicap) < 0
+                                      ? `+${Math.abs(parseFloat(p.handicap))} HCP`
+                                      : `HCP ${p.handicap}`
+                                    : 'No HCP'}
+                                </span>
+                                <button type="button"
+                                  onClick={() => { setGenManualPlayers(prev => prev.filter(x => x.tempId !== p.tempId)); setGeneratedTeams(null) }}
+                                  className="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Player count summary */}
+                      {(() => {
+                        const count = genSelectedRosterIds.size + genManualPlayers.length
+                        return count > 0 ? (
+                          <p className="text-xs text-indigo-600 font-medium">{count} player{count !== 1 ? 's' : ''} selected</p>
+                        ) : null
+                      })()}
+                    </div>
+
+                    {/* Config row */}
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-4 items-end">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Number of Teams</label>
+                          <input
+                            type="number"
+                            min="2" max="20"
+                            value={genNumTeams}
+                            onChange={e => { setGenNumTeams(e.target.value); setGeneratedTeams(null) }}
+                            className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Live distribution summary */}
+                        {(() => {
+                          const total = genSelectedRosterIds.size + genManualPlayers.length
+                          const n = parseInt(genNumTeams, 10)
+                          if (total < 2 || isNaN(n) || n < 2) return null
+                          const floor = Math.floor(total / n)
+                          const ceil = Math.ceil(total / n)
+                          const extras = total % n
+                          const distText = extras === 0
+                            ? `${n} teams of ${floor}`
+                            : `${extras} team${extras > 1 ? 's' : ''} of ${ceil} + ${n - extras} of ${floor}`
+                          const tooSmall = floor < 4
+                          const tooBig = ceil > 5
+                          const ok = !tooSmall && !tooBig
+                          return (
+                            <div className={`self-end pb-0.5 px-3 py-2 rounded-lg text-xs font-semibold border ${ok ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                              {distText}
+                              {tooSmall && <span className="ml-1 font-normal">— some teams under 4</span>}
+                              {tooBig && <span className="ml-1 font-normal">— some teams over 5</span>}
+                            </div>
+                          )
+                        })()}
+                      </div>
+
+                      {/* Valid 4–5 player/team suggestions */}
+                      {(() => {
+                        const total = genSelectedRosterIds.size + genManualPlayers.length
+                        if (total < 4) return null
+                        const validCounts = [2,3,4,5,6,7,8].filter(t => {
+                          const f = Math.floor(total / t), c = Math.ceil(total / t)
+                          return f >= 4 && c <= 5
+                        })
+                        if (validCounts.length === 0) return (
+                          <p className="text-xs text-amber-600">
+                            No clean 4–5 player/team split for {total} players. Try adding or removing a player.
+                          </p>
+                        )
+                        return (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-gray-500">Valid 4–5/team splits:</span>
+                            {validCounts.map(t => {
+                              const c = Math.ceil(total / t), f = Math.floor(total / t)
+                              const extras = total % t
+                              const label = extras === 0 ? `${t} teams of ${f}` : `${t} teams (${extras}×${c} + ${t-extras}×${f})`
+                              const active = parseInt(genNumTeams, 10) === t
+                              return (
+                                <button key={t} type="button"
+                                  onClick={() => { setGenNumTeams(String(t)); setGeneratedTeams(null) }}
+                                  className={`text-xs px-2.5 py-1 rounded-full border font-medium transition ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}>
+                                  {label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
+                    </div>
+
+                    {genError && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{genError}</p>}
+
+                    <button
+                      type="button"
+                      onClick={handleGenerateTeams}
+                      className="w-full py-2 rounded-xl font-semibold text-sm text-white transition"
+                      style={{ background: '#4f46e5' }}>
+                      Generate Balanced Teams
+                    </button>
+
+                    {/* Generated preview */}
+                    {generatedTeams && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Preview — edit names &amp; PINs</p>
+                          <button type="button" onClick={handleGenerateTeams}
+                            className="text-xs text-indigo-600 border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50">
+                            Re-generate
+                          </button>
+                        </div>
+
+                        {generatedTeams.map((team, i) => (
+                          <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="text"
+                                value={genEditNames[i] ?? team.name}
+                                onChange={e => setGenEditNames(prev => {
+                                  const next = [...prev]
+                                  next[i] = e.target.value
+                                  return next
+                                })}
+                                className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold focus:outline-none"
+                                placeholder="Team name"
+                              />
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <span className="text-xs text-gray-500">PIN</span>
+                                <input
+                                  type="text"
+                                  value={genEditPins[i] ?? team.pin}
+                                  onChange={e => setGenEditPins(prev => {
+                                    const next = [...prev]
+                                    next[i] = e.target.value.replace(/\D/g, '').slice(0, 4)
+                                    return next
+                                  })}
+                                  maxLength={4}
+                                  inputMode="numeric"
+                                  className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-mono focus:outline-none"
+                                />
+                              </div>
+                              {team.avgHandicap != null && (
+                                <span className="text-xs text-gray-400 flex-shrink-0">avg {team.avgHandicap < 0 ? `+${Math.abs(team.avgHandicap)}` : team.avgHandicap} HCP</span>
+                              )}
+                            </div>
+                            <div className="space-y-0.5">
+                              {team.players.map(p => (
+                                <div key={p.id} className="flex items-center gap-2 text-sm text-gray-700 py-0.5 border-b border-gray-50 last:border-0">
+                                  <span className="flex-1">{p.name}</span>
+                                  <span className="text-xs text-gray-400">
+                                    {p.handicap != null
+                                      ? p.handicap < 0
+                                        ? `+${Math.abs(p.handicap)} HCP`
+                                        : `HCP ${p.handicap}`
+                                      : '—'}
+                                  </span>
+                                  {p.source === 'manual' && (
+                                    <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-medium">manual</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        {teams.length > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            <p className="text-xs text-amber-700 font-medium">
+                              Warning: this will replace the {teams.length} existing team{teams.length !== 1 ? 's' : ''} and all their players.
+                            </p>
+                          </div>
+                        )}
+
+                        {confirmGenUse ? (
+                          <div className="flex gap-2 items-center">
+                            <span className="text-sm text-gray-600 flex-1">Replace existing teams?</span>
+                            <button type="button" onClick={handleUseGeneratedTeams} disabled={genPending}
+                              className="text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
+                              style={{ background: '#059669' }}>
+                              {genPending ? 'Creating…' : 'Yes, use these teams'}
+                            </button>
+                            <button type="button" onClick={() => setConfirmGenUse(false)}
+                              className="text-gray-500 px-3 py-2 rounded-lg text-sm border border-gray-300">
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => teams.length > 0 ? setConfirmGenUse(true) : handleUseGeneratedTeams()}
+                            disabled={genPending}
+                            className="w-full py-2.5 rounded-xl font-bold text-sm text-white transition disabled:opacity-60"
+                            style={{ background: '#059669' }}>
+                            {genPending ? 'Creating teams…' : 'Use These Teams'}
+                          </button>
+                        )}
+
+                        {genError && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{genError}</p>}
+                      </div>
+                    )}
                   </div>
                 )}
 

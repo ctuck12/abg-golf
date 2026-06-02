@@ -666,3 +666,36 @@ export async function saveDaytonaAssignments(
   }
   return { success: true }
 }
+
+// ── Team Generator ────────────────────────────────────────────────────────────
+
+export async function bulkCreateTeams(
+  roundId: string,
+  teams: { name: string; pin: string; players: { name: string; handicap: number | null }[] }[]
+) {
+  if (!roundId || !teams.length) return { error: 'Invalid input.' }
+  const supabase = createServerClient()
+
+  // Remove existing non-admin teams (cascades to players/scores via FK)
+  const { error: delError } = await supabase.from('teams').delete().eq('round_id', roundId).eq('is_admin', false)
+  if (delError) return { error: delError.message }
+
+  for (const team of teams) {
+    const { data: teamRow, error: teamErr } = await supabase
+      .from('teams')
+      .insert({ name: team.name, pin: team.pin, round_id: roundId, is_admin: false })
+      .select('id').single()
+    if (teamErr) return { error: teamErr.message }
+
+    if (team.players.length) {
+      const { error: playersErr } = await supabase.from('players').insert(
+        team.players.map((p, i) => ({
+          name: p.name, team_id: teamRow.id, position: i,
+          skins_participant: false, handicap: p.handicap ?? null,
+        }))
+      )
+      if (playersErr) return { error: playersErr.message }
+    }
+  }
+  return { success: true }
+}
