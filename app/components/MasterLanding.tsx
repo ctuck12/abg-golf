@@ -68,7 +68,7 @@ export default function MasterLanding({ orgs }: { orgs: Org[] }) {
                     className="flex items-center justify-between w-full px-4 py-3.5 rounded-xl font-semibold text-sm transition active:scale-95 bg-white border border-gray-200 text-gray-900 hover:border-gray-400"
                   >
                     {org.name}
-                    <span style={{ color: gold }}>→</span>
+                    <span className="text-xl font-bold" style={{ color: gold }}>→</span>
                   </a>
                 ))}
               </div>
