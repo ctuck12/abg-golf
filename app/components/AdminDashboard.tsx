@@ -2056,7 +2056,7 @@ export default function AdminDashboard({
                         onChange={e => {
                           setShowTeamGenerator(e.target.checked)
                           if (e.target.checked) {
-                            setGenSelectedRosterIds(new Set(liveRoster.map(r => r.id)))
+                            setGenSelectedRosterIds(new Set())
                             setShowAddTeamForm(false)
                           } else {
                             setGeneratedTeams(null)
