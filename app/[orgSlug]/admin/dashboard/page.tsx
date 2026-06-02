@@ -66,13 +66,15 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
 
   const [{ data: courses }, { data: playingGroupsRaw }, { data: playingGroupPlayersRaw }, { data: rosterRaw }, { data: hammerMatchupsRaw }] = await Promise.all([
     sb.from('courses').select('name, slug, pars').eq('is_active', true).order('name'),
-    roundId ? sb.from('playing_groups').select('id, name, pin, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
+    roundId ? sb.from('playing_groups').select('id, name, pin, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] as { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }[] }),
     roundId ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id',
       (await sb.from('playing_groups').select('id').eq('round_id', roundId)).data?.map((g) => g.id) ?? []
     ) : Promise.resolve({ data: [] }),
     sb.from('org_players').select('id, name, ghin_number, handicap_index, email').eq('org_id', orgId).order('name'),
     roundId ? sb.from('hammer_matchups').select('id, team1_id, team2_id, base_bet, auto_handicap').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
   ])
+
+  const scorecardGroupId = (playingGroupsRaw ?? []).find((g) => cookieStore.get(`playing_group_auth_${g.id}`)?.value === 'true')?.id ?? null
 
   // Also include non-team (manual) players assigned to playing groups for this round
   const teamPlayers = playersRes.data ?? []
@@ -96,6 +98,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
       ballValues={ballValuesRes.data ?? []}
       scores={scoresRes.data ?? []}
       scorecardTeamId={scorecardTeamId}
+      scorecardGroupId={scorecardGroupId}
       dtAssignments={assignmentsRes.data ?? []}
       matchups={matchups ?? []}
       bestBallMatchups={bestBallRes.data ?? []}

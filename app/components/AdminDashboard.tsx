@@ -548,12 +548,12 @@ function setSetupLS(roundId: string | undefined, key: string, val: boolean) {
 
 export default function AdminDashboard({
   orgSlug, orgId, orgName, isMaster = false,
-  round, teams, players, holes, ballValues, scores, scorecardTeamId = null, dtAssignments = [],
+  round, teams, players, holes, ballValues, scores, scorecardTeamId = null, scorecardGroupId = null, dtAssignments = [],
   matchups = [], bestBallMatchups = [], initialHoleValues = {}, courses = [],
   playingGroups = [], playingGroupPlayers = [], roster = [], hammerMatchups = [],
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
-  round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
+  round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; scorecardGroupId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
   matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]; initialHoleValues?: Record<string, Record<number, number>>
   courses?: { name: string; slug: string; pars: number[] }[]
   playingGroups?: PlayingGroup[]
@@ -1585,6 +1585,12 @@ export default function AdminDashboard({
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                 style={{ background: gold, color: navy }}>
                 {isComplete ? 'Edit Scores' : 'Enter Scores'}
+              </a>
+            ) : scorecardGroupId ? (
+              <a href={`/${orgSlug}/score/group/${scorecardGroupId}`}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                style={{ background: gold, color: navy }}>
+                Enter Scores
               </a>
             ) : (
               <button
