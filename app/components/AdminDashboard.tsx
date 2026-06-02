@@ -627,14 +627,10 @@ export default function AdminDashboard({
   // Refresh server data after mutations so the UI updates without a manual reload.
   useEffect(() => {
     if (createState?.success) {
-      router.refresh()
-      setNewRoundName(''); setNewRoundDate(''); setSelectedFormat(''); setSelectedCourse('')
-      setCreateIncludeTotal(false); setShowNewRoundForm(false)
-      setValueSaved(false); setSkinsEnabled(false); setSkinsAmount(0); setBallVals({ 1: 0 })
-      setSkinsSaved(false); setPayoutSaved(false); setTeamsSaved(false)
-      // Reset team generator state for the new round
-      setShowTeamGenerator(false); setGeneratedTeams(null); setConfirmGenUse(false)
-      setGenManualPlayers([]); setGenSelectedRosterIds(new Set()); setGenEditNames([]); setGenEditPins([])
+      // Hard reload guarantees fresh round data regardless of Next.js router cache state.
+      // router.refresh() alone doesn't reliably update when the component tree changes
+      // significantly (null-round → active-round), causing permanent "Loading setup..." state.
+      window.location.reload()
     }
   }, [createState])
   useEffect(() => {
@@ -1540,13 +1536,7 @@ export default function AdminDashboard({
           </div>
             {/* Create round */}
             {/* Collapse immediately on submit (createPending) or while refresh is pending (effectivePendingId) */}
-            {(createState as { success?: boolean } | null)?.success && !round ? (
-              /* First-round creation: waiting for router.refresh() — show loading instead of empty form */
-              <div className="bg-white rounded-2xl border border-gray-200 px-4 py-6 flex flex-col items-center gap-2">
-                <p className="text-sm font-semibold text-green-700">Round created!</p>
-                <p className="text-xs text-gray-400">Loading setup...</p>
-              </div>
-            ) : round && (!showNewRoundForm || createPending || !!effectivePendingId) ? (
+            {round && (!showNewRoundForm || createPending || !!effectivePendingId) ? (
               /* Collapsed state — just show the button */
               <div className="bg-white rounded-2xl border border-gray-200 px-4 py-5 flex items-center justify-center">
                 <button
