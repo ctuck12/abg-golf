@@ -124,7 +124,7 @@ export default function PreRoundHome({
             className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-semibold text-white text-sm transition active:scale-95"
             style={{ background: navy }}
           >
-            Admin Login →
+            Admin Login
           </a>
 
           {(isMixedGroups ? playingGroups.length > 0 : teams.length > 0) && (
