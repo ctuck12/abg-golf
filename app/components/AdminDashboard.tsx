@@ -1928,17 +1928,35 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Mixed Groups toggle (standard format only) ── */}
+            {/* ── Mixed Groups (standard format only) ── */}
             {round && round.format === 'standard' && (
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-                <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleMixedGroups}>
-                  <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${mixedGroups ? 'bg-green-500' : 'bg-gray-300'}`}>
-                    <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${mixedGroups ? 'translate-x-3' : 'translate-x-0'}`} />
+                <h3 className="font-semibold text-gray-900 text-sm">Mixed Groups</h3>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Are playing groups different from ball-game teams?</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { if (!mixedGroups) handleToggleMixedGroups() }}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
+                        mixedGroups
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }`}>
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { if (mixedGroups) handleToggleMixedGroups() }}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
+                        !mixedGroups
+                          ? 'border-gray-700 bg-gray-100 text-gray-800'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }`}>
+                      No
+                    </button>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">Mixed Groups</p>
-                    <p className="text-xs text-gray-400">Playing groups on the course are different from the ball-game teams — each group gets its own scorekeeper PIN</p>
-                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">Each playing group gets its own scorekeeper PIN, separate from ball-game teams.</p>
                 </div>
 
                 {mixedGroups && (
