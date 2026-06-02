@@ -54,7 +54,6 @@ function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number): Ge
   const slots: GeneratedPlayer[][] = Array.from({ length: numTeams }, () => [])
 
   // Phase 1: snake draft fills every team to smallSize.
-  // Snake pairs best+worst each round, producing balanced sums regardless of sign.
   const phase1Total = smallSize * numTeams
   for (let i = 0; i < phase1Total; i++) {
     const round = Math.floor(i / numTeams)
@@ -63,18 +62,52 @@ function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number): Ge
     slots[teamIdx].push(sorted[i])
   }
 
-  // Phase 2: remaining players (the worst-ranked) go to the weakest teams.
-  // In best-ball formats an extra player is a structural advantage, so the larger
-  // team should be the weakest — giving them the worst remaining players compensates.
+  // Phase 2: remaining players (worst-ranked) go to the weakest teams.
+  // Larger teams have a structural advantage in best-ball, so they should
+  // have the weakest players to compensate.
   for (let i = phase1Total; i < n; i++) {
-    let target = 0
-    let worstSum = -Infinity
+    let target = 0, worstSum = -Infinity
     for (let t = 0; t < numTeams; t++) {
-      if (slots[t].length > smallSize) continue  // already received its extra player
+      if (slots[t].length > smallSize) continue
       const sum = slots[t].reduce((s, p) => s + (p.handicap ?? 0), 0)
       if (sum > worstSum) { worstSum = sum; target = t }
     }
     slots[target].push(sorted[i])
+  }
+
+  // Phase 3: swap optimization — find cross-team player swaps that improve balance.
+  // Metric: variance in "effective average" = average of the best smallSize players
+  // on each team. This accounts for extra-player structural advantage in best-ball:
+  // a 5-player team effectively plays their best 4 balls, so we compare on that basis.
+  const effectiveAvg = (team: GeneratedPlayer[]) => {
+    const hcps = team.map(p => p.handicap ?? 0).sort((a, b) => a - b)
+    const best = hcps.slice(0, smallSize)
+    return best.reduce((s, h) => s + h, 0) / (smallSize || 1)
+  }
+  const variance = () => {
+    const avgs = slots.map(effectiveAvg)
+    const mean = avgs.reduce((s, a) => s + a, 0) / numTeams
+    return avgs.reduce((s, a) => s + (a - mean) ** 2, 0)
+  }
+
+  let improved = true
+  while (improved) {
+    improved = false
+    outer: for (let t1 = 0; t1 < numTeams; t1++) {
+      for (let t2 = t1 + 1; t2 < numTeams; t2++) {
+        for (let i = 0; i < slots[t1].length; i++) {
+          for (let j = 0; j < slots[t2].length; j++) {
+            const before = variance()
+            ;[slots[t1][i], slots[t2][j]] = [slots[t2][j], slots[t1][i]]
+            if (variance() < before - 1e-9) {
+              improved = true
+              break outer  // restart with the improved assignment
+            }
+            ;[slots[t1][i], slots[t2][j]] = [slots[t2][j], slots[t1][i]]
+          }
+        }
+      }
+    }
   }
 
   return slots.map((teamPlayers, i) => {
