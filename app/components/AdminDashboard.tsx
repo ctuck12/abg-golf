@@ -1418,9 +1418,56 @@ export default function AdminDashboard({
             {showRoster && (
               <div className="border-t border-gray-100 px-5 pb-5 space-y-4">
 
+                {/* Add new roster player — top of section */}
+                {editingRosterId === null && (
+                  showAddRosterForm ? (
+                    <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2 mt-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add to Roster</p>
+                        <button type="button" onClick={() => { setShowAddRosterForm(false); setRosterForm({ name: '', ghin: '', handicap: '', email: '' }); setRosterError('') }}
+                          className="text-xs text-gray-400 hover:text-gray-600">✕ Cancel</button>
+                      </div>
+                      {rosterError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1">{rosterError}</p>}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-500 mb-0.5 block">Name <span className="text-red-400">*</span></label>
+                          <input value={rosterForm.name} onChange={(e) => setRosterForm((f) => ({ ...f, name: e.target.value }))}
+                            placeholder="Full name" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" autoFocus />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-0.5 block">Handicap Index</label>
+                          <input type="text" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
+                            placeholder="e.g. 8.4 or +2"
+                            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-0.5 block">GHIN # <span className="text-gray-400 font-normal">(optional)</span></label>
+                          <input value={rosterForm.ghin} onChange={(e) => setRosterForm((f) => ({ ...f, ghin: e.target.value }))}
+                            placeholder="e.g. 1234567" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-mono" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-0.5 block">Email <span className="text-gray-400 font-normal">(optional)</span></label>
+                          <input type="email" value={rosterForm.email} onChange={(e) => setRosterForm((f) => ({ ...f, email: e.target.value }))}
+                            placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                        </div>
+                      </div>
+                      <button type="button" onClick={handleSaveRosterPlayer} disabled={rosterPending || !rosterForm.name.trim()}
+                        className="w-full py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 mt-1" style={{ background: navy }}>
+                        {rosterPending ? 'Adding…' : '+ Add to Roster'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setShowAddRosterForm(true)}
+                      className="w-full py-2 mt-3 rounded-xl text-sm font-semibold text-white transition"
+                      style={{ background: navy }}>
+                      Add Player +
+                    </button>
+                  )
+                )}
+
                 {/* Roster list */}
                 {liveRoster.length > 0 && (
-                  <div className="space-y-2 mt-3">
+                  <div className="space-y-2">
                     {liveRoster.map((rp) => (
                       <div key={rp.id} className="bg-gray-50 rounded-xl border border-gray-100">
                         {editingRosterId === rp.id ? (
@@ -1484,51 +1531,6 @@ export default function AdminDashboard({
                   </div>
                 )}
 
-                {/* Add new roster player */}
-                {editingRosterId === null && (
-                  showAddRosterForm ? (
-                    <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add to Roster</p>
-                        <button type="button" onClick={() => { setShowAddRosterForm(false); setRosterForm({ name: '', ghin: '', handicap: '', email: '' }); setRosterError('') }}
-                          className="text-xs text-gray-400 hover:text-gray-600">✕ Cancel</button>
-                      </div>
-                      {rosterError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1">{rosterError}</p>}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-xs text-gray-500 mb-0.5 block">Name <span className="text-red-400">*</span></label>
-                          <input value={rosterForm.name} onChange={(e) => setRosterForm((f) => ({ ...f, name: e.target.value }))}
-                            placeholder="Full name" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" autoFocus />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 mb-0.5 block">Handicap Index</label>
-                          <input type="text" value={rosterForm.handicap} onChange={(e) => setRosterForm((f) => ({ ...f, handicap: e.target.value }))}
-                            placeholder="e.g. 8.4 or +2"
-                            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 mb-0.5 block">GHIN # <span className="text-gray-400 font-normal">(optional)</span></label>
-                          <input value={rosterForm.ghin} onChange={(e) => setRosterForm((f) => ({ ...f, ghin: e.target.value }))}
-                            placeholder="e.g. 1234567" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none font-mono" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 mb-0.5 block">Email <span className="text-gray-400 font-normal">(optional)</span></label>
-                          <input type="email" value={rosterForm.email} onChange={(e) => setRosterForm((f) => ({ ...f, email: e.target.value }))}
-                            placeholder="Optional" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
-                        </div>
-                      </div>
-                      <button type="button" onClick={handleSaveRosterPlayer} disabled={rosterPending || !rosterForm.name.trim()}
-                        className="w-full py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 mt-1" style={{ background: navy }}>
-                        {rosterPending ? 'Adding…' : '+ Add to Roster'}
-                      </button>
-                    </div>
-                  ) : (
-                    <button type="button" onClick={() => setShowAddRosterForm(true)}
-                      className="w-full py-2 rounded-xl text-sm font-semibold border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition">
-                      Add Player +
-                    </button>
-                  )
-                )}
 
                 {liveRoster.length === 0 && editingRosterId === null && (
                   <p className="text-xs text-gray-400 text-center py-1">No players in roster yet — add them above</p>
