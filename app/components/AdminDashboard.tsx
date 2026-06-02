@@ -637,7 +637,9 @@ export default function AdminDashboard({
 
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
-  const [mixedGroups, setMixedGroups] = useState(round?.mixed_groups ?? false)
+  const [mixedGroups, setMixedGroups] = useState<boolean | null>(
+    round && !round.is_started ? null : (round?.mixed_groups ?? false)
+  )
   const [livePlayingGroups, setLivePlayingGroups] = useState<PlayingGroup[]>(playingGroups)
   const [liveGroupPlayers, setLiveGroupPlayers] = useState<PlayingGroupPlayer[]>(playingGroupPlayers)
   const [newGroupName, setNewGroupName] = useState('')
@@ -1039,11 +1041,10 @@ export default function AdminDashboard({
     setLiveHammerMatchups((prev) => prev.filter((m) => m.id !== id))
   }
 
-  async function handleToggleMixedGroups() {
+  async function handleToggleMixedGroups(value: boolean) {
     if (!round) return
-    const next = !mixedGroups
-    setMixedGroups(next)
-    await toggleMixedGroups(round.id, next)
+    setMixedGroups(value)
+    await toggleMixedGroups(round.id, value)
     router.refresh()
   }
   async function handleCreateGroup() {
@@ -1937,9 +1938,9 @@ export default function AdminDashboard({
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => { if (!mixedGroups) handleToggleMixedGroups() }}
+                      onClick={() => { if (mixedGroups !== true) handleToggleMixedGroups(true) }}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
-                        mixedGroups
+                        mixedGroups === true
                           ? 'border-green-500 bg-green-50 text-green-700'
                           : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
                       }`}>
@@ -1947,9 +1948,9 @@ export default function AdminDashboard({
                     </button>
                     <button
                       type="button"
-                      onClick={() => { if (mixedGroups) handleToggleMixedGroups() }}
+                      onClick={() => { if (mixedGroups !== false) handleToggleMixedGroups(false) }}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
-                        !mixedGroups
+                        mixedGroups === false
                           ? 'border-gray-700 bg-gray-100 text-gray-800'
                           : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
                       }`}>
