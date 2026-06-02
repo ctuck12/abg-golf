@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments } from '@/app/actions'
-import { computeTeamBallSummary, computeHoleBallScores } from '@/lib/scoring'
+import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan } from '@/lib/scoring'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -50,6 +50,7 @@ export default function PlayingGroupScoreEntry({
 }) {
   const isDaytonaMode = !!isDaytonaSideGame
   const isFlares = daytonaVariant === '5man-flares'
+  const is5Man = isDaytonaMode && (daytonaVariant === '5man-normal' || daytonaVariant === '5man-flares')
   const leftLabel = isFlares ? 'Out' : 'Left'
   const rightLabel = isFlares ? 'In' : 'Right'
   const router = useRouter()
@@ -332,10 +333,35 @@ export default function PlayingGroupScoreEntry({
           const isPending = pendingHoles.has(hole.hole_number)
           const isExpanded = isStarted && expandedHole === hole.hole_number
           const error = errors[hole.hole_number]
-          const totalPar = players.reduce((sum, p) => {
-            const s = savedScores.find((sc) => sc.player_id === p.id && sc.hole_number === hole.hole_number)
-            return sum + (s ? s.strokes - hole.par : 0)
-          }, 0)
+          const holeAssignments = assignments[hole.hole_number] ?? {}
+          const leftCount = Object.values(holeAssignments).filter((s) => s === 'left').length
+          const holeLeftLabel = isFlares && hole.par === 3 ? 'Close' : leftLabel
+          const holeRightLabel = isFlares && hole.par === 3 ? 'Far' : rightLabel
+
+          // DT scores for collapsed preview
+          const savedLeftScores = players.filter((p) => holeAssignments[p.id] === 'left').map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+          const savedRightScores = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+          const { leftDt, rightDt } = isDaytonaMode ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par) : { leftDt: null, rightDt: null }
+
+          // Per-player DT points for inline label
+          const holePlayerPoints: Map<string, number> = (() => {
+            if (!isDaytonaMode || !isSaved) return new Map()
+            const leftIds = players.filter((p) => holeAssignments[p.id] === 'left').map((p) => p.id)
+            const rightIds = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => p.id)
+            if (is5Man) {
+              if (leftIds.length < 2 || rightIds.length < 3) return new Map()
+              return computeHoleDaytonaPointsFiveMan(leftIds, rightIds, savedScores, hole.hole_number, hole.par)
+            }
+            if (savedLeftScores.length < 2 || savedRightScores.length < 2) return new Map()
+            const { leftDt: lDt, rightDt: rDt } = computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par)
+            if (lDt === null || rDt === null) return new Map()
+            const diff = Math.abs(lDt - rDt)
+            const leftPts = lDt < rDt ? diff : lDt > rDt ? -diff : 0
+            const map = new Map<string, number>()
+            leftIds.forEach((id) => map.set(id, leftPts))
+            rightIds.forEach((id) => map.set(id, -leftPts))
+            return map
+          })()
 
           return (
             <div key={hole.hole_number} id={`hole-${hole.hole_number}`}
@@ -355,18 +381,31 @@ export default function PlayingGroupScoreEntry({
                 <div className="flex-1" />
                 {isSaved && (
                   <div className="flex items-center gap-3 mr-2">
-                    {players.map((p) => {
-                      const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
-                      const rel = sc ? sc.strokes - hole.par : null
-                      return (
-                        <div key={p.id} className="text-center">
-                          <p className="text-[10px] text-gray-400">{p.name.split(' ')[0]}</p>
-                          <p className="text-xs font-semibold" style={{ color: rel == null ? '#9ca3af' : rel < 0 ? '#16a34a' : rel > 0 ? '#dc2626' : '#374151' }}>
-                            {rel == null ? '–' : rel > 0 ? `+${rel}` : rel === 0 ? 'E' : rel}
-                          </p>
+                    {isDaytonaMode ? (
+                      <>
+                        <div className="text-center mr-1">
+                          <p className="text-xs" style={{ color: '#2563eb' }}>{holeLeftLabel}</p>
+                          <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
                         </div>
-                      )
-                    })}
+                        <div className="text-center">
+                          <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
+                          <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
+                        </div>
+                      </>
+                    ) : (
+                      players.map((p) => {
+                        const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
+                        const rel = sc ? sc.strokes - hole.par : null
+                        return (
+                          <div key={p.id} className="text-center">
+                            <p className="text-[10px] text-gray-400">{p.name.split(' ')[0]}</p>
+                            <p className="text-xs font-semibold" style={{ color: rel == null ? '#9ca3af' : rel < 0 ? '#16a34a' : rel > 0 ? '#dc2626' : '#374151' }}>
+                              {rel == null ? '–' : rel > 0 ? `+${rel}` : rel === 0 ? 'E' : rel}
+                            </p>
+                          </div>
+                        )
+                      })
+                    )}
                   </div>
                 )}
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -376,69 +415,72 @@ export default function PlayingGroupScoreEntry({
               </button>
 
               {isExpanded && (
-                <div className="border-t border-gray-100 px-4 py-3 space-y-3">
+                <div className="border-t border-gray-100 px-4 py-3 space-y-2">
                   {players.map((player) => {
                     const val = strokes[player.id]?.[hole.hole_number] ?? hole.par
-                    const rel = val - hole.par
+                    const side = holeAssignments[player.id] as 'left' | 'right' | undefined
+                    const isAssigned = player.id in holeAssignments
+                    const defaultSide: 'left' | 'right' = leftCount < 2 ? 'left' : 'right'
+                    const displaySide = side ?? defaultSide
+                    const allAssigned = !isDaytonaMode || players.every((p) => p.id in holeAssignments)
+                    const canScore = !isDaytonaMode || allAssigned
                     return (
-                      <div key={player.id}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800">{player.name}</p>
-                            <p className="text-xs text-gray-400">{teamMap[player.team_id] ?? '—'}</p>
-                          </div>
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{
-                            background: rel < 0 ? '#dcfce7' : rel > 0 ? '#fee2e2' : '#f3f4f6',
-                            color: rel < 0 ? '#15803d' : rel > 0 ? '#dc2626' : '#374151',
-                          }}>
-                            {rel > 0 ? `+${rel}` : rel === 0 ? 'E' : rel}
-                          </span>
+                      <div key={player.id} className="flex items-center gap-2">
+                        {isDaytonaMode && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAssignments((prev) => {
+                                const hm = { ...(prev[hole.hole_number] ?? {}) }
+                                hm[player.id] = isAssigned ? (side === 'left' ? 'right' : 'left') : displaySide
+                                const newLeft = Object.values(hm).filter(s => s === 'left').length
+                                if (newLeft === 2) { for (const p of players) { if (!(p.id in hm)) hm[p.id] = 'right' } }
+                                const newRight = Object.values(hm).filter(s => s === 'right').length
+                                const rightTarget = is5Man ? 3 : 2
+                                if (newRight === rightTarget) { for (const p of players) { if (!(p.id in hm)) hm[p.id] = 'left' } }
+                                return { ...prev, [hole.hole_number]: hm }
+                              })
+                            }}
+                            className="flex-shrink-0 text-xs font-bold px-2 rounded-lg border transition flex items-center justify-center"
+                            style={{
+                              background: !isAssigned ? (defaultSide === 'left' ? '#dbeafe' : '#fef3c7') : (side === 'left' ? '#2563eb' : '#b45309'),
+                              color: !isAssigned ? (defaultSide === 'left' ? '#2563eb' : '#b45309') : 'white',
+                              borderColor: !isAssigned ? (defaultSide === 'left' ? '#93c5fd' : '#fcd34d') : (side === 'left' ? '#2563eb' : '#b45309'),
+                              minWidth: '3rem', height: '1.5rem',
+                            }}>
+                            {isAssigned ? (side === 'left' ? holeLeftLabel : holeRightLabel) : '+'}
+                          </button>
+                        )}
+                        <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
+                          {player.name}
+                          {isDaytonaMode && isSaved && (() => {
+                            const pts = holePlayerPoints.get(player.id)
+                            if (!pts) return null
+                            return <span className="ml-1.5 text-xs font-semibold" style={{ color: pts > 0 ? '#16a34a' : '#dc2626' }}>{pts > 0 ? `+${pts}` : pts}</span>
+                          })()}
+                        </span>
+                        <button type="button"
+                          disabled={!canScore}
+                          onClick={() => setStrokes((prev) => ({ ...prev, [player.id]: { ...(prev[player.id] ?? {}), [hole.hole_number]: Math.max(1, (prev[player.id]?.[hole.hole_number] ?? hole.par) - 1) } }))}
+                          className={`w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center flex-shrink-0 transition${canScore ? ' hover:bg-gray-200 active:scale-90' : ' cursor-not-allowed'}`}
+                          style={{ color: canScore ? '#374151' : '#d1d5db' }}>−</button>
+                        <div className="w-11 flex items-center justify-center flex-shrink-0">
+                          <span className="text-2xl font-bold" style={{ color: canScore ? '#111827' : '#d1d5db' }}>{val}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button type="button"
-                            onClick={() => setStrokes((prev) => ({ ...prev, [player.id]: { ...(prev[player.id] ?? {}), [hole.hole_number]: Math.max(1, (prev[player.id]?.[hole.hole_number] ?? hole.par) - 1) } }))}
-                            className="w-10 h-10 rounded-xl border border-gray-300 text-lg font-bold text-gray-600 flex items-center justify-center active:scale-95">−</button>
-                          <div className="flex-1 text-center">
-                            <span className="text-2xl font-bold text-gray-900">{val}</span>
-                          </div>
-                          <button type="button"
-                            onClick={() => setStrokes((prev) => ({ ...prev, [player.id]: { ...(prev[player.id] ?? {}), [hole.hole_number]: Math.min(20, (prev[player.id]?.[hole.hole_number] ?? hole.par) + 1) } }))}
-                            className="w-10 h-10 rounded-xl border border-gray-300 text-lg font-bold text-gray-600 flex items-center justify-center active:scale-95">+</button>
-                        </div>
+                        <button type="button"
+                          disabled={!canScore}
+                          onClick={() => setStrokes((prev) => ({ ...prev, [player.id]: { ...(prev[player.id] ?? {}), [hole.hole_number]: Math.min(20, (prev[player.id]?.[hole.hole_number] ?? hole.par) + 1) } }))}
+                          className={`w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center flex-shrink-0 transition${canScore ? ' hover:bg-gray-200 active:scale-90' : ' cursor-not-allowed'}`}
+                          style={{ color: canScore ? '#374151' : '#d1d5db' }}>+</button>
                       </div>
                     )
                   })}
-                  {isDaytonaMode && (
-                    <div className="pt-2 border-t border-gray-100">
-                      <p className="text-xs font-semibold text-gray-500 mb-2">Daytona sides <span className="font-normal text-gray-400">(pick 2 {leftLabel})</span></p>
-                      <div className="space-y-1.5">
-                        {players.map((player) => {
-                          const side = assignments[hole.hole_number]?.[player.id] ?? null
-                          return (
-                            <div key={player.id} className="flex items-center gap-2">
-                              <span className="flex-1 text-sm text-gray-700 truncate">{player.name.split(' ')[0]}</span>
-                              <button type="button"
-                                onClick={() => setSideExplicit(hole.hole_number, player.id, 'left')}
-                                className="px-3 py-1 rounded-lg text-xs font-bold border transition"
-                                style={side === 'left'
-                                  ? { background: '#2563eb', color: 'white', borderColor: '#2563eb' }
-                                  : { background: 'white', color: '#9ca3af', borderColor: '#e5e7eb' }}>
-                                {leftLabel}
-                              </button>
-                              <button type="button"
-                                onClick={() => setSideExplicit(hole.hole_number, player.id, 'right')}
-                                className="px-3 py-1 rounded-lg text-xs font-bold border transition"
-                                style={side === 'right'
-                                  ? { background: '#92400e', color: 'white', borderColor: '#92400e' }
-                                  : { background: 'white', color: '#9ca3af', borderColor: '#e5e7eb' }}>
-                                {rightLabel}
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  {isDaytonaMode && (() => {
+                    const allAssigned = players.every((p) => p.id in holeAssignments)
+                    if (!allAssigned) return <p className="text-xs text-red-500 mt-1">Select 2 {holeLeftLabel} players</p>
+                    if (leftCount !== 2) return <p className="text-xs text-red-500 mt-1">{is5Man ? `Need exactly 2 ${holeLeftLabel} & 3 ${holeRightLabel}` : `Need exactly 2 ${holeLeftLabel} & 2 ${holeRightLabel}`}</p>
+                    return null
+                  })()}
                   {error && <p className="text-xs text-red-500">{error}</p>}
                   <button type="button"
                     onClick={() => saveHole(hole.hole_number)}
