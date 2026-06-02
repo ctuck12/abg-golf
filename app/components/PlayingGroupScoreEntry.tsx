@@ -126,6 +126,19 @@ export default function PlayingGroupScoreEntry({
     setStrokesPending(false)
   }
 
+  function getAutoStrokes(holeNumber: number): string[] {
+    const hole = holes.find((h) => h.hole_number === holeNumber)
+    if (!hole?.stroke_index) return []
+    const hcps = players.map((p) => p.handicap).filter((h): h is number => h != null)
+    if (hcps.length === 0) return []
+    const minHcp = Math.min(...hcps)
+    return players.filter((p) => {
+      if (p.handicap == null) return false
+      const strokes = Math.round(p.handicap - minHcp)
+      return strokes > 0 && hole.stroke_index! <= strokes
+    }).map((p) => p.id)
+  }
+
   function expandHole(holeNumber: number) {
     const h = holes.find((h) => h.hole_number === holeNumber)
     if (!h) return
@@ -552,24 +565,56 @@ export default function PlayingGroupScoreEntry({
                   })()}
 
                   {/* ── Handicap Strokes ── */}
-                  <div className="pt-2 border-t border-gray-100">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Handicap Strokes</p>
-                    <div className="flex flex-wrap gap-2">
-                      {players.map((p) => {
-                        const hasStroke = holeStrokeIds.includes(p.id)
-                        return (
-                          <button key={p.id} type="button"
-                            onClick={() => handleStrokesToggle(hole.hole_number, p.id)}
-                            disabled={strokesPending}
-                            className={`text-xs px-2.5 py-1 rounded-full border font-medium transition ${hasStroke ? 'text-white border-transparent' : 'border-gray-300 text-gray-500'}`}
-                            style={hasStroke ? { background: '#16a34a' } : {}}>
-                            {p.name.split(' ')[0]}{hasStroke ? ' +1' : ''}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {holeStrokeIds.length > 0 && <p className="text-xs text-gray-400 mt-1">Net scores adjusted for stroke recipients</p>}
-                  </div>
+                  {(() => {
+                    const autoIds = getAutoStrokes(hole.hole_number)
+                    const hasAutoData = hole.stroke_index != null && players.some((p) => p.handicap != null)
+                    return (
+                      <div className="pt-2 border-t border-gray-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Handicap Strokes</p>
+                          {hasAutoData && (
+                            <button type="button"
+                              onClick={async () => {
+                                setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: autoIds }))
+                                setStrokesPending(true)
+                                await saveHoleStrokes(roundId, hole.hole_number, autoIds)
+                                setStrokesPending(false)
+                              }}
+                              disabled={strokesPending}
+                              className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                              Auto-fill
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {players.map((p) => {
+                            const hasStroke = holeStrokeIds.includes(p.id)
+                            const isSuggested = autoIds.includes(p.id)
+                            return (
+                              <button key={p.id} type="button"
+                                onClick={() => handleStrokesToggle(hole.hole_number, p.id)}
+                                disabled={strokesPending}
+                                className="text-xs px-2.5 py-1 rounded-full border font-medium transition"
+                                style={hasStroke
+                                  ? { background: '#16a34a', color: 'white', borderColor: 'transparent' }
+                                  : isSuggested
+                                    ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                                    : { borderColor: '#d1d5db', color: '#6b7280' }}>
+                                {p.name.split(' ')[0]}{hasStroke ? ' +1' : isSuggested ? ' ?' : ''}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {hasAutoData && autoIds.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-1.5">
+                            <span className="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style={{ background: '#86efac' }} />
+                            Light green = suggested based on handicap
+                          </p>
+                        )}
+                        {holeStrokeIds.length > 0 && <p className="text-xs text-gray-400 mt-0.5">Net scores adjusted for stroke recipients</p>}
+                      </div>
+                    )
+                  })()}
 
                   {/* ── Press (custom payout) ── */}
                   {isDaytonaMode && (() => {
