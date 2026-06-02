@@ -1639,71 +1639,13 @@ export default function AdminDashboard({
                       </div>
                     )}
                     <button
-                      type="button"
+                      type="submit"
                       disabled={!canStartRound || createPending}
-                      onClick={() => setShowCreateConfirm(true)}
                       className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 transition"
                       style={{ background: navy, cursor: !canStartRound ? 'not-allowed' : undefined }}>
                       {createPending ? 'Creating…' : round ? 'Save' : 'Create Round'}
                     </button>
                   </div>
-                  {/* ── Confirm modal — inside <form> so type="submit" works reliably ── */}
-                  {showCreateConfirm && (() => {
-                    const courseLabels: Record<string, string> = {
-                      south: 'ACC South Course (Par 72)', north: 'ACC North Course (Par 71)',
-                      liveoak: 'Live Oak Golf Club (Par 71)', maxwell: 'Maxwell Golf Course (Par 71)',
-                      shadyoaks: 'Shady Oaks Golf Course (Par 70)', hideout: 'The Hideout Golf Club (Par 72)',
-                      canyonwest: 'Canyon West Golf Course (Par 72)',
-                    }
-                    const formatLabels: Record<string, string> = {
-                      standard: '3/4 Balls', daytona: 'Daytona', traditional: 'Traditional', banker: 'Banker',
-                    }
-                    const rows: { label: string; value: string }[] = [
-                      { label: 'Round Name', value: newRoundName || '—' },
-                      { label: 'Date', value: newRoundDate ? new Date(newRoundDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—' },
-                      { label: 'Format', value: formatLabels[selectedFormat] ?? selectedFormat },
-                      ...(selectedFormat === 'standard' ? [
-                        { label: 'Balls in Play', value: `${selectedBallsCount} Balls` },
-                        { label: 'Include Overall', value: createIncludeTotal ? 'Yes' : 'No' },
-                      ] : []),
-                      { label: 'Course', value: courseLabels[selectedCourse] ?? selectedCourse },
-                    ]
-                    return (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
-                          <div>
-                            <h2 className="font-semibold text-gray-900 text-base">Confirm New Round</h2>
-                            <p className="text-xs text-gray-500 mt-0.5">Review your settings before creating.</p>
-                          </div>
-                          <div className="border-t border-gray-100" />
-                          <div className="space-y-2.5">
-                            {rows.map(({ label, value }) => (
-                              <div key={label} className="flex items-start justify-between gap-3">
-                                <span className="text-xs font-medium text-gray-500 flex-shrink-0">{label}</span>
-                                <span className="text-xs text-gray-900 font-semibold text-right">{value}</span>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="border-t border-gray-100" />
-                          <div className="flex gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setShowCreateConfirm(false)}
-                              className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
-                              Edit
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={createPending}
-                              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
-                              style={{ background: navy }}>
-                              {createPending ? 'Creating…' : 'Confirm'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })()}
                 </form>
               </div>
             )}
