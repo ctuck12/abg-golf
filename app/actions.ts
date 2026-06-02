@@ -91,64 +91,67 @@ export async function submitHoleScores(
 // ── Admin: round management ───────────────────────────────────────────────────
 
 export async function createRound(_prev: unknown, formData: FormData) {
-  const name = (formData.get('name') as string)?.trim()
-  const date = formData.get('date') as string
-  const orgId = formData.get('orgId') as string
-  const orgSlug = (formData.get('orgSlug') as string)?.trim()
-  const courseSlug = (formData.get('course') as string) || 'south'
-  const format = (formData.get('format') as string) || 'standard'
-  const daytonaVariant = null
-  const isBanker = format === 'banker'
-  const isHammer = format === 'hammer'
-  const ballsCount = (format === 'daytona' || format === 'traditional' || isBanker || isHammer) ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
-  const includeTotal = (format !== 'daytona' && format !== 'traditional' && !isBanker) && formData.get('include_total') === 'true'
-  const isNineHoleFormat = format === 'daytona' || format === 'traditional'
-  const bankerMinBet = isBanker ? (parseFloat(formData.get('banker_min_bet') as string) || 2) : null
-  const holeCount = isNineHoleFormat ? (parseInt(formData.get('holeCount') as string) || 18) : 18
-  const startHole = (holeCount === 9) ? (parseInt(formData.get('startHole') as string) || 1) : 1
+  try {
+    const name = (formData.get('name') as string)?.trim()
+    const date = formData.get('date') as string
+    const orgId = formData.get('orgId') as string
+    const orgSlug = (formData.get('orgSlug') as string)?.trim()
+    const courseSlug = (formData.get('course') as string) || 'south'
+    const format = (formData.get('format') as string) || 'standard'
+    const daytonaVariant = null
+    const isBanker = format === 'banker'
+    const isHammer = format === 'hammer'
+    const ballsCount = (format === 'daytona' || format === 'traditional' || isBanker || isHammer) ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
+    const includeTotal = (format !== 'daytona' && format !== 'traditional' && !isBanker) && formData.get('include_total') === 'true'
+    const isNineHoleFormat = format === 'daytona' || format === 'traditional'
+    const bankerMinBet = isBanker ? (parseFloat(formData.get('banker_min_bet') as string) || 2) : null
+    const holeCount = isNineHoleFormat ? (parseInt(formData.get('holeCount') as string) || 18) : 18
+    const startHole = (holeCount === 9) ? (parseInt(formData.get('startHole') as string) || 1) : 1
 
-  if (!name || !date || !orgId || !orgSlug) return { error: 'Round name, date, and org are required.' }
+    if (!name || !date || !orgId || !orgSlug) return { error: 'Round name, date, and org are required.' }
 
-  const supabase = createServerClient()
+    const supabase = createServerClient()
 
-  // Try DB course first, fall back to hardcoded constants for backward compat
-  const { data: dbCourse } = await supabase
-    .from('courses').select('name, pars, stroke_indexes').eq('slug', courseSlug).single()
+    const { data: dbCourse } = await supabase
+      .from('courses').select('name, pars, stroke_indexes').eq('slug', courseSlug).single()
 
-  const courseName = dbCourse?.name ?? COURSE_NAMES[courseSlug] ?? courseSlug
-  const allParsRaw = dbCourse?.pars ?? COURSE_PARS[courseSlug] ?? Array(18).fill(4)
-  const allPars: number[] = Array.isArray(allParsRaw) ? allParsRaw : JSON.parse(String(allParsRaw))
-  const pars = holeCount === 9
-    ? (startHole === 10 ? allPars.slice(9) : allPars.slice(0, 9))
-    : allPars
-  const allStrokeIndexesRaw = dbCourse?.stroke_indexes ?? null
-  const allStrokeIndexes: (number | null)[] = allStrokeIndexesRaw
-    ? (Array.isArray(allStrokeIndexesRaw) ? allStrokeIndexesRaw : JSON.parse(String(allStrokeIndexesRaw)))
-    : Array(18).fill(null)
-  const strokeIndexes = holeCount === 9
-    ? (startHole === 10 ? allStrokeIndexes.slice(9) : allStrokeIndexes.slice(0, 9))
-    : allStrokeIndexes
+    const courseName = dbCourse?.name ?? COURSE_NAMES[courseSlug] ?? courseSlug
+    const allParsRaw = dbCourse?.pars ?? COURSE_PARS[courseSlug] ?? Array(18).fill(4)
+    const allPars: number[] = Array.isArray(allParsRaw) ? allParsRaw : JSON.parse(String(allParsRaw))
+    const pars = holeCount === 9
+      ? (startHole === 10 ? allPars.slice(9) : allPars.slice(0, 9))
+      : allPars
+    const allStrokeIndexesRaw = dbCourse?.stroke_indexes ?? null
+    const allStrokeIndexes: (number | null)[] = allStrokeIndexesRaw
+      ? (Array.isArray(allStrokeIndexesRaw) ? allStrokeIndexesRaw : JSON.parse(String(allStrokeIndexesRaw)))
+      : Array(18).fill(null)
+    const strokeIndexes = holeCount === 9
+      ? (startHole === 10 ? allStrokeIndexes.slice(9) : allStrokeIndexes.slice(0, 9))
+      : allStrokeIndexes
 
-  // Deactivate only this org's previous active round
-  await supabase.from('rounds').update({ is_active: false }).eq('is_active', true).eq('org_id', orgId)
+    await supabase.from('rounds').update({ is_active: false }).eq('is_active', true).eq('org_id', orgId)
 
-  const { data: round, error } = await supabase
-    .from('rounds')
-    .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}) })
-    .select().single()
+    const { data: round, error } = await supabase
+      .from('rounds')
+      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}) })
+      .select().single()
 
-  if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
+    if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
 
-  await Promise.all([
-    supabase.from('holes').insert(
-      pars.map((par, i) => ({ round_id: round.id, hole_number: startHole + i, par, stroke_index: strokeIndexes[i] ?? null }))
-    ),
-    supabase.from('ball_values').insert(
-      Array.from({ length: ballsCount }, (_, i) => ({ round_id: round.id, ball_number: i + 1, value_dollars: 0 }))
-    ),
-  ])
+    await Promise.all([
+      supabase.from('holes').insert(
+        pars.map((par, i) => ({ round_id: round.id, hole_number: startHole + i, par, stroke_index: strokeIndexes[i] ?? null }))
+      ),
+      supabase.from('ball_values').insert(
+        Array.from({ length: ballsCount }, (_, i) => ({ round_id: round.id, ball_number: i + 1, value_dollars: 0 }))
+      ),
+    ])
 
-  return { success: true, roundId: round.id }
+    return { success: true, roundId: round.id }
+  } catch (e) {
+    console.error('[createRound] unexpected error:', e)
+    return { error: e instanceof Error ? e.message : 'Unexpected error creating round.' }
+  }
 }
 
 export async function activateRound(roundId: string, orgSlug: string) {
