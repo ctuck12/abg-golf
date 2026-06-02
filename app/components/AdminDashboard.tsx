@@ -684,6 +684,7 @@ export default function AdminDashboard({
   const [manualGroupName, setManualGroupName] = useState('')
   const [manualGroupPending, setManualGroupPending] = useState(false)
   const [liveManualPlayers, setLiveManualPlayers] = useState<Player[]>([])
+  const [expandedGroupSideGame, setExpandedGroupSideGame] = useState<string | null>(null)
   type GroupSideGame = { daytonaEnabled: boolean; daytonaType: string; daytonaSubVariant: string; daytonaPayout: string; bankerEnabled: boolean; bankerMinBet: string; autoStrokes: boolean; saving: boolean; saved: boolean }
   const initGroupSideGame = (g: PlayingGroup): GroupSideGame => {
     const raw = g.daytona_variant ?? ''
@@ -2386,9 +2387,24 @@ export default function AdminDashboard({
                           {/* ── Side Game settings (only when group has players) ── */}
                           {assignedPlayers.length > 0 && (() => {
                             const sg = groupSideGames[g.id] ?? initGroupSideGame(g)
+                            const hasSideGame = sg.daytonaEnabled || sg.bankerEnabled
+                            const isOpen = expandedGroupSideGame === g.id || hasSideGame
                             return (
                               <div className="border-t border-gray-100 pt-2.5 space-y-2">
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Side Game</p>
+                                {!isOpen ? (
+                                  <button type="button"
+                                    onClick={() => setExpandedGroupSideGame(g.id)}
+                                    className="text-xs text-purple-600 border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-50 font-medium transition">
+                                    + Add Side Game
+                                  </button>
+                                ) : (
+                                <><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center justify-between">
+                                  Side Game
+                                  {!hasSideGame && (
+                                    <button type="button" onClick={() => setExpandedGroupSideGame(null)}
+                                      className="text-gray-400 hover:text-gray-600 text-xs font-normal normal-case">✕ Cancel</button>
+                                  )}
+                                </p>
 
                                 {/* Daytona — hidden when Banker On */}
                                 {!sg.bankerEnabled && (
@@ -2481,6 +2497,7 @@ export default function AdminDashboard({
                                         auto_strokes: (sg.daytonaEnabled || sg.bankerEnabled) ? sg.autoStrokes : false,
                                       })
                                       updateGroupSG(g.id, { saving: false, saved: true })
+                                      if (!sg.daytonaEnabled && !sg.bankerEnabled) setExpandedGroupSideGame(null)
                                     }}
                                     className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white disabled:opacity-40 transition"
                                     style={{ background: navy }}>
@@ -2488,6 +2505,7 @@ export default function AdminDashboard({
                                   </button>
                                   {sg.saved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
                                 </div>
+                                </>)}
                               </div>
                             )
                           })()}
