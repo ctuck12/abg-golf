@@ -605,7 +605,8 @@ export default function AdminDashboard({
   const [showNewGroupPin, setShowNewGroupPin] = useState(false)
   const [groupError, setGroupError] = useState('')
 
-  const [createState, createAction, createPending] = useActionState(createRound, null)
+  const [createPending, setCreatePending] = useState(false)
+  const [createError, setCreateError] = useState('')
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
   const [addPlayerState, addPlayerAction, addPlayerPending] = useActionState(addPlayer, null)
   const [parState, parAction, parPending] = useActionState(updateHolePars, null)
@@ -619,14 +620,6 @@ export default function AdminDashboard({
   const effectivePendingId = null
   const isSettingUp = roundIsSettingUp || createPending
 
-  useEffect(() => {
-    if ((createState as { success?: boolean } | null)?.success) {
-      window.location.href = `/${orgSlug}/admin/dashboard`
-    }
-  }, [createState, orgSlug])
-  useEffect(() => {
-    if (createPending) setShowCreateConfirm(false)
-  }, [createPending])
   useEffect(() => {
     if (addTeamState?.success) {
       router.refresh()
@@ -1489,8 +1482,8 @@ export default function AdminDashboard({
                     This will end the current round and start a new one.
                   </p>
                 )}
-                {(createState as { error?: string } | null)?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{(createState as { error?: string } | null)?.error}</p>}
-                <form id="create-round-form" ref={createFormRef} action={createAction} className="space-y-3">
+                {createError && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createError}</p>}
+                <form ref={createFormRef} className="space-y-3">
                   <input type="hidden" name="orgId" value={orgId} />
                   <input type="hidden" name="orgSlug" value={orgSlug} />
                   <div>
@@ -1639,8 +1632,27 @@ export default function AdminDashboard({
                       </div>
                     )}
                     <button
-                      type="submit"
+                      type="button"
                       disabled={!canStartRound || createPending}
+                      onClick={async () => {
+                        if (!createFormRef.current) return
+                        setCreatePending(true)
+                        setCreateError('')
+                        try {
+                          const body = new FormData(createFormRef.current)
+                          const res = await fetch('/api/create-round', { method: 'POST', body })
+                          const data = await res.json()
+                          if (data.error) {
+                            setCreateError(data.error)
+                            setCreatePending(false)
+                          } else {
+                            window.location.href = `/${orgSlug}/admin/dashboard`
+                          }
+                        } catch (e) {
+                          setCreateError(e instanceof Error ? e.message : 'Network error. Please try again.')
+                          setCreatePending(false)
+                        }
+                      }}
                       className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 transition"
                       style={{ background: navy, cursor: !canStartRound ? 'not-allowed' : undefined }}>
                       {createPending ? 'Creating…' : round ? 'Save' : 'Create Round'}
