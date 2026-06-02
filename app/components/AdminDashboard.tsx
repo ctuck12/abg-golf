@@ -513,6 +513,7 @@ export default function AdminDashboard({
   const [handicapDraft, setHandicapDraft] = useState('')
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [confirmRemoveTeamId, setConfirmRemoveTeamId] = useState<string | null>(null)
+  const [confirmRemoveRosterId, setConfirmRemoveRosterId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editPin, setEditPin] = useState('')
   const [editDaytonaEnabled, setEditDaytonaEnabled] = useState(false)
@@ -1312,6 +1313,46 @@ export default function AdminDashboard({
         )
       })()}
 
+      {/* ── Remove Roster Player confirmation modal ── */}
+      {confirmRemoveRosterId && (() => {
+        const playerName = liveRoster.find(rp => rp.id === confirmRemoveRosterId)?.name ?? 'this player'
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg font-bold">!</div>
+                <div>
+                  <h2 className="font-semibold text-gray-900 text-base leading-snug">Remove from roster?</h2>
+                  <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                    This will permanently remove <span className="font-semibold text-gray-800">{playerName}</span> from your player roster. This cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmRemoveRosterId(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const id = confirmRemoveRosterId
+                    setConfirmRemoveRosterId(null)
+                    await handleDeleteRosterPlayer(id)
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                  style={{ background: '#dc2626' }}>
+                  Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} />}
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
@@ -1433,7 +1474,7 @@ export default function AdminDashboard({
                             </div>
                             <button type="button" onClick={() => { setEditingRosterId(rp.id); setRosterForm({ name: rp.name, ghin: rp.ghin_number ?? '', handicap: rp.handicap_index != null ? String(rp.handicap_index) : '', email: rp.email ?? '' }) }}
                               className="text-xs text-blue-500 hover:text-blue-700">Edit</button>
-                            <button type="button" onClick={() => handleDeleteRosterPlayer(rp.id)}
+                            <button type="button" onClick={() => setConfirmRemoveRosterId(rp.id)}
                               className="text-xs text-red-500 hover:text-red-700">Remove</button>
                           </div>
                         )}
