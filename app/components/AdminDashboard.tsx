@@ -3251,23 +3251,23 @@ export default function AdminDashboard({
                                       const required = team.daytona_variant.split('|')[0].startsWith('5man') ? 5 : 4
                                       const ok = teamPlayers.length === required
                                       const over = teamPlayers.length > required
-                                      return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length}/{required} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
+                                      return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                     }
                                     const ok = teamPlayers.length >= 2 && teamPlayers.length <= 5
                                     const over = teamPlayers.length > 5
-                                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length}/2–5 players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
+                                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                   }
                                   if (isDaytona) {
                                     const teamVariant = (team.daytona_variant ?? '4man').split('|')[0]
                                     const required = teamVariant.startsWith('5man') ? 5 : 4
                                     const ok = teamPlayers.length === required
                                     const over = teamPlayers.length > required
-                                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length}/{required} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
+                                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                   }
                                   const required = round?.balls_count ?? 3
                                   const ok = teamPlayers.length >= required && teamPlayers.length <= 5
                                   const over = teamPlayers.length > 5
-                                  return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length}/{required} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
+                                  return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                 })()}
                               </p>
                             </div>
