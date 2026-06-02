@@ -188,9 +188,11 @@ export async function updateBallValues(_prev: unknown, formData: FormData) {
 
 export async function addTeam(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
-  const pin = (formData.get('pin') as string)?.trim()
   const roundId = formData.get('roundId') as string
-  if (!name || !pin || !roundId) return { error: 'All fields required.' }
+  // PIN is hidden when mixed groups is enabled — auto-generate a random one
+  const rawPin = (formData.get('pin') as string)?.trim()
+  const pin = rawPin || String(Math.floor(1000 + Math.random() * 9000))
+  if (!name || !roundId) return { error: 'All fields required.' }
   if (!/^\d{4}$/.test(pin)) return { error: 'PIN must be exactly 4 digits.' }
 
   const daytonaVariant = (formData.get('daytona_variant') as string) || null

@@ -2302,21 +2302,23 @@ export default function AdminDashboard({
                                 className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold focus:outline-none"
                                 placeholder="Team name"
                               />
-                              <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <span className="text-xs text-gray-500">PIN</span>
-                                <input
-                                  type="text"
-                                  value={genEditPins[i] ?? team.pin}
-                                  onChange={e => setGenEditPins(prev => {
-                                    const next = [...prev]
-                                    next[i] = e.target.value.replace(/\D/g, '').slice(0, 4)
-                                    return next
-                                  })}
-                                  maxLength={4}
-                                  inputMode="numeric"
-                                  className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-mono focus:outline-none"
-                                />
-                              </div>
+                              {!mixedGroups && (
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <span className="text-xs text-gray-500">PIN</span>
+                                  <input
+                                    type="text"
+                                    value={genEditPins[i] ?? team.pin}
+                                    onChange={e => setGenEditPins(prev => {
+                                      const next = [...prev]
+                                      next[i] = e.target.value.replace(/\D/g, '').slice(0, 4)
+                                      return next
+                                    })}
+                                    maxLength={4}
+                                    inputMode="numeric"
+                                    className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-mono focus:outline-none"
+                                  />
+                                </div>
+                              )}
                               {team.avgHandicap != null && (
                                 <span className="text-xs text-gray-400 flex-shrink-0">avg {team.avgHandicap < 0 ? `+${Math.abs(team.avgHandicap)}` : team.avgHandicap} HCP</span>
                               )}
@@ -2475,8 +2477,10 @@ export default function AdminDashboard({
                       <div className="flex gap-2">
                         <input type="text" name="name" placeholder={(isDaytona || isTraditional) ? 'Group name' : 'Team name'} required
                           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-                        <input type="text" name="pin" placeholder="PIN" maxLength={4} inputMode="numeric" required
-                          className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none" />
+                        {!mixedGroups && (
+                          <input type="text" name="pin" placeholder="PIN" maxLength={4} inputMode="numeric" required
+                            className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none" />
+                        )}
                         {/* Disabled only while the create action is in-flight (roundId not known yet) */}
                         <button type="submit"
                           disabled={addTeamPending || createPending || (isDaytona && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant))) || (isTraditional && newTeamDaytonaEnabled && (!newTeamDaytonaType || (newTeamDaytonaType === '5' && !newTeamSubVariant) || !newTeamDaytonaPayout))}
@@ -2507,8 +2511,10 @@ export default function AdminDashboard({
                             <div className="flex gap-2">
                               <input type="text" name="name" value={editName} onChange={(e) => setEditName(e.target.value)} required placeholder="Group name"
                                 className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                              <input type="text" name="pin" value={editPin} onChange={(e) => setEditPin(e.target.value)} placeholder="PIN" maxLength={4} inputMode="numeric"
-                                className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
+                              {!mixedGroups && (
+                                <input type="text" name="pin" value={editPin} onChange={(e) => setEditPin(e.target.value)} placeholder="PIN" maxLength={4} inputMode="numeric"
+                                  className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
+                              )}
                             </div>
                             {(isTraditional || isStandard) && (
                               <div className="space-y-2">
@@ -2586,7 +2592,7 @@ export default function AdminDashboard({
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-gray-900 text-sm">{team.name}</p>
                               <p className="text-xs text-gray-500">
-                                PIN: <span className="font-mono font-bold text-gray-800">{team.pin}</span>
+                                {!mixedGroups && <>PIN: <span className="font-mono font-bold text-gray-800">{team.pin}</span></>}
                                 {team.daytona_variant && (() => {
                                   const [v, p] = team.daytona_variant!.split('|')
                                   const label = v === '5man-flares' ? 'Daytona 5-Man Flares' : v === '5man-normal' ? 'Daytona 5-Man Normal' : 'Daytona 4-Man'
