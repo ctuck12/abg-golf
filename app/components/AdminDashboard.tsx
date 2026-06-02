@@ -605,7 +605,8 @@ export default function AdminDashboard({
   const [showNewGroupPin, setShowNewGroupPin] = useState(false)
   const [groupError, setGroupError] = useState('')
 
-  const [createState, createAction, createPending] = useActionState(createRound, null)
+  const [createError, setCreateError] = useState('')
+  const [createPending, setCreatePending] = useState(false)
   const [addTeamState, addTeamAction, addTeamPending] = useActionState(addTeam, null)
   const [addPlayerState, addPlayerAction, addPlayerPending] = useActionState(addPlayer, null)
   const [parState, parAction, parPending] = useActionState(updateHolePars, null)
@@ -615,20 +616,9 @@ export default function AdminDashboard({
   const [updateTeamState, updateTeamAction, updateTeamPending] = useActionState(updateTeamSettings, null)
   const [skinsState, skinsAction, skinsPending] = useActionState(updateSkinsSettings, null)
 
-  // Optimistic "Setting Up" — three phases that together eliminate lag:
-  //  1. createPending=true       → action in-flight, form collapses instantly
-  //  2. effectivePendingId set   → action done, router.refresh() still pending; use new roundId for team adds
-  //  3. round.is_started=false  → router.refresh() done, fully DB-driven
   const roundIsSettingUp = !!(round && !round.is_started)
-  const pendingRoundId = (createState as { success?: boolean; roundId?: string } | null)?.roundId ?? null
-  const effectivePendingId = pendingRoundId !== round?.id ? pendingRoundId : null
-  const isSettingUp = roundIsSettingUp || createPending || !!effectivePendingId
-
-  useEffect(() => {
-    if ((createState as { success?: boolean } | null)?.success) {
-      window.location.href = `/${orgSlug}/admin/dashboard`
-    }
-  }, [createState, orgSlug])
+  const effectivePendingId = null
+  const isSettingUp = roundIsSettingUp || createPending
   useEffect(() => {
     if (addTeamState?.success) {
       router.refresh()
@@ -1254,13 +1244,24 @@ export default function AdminDashboard({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
+                  disabled={createPending}
+                  onClick={async () => {
+                    if (!createFormRef.current) return
                     setShowCreateConfirm(false)
-                    createFormRef.current?.requestSubmit()
+                    setCreateError('')
+                    setCreatePending(true)
+                    const formData = new FormData(createFormRef.current)
+                    const result = await createRound(null, formData)
+                    setCreatePending(false)
+                    if (result?.error) {
+                      setCreateError(result.error)
+                    } else {
+                      window.location.href = `/${orgSlug}/admin/dashboard`
+                    }
                   }}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
                   style={{ background: navy }}>
-                  Confirm
+                  {createPending ? 'Creating…' : 'Confirm'}
                 </button>
               </div>
             </div>
@@ -1559,8 +1560,8 @@ export default function AdminDashboard({
                     This will end the current round and start a new one.
                   </p>
                 )}
-                {createState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createState.error}</p>}
-                <form ref={createFormRef} action={createAction} className="space-y-3">
+                {createError && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createError}</p>}
+                <form ref={createFormRef} className="space-y-3">
                   <input type="hidden" name="orgId" value={orgId} />
                   <input type="hidden" name="orgSlug" value={orgSlug} />
                   <div>
