@@ -40,6 +40,8 @@ function randomPin(): string {
 }
 
 function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number): GeneratedTeam[] {
+  // Sort best to worst. Plus handicaps are stored as negative numbers (e.g. +2.3 = -2.3),
+  // so ascending sort correctly places the best players first.
   const sorted = [...players].sort((a, b) => {
     if (a.handicap == null && b.handicap == null) return 0
     if (a.handicap == null) return 1
@@ -48,31 +50,31 @@ function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number): Ge
   })
 
   const n = sorted.length
+  const smallSize = Math.floor(n / numTeams)
   const slots: GeneratedPlayer[][] = Array.from({ length: numTeams }, () => [])
 
-  if (n % numTeams === 0) {
-    // Even split — snake draft is optimal: pairs best+worst, 2nd+2nd-worst, etc.
-    sorted.forEach((player, i) => {
-      const round = Math.floor(i / numTeams)
-      const pos = i % numTeams
-      const idx = round % 2 === 0 ? pos : numTeams - 1 - pos
-      slots[idx].push(player)
-    })
-  } else {
-    // Uneven split — greedy min-sum assignment handles remainders far better than snake.
-    // Each player goes to the team with the lowest handicap total so far (capped at ceil size).
-    const maxSize = Math.ceil(n / numTeams)
-    const sums: number[] = Array(numTeams).fill(0)
-    for (const player of sorted) {
-      let bestTeam = 0
-      let bestSum = Infinity
-      for (let t = 0; t < numTeams; t++) {
-        if (slots[t].length >= maxSize) continue
-        if (sums[t] < bestSum) { bestSum = sums[t]; bestTeam = t }
-      }
-      slots[bestTeam].push(player)
-      sums[bestTeam] += player.handicap ?? 0
+  // Phase 1: snake draft fills every team to smallSize.
+  // Snake pairs best+worst each round, producing balanced sums regardless of sign.
+  const phase1Total = smallSize * numTeams
+  for (let i = 0; i < phase1Total; i++) {
+    const round = Math.floor(i / numTeams)
+    const pos = i % numTeams
+    const teamIdx = round % 2 === 0 ? pos : numTeams - 1 - pos
+    slots[teamIdx].push(sorted[i])
+  }
+
+  // Phase 2: remaining players (the worst-ranked) go to the weakest teams.
+  // In best-ball formats an extra player is a structural advantage, so the larger
+  // team should be the weakest — giving them the worst remaining players compensates.
+  for (let i = phase1Total; i < n; i++) {
+    let target = 0
+    let worstSum = -Infinity
+    for (let t = 0; t < numTeams; t++) {
+      if (slots[t].length > smallSize) continue  // already received its extra player
+      const sum = slots[t].reduce((s, p) => s + (p.handicap ?? 0), 0)
+      if (sum > worstSum) { worstSum = sum; target = t }
     }
+    slots[target].push(sorted[i])
   }
 
   return slots.map((teamPlayers, i) => {
