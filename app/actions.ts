@@ -148,8 +148,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
     ),
   ])
 
-  // Server-side redirect — bypasses all client router/cache issues
-  redirect(`/${orgSlug}/admin/dashboard`)
+  return { success: true, roundId: round.id }
 }
 
 export async function activateRound(roundId: string, orgSlug: string) {

@@ -624,8 +624,11 @@ export default function AdminDashboard({
   const effectivePendingId = pendingRoundId !== round?.id ? pendingRoundId : null
   const isSettingUp = roundIsSettingUp || createPending || !!effectivePendingId
 
-  // createRound now uses server-side redirect — no client-side handler needed for success.
-  // Errors surface via createState.error shown inline in the form.
+  useEffect(() => {
+    if ((createState as { success?: boolean } | null)?.success) {
+      window.location.href = `/${orgSlug}/admin/dashboard`
+    }
+  }, [createState, orgSlug])
   useEffect(() => {
     if (addTeamState?.success) {
       router.refresh()
