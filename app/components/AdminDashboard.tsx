@@ -624,15 +624,8 @@ export default function AdminDashboard({
   const effectivePendingId = pendingRoundId !== round?.id ? pendingRoundId : null
   const isSettingUp = roundIsSettingUp || createPending || !!effectivePendingId
 
-  // Refresh server data after mutations so the UI updates without a manual reload.
-  useEffect(() => {
-    if (createState?.success) {
-      // Hard reload guarantees fresh round data regardless of Next.js router cache state.
-      // router.refresh() alone doesn't reliably update when the component tree changes
-      // significantly (null-round → active-round), causing permanent "Loading setup..." state.
-      window.location.reload()
-    }
-  }, [createState])
+  // createRound now uses server-side redirect — no client-side handler needed for success.
+  // Errors surface via createState.error shown inline in the form.
   useEffect(() => {
     if (addTeamState?.success) {
       router.refresh()
@@ -1564,9 +1557,9 @@ export default function AdminDashboard({
                   </p>
                 )}
                 {createState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createState.error}</p>}
-                {createState?.success && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2 mb-2">Round created! Add teams and activate when ready.</p>}
                 <form ref={createFormRef} action={createAction} className="space-y-3">
                   <input type="hidden" name="orgId" value={orgId} />
+                  <input type="hidden" name="orgSlug" value={orgSlug} />
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Round Name</label>
                     <input type="text" name="name" placeholder="e.g. Saturday Scramble" required

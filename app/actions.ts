@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+
 import { createServerClient } from '@/lib/supabase-server'
 
 // ── Course presets ────────────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
   const date = formData.get('date') as string
   const orgId = formData.get('orgId') as string
+  const orgSlug = (formData.get('orgSlug') as string)?.trim()
   const courseSlug = (formData.get('course') as string) || 'south'
   const format = (formData.get('format') as string) || 'standard'
   const daytonaVariant = null
@@ -105,7 +107,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
   const holeCount = isNineHoleFormat ? (parseInt(formData.get('holeCount') as string) || 18) : 18
   const startHole = (holeCount === 9) ? (parseInt(formData.get('startHole') as string) || 1) : 1
 
-  if (!name || !date || !orgId) return { error: 'Round name, date, and org are required.' }
+  if (!name || !date || !orgId || !orgSlug) return { error: 'Round name, date, and org are required.' }
 
   const supabase = createServerClient()
 
@@ -146,7 +148,8 @@ export async function createRound(_prev: unknown, formData: FormData) {
     ),
   ])
 
-  return { success: true, roundId: round.id }
+  // Server-side redirect — bypasses all client router/cache issues
+  redirect(`/${orgSlug}/admin/dashboard`)
 }
 
 export async function activateRound(roundId: string, orgSlug: string) {

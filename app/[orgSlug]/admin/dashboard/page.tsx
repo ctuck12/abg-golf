@@ -18,12 +18,14 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const orgName = orgRow?.name ?? orgSlug
   const sb = createServerClient()
 
-  const { data: round } = await sb
+  const { data: roundRows } = await sb
     .from('rounds')
     .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, auto_handicap, mixed_groups')
     .eq('is_active', true)
     .eq('org_id', orgId)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const round = roundRows?.[0] ?? null
 
   const roundId = round?.id
   const isDaytona = (round?.format ?? 'standard') === 'daytona'
