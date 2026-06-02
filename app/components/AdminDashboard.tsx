@@ -2281,7 +2281,7 @@ export default function AdminDashboard({
                     {generatedTeams && (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Preview — edit names &amp; PINs</p>
+                          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Preview — edit names</p>
                           <button type="button" onClick={handleGenerateTeams}
                             className="text-xs text-indigo-600 border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50">
                             Re-generate
@@ -2302,23 +2302,6 @@ export default function AdminDashboard({
                                 className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold focus:outline-none"
                                 placeholder="Team name"
                               />
-                              {!mixedGroups && (
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  <span className="text-xs text-gray-500">PIN</span>
-                                  <input
-                                    type="text"
-                                    value={genEditPins[i] ?? team.pin}
-                                    onChange={e => setGenEditPins(prev => {
-                                      const next = [...prev]
-                                      next[i] = e.target.value.replace(/\D/g, '').slice(0, 4)
-                                      return next
-                                    })}
-                                    maxLength={4}
-                                    inputMode="numeric"
-                                    className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center font-mono focus:outline-none"
-                                  />
-                                </div>
-                              )}
                               {team.avgHandicap != null && (
                                 <span className="text-xs text-gray-400 flex-shrink-0">avg {team.avgHandicap < 0 ? `+${Math.abs(team.avgHandicap)}` : team.avgHandicap} HCP</span>
                               )}
@@ -2487,7 +2470,7 @@ export default function AdminDashboard({
                           className="text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
                           style={{ background: navy }}>{createPending ? '…' : 'Add'}</button>
                       </div>
-                      <p className="text-xs text-gray-400">PIN must be 4 digits — share with the {isDaytona || isTraditional ? 'group scorekeeper' : 'team'}.</p>
+                      {!mixedGroups && <p className="text-xs text-gray-400">PIN must be 4 digits — share with the team.</p>}
                     </form>
                   </div>
                 )}
