@@ -384,6 +384,13 @@ export default function PlayingGroupScoreEntry({
           holes={holes}
           scores={savedScores}
           onClose={() => setShowScorecards(false)}
+          isDaytonaMode={isDaytonaMode}
+          assignments={assignments}
+          holeStrokes={holeStrokes}
+          holeValues={holeValues}
+          dtPayoutValue={defaultDtPayoutValue ?? 0}
+          is5Man={is5Man}
+          isFlares={isFlares}
         />
       )}
 
