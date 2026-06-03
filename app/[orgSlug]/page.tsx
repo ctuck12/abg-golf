@@ -30,7 +30,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const cookieStore = await cookies()
   const { orgId, isAdmin, isMaster } = auth
 
-  if (isAdmin) redirect(`/${orgSlug}/admin/dashboard`)
+  const hasGroupSession = cookieStore.getAll().some((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
+  if (isAdmin && !hasGroupSession) redirect(`/${orgSlug}/admin/dashboard`)
 
   const { data: round } = await sb
     .from('rounds')
