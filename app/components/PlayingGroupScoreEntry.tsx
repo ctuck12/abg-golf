@@ -386,7 +386,8 @@ export default function PlayingGroupScoreEntry({
                   let display: string
                   let color: string
                   if (isDaytonaMode) {
-                    const pts = ptsMap.has(p.id) ? ptsMap.get(p.id)! : null
+                    const hasPlayed = savedScores.some((s) => s.player_id === p.id)
+                    const pts = hasPlayed ? (ptsMap.get(p.id) ?? 0) : null
                     display = pts === null ? '–' : pts === 0 ? '0' : pts > 0 ? `+${pts}` : String(pts)
                     color = pts === null ? 'rgba(255,255,255,0.4)' : pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.7)'
                   } else {
