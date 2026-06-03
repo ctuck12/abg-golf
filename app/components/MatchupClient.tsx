@@ -1147,19 +1147,6 @@ export default function MatchupClient({
               <span className={`w-2 h-2 rounded-full inline-block ${isComplete ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`} />
               {isComplete ? 'Complete' : 'Live'}
             </div>
-            {scorecardTeamId ? (
-              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                style={{ background: gold, color: navy }}>
-                {isComplete ? 'Edit Scores' : 'Enter Scores'}
-              </a>
-            ) : (
-              <button onClick={() => setShowPinLogin(true)}
-                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                Enter Scores
-              </button>
-            )}
             <button onClick={() => setShowOptions(true)}
               className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
               style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
