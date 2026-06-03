@@ -1363,7 +1363,7 @@ export default function LeaderboardClient({
               {(isAdmin || scorecardTeamId || scorecardGroupId) && (
                 <div className="flex items-center justify-center gap-1.5 mt-1">
                   {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
-                  {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                  {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#16a34a' }}>Scorer</span>}
                 </div>
               )}
               <div className="absolute right-0 top-0 flex flex-col items-end gap-1.5">
