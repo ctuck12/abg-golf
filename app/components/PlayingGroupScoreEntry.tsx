@@ -603,7 +603,7 @@ export default function PlayingGroupScoreEntry({
                             )
                           })}
                         </div>
-                        {hasAutoData && autoIds.length > 0 && (
+                        {autoIds.length > 0 && (
                           <p className="text-xs text-gray-400 mt-1.5">
                             <span className="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style={{ background: '#86efac' }} />
                             Light green = suggested based on handicap
