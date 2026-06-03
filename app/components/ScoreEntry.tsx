@@ -11,6 +11,7 @@ import {
   type DaytonaHoleAssignment, type DaytonaSide,
 } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
+import ScorecardBottomSheet from './ScorecardBottomSheet'
 
 type Player = { id: string; name: string; handicap?: number | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
@@ -378,6 +379,7 @@ export default function ScoreEntry({
   const [showDaytonaResultsModal, setShowDaytonaResultsModal] = useState(false)
   const [showMatchupResultsModal, setShowMatchupResultsModal] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
+  const [showScorecards, setShowScorecards] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
@@ -831,6 +833,11 @@ export default function ScoreEntry({
               <button onClick={() => setShowOptions(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
             <div className="flex flex-col gap-3">
+              <button onClick={() => { setShowOptions(false); setShowScorecards(true) }}
+                className="w-full text-center py-3 rounded-xl font-semibold text-sm"
+                style={{ background: gold, color: navy }}>
+                Scorecards
+              </button>
               {isAdmin ? (
                 <>
                   <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>
@@ -866,6 +873,16 @@ export default function ScoreEntry({
             </div>
           </div>
         </div>
+      )}
+
+      {showScorecards && (
+        <ScorecardBottomSheet
+          title={team.name}
+          players={players}
+          holes={holes}
+          scores={savedScores}
+          onClose={() => setShowScorecards(false)}
+        />
       )}
 
       {/* Enter New PIN modal */}
@@ -918,7 +935,7 @@ export default function ScoreEntry({
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
+              <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Score Entry</p>
               <h1 className="font-bold text-lg">
                 {team.name}
                 {daytonaVariant === '5man-flares' && isDaytonaSideGame && (

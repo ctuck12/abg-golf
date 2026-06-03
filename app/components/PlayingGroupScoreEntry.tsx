@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
+import ScorecardBottomSheet from './ScorecardBottomSheet'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -90,6 +91,7 @@ export default function PlayingGroupScoreEntry({
   const [playerPopup, setPlayerPopup] = useState<string | null>(null)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  const [showScorecards, setShowScorecards] = useState(false)
   const [assignments, setAssignments] = useState<Record<number, Record<string, 'left' | 'right'>>>(() => {
     const m: Record<number, Record<string, 'left' | 'right'>> = {}
     for (const a of (initialAssignments ?? [])) {
@@ -295,6 +297,11 @@ export default function PlayingGroupScoreEntry({
               <button onClick={() => setShowOptions(false)} className="text-gray-400 text-xl leading-none">✕</button>
             </div>
             <div className="flex flex-col gap-3">
+              <button onClick={() => { setShowOptions(false); setShowScorecards(true) }}
+                className="w-full text-center py-3 rounded-xl font-semibold text-sm"
+                style={{ background: gold, color: navy }}>
+                Scorecards
+              </button>
               {isAdmin && (
                 <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm text-white" style={{ background: navy }}>
                   Admin Hub
@@ -370,12 +377,22 @@ export default function PlayingGroupScoreEntry({
         </div>
       )}
 
+      {showScorecards && (
+        <ScorecardBottomSheet
+          title={groupName}
+          players={players}
+          holes={holes}
+          scores={savedScores}
+          onClose={() => setShowScorecards(false)}
+        />
+      )}
+
       {/* Header */}
       <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
+              <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Score Entry</p>
               <h1 className="font-bold text-lg">{groupName}</h1>
               <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{roundCourse} · {formattedDate}</p>
             </div>
