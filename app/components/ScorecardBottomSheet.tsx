@@ -14,7 +14,7 @@ const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
 
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
-type Player = { id: string; name: string }
+type Player = { id: string; name: string; handicap?: number | null }
 
 // shared style helpers
 const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
@@ -159,11 +159,18 @@ export default function ScorecardBottomSheet({
             const backStrokes = backScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0)
             const totalStrokes = frontStrokes + backStrokes
             const thru = frontScored.length + backScored.length
-            const allScored = holes.filter((h) => scoreMap[h.hole_number] != null)
-            const vspar = allScored.length > 0
-              ? allScored.reduce((s, h) => s + scoreMap[h.hole_number]! - h.par, 0)
+            const frontVspar = frontScored.length > 0
+              ? frontScored.reduce((s, h) => s + scoreMap[h.hole_number]! - h.par, 0)
               : null
-            const vpStr = vspar === null ? '–' : vspar === 0 ? 'E' : vspar > 0 ? `+${vspar}` : `${vspar}`
+            const backVspar = backScored.length > 0
+              ? backScored.reduce((s, h) => s + scoreMap[h.hole_number]! - h.par, 0)
+              : null
+            const vspar = frontVspar !== null || backVspar !== null
+              ? (frontVspar ?? 0) + (backVspar ?? 0)
+              : null
+            const fmtVsp = (n: number | null) => n === null ? '–' : n === 0 ? 'E' : n > 0 ? `+${n}` : `${n}`
+            const vpColor = (n: number | null) => n === null ? 'rgba(255,255,255,0.55)'
+              : n < 0 ? '#f87171' : n > 0 ? '#fbbf24' : 'rgba(255,255,255,0.8)'
 
             const totalPoints = totalPtsMap.has(player.id) ? totalPtsMap.get(player.id)! : null
             const frontPtsHoles = frontNine.filter((h) => holePtsMaps.get(h.hole_number)?.has(player.id))
@@ -184,12 +191,18 @@ export default function ScorecardBottomSheet({
                       {thru > 0 ? `#${rank + 1}` : '–'}
                     </span>
                   )}
-                  <span className="font-bold text-white text-sm flex-1">{player.name}</span>
-                  <span className="text-xs font-bold" style={{
-                    color: vspar !== null && vspar < 0 ? '#f87171'
-                      : vspar !== null && vspar > 0 ? '#fbbf24'
-                      : 'rgba(255,255,255,0.7)',
-                  }}>{vpStr}</span>
+                  <span className="font-bold text-white text-sm">{player.name}</span>
+                  {player.handicap != null && (
+                    <span className="text-[10px] font-semibold ml-1.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      HCP {player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}
+                    </span>
+                  )}
+                  <span className="flex-1" />
+                  <div className="flex items-center gap-2 text-[10px] font-semibold flex-shrink-0">
+                    <span>F: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
+                    <span>B: <span style={{ color: vpColor(backVspar) }}>{fmtVsp(backVspar)}</span></span>
+                    <span>T: <span style={{ color: vpColor(vspar) }}>{fmtVsp(vspar)}</span></span>
+                  </div>
                 </div>
                 <div className="overflow-x-auto bg-white">
                   <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
