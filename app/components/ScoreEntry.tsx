@@ -457,6 +457,22 @@ export default function ScoreEntry({
     }).map((p) => p.id)
   }
 
+  function getBankerAutoStrokes(holeNumber: number): string[] {
+    const hole = holes.find((h) => h.hole_number === holeNumber)
+    if (!hole?.stroke_index) return []
+    const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
+    if (!bankerPlayerId) return []
+    const bankerHcp = allRoundPlayerHandicaps[bankerPlayerId] ?? null
+    if (bankerHcp == null) return []
+    return players.filter((p) => {
+      if (p.id === bankerPlayerId) return false
+      const hcp = allRoundPlayerHandicaps[p.id] ?? null
+      if (hcp == null) return false
+      const diff = Math.round(hcp - bankerHcp)
+      return diff > 0 && hole.stroke_index! <= diff
+    }).map((p) => p.id)
+  }
+
   async function handleStrokesToggle(holeNumber: number, playerId: string) {
     const current = holeStrokes[holeNumber] ?? []
     const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
@@ -1998,37 +2014,58 @@ export default function ScoreEntry({
                   })()}
 
                   {/* ── Strokes panel ── */}
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Handicap Strokes</p>
-                      {autoHandicap && (
-                        <button type="button"
-                          onClick={() => {
-                            const auto = getAutoStrokes(hole.hole_number)
-                            setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: auto }))
-                            saveHoleStrokes(roundId, hole.hole_number, auto)
-                          }}
-                          className="text-xs text-blue-500 hover:text-blue-700">Auto-fill</button>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {players.map((p) => {
-                        const hasStroke = (holeStrokes[hole.hole_number] ?? []).includes(p.id)
-                        return (
-                          <button key={p.id} type="button"
-                            onClick={() => handleStrokesToggle(hole.hole_number, p.id)}
-                            disabled={strokesPending}
-                            className={`text-xs px-2.5 py-1 rounded-full border font-medium transition ${hasStroke ? 'text-white border-transparent' : 'border-gray-300 text-gray-500'}`}
-                            style={hasStroke ? { background: '#16a34a' } : {}}>
-                            {p.name}{hasStroke ? ' +1' : ''}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {(holeStrokes[hole.hole_number] ?? []).length > 0 && (
-                      <p className="text-xs text-gray-400 mt-1">Net scores adjusted for stroke recipients</p>
-                    )}
-                  </div>
+                  {(() => {
+                    const suggestedIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : (autoHandicap ? getAutoStrokes(hole.hole_number) : [])
+                    const hasBankerSet = isBanker && !!bankerHoles[hole.hole_number]?.bankerPlayerId
+                    const canAutoFill = (isBanker && hasBankerSet) || autoHandicap
+                    const hasAutoData = isBanker
+                      ? hasBankerSet && players.some((p) => allRoundPlayerHandicaps[p.id] != null)
+                      : autoHandicap && players.some((p) => allRoundPlayerHandicaps[p.id] != null)
+                    return (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Handicap Strokes</p>
+                          {canAutoFill && hasAutoData && (
+                            <button type="button"
+                              onClick={() => {
+                                setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: suggestedIds }))
+                                saveHoleStrokes(roundId, hole.hole_number, suggestedIds)
+                              }}
+                              disabled={strokesPending}
+                              className="text-xs text-blue-500 hover:text-blue-700">Auto-fill</button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {players.map((p) => {
+                            const hasStroke = (holeStrokes[hole.hole_number] ?? []).includes(p.id)
+                            const isSuggested = suggestedIds.includes(p.id)
+                            return (
+                              <button key={p.id} type="button"
+                                onClick={() => handleStrokesToggle(hole.hole_number, p.id)}
+                                disabled={strokesPending}
+                                className="text-xs px-2.5 py-1 rounded-full border font-medium transition"
+                                style={hasStroke
+                                  ? { background: '#16a34a', color: 'white', borderColor: 'transparent' }
+                                  : isSuggested
+                                    ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                                    : { borderColor: '#d1d5db', color: '#6b7280' }}>
+                                {p.name}{hasStroke ? ' +1' : isSuggested ? ' ?' : ''}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {hasAutoData && suggestedIds.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-1.5">
+                            <span className="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style={{ background: '#86efac' }} />
+                            {isBanker ? 'Light green = suggested vs banker handicap' : 'Light green = suggested based on handicap'}
+                          </p>
+                        )}
+                        {(holeStrokes[hole.hole_number] ?? []).length > 0 && (
+                          <p className="text-xs text-gray-400 mt-0.5">Net scores adjusted for stroke recipients</p>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {(() => {
                     const allAssigned = !isDaytonaMode || players.every((p) => p.id in holeAssignments)
