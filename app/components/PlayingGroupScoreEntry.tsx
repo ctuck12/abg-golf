@@ -456,12 +456,10 @@ export default function PlayingGroupScoreEntry({
                     color = toParColor(toPar)
                   }
                   return (
-                    <button key={p.id} type="button"
-                      onClick={() => setPlayerPopup((prev) => prev === p.id ? null : p.id)}
-                      className="flex items-center gap-1 text-xs">
-                      <span className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
+                    <span key={p.id} className="flex items-center gap-1 text-xs">
+                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
                       <span className="font-bold" style={{ color }}>{display}</span>
-                    </button>
+                    </span>
                   )
                 })}
               </div>
