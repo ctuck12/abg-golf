@@ -361,11 +361,10 @@ export default function PlayerScorecard({
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
                   const strokes = scoreMap[n] ?? null
-                  const hasStroke = strokeHoles.includes(n)
                   return (
                     <td key={n} style={tdScore()}>
                       {strokes != null && hole
-                        ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: strokes - hole.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span>
+                        ? <ScoreNotation strokes={strokes} par={hole.par} size="sm" />
                         : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
@@ -376,11 +375,10 @@ export default function PlayerScorecard({
                 {[10,11,12,13,14,15,16,17,18].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
                   const strokes = scoreMap[n] ?? null
-                  const hasStroke = strokeHoles.includes(n)
                   return (
                     <td key={n} style={tdScore()}>
                       {strokes != null && hole
-                        ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: strokes - hole.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span>
+                        ? <ScoreNotation strokes={strokes} par={hole.par} size="sm" />
                         : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
