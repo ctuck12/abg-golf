@@ -36,14 +36,14 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
     ? await sb.from('playing_groups').select('id, name').eq('round_id', round.id).order('name')
     : { data: [] as { id: string; name: string }[] }
 
-  const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, { data: savedBestBall }] = await Promise.all([
+  const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, bestBallRes] = await Promise.all([
     teamIds.length
       ? sb.from('players').select('id, name, team_id').in('team_id', teamIds).order('name')
       : Promise.resolve({ data: [] }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
     sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', round.id).order('created_at'),
-    sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', round.id).order('created_at'),
+    sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press').eq('round_id', round.id).order('created_at'),
   ])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,6 +53,15 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   } else {
     const fallback = await sb.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', round.id).order('created_at')
     savedMatchups = (fallback.data ?? []).map((m) => ({ ...m, press: [] }))
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let savedBestBall: { id: string; team1_player1_id: string; team1_player2_id: string; team2_player1_id: string; team2_player2_id: string; bet: string; press: any[] }[]
+  if (!bestBallRes.error) {
+    savedBestBall = (bestBallRes.data ?? []) as typeof savedBestBall
+  } else {
+    const fallback = await sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', round.id).order('created_at')
+    savedBestBall = (fallback.data ?? []).map((m) => ({ ...m, press: [] }))
   }
 
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t.name]))

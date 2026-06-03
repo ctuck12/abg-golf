@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   saveMatchup, deleteMatchup, updateMatchupBet, updateMatchupPresses,
-  saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet,
+  saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet, updateBestBallPresses,
 } from '@/app/actions'
 import { ScoreNotation } from './ScoreNotation'
 import PinLoginModal from './PinLoginModal'
@@ -19,6 +19,7 @@ type BestBallMatchup = {
   team1_player1_id: string; team1_player2_id: string
   team2_player1_id: string; team2_player2_id: string
   bet: string
+  press: PressEntry[]
 }
 type ScorecardTarget =
   | { type: 'player'; id: string; name: string }
@@ -321,6 +322,30 @@ type PayoutRow = {
     anySettled: boolean
     swept?: boolean              // true when one side won front+back+total and sweep is in effect
   }
+}
+
+function computeBBPressResult(
+  t1p1Id: string, t1p2Id: string,
+  t2p1Id: string, t2p2Id: string,
+  scoreMap: Record<string, Record<number, number>>,
+  holes: Hole[],
+  press: PressEntry
+): { t1Net: number | null; t2Net: number | null; t1Wins: boolean; t2Wins: boolean; holesComplete: boolean } {
+  const pressHoles = holes.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
+  if (pressHoles.length === 0) return { t1Net: null, t2Net: null, t1Wins: false, t2Wins: false, holesComplete: false }
+  let t1Sum = 0, t2Sum = 0, parSum = 0, played = 0
+  for (const h of pressHoles) {
+    const t1Arr = ([scoreMap[t1p1Id]?.[h.hole_number] ?? null, scoreMap[t1p2Id]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+    const t2Arr = ([scoreMap[t2p1Id]?.[h.hole_number] ?? null, scoreMap[t2p2Id]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+    if (t1Arr.length === 0 || t2Arr.length === 0) continue
+    t1Sum += Math.min(...t1Arr); t2Sum += Math.min(...t2Arr); parSum += h.par; played++
+  }
+  const holesComplete = played === pressHoles.length
+  if (played === 0) return { t1Net: null, t2Net: null, t1Wins: false, t2Wins: false, holesComplete }
+  const strokes = press.strokes ?? 0
+  const adjT1 = (t1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
+  const adjT2 = (t2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
+  return { t1Net: adjT1, t2Net: adjT2, t1Wins: holesComplete && adjT1 < adjT2, t2Wins: holesComplete && adjT2 < adjT1, holesComplete }
 }
 
 function computeMatchupPayouts(
@@ -683,6 +708,8 @@ export default function MatchupClient({
   const [editBBFrontAmount, setEditBBFrontAmount] = useState('')
   const [editBBBackAmount, setEditBBBackAmount] = useState('')
   const [editBBTotalAmount, setEditBBTotalAmount] = useState('')
+  const [editBBPresses, setEditBBPresses] = useState<PressEntry[]>([])
+  const [bbPressEnabled, setBBPressEnabled] = useState(false)
 
   const [showScorecardFor, setShowScorecardFor] = useState<ScorecardTarget | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -715,9 +742,9 @@ export default function MatchupClient({
     const ch3 = supabase.channel('matchup-bestball')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'best_ball_matchups' }, async () => {
         const { data } = await supabase.from('best_ball_matchups')
-          .select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet')
+          .select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press')
           .eq('round_id', roundId).order('created_at')
-        if (data) setBestBallMatchups(data)
+        if (data) setBestBallMatchups(data.map((m) => ({ ...m, press: m.press ?? [] })))
       }).subscribe()
     return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3); supabase.removeChannel(ch4) }
   }, [players, roundId])
@@ -809,7 +836,7 @@ export default function MatchupClient({
     if (!result.error && result.id) {
       setBestBallMatchups((prev) => [...prev, {
         id: result.id!, team1_player1_id: bbT1P1, team1_player2_id: bbT1P2,
-        team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet,
+        team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet, press: [],
       }])
       setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetAmount('')
       setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount('')
@@ -836,9 +863,11 @@ export default function MatchupClient({
       editBBScoringType === 'stroke' && editBBStrokesEnabled ? editBBStrokesBack : '',
       editBBScoringType === 'stroke' && editBBStrokesEnabled ? editBBStrokesTotal : '',
     )
-    setBestBallMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet } : m))
+    const savedBBPresses = editBBPresses
+    setBestBallMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet, press: savedBBPresses } : m))
     setEditingBB(null)
-    await updateBestBallBet(id, bet)
+    setBBPressEnabled(false)
+    await Promise.all([updateBestBallBet(id, bet), updateBestBallPresses(id, savedBBPresses)])
   }
 
   const searchLower = searchQuery.toLowerCase().trim()
@@ -1936,6 +1965,7 @@ export default function MatchupClient({
                     const t2WinsBack = bbListAdjT1Back !== null && bbListAdjT2Back !== null && bbListAdjT2Back < bbListAdjT1Back
                     const t1WinsTotal = bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT1Total < bbListAdjT2Total
                     const t2WinsTotal = bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT2Total < bbListAdjT1Total
+                    const bbPressResults = (m.press ?? []).map(pr => computeBBPressResult(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes, pr))
 
                     return (
                       <div key={m.id}>
@@ -1947,7 +1977,7 @@ export default function MatchupClient({
                                 {m.bet
                                   ? <span className="font-medium text-[11px]" style={{ color: gold }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300 text-[11px]">No bet</span>}
-                                <button onClick={() => { setEditingBB(m.id); const p = parseBet(m.bet); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
+                                <button onClick={() => { setEditingBB(m.id); const p = parseBet(m.bet); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditBBPresses(m.press ?? []); setBBPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
@@ -2079,6 +2109,115 @@ export default function MatchupClient({
                                 </div>
                               )}
 
+                              {/* Press section */}
+                              <div className="border-t border-gray-100 pt-2.5 space-y-2">
+                                {editBBPresses.length > 0 && (
+                                  <div className="flex flex-col gap-0.5">
+                                    {editBBPresses.map((pr, pi) => {
+                                      const hl = pr.holeStart === pr.holeEnd ? `H${pr.holeStart}` : `H${pr.holeStart}–${pr.holeEnd}`
+                                      const sl = pr.strokesSide && (pr.strokes ?? 0) > 0
+                                        ? ` · ${pr.strokesSide === 'p1' ? t1Name : t2Name} +${pr.strokes}`
+                                        : ''
+                                      return (
+                                        <div key={pr.id} className="flex items-center gap-1.5 text-xs">
+                                          <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
+                                          <span className="text-gray-600">{hl} · ${pr.amount}{sl}</span>
+                                          <button onClick={() => setEditBBPresses(prev => prev.filter((_, i) => i !== pi))}
+                                            className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer w-fit">
+                                  <input type="checkbox" checked={bbPressEnabled}
+                                    onChange={(e) => { setBBPressEnabled(e.target.checked); if (!e.target.checked) { setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false) } }}
+                                    className="rounded" />
+                                  Press
+                                </label>
+                                {bbPressEnabled && (
+                                  <div className="flex items-center gap-1.5 flex-wrap pl-2 border-l-2 border-amber-300">
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                      <input type="checkbox" checked={newPressStrokesEnabled}
+                                        onChange={(e) => { setNewPressStrokesEnabled(e.target.checked); if (!e.target.checked) setNewPressStrokes('') }}
+                                        className="rounded" />
+                                      Strokes
+                                    </label>
+                                    {newPressStrokesEnabled && (
+                                      <>
+                                        <select value={newPressStrokesSide} onChange={(e) => setNewPressStrokesSide(e.target.value as 'p1' | 'p2')}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          <option value="p1">{t1Name}</option>
+                                          <option value="p2">{t2Name}</option>
+                                        </select>
+                                        <input type="number" min="0" step="0.5" placeholder="0" value={newPressStrokes}
+                                          onChange={(e) => setNewPressStrokes(e.target.value)}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-12" />
+                                      </>
+                                    )}
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                      <input type="radio" name={`bbpht-${m.id}`} checked={newPressHoleType === '1hole'}
+                                        onChange={() => { setNewPressHoleType('1hole'); setNewPressHoleEnd(newPressHoleStart) }} />
+                                      1 Hole
+                                    </label>
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                      <input type="radio" name={`bbpht-${m.id}`} checked={newPressHoleType === 'multihole'}
+                                        onChange={() => setNewPressHoleType('multihole')} />
+                                      Multi
+                                    </label>
+                                    {newPressHoleType === '1hole' && (
+                                      <select value={newPressHoleStart}
+                                        onChange={(e) => { const v = parseInt(e.target.value); setNewPressHoleStart(v); setNewPressHoleEnd(v) }}
+                                        className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                        {Array.from({ length: 18 }, (_, i) => i + 1).map(n => (
+                                          <option key={n} value={n}>Hole {n}</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                    {newPressHoleType === 'multihole' && (
+                                      <>
+                                        <select value={newPressHoleStart}
+                                          onChange={(e) => { const v = parseInt(e.target.value); setNewPressHoleStart(v); if (newPressHoleEnd < v) setNewPressHoleEnd(v) }}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          {Array.from({ length: 18 }, (_, i) => i + 1).map(n => <option key={n} value={n}>H{n}</option>)}
+                                        </select>
+                                        <span className="text-xs text-gray-400">–</span>
+                                        <select value={newPressHoleEnd}
+                                          onChange={(e) => setNewPressHoleEnd(parseInt(e.target.value))}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          {Array.from({ length: 18 }, (_, i) => i + 1).filter(n => n >= newPressHoleStart).map(n => <option key={n} value={n}>H{n}</option>)}
+                                        </select>
+                                      </>
+                                    )}
+                                    <input type="number" min="0" step="1" placeholder="$amt" value={newPressAmount}
+                                      onChange={(e) => setNewPressAmount(e.target.value)}
+                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-16" />
+                                    <button
+                                      onClick={() => {
+                                        const amt = parseFloat(newPressAmount)
+                                        if (!newPressAmount.trim() || isNaN(amt) || amt <= 0) return
+                                        const hEnd = newPressHoleType === '1hole' ? newPressHoleStart : Math.max(newPressHoleStart, newPressHoleEnd)
+                                        const entry: PressEntry = {
+                                          id: Math.random().toString(36).slice(2),
+                                          holeStart: newPressHoleStart,
+                                          holeEnd: hEnd,
+                                          amount: amt,
+                                          ...(newPressStrokesEnabled && newPressStrokes.trim() ? { strokesSide: newPressStrokesSide, strokes: parseFloat(newPressStrokes) || 0 } : {}),
+                                        }
+                                        setEditBBPresses(prev => [...prev, entry])
+                                        setNewPressAmount('')
+                                        setNewPressStrokes('')
+                                        setNewPressStrokesEnabled(false)
+                                        setBBPressEnabled(false)
+                                      }}
+                                      disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
+                                      className="text-xs font-semibold text-blue-600 disabled:opacity-40">
+                                      + Add
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
                               {/* Save / Cancel */}
                               <div className="flex gap-2">
                                 <button onClick={() => handleSaveBBBet(m.id)}
@@ -2086,7 +2225,7 @@ export default function MatchupClient({
                                   style={{ background: navy }}>
                                   Save
                                 </button>
-                                <button onClick={() => setEditingBB(null)}
+                                <button onClick={() => { setEditingBB(null); setBBPressEnabled(false) }}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
                                   Cancel
                                 </button>
@@ -2105,6 +2244,17 @@ export default function MatchupClient({
                                   {!isBBOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Back</th>}
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Total</th>
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Thru</th>
+                                  {(m.press ?? []).map((pr, pi) => {
+                                    const pLabel = (m.press ?? []).length === 1 ? 'Press' : `Press ${pi + 1}`
+                                    return (
+                                      <th key={pi} className="px-2 py-1.5 text-center text-xs font-semibold text-white whitespace-nowrap">
+                                        {pLabel}
+                                        <button
+                                          onClick={() => setPressPopoverInfo({ press: pr, p1Name: t1Name, p2Name: t2Name, pressLabel: pLabel })}
+                                          style={{ color: gold, fontSize: '0.85rem', marginLeft: '1px', fontWeight: 700, lineHeight: 1 }}>*</button>
+                                      </th>
+                                    )
+                                  })}
                                 </tr>
                               </thead>
                               <tbody>
@@ -2168,6 +2318,18 @@ export default function MatchupClient({
                                         </span>
                                       </td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
+                                      {bbPressResults.map((pr, pi) => {
+                                        const pNet = rowIdx === 0 ? pr.t1Net : pr.t2Net
+                                        const pWins = rowIdx === 0 ? pr.t1Wins : pr.t2Wins
+                                        return (
+                                          <td key={pi} className="px-2 py-2 text-center text-xs font-semibold" style={{ color: vpColor(pNet) }}>
+                                            <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              <VsParDisplay n={pNet} />
+                                              {pWins && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>}
+                                            </span>
+                                          </td>
+                                        )
+                                      })}
                                     </tr>
                                   )
                                 })}

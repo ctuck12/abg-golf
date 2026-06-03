@@ -646,6 +646,13 @@ export async function updateMatchupPresses(id: string, presses: { id: string; ho
   return {}
 }
 
+export async function updateBestBallPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: string; strokes?: number }[]) {
+  const sb = createServerClient()
+  const { error } = await sb.from('best_ball_matchups').update({ press: presses }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function saveBestBallMatchup(
   roundId: string,
   team1Player1Id: string, team1Player2Id: string,
