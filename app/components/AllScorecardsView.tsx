@@ -30,6 +30,16 @@ function fmtAmt(val: number): string {
   return `$${val.toFixed(2).replace(/^0/, '')}`
 }
 
+function renderPts(pts: number | null, fw: number, color: string, fs = '0.7rem') {
+  if (pts === null) return <span style={{ color: '#d1d5db' }}>–</span>
+  return (
+    <span style={{ display: 'inline-flex', fontVariantNumeric: 'tabular-nums', fontWeight: fw, color, fontSize: fs }}>
+      {pts !== 0 && <span style={{ width: '1ch', textAlign: 'right', flexShrink: 0 }}>{pts > 0 ? '+' : '-'}</span>}
+      <span>{pts === 0 ? '0' : String(Math.abs(pts))}</span>
+    </span>
+  )
+}
+
 function ptsColor(pts: number | null): string {
   if (pts === null) return '#d1d5db'
   if (pts > 0) return '#16a34a'
@@ -357,21 +367,21 @@ export default function AllScorecardsView({
                               const holePts = holePtsMaps.get(n)?.has(player.id) ? holePtsMaps.get(n)!.get(player.id)! : null
                               return (
                                 <td key={n} style={tdCell()}>
-                                  <span style={{ fontWeight: 600, color: ptsColor(holePts), fontSize: '0.7rem' }}>{ptsStr(holePts)}</span>
+                                  {renderPts(holePts, 600, ptsColor(holePts))}
                                 </td>
                               )
                             })}
-                            <td style={tdCell(true)}><span style={{ fontWeight: 700, color: ptsColor(frontPoints) }}>{ptsStr(frontPoints)}</span></td>
+                            <td style={tdCell(true)}>{renderPts(frontPoints, 700, ptsColor(frontPoints))}</td>
                             {[10,11,12,13,14,15,16,17,18].map((n) => {
                               const holePts = holePtsMaps.get(n)?.has(player.id) ? holePtsMaps.get(n)!.get(player.id)! : null
                               return (
                                 <td key={n} style={tdCell()}>
-                                  <span style={{ fontWeight: 600, color: ptsColor(holePts), fontSize: '0.7rem' }}>{ptsStr(holePts)}</span>
+                                  {renderPts(holePts, 600, ptsColor(holePts))}
                                 </td>
                               )
                             })}
-                            <td style={tdCell(true)}><span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span></td>
-                            <td style={{ ...tdCell(), fontWeight: 700, color: ptsColor(totalPoints) }}>{ptsStr(totalPoints)}</td>
+                            <td style={tdCell(true)}>{renderPts(backPoints, 700, ptsColor(backPoints))}</td>
+                            <td style={tdCell()}>{renderPts(totalPoints, 700, ptsColor(totalPoints))}</td>
                           </tr>
                           {(
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>

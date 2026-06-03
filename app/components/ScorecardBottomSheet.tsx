@@ -51,6 +51,16 @@ function fmtAmt(val: number): string {
   return val === Math.floor(val) ? `$${val}` : `$${val.toFixed(2).replace(/^0/, '')}`
 }
 
+function renderPts(pts: number | null, fw: number, color: string, fs = '0.7rem') {
+  if (pts === null) return <span style={{ color: '#d1d5db' }}>–</span>
+  return (
+    <span style={{ display: 'inline-flex', fontVariantNumeric: 'tabular-nums', fontWeight: fw, color, fontSize: fs }}>
+      {pts !== 0 && <span style={{ width: '1ch', textAlign: 'right', flexShrink: 0 }}>{pts > 0 ? '+' : '-'}</span>}
+      <span>{pts === 0 ? '0' : String(Math.abs(pts))}</span>
+    </span>
+  )
+}
+
 export default function ScorecardBottomSheet({
   title, players, holes, scores, onClose,
   isDaytonaMode = false,
@@ -276,15 +286,15 @@ export default function ScorecardBottomSheet({
                           <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PTS</td>
                           {frontNine.map((h) => {
                             const pts = holePtsMaps.get(h.hole_number)?.has(player.id) ? holePtsMaps.get(h.hole_number)!.get(player.id)! : null
-                            return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span></td>
+                            return <td key={h.hole_number} style={tdSc()}>{renderPts(pts, 600, ptsColor(pts))}</td>
                           })}
-                          <td style={tdSc(true)}><span style={{ fontWeight: 700, color: ptsColor(frontPoints) }}>{ptsStr(frontPoints)}</span></td>
+                          <td style={tdSc(true)}>{renderPts(frontPoints, 700, ptsColor(frontPoints))}</td>
                           {backNine.map((h) => {
                             const pts = holePtsMaps.get(h.hole_number)?.has(player.id) ? holePtsMaps.get(h.hole_number)!.get(player.id)! : null
-                            return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span></td>
+                            return <td key={h.hole_number} style={tdSc()}>{renderPts(pts, 600, ptsColor(pts))}</td>
                           })}
-                          <td style={tdSc(true)}><span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span></td>
-                          <td style={{ ...tdSc(), fontWeight: 700, color: ptsColor(totalPoints) }}>{ptsStr(totalPoints)}</td>
+                          <td style={tdSc(true)}>{renderPts(backPoints, 700, ptsColor(backPoints))}</td>
+                          <td style={tdSc()}>{renderPts(totalPoints, 700, ptsColor(totalPoints))}</td>
                         </tr>
                         <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                           <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
