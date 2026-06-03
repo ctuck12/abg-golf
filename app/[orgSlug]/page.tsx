@@ -83,7 +83,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const isDaytona = (round.format ?? 'standard') === 'daytona'
   const isTraditional = (round.format ?? 'standard') === 'traditional'
 
-  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }] = await Promise.all([
+  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }] = await Promise.all([
     sb.from('players').select('id, team_id, name, position, skins_participant').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
@@ -96,7 +96,15 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       ? sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id)
       : Promise.resolve({ data: [] }),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
+    isMixedGroups ? sb.from('playing_groups').select('id, name').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    isMixedGroups ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', (await sb.from('playing_groups').select('id').eq('round_id', round.id)).data?.map((g) => g.id) ?? []) : Promise.resolve({ data: [] as { playing_group_id: string; player_id: string }[] }),
   ])
+
+  const lbGroupPlayerMap: Record<string, string[]> = {}
+  for (const gp of (lbGroupPlayersRaw ?? []) as { playing_group_id: string; player_id: string }[]) {
+    if (!lbGroupPlayerMap[gp.playing_group_id]) lbGroupPlayerMap[gp.playing_group_id] = []
+    lbGroupPlayerMap[gp.playing_group_id].push(gp.player_id)
+  }
 
   const initialHoleValues: Record<string, Record<number, number>> = {}
   for (const hv of (holeValuesRaw ?? []) as { team_id: string; hole_number: number; value_per_point: number }[]) {
@@ -143,6 +151,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       scorecardTeamId={scorecardTeamId}
       scorecardGroupId={scorecardGroupId}
       isMixedGroups={isMixedGroups}
+      playingGroups={lbPlayingGroupsRaw ?? []}
+      groupPlayerMap={lbGroupPlayerMap}
     />
   )
 }

@@ -316,7 +316,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false,
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, playingGroups = [], groupPlayerMap = {},
 }: {
   orgSlug: string
   orgId: string
@@ -337,6 +337,8 @@ export default function LeaderboardClient({
   scorecardTeamId?: string | null
   scorecardGroupId?: string | null
   isMixedGroups?: boolean
+  playingGroups?: { id: string; name: string }[]
+  groupPlayerMap?: Record<string, string[]>
   isAdmin?: boolean
   roundId?: string
   initialAssignments?: DaytonaHoleAssignment[]
@@ -347,6 +349,7 @@ export default function LeaderboardClient({
   skinsAmount?: number
   initialHoleValues?: Record<string, Record<number, number>>
 }) {
+  const [mixedTab, setMixedTab] = useState<'team' | 'group' | 'individual'>('team')
   const [scores, setScores] = useState<Score[]>(initialScores)
   const [assignments, setAssignments] = useState<DaytonaHoleAssignment[]>(initialAssignments)
   const [liveHoleValues, setLiveHoleValues] = useState<Record<string, Record<number, number>>>(initialHoleValues)
@@ -1390,6 +1393,106 @@ export default function LeaderboardClient({
 
       <div className="max-w-lg mx-auto px-4 pt-5">
         <h2 className="text-lg font-bold text-gray-900 mb-2">Leaderboard</h2>
+
+        {/* Mixed Groups tab toggle */}
+        {isMixedGroups && (
+          <div className="flex gap-1.5 mb-3">
+            {(['team', 'group', 'individual'] as const).map((tab) => (
+              <button key={tab} type="button"
+                onClick={() => setMixedTab(tab)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition capitalize"
+                style={mixedTab === tab
+                  ? { background: navy, color: 'white', borderColor: navy }
+                  : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                {tab === 'team' ? 'Team' : tab === 'group' ? 'Group' : 'Individual'}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Group leaderboard */}
+        {isMixedGroups && mixedTab === 'group' && (() => {
+          const groupRows = (playingGroups ?? []).map((g) => {
+            const pids = groupPlayerMap[g.id] ?? []
+            let totalVsPar: number | null = null
+            for (const pid of pids) {
+              const pScores = scores.filter((s) => s.player_id === pid)
+              if (pScores.length === 0) continue
+              const pPar = holes.filter((h) => pScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+              const pStrokes = pScores.reduce((sum, s) => sum + s.strokes, 0)
+              totalVsPar = (totalVsPar ?? 0) + (pStrokes - pPar)
+            }
+            const thru = pids.length > 0 ? Math.max(...pids.map((pid) => scores.filter((s) => s.player_id === pid).length), 0) : 0
+            return { group: g, totalVsPar, thru }
+          }).sort((a, b) => {
+            if (a.totalVsPar === null && b.totalVsPar === null) return 0
+            if (a.totalVsPar === null) return 1
+            if (b.totalVsPar === null) return -1
+            return a.totalVsPar - b.totalVsPar
+          })
+          return (
+            <div className="space-y-2 pb-24">
+              {groupRows.map((row, i) => {
+                const vp = row.totalVsPar
+                const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : String(vp)
+                const vpColor = vp === null ? '#9ca3af' : vp < 0 ? '#16a34a' : vp > 0 ? '#dc2626' : '#374151'
+                const pids = groupPlayerMap[row.group.id] ?? []
+                return (
+                  <div key={row.group.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
+                    <span className="text-sm font-bold text-gray-400 w-5 flex-shrink-0">{vp !== null ? i + 1 : '–'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm">{row.group.name}</p>
+                      <p className="text-xs text-gray-400">{pids.length} players · {row.thru > 0 ? `Thru ${row.thru}` : 'Not started'}</p>
+                    </div>
+                    <span className="text-lg font-bold" style={{ color: vpColor }}>{vpStr}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+        {/* Individual leaderboard */}
+        {isMixedGroups && mixedTab === 'individual' && (() => {
+          const allPids = Object.values(groupPlayerMap).flat()
+          const playerRows = players
+            .filter((p) => allPids.includes(p.id))
+            .map((p) => {
+              const pScores = scores.filter((s) => s.player_id === p.id)
+              if (pScores.length === 0) return { player: p, vsPar: null, thru: 0 }
+              const pPar = holes.filter((h) => pScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+              const pStrokes = pScores.reduce((sum, s) => sum + s.strokes, 0)
+              return { player: p, vsPar: pStrokes - pPar, thru: pScores.length }
+            }).sort((a, b) => {
+              if (a.vsPar === null && b.vsPar === null) return 0
+              if (a.vsPar === null) return 1
+              if (b.vsPar === null) return -1
+              return a.vsPar - b.vsPar
+            })
+          const teamName = (p: Player) => initialTeams.find((t) => t.id === p.team_id)?.name ?? ''
+          return (
+            <div className="space-y-2 pb-24">
+              {playerRows.map((row, i) => {
+                const vp = row.vsPar
+                const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : String(vp)
+                const vpColor = vp === null ? '#9ca3af' : vp < 0 ? '#16a34a' : vp > 0 ? '#dc2626' : '#374151'
+                return (
+                  <div key={row.player.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
+                    <span className="text-sm font-bold text-gray-400 w-5 flex-shrink-0">{vp !== null ? i + 1 : '–'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm">{row.player.name}</p>
+                      <p className="text-xs text-gray-400">{teamName(row.player)}{row.thru > 0 ? ` · Thru ${row.thru}` : ' · Not started'}</p>
+                    </div>
+                    <span className="text-lg font-bold" style={{ color: vpColor }}>{vpStr}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+        {/* Existing leaderboard content (Team tab or non-mixed) */}
+        {(!isMixedGroups || mixedTab === 'team') && <>
         <div className="flex items-center gap-2 mb-3">
             <button
               onClick={() => setShowPayouts(true)}
@@ -1813,6 +1916,7 @@ export default function LeaderboardClient({
         <p className="text-center text-xs text-gray-400 mt-3">
           {(isDaytona || isTraditional) ? 'Tap a player for their scorecard' : 'Tap a team to expand · tap a player for their scorecard'}
         </p>
+        </>}
       </div>
 
     </div>
