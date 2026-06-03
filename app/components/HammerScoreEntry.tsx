@@ -203,8 +203,16 @@ export default function HammerScoreEntry({
       return [...filtered, ...newScores]
     })
     const nextHole = holes.find((h) => h.hole_number > holeNumber && !savedHoles.has(h.hole_number))
-    if (nextHole) { setExpandedHole(nextHole.hole_number); setTimeout(() => document.getElementById(`hole-${nextHole.hole_number}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100) }
-    else setExpandedHole(null)
+    if (nextHole) {
+      setExpandedHole(nextHole.hole_number)
+      setTimeout(() => {
+        const el = document.getElementById(`hole-${holeNumber}`)
+        if (!el) return
+        const headerEl = document.querySelector('header')
+        const headerHeight = headerEl?.offsetHeight ?? 96
+        window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'smooth' })
+      }, 100)
+    } else setExpandedHole(null)
   }
 
   async function handleSignOut() {
