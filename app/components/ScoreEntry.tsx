@@ -2016,16 +2016,16 @@ export default function ScoreEntry({
                   {/* ── Strokes panel ── */}
                   {(() => {
                     const suggestedIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : (autoHandicap ? getAutoStrokes(hole.hole_number) : [])
+                    const activeStrokeIds = holeStrokes[hole.hole_number] ?? []
+                    const visiblePlayers = players.filter((p) => suggestedIds.includes(p.id) || activeStrokeIds.includes(p.id))
+                    if (visiblePlayers.length === 0) return null
                     const hasBankerSet = isBanker && !!bankerHoles[hole.hole_number]?.bankerPlayerId
                     const canAutoFill = (isBanker && hasBankerSet) || autoHandicap
-                    const hasAutoData = isBanker
-                      ? hasBankerSet && players.some((p) => allRoundPlayerHandicaps[p.id] != null)
-                      : autoHandicap && players.some((p) => allRoundPlayerHandicaps[p.id] != null)
                     return (
                       <div className="mt-3 pt-3 border-t border-gray-100">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Handicap Strokes</p>
-                          {canAutoFill && hasAutoData && (
+                          {canAutoFill && suggestedIds.length > 0 && (
                             <button type="button"
                               onClick={() => {
                                 setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: suggestedIds }))
@@ -2036,8 +2036,8 @@ export default function ScoreEntry({
                           )}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {players.map((p) => {
-                            const hasStroke = (holeStrokes[hole.hole_number] ?? []).includes(p.id)
+                          {visiblePlayers.map((p) => {
+                            const hasStroke = activeStrokeIds.includes(p.id)
                             const isSuggested = suggestedIds.includes(p.id)
                             return (
                               <button key={p.id} type="button"
@@ -2054,13 +2054,13 @@ export default function ScoreEntry({
                             )
                           })}
                         </div>
-                        {hasAutoData && suggestedIds.length > 0 && (
+                        {suggestedIds.length > 0 && (
                           <p className="text-xs text-gray-400 mt-1.5">
                             <span className="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style={{ background: '#86efac' }} />
                             {isBanker ? 'Light green = suggested vs banker handicap' : 'Light green = suggested based on handicap'}
                           </p>
                         )}
-                        {(holeStrokes[hole.hole_number] ?? []).length > 0 && (
+                        {activeStrokeIds.length > 0 && (
                           <p className="text-xs text-gray-400 mt-0.5">Net scores adjusted for stroke recipients</p>
                         )}
                       </div>

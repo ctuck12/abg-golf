@@ -564,12 +564,13 @@ export default function PlayingGroupScoreEntry({
                   {/* ── Handicap Strokes ── */}
                   {(() => {
                     const autoIds = getAutoStrokes(hole.hole_number)
-                    const hasAutoData = hole.stroke_index != null && players.some((p) => p.handicap != null)
+                    const visiblePlayers = players.filter((p) => autoIds.includes(p.id) || holeStrokeIds.includes(p.id))
+                    if (visiblePlayers.length === 0) return null
                     return (
                       <div className="pt-2 border-t border-gray-100">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Handicap Strokes</p>
-                          {hasAutoData && (
+                          {autoIds.length > 0 && (
                             <button type="button"
                               onClick={async () => {
                                 setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: autoIds }))
@@ -584,7 +585,7 @@ export default function PlayingGroupScoreEntry({
                           )}
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {players.map((p) => {
+                          {visiblePlayers.map((p) => {
                             const hasStroke = holeStrokeIds.includes(p.id)
                             const isSuggested = autoIds.includes(p.id)
                             return (
