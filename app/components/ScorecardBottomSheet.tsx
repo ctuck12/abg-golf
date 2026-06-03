@@ -54,8 +54,8 @@ function fmtAmt(val: number): string {
 function renderPts(pts: number | null, fw: number, color: string, fs = '0.7rem') {
   if (pts === null) return <span style={{ color: '#d1d5db' }}>–</span>
   return (
-    <span style={{ display: 'inline-flex', fontVariantNumeric: 'tabular-nums', fontWeight: fw, color, fontSize: fs }}>
-      {pts !== 0 && <span style={{ width: '1ch', textAlign: 'right', flexShrink: 0 }}>{pts > 0 ? '+' : '-'}</span>}
+    <span style={{ position: 'relative', display: 'inline-block', fontWeight: fw, color, fontSize: fs }}>
+      {pts !== 0 && <span style={{ position: 'absolute', right: '100%', paddingRight: '1px' }}>{pts > 0 ? '+' : '-'}</span>}
       <span>{pts === 0 ? '0' : String(Math.abs(pts))}</span>
     </span>
   )
