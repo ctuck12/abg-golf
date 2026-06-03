@@ -1596,6 +1596,12 @@ export default function ScoreEntry({
                   <p className="text-xs text-gray-400">Par</p>
                   <p className="font-semibold text-gray-600">{hole.par}</p>
                 </div>
+                {hole.stroke_index != null && (
+                  <div className="text-center flex-shrink-0">
+                    <p className="text-xs text-gray-400">HCP</p>
+                    <p className="text-xs font-semibold text-gray-500">{hole.stroke_index}</p>
+                  </div>
+                )}
                 {isBanker && bankerHoles[hole.hole_number]?.bankerPlayerId && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
                     🏦 {players.find((p) => p.id === bankerHoles[hole.hole_number].bankerPlayerId)?.name.split(' ')[0] ?? 'Banker'}
@@ -1859,7 +1865,7 @@ export default function ScoreEntry({
                           </button>
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
-                          {player.name}
+                          {player.name}{(holeStrokes[hole.hole_number] ?? []).includes(player.id) ? <span className="text-blue-500 font-bold">*</span> : ''}
                           {isDaytonaMode && isSaved && (() => {
                             const pts = holePlayerPoints.get(player.id)
                             if (!pts) return null
