@@ -376,10 +376,34 @@ export default function PlayingGroupScoreEntry({
           </div>
           {/* Player scores — Daytona points or to-par */}
           {(() => {
-            const flatAssignments = Object.entries(assignments).flatMap(([hn, map]) =>
-              Object.entries(map).map(([pid, side]) => ({ player_id: pid, hole_number: Number(hn), side }))
-            )
-            const ptsMap = isDaytonaMode ? computePlayerDaytonaPoints(holes, savedScores, flatAssignments, daytonaVariant ?? '5man-normal') : new Map<string, number>()
+            // Compute running totals using the same direct logic as per-hole holePlayerPoints
+            const ptsMap = new Map<string, number>()
+            if (isDaytonaMode) {
+              for (const hole of holes) {
+                if (!savedHoles.has(hole.hole_number)) continue
+                const holeAssignments = assignments[hole.hole_number] ?? {}
+                const leftIds = Object.entries(holeAssignments).filter(([, s]) => s === 'left').map(([id]) => id)
+                const rightIds = Object.entries(holeAssignments).filter(([, s]) => s === 'right').map(([id]) => id)
+                const strokeIds = holeStrokes[hole.hole_number] ?? []
+                const netScores = savedScores.map((s) => ({ ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0) }))
+                if (is5Man) {
+                  if (leftIds.length < 2 || rightIds.length < 3) continue
+                  const holePts = computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par)
+                  for (const [id, pts] of holePts) ptsMap.set(id, (ptsMap.get(id) ?? 0) + pts)
+                } else {
+                  if (leftIds.length < 2 || rightIds.length < 2) continue
+                  const lScores = leftIds.map((id) => netScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+                  const rScores = rightIds.map((id) => netScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+                  if (lScores.length < 2 || rScores.length < 2) continue
+                  const { leftDt, rightDt } = computeHoleDaytonaWithSides(lScores, rScores, hole.par)
+                  if (leftDt === null || rightDt === null) continue
+                  const diff = Math.abs(leftDt - rightDt)
+                  const leftPts = leftDt < rightDt ? diff : leftDt > rightDt ? -diff : 0
+                  for (const id of leftIds) ptsMap.set(id, (ptsMap.get(id) ?? 0) + leftPts)
+                  for (const id of rightIds) ptsMap.set(id, (ptsMap.get(id) ?? 0) - leftPts)
+                }
+              }
+            }
             return (
               <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-white/10 mt-1">
                 {players.map((p) => {
