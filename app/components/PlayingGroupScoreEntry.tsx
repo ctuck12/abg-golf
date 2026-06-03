@@ -502,6 +502,19 @@ export default function PlayingGroupScoreEntry({
           const savedRightScores = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => netSaved(p.id)).filter((s): s is number => s !== undefined)
           const { leftDt, rightDt } = isDaytonaMode ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par) : { leftDt: null, rightDt: null }
 
+          // For 5-man: compute DT for each of the 3 right-side pairs
+          const savedRightPairDts: (number | null)[] = (() => {
+            if (!is5Man) return []
+            const rightPlayers = players.filter((p) => holeAssignments[p.id] === 'right')
+            if (rightPlayers.length !== 3) return []
+            return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
+              const pScores = [rightPlayers[a], rightPlayers[b]]
+                .map((p) => netSaved(p.id))
+                .filter((s): s is number => s !== undefined)
+              return computeHoleDaytonaWithSides(savedLeftScores, pScores, hole.par).rightDt
+            })
+          })()
+
           // Per-player DT points for inline label (net scores)
           const holePlayerPoints: Map<string, number> = (() => {
             if (!isDaytonaMode || !isSaved) return new Map()
@@ -561,10 +574,19 @@ export default function PlayingGroupScoreEntry({
                           <p className="text-xs" style={{ color: '#2563eb' }}>{holeLeftLabel}</p>
                           <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
-                          <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
-                        </div>
+                        {is5Man && savedRightPairDts.length === 3 ? (
+                          <div className="text-center">
+                            <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
+                            <p className="font-bold text-sm text-gray-900">
+                              {[...savedRightPairDts].sort((a, b) => (a ?? Infinity) - (b ?? Infinity)).map((dt) => dt ?? '–').join('/')}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
+                            <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
+                          </div>
+                        )}
                       </>
                     ) : (
                       players.map((p) => {
