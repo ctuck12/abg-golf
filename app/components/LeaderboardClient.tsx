@@ -1394,21 +1394,6 @@ export default function LeaderboardClient({
       <div className="max-w-lg mx-auto px-4 pt-5">
         <h2 className="text-lg font-bold text-gray-900 mb-2">Leaderboard</h2>
 
-        {/* Mixed Groups tab toggle */}
-        {isMixedGroups && (
-          <div className="flex gap-1.5 mb-3">
-            {(['team', 'group', 'individual'] as const).map((tab) => (
-              <button key={tab} type="button"
-                onClick={() => setMixedTab(tab)}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition capitalize"
-                style={mixedTab === tab
-                  ? { background: navy, color: 'white', borderColor: navy }
-                  : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
-                {tab === 'team' ? 'Team' : tab === 'group' ? 'Group' : 'Individual'}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Group leaderboard */}
         {isMixedGroups && mixedTab === 'group' && (() => {
