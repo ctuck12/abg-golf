@@ -48,7 +48,7 @@ function ptsColor(pts: number | null): string {
   return '#374151'
 }
 function fmtAmt(val: number): string {
-  return val === Math.floor(val) ? `$${val}` : `$${val.toFixed(2)}`
+  return val === Math.floor(val) ? `$${val}` : `$${val.toFixed(2).replace(/^0/, '')}`
 }
 
 export default function ScorecardBottomSheet({

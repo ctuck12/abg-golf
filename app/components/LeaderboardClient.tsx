@@ -1386,14 +1386,16 @@ export default function LeaderboardClient({
                                     const scored = scoreMap[h.hole_number] != null
                                     const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
                                     const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
-                                    return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                    const rateStr = rate % 1 === 0 ? `$${rate}` : `$${rate.toFixed(2).replace(/^0/, '')}`
+                                    return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{rateStr}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                                   })}
                                   <td style={tdSc(true)} />
                                   {scBackNine.map((h) => {
                                     const scored = scoreMap[h.hole_number] != null
                                     const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
                                     const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
-                                    return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>${rate}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                    const rateStr = rate % 1 === 0 ? `$${rate}` : `$${rate.toFixed(2).replace(/^0/, '')}`
+                                    return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{rateStr}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                                   })}
                                   <td style={tdSc(true)} /><td style={tdSc()} />
                                 </tr>
