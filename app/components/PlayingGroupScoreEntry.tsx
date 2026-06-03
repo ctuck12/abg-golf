@@ -129,12 +129,9 @@ export default function PlayingGroupScoreEntry({
   function getAutoStrokes(holeNumber: number): string[] {
     const hole = holes.find((h) => h.hole_number === holeNumber)
     if (!hole?.stroke_index) return []
-    const hcps = players.map((p) => p.handicap).filter((h): h is number => h != null)
-    if (hcps.length === 0) return []
-    const minHcp = Math.min(...hcps)
     return players.filter((p) => {
       if (p.handicap == null) return false
-      const strokes = Math.round(p.handicap - minHcp)
+      const strokes = Math.max(0, Math.round(p.handicap))
       return strokes > 0 && hole.stroke_index! <= strokes
     }).map((p) => p.id)
   }
