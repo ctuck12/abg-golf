@@ -136,10 +136,14 @@ export default function PlayingGroupScoreEntry({
     }).map((p) => p.id)
   }
 
+  const currentHole = holes.find((h) => !savedHoles.has(h.hole_number))?.hole_number ?? null
+
   function expandHole(holeNumber: number) {
     const h = holes.find((h) => h.hole_number === holeNumber)
     if (!h) return
     if (!isStarted) return
+    // Block holes beyond the current (first unsaved) hole
+    if (!savedHoles.has(holeNumber) && currentHole !== null && holeNumber > currentHole) return
     setExpandedHole((prev) => {
       if (prev === holeNumber) return null
       if (isDaytonaMode && !assignments[holeNumber]) {
@@ -454,6 +458,7 @@ export default function PlayingGroupScoreEntry({
           const isSaved = savedHoles.has(hole.hole_number)
           const isPending = pendingHoles.has(hole.hole_number)
           const isExpanded = isStarted && expandedHole === hole.hole_number
+          const isLocked = !isStarted || (!isSaved && currentHole !== null && hole.hole_number > currentHole)
           const error = errors[hole.hole_number]
           const holeAssignments = assignments[hole.hole_number] ?? {}
           const leftCount = Object.values(holeAssignments).filter((s) => s === 'left').length
@@ -499,7 +504,7 @@ export default function PlayingGroupScoreEntry({
               className="bg-white rounded-xl border overflow-hidden"
               style={{ borderColor: isSaved ? gold : '#e5e7eb' }}>
               <button type="button"
-                className={`w-full flex items-center px-4 py-3 gap-3 text-left${!isStarted ? ' cursor-not-allowed opacity-50' : ''}`}
+                className={`w-full flex items-center px-4 py-3 gap-3 text-left${isLocked ? ' cursor-not-allowed opacity-50' : ''}`}
                 onClick={() => expandHole(hole.hole_number)}>
                 <div className="w-8 text-center flex-shrink-0">
                   <p className="text-xs text-gray-400">Hole</p>
@@ -555,7 +560,9 @@ export default function PlayingGroupScoreEntry({
                 )}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {isSaved && <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>✓</span>}
-                  <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>
+                  {isLocked && !isSaved
+                    ? <span className="text-gray-300 text-sm">🔒</span>
+                    : <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>}
                 </div>
               </button>
 
