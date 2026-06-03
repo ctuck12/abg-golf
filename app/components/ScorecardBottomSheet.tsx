@@ -198,7 +198,7 @@ export default function ScorecardBottomSheet({
                     </span>
                   )}
                   <span className="flex-1" />
-                  <div className="flex items-center gap-2 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                     <span>Front: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
                     <span>Back: <span style={{ color: vpColor(backVspar) }}>{fmtVsp(backVspar)}</span></span>
                     <span>Total: <span style={{ color: vpColor(vspar) }}>{fmtVsp(vspar)}</span></span>
