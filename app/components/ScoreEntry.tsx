@@ -1610,9 +1610,7 @@ export default function ScoreEntry({
                   </span>
                 )}
                 {(holeStrokes[hole.hole_number] ?? []).length > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dcfce7', color: '#15803d' }}>
-                    +{(holeStrokes[hole.hole_number] ?? []).length} stroke{(holeStrokes[hole.hole_number] ?? []).length > 1 ? 's' : ''}
-                  </span>
+                  <span className="text-[10px] font-bold w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: '#dcfce7', color: '#15803d' }}>S</span>
                 )}
                 <div className="flex-1" />
                 {isDaytonaMode && isSaved && holeValues[hole.hole_number] !== undefined && (
@@ -2031,18 +2029,7 @@ export default function ScoreEntry({
                     const canAutoFill = (isBanker && hasBankerSet) || autoHandicap
                     return (
                       <div className="mt-3 pt-3 border-t border-gray-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Handicap Strokes</p>
-                          {canAutoFill && suggestedIds.length > 0 && (
-                            <button type="button"
-                              onClick={() => {
-                                setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: suggestedIds }))
-                                saveHoleStrokes(roundId, hole.hole_number, suggestedIds)
-                              }}
-                              disabled={strokesPending}
-                              className="text-xs text-blue-500 hover:text-blue-700">Auto-fill</button>
-                          )}
-                        </div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Handicap Strokes</p>
                         <div className="flex flex-wrap gap-2">
                           {visiblePlayers.map((p) => {
                             const hasStroke = activeStrokeIds.includes(p.id)
@@ -2057,20 +2044,11 @@ export default function ScoreEntry({
                                   : isSuggested
                                     ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
                                     : { borderColor: '#d1d5db', color: '#6b7280' }}>
-                                {p.name}{hasStroke ? ' +1' : isSuggested ? ' ?' : ''}
+                                {p.name}
                               </button>
                             )
                           })}
                         </div>
-                        {suggestedIds.length > 0 && (
-                          <p className="text-xs text-gray-400 mt-1.5">
-                            <span className="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style={{ background: '#86efac' }} />
-                            {isBanker ? 'Light green = suggested vs banker handicap' : 'Light green = suggested based on handicap'}
-                          </p>
-                        )}
-                        {activeStrokeIds.length > 0 && (
-                          <p className="text-xs text-gray-400 mt-0.5">Net scores adjusted for stroke recipients</p>
-                        )}
                       </div>
                     )
                   })()}

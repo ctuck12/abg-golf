@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes } from '@/app/actions'
-import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan } from '@/lib/scoring'
+import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 
 const navy = '#0f172a'
@@ -311,24 +311,49 @@ export default function PlayingGroupScoreEntry({
         </div>
       )}
 
-      {/* Player ball score popup */}
+      {/* Player score popup */}
       {playerPopup && popupPlayer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setPlayerPopup(null)}>
           <div className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-8" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
-              <h3 className="font-bold text-gray-900">{popupPlayer.name}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-gray-900">{popupPlayer.name}</h3>
+                {popupPlayer.handicap != null && (
+                  <span className="text-xs text-gray-400">
+                    {popupPlayer.handicap < 0 ? `+${Math.abs(popupPlayer.handicap)}` : popupPlayer.handicap} HCP
+                  </span>
+                )}
+              </div>
               <button onClick={() => setPlayerPopup(null)} className="text-gray-400 text-xl leading-none">✕</button>
             </div>
-            <p className="text-xs text-gray-400 mb-4">{teamMap[popupPlayer.team_id] ?? 'Unknown team'} · {BALL_NAMES.slice(0, ballsCount).join(', ')}</p>
-            {popupBallSummary ? (
-              <>
-                {ballSummarySection('Front 9', frontHoles)}
-                {ballSummarySection('Back 9', backHoles)}
-                {includeTotal && ballSummarySection('Overall', holes)}
-              </>
-            ) : (
-              <p className="text-sm text-gray-400 text-center py-4">No scores yet</p>
-            )}
+            <p className="text-xs text-gray-400 mb-4">{teamMap[popupPlayer.team_id] ?? 'Unknown team'}</p>
+            {(() => {
+              const pScores = savedScores.filter((s) => s.player_id === popupPlayer.id)
+              if (pScores.length === 0) return <p className="text-sm text-gray-400 text-center py-4">No scores yet</p>
+              const calcVsPar = (holeSubset: typeof frontHoles) => {
+                const played = holeSubset.filter((h) => pScores.some((s) => s.hole_number === h.hole_number))
+                if (played.length === 0) return null
+                return played.reduce((sum, h) => {
+                  const s = pScores.find((sc) => sc.hole_number === h.hole_number)
+                  return sum + (s ? s.strokes - h.par : 0)
+                }, 0)
+              }
+              const fmtVp = (vp: number | null) => vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : String(vp)
+              const vpColor = (vp: number | null) => vp === null ? '#9ca3af' : vp < 0 ? '#16a34a' : vp > 0 ? '#dc2626' : '#374151'
+              const frontVp = calcVsPar(frontHoles)
+              const backVp = calcVsPar(backHoles)
+              const totalVp = calcVsPar(holes)
+              return (
+                <div className="flex justify-around text-center">
+                  {[{ label: 'Front 9', vp: frontVp }, { label: 'Back 9', vp: backVp }, { label: 'Total', vp: totalVp }].map(({ label, vp }) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-400 mb-1">{label}</p>
+                      <p className="text-xl font-bold" style={{ color: vpColor(vp) }}>{fmtVp(vp)}</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
@@ -340,11 +365,6 @@ export default function PlayingGroupScoreEntry({
             <div>
               <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
               <h1 className="font-bold text-lg">{groupName}</h1>
-              {isDaytonaSideGame && (
-                <p className="text-xs font-semibold mt-0.5" style={{ color: gold }}>
-                  Daytona · {defaultDtPayoutValue != null ? `$${defaultDtPayoutValue}/pt` : ''}
-                </p>
-              )}
               <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{roundCourse} · {formattedDate}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -354,20 +374,38 @@ export default function PlayingGroupScoreEntry({
               <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>
-          {/* Player scores to par — tap to see ball breakdown */}
-          <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-white/10 mt-1">
-            {players.map((p) => {
-              const toPar = scoreToPar(savedScores, p.id, holes)
-              return (
-                <button key={p.id} type="button"
-                  onClick={() => setPlayerPopup((prev) => prev === p.id ? null : p.id)}
-                  className="flex items-center gap-1 text-xs">
-                  <span className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
-                  <span className="font-bold" style={{ color: toParColor(toPar) }}>{formatToPar(toPar)}</span>
-                </button>
-              )
-            })}
-          </div>
+          {/* Player scores — Daytona points or to-par */}
+          {(() => {
+            const flatAssignments = Object.entries(assignments).flatMap(([hn, map]) =>
+              Object.entries(map).map(([pid, side]) => ({ player_id: pid, hole_number: Number(hn), side }))
+            )
+            const ptsMap = isDaytonaMode ? computePlayerDaytonaPoints(holes, savedScores, flatAssignments, daytonaVariant ?? '5man-normal') : new Map<string, number>()
+            return (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-white/10 mt-1">
+                {players.map((p) => {
+                  let display: string
+                  let color: string
+                  if (isDaytonaMode) {
+                    const pts = ptsMap.has(p.id) ? ptsMap.get(p.id)! : null
+                    display = pts === null ? '–' : pts === 0 ? '0' : pts > 0 ? `+${pts}` : String(pts)
+                    color = pts === null ? 'rgba(255,255,255,0.4)' : pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.7)'
+                  } else {
+                    const toPar = scoreToPar(savedScores, p.id, holes)
+                    display = formatToPar(toPar)
+                    color = toParColor(toPar)
+                  }
+                  return (
+                    <button key={p.id} type="button"
+                      onClick={() => setPlayerPopup((prev) => prev === p.id ? null : p.id)}
+                      className="flex items-center gap-1 text-xs">
+                      <span className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
+                      <span className="font-bold" style={{ color }}>{display}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       </header>
 
@@ -445,9 +483,7 @@ export default function PlayingGroupScoreEntry({
                   </div>
                 )}
                 {holeStrokeIds.length > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dcfce7', color: '#15803d' }}>
-                    +{holeStrokeIds.length} stroke{holeStrokeIds.length > 1 ? 's' : ''}
-                  </span>
+                  <span className="text-[10px] font-bold w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: '#dcfce7', color: '#15803d' }}>S</span>
                 )}
                 {isDaytonaMode && isSaved && holeValues[hole.hole_number] !== undefined && (
                   <span className="text-xs font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>
@@ -568,22 +604,7 @@ export default function PlayingGroupScoreEntry({
                     if (visiblePlayers.length === 0) return null
                     return (
                       <div className="pt-2 border-t border-gray-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Handicap Strokes</p>
-                          {autoIds.length > 0 && (
-                            <button type="button"
-                              onClick={async () => {
-                                setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: autoIds }))
-                                setStrokesPending(true)
-                                await saveHoleStrokes(roundId, hole.hole_number, autoIds)
-                                setStrokesPending(false)
-                              }}
-                              disabled={strokesPending}
-                              className="text-xs text-blue-500 hover:text-blue-700 font-medium">
-                              Auto-fill
-                            </button>
-                          )}
-                        </div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Handicap Strokes</p>
                         <div className="flex flex-wrap gap-2">
                           {visiblePlayers.map((p) => {
                             const hasStroke = holeStrokeIds.includes(p.id)
@@ -598,18 +619,11 @@ export default function PlayingGroupScoreEntry({
                                   : isSuggested
                                     ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
                                     : { borderColor: '#d1d5db', color: '#6b7280' }}>
-                                {p.name.split(' ')[0]}{hasStroke ? ' +1' : isSuggested ? ' ?' : ''}
+                                {p.name.split(' ')[0]}
                               </button>
                             )
                           })}
                         </div>
-                        {autoIds.length > 0 && (
-                          <p className="text-xs text-gray-400 mt-1.5">
-                            <span className="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style={{ background: '#86efac' }} />
-                            Light green = suggested based on handicap
-                          </p>
-                        )}
-                        {holeStrokeIds.length > 0 && <p className="text-xs text-gray-400 mt-0.5">Net scores adjusted for stroke recipients</p>}
                       </div>
                     )
                   })()}
