@@ -47,7 +47,7 @@ function ptsColor(pts: number | null): string {
 
 export default function PlayerScorecard({
   orgSlug, orgId, orgName, isMaster = false,
-  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false, strokeHoles = [],
+  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false, strokeHoles = [], scorecardTeamId: scorecardTeamIdProp = null,
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   player: { id: string; name: string; handicap?: number | null }
@@ -67,10 +67,11 @@ export default function PlayerScorecard({
   }
   isAdmin?: boolean
   strokeHoles?: number[]
+  scorecardTeamId?: string | null
 }) {
   const [scores, setScores] = useState(initialScores)
   const [allRoundScores, setAllRoundScores] = useState<RoundScore[]>(dtData?.allRoundScores ?? [])
-  const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
+  const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
@@ -80,13 +81,6 @@ export default function PlayerScorecard({
   }
   const isDaytona = format === 'daytona'
   const assignments = dtData?.assignments ?? []
-
-  useEffect(() => {
-    fetch(`/api/auth-status?orgId=${orgId}`, { credentials: 'include', cache: 'no-store' })
-      .then((r) => r.json())
-      .then(({ scorecardTeamId: t }: { isAdmin: boolean; scorecardTeamId: string | null }) => setScorecardTeamId(t))
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     async function refetchScores() {

@@ -28,6 +28,9 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
   const { data: round } = await sb.from('rounds').select('id, is_started, format, daytona_variant, org_id').eq('id', team.round_id).single()
   if (!round || !round.is_started || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
+  const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', round.id)
+  const scorecardTeamId = (allTeams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? (isAdmin ? team.id : null)
+
   const [{ data: holes }, { data: scores }, { data: holeStrokesRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('hole_number, strokes').eq('player_id', playerId),
@@ -81,6 +84,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
       dtData={dtData}
       isAdmin={isAdmin}
       strokeHoles={strokeHoles}
+      scorecardTeamId={scorecardTeamId}
     />
   )
 }

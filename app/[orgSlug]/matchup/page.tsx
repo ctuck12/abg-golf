@@ -69,6 +69,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
       isAdmin={isAdmin}
       scorecardTeamId={scorecardTeamId}
       format={round.format ?? 'standard'}
+      teams={teams ?? []}
     />
   )
 }

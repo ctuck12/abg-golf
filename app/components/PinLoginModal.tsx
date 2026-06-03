@@ -79,6 +79,9 @@ export default function PinLoginModal({
           <h2 className="font-bold text-gray-900">Enter {entityLabel} PIN</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
+        {options.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-2">No teams are set up for this round yet.</p>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-3">
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
@@ -123,6 +126,7 @@ export default function PinLoginModal({
             {pending ? 'Verifying…' : 'Open Scorecard'}
           </button>
         </form>
+        )}
       </div>
     </div>
   )

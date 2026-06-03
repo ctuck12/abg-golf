@@ -7,6 +7,7 @@ import {
   saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet,
 } from '@/app/actions'
 import { ScoreNotation } from './ScoreNotation'
+import PinLoginModal from './PinLoginModal'
 
 type Player = { id: string; name: string; teamName: string }
 type Hole = { hole_number: number; par: number }
@@ -564,7 +565,7 @@ function computeMatchupPayouts(
 
 export default function MatchupClient({
   orgSlug, orgId, orgName, isMaster = false,
-  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard',
+  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard', teams = [],
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   roundId: string
@@ -577,12 +578,14 @@ export default function MatchupClient({
   isAdmin?: boolean
   scorecardTeamId?: string | null
   format?: string
+  teams?: { id: string; name: string }[]
 }) {
   const [scores, setScores] = useState(initialScores)
   const [matchups, setMatchups] = useState(initialMatchups)
   const [bestBallMatchups, setBestBallMatchups] = useState(initialBestBallMatchups)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  const [showPinLogin, setShowPinLogin] = useState(false)
 
   async function handleSignOut() {
     await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
@@ -869,6 +872,18 @@ export default function MatchupClient({
                 ? <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Hub</a>
                 : <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Login</a>
               }
+              {scorecardTeamId ? (
+                <a href={`/${orgSlug}/score/${scorecardTeamId}`} className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+                  Enter Scores
+                </a>
+              ) : (
+                <button
+                  onClick={() => { setShowOptions(false); setShowPinLogin(true) }}
+                  className="w-full text-center py-3 rounded-xl font-semibold text-sm border"
+                  style={{ borderColor: navy, color: navy }}>
+                  Log In as Scorer
+                </button>
+              )}
               {isMaster && <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>← Master Admin</a>}
               {!isMaster && (showSignOutConfirm ? (
                 <div className="space-y-2">
@@ -886,6 +901,14 @@ export default function MatchupClient({
             </div>
           </div>
         </div>
+      )}
+
+      {showPinLogin && (
+        <PinLoginModal
+          teams={teams}
+          orgSlug={orgSlug}
+          onClose={() => setShowPinLogin(false)}
+        />
       )}
 
       {/* ── Delete Confirmation Modal ── */}
@@ -1119,26 +1142,17 @@ export default function MatchupClient({
               </div>
             )}
           </div>
-          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-            {scorecardTeamId && (
-              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                style={{ background: gold, color: navy }}>
-                Enter Scores
-              </a>
-            )}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                <span className={`w-2 h-2 rounded-full inline-block ${isComplete ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`} />
-                {isComplete ? 'Complete' : 'Live'}
-              </div>
-              <button onClick={() => setShowOptions(true)}
-                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                Options
-              </button>
-              <a href={`/${orgSlug}`} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
+          <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
+              <span className={`w-2 h-2 rounded-full inline-block ${isComplete ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`} />
+              {isComplete ? 'Complete' : 'Live'}
             </div>
+            <button onClick={() => setShowOptions(true)}
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+              style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+              Options
+            </button>
+            <a href={`/${orgSlug}`} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>

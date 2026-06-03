@@ -49,7 +49,7 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 
 export default function ScorecardViewer({
   orgSlug, orgId, orgName, isMaster = false,
-  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0, holeStrokes = {},
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0, holeStrokes = {}, scorecardTeamId: scorecardTeamIdProp = null,
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   teamName: string
@@ -64,9 +64,10 @@ export default function ScorecardViewer({
   pressedHoles?: Record<number, number>
   dtPayoutValue?: number
   holeStrokes?: Record<string, number[]>
+  scorecardTeamId?: string | null
 }) {
   const [scores, setScores] = useState(initialScores)
-  const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
+  const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
@@ -80,13 +81,6 @@ export default function ScorecardViewer({
   const pressColor = (val: number) => PRESS_COLORS[sortedPressRates.indexOf(val) % PRESS_COLORS.length]
   const leftLabel = isFlares ? 'Outside' : 'Left'
   const rightLabel = isFlares ? 'Inside' : 'Right'
-
-  useEffect(() => {
-    fetch(`/api/auth-status?orgId=${orgId}`, { credentials: 'include', cache: 'no-store' })
-      .then((r) => r.json())
-      .then(({ scorecardTeamId: t }: { isAdmin: boolean; scorecardTeamId: string | null }) => setScorecardTeamId(t))
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)

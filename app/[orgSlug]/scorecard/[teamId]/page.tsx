@@ -12,6 +12,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
   if (!auth.ok) redirect(`/${orgSlug}`)
 
   const { orgId, isAdmin, isMaster } = auth
+  const cookieStore = await cookies()
   const sb = createServerClient()
 
   const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
@@ -22,6 +23,9 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
 
   const { data: round } = await sb.from('rounds').select('id, balls_count, format, daytona_variant, org_id').eq('id', team.round_id).single()
   if (!round || round.org_id !== orgId) redirect(`/${orgSlug}`)
+
+  const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', round.id)
+  const scorecardTeamId = (allTeams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? (isAdmin ? teamId : null)
 
   const { data: players } = await sb.from('players').select('id, name').eq('team_id', teamId).order('name')
   const playerIds = (players ?? []).map((p) => p.id)
@@ -67,6 +71,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
       pressedHoles={pressedHoles}
       dtPayoutValue={dtPayoutValue}
       holeStrokes={holeStrokes}
+      scorecardTeamId={scorecardTeamId}
     />
   )
 }
