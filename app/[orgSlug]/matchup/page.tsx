@@ -38,7 +38,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
 
   const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, bestBallRes] = await Promise.all([
     teamIds.length
-      ? sb.from('players').select('id, name, team_id').in('team_id', teamIds).order('name')
+      ? sb.from('players').select('id, name, team_id, handicap').in('team_id', teamIds).order('name')
       : Promise.resolve({ data: [] }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
@@ -65,7 +65,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   }
 
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t.name]))
-  const players = (playersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: teamMap[p.team_id] ?? '' }))
+  const players = (playersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: teamMap[p.team_id] ?? '', handicap: p.handicap ?? null }))
   const scorecardTeamId = (teams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
   const groupAuthCookie = cookieStore.getAll().find((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
   const scorecardGroupId = groupAuthCookie ? groupAuthCookie.name.replace('playing_group_auth_', '') : null

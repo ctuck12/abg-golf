@@ -9,7 +9,7 @@ import {
 import { ScoreNotation } from './ScoreNotation'
 import PinLoginModal from './PinLoginModal'
 
-type Player = { id: string; name: string; teamName: string }
+type Player = { id: string; name: string; teamName: string; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
@@ -23,7 +23,7 @@ type BestBallMatchup = {
 }
 type ScorecardTarget =
   | { type: 'player'; id: string; name: string }
-  | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string; scoringType: ScoringType; betType: BetType | ''; handicapSide: string; handicapFront: number; handicapBack: number; handicapTotal: number }
+  | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string; p1Handicap?: number | null; p2Handicap?: number | null; scoringType: ScoringType; betType: BetType | ''; handicapSide: string; handicapFront: number; handicapBack: number; handicapTotal: number }
   | { type: 'bestball'; p1Id: string; p2Id: string; teamName: string }
   | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string; scoringType: ScoringType; betType: BetType | ''; handicapSide: string; handicapFront: number; handicapBack: number; handicapTotal: number }
 
@@ -1097,7 +1097,44 @@ export default function MatchupClient({
                   target.handicapSide === 'p1' ? hcpInfo : null,
                   target.handicapSide === 'p2' ? hcpInfo : null,
                 ]
+                const isOverall = target.betType === 'straight'
+                const fmtV = (n: number | null) => n === null ? '–' : n === 0 ? 'E' : n > 0 ? `+${n}` : String(n)
+                const fmtHcp = (h: number | null | undefined) => h == null ? null : h < 0 ? `+${Math.abs(h) % 1 === 0 ? Math.abs(h) : Math.abs(h).toFixed(1)}` : `${h % 1 === 0 ? h : Number(h).toFixed(1)}`
+                const vpColor = (n: number | null) => n === null ? 'rgba(255,255,255,0.55)' : n < 0 ? '#f87171' : n > 0 ? '#fbbf24' : 'rgba(255,255,255,0.8)'
+                const playerBars = [
+                  { id: target.p1Id, name: target.p1Name, handicap: target.p1Handicap },
+                  { id: target.p2Id, name: target.p2Name, handicap: target.p2Handicap },
+                ]
                 return (
+                  <>
+                    <div className="space-y-1 mb-3">
+                      {playerBars.map(({ id, name, handicap }) => {
+                        const sm = scoreMap[id] ?? {}
+                        const fNine = holes.filter((h) => h.hole_number <= 9)
+                        const bNine = holes.filter((h) => h.hole_number > 9)
+                        const fScored = fNine.filter((h) => sm[h.hole_number] != null)
+                        const bScored = bNine.filter((h) => sm[h.hole_number] != null)
+                        const fVsp = fScored.length > 0 ? fScored.reduce((s, h) => s + sm[h.hole_number]! - h.par, 0) : null
+                        const bVsp = bScored.length > 0 ? bScored.reduce((s, h) => s + sm[h.hole_number]! - h.par, 0) : null
+                        const tVsp = fVsp !== null || bVsp !== null ? (fVsp ?? 0) + (bVsp ?? 0) : null
+                        return (
+                          <div key={id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: navy }}>
+                            <span className="font-bold text-white text-sm">{name}</span>
+                            {fmtHcp(handicap) && (
+                              <span className="text-[10px] font-semibold ml-1 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                                HCP {fmtHcp(handicap)}
+                              </span>
+                            )}
+                            <span className="flex-1" />
+                            <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                              {!isOverall && <span>Front: <span style={{ color: vpColor(fVsp) }}>{fmtV(fVsp)}</span></span>}
+                              {!isOverall && <span>Back: <span style={{ color: vpColor(bVsp) }}>{fmtV(bVsp)}</span></span>}
+                              <span>Total: <span style={{ color: vpColor(tVsp) }}>{fmtV(tVsp)}</span></span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   <HorizontalScorecardTable
                     rows={[
                       { label: target.p1Name, scoreMap: scoreMap[target.p1Id] ?? {} },
@@ -1109,6 +1146,7 @@ export default function MatchupClient({
                     strokesInfo={strokesInfo}
                     onStrokesClick={setStrokesPopover}
                   />
+                  </>
                 )
               })() : showScorecardFor.type === 'bb-scorecards' ? (() => {
                 const target = showScorecardFor
@@ -1416,7 +1454,7 @@ export default function MatchupClient({
                               </span>
                             )}
                             <button
-                              onClick={() => setShowScorecardFor({ type: 'h2h', p1Id: m.player1_id, p2Id: m.player2_id, p1Name: p1First, p2Name: p2First, scoringType: h2hScoringType, betType: h2hBetType, handicapSide: h2hHcpSide, handicapFront: listHf, handicapBack: listHb, handicapTotal: listHt })}
+                              onClick={() => setShowScorecardFor({ type: 'h2h', p1Id: m.player1_id, p2Id: m.player2_id, p1Name: p1First, p2Name: p2First, p1Handicap: mp1.handicap ?? null, p2Handicap: mp2.handicap ?? null, scoringType: h2hScoringType, betType: h2hBetType, handicapSide: h2hHcpSide, handicapFront: listHf, handicapBack: listHb, handicapTotal: listHt })}
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
                             </button>
