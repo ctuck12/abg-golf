@@ -1119,25 +1119,26 @@ export default function MatchupClient({
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              <span className={`w-2 h-2 rounded-full inline-block ${isComplete ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`} />
-              {isComplete ? 'Complete' : 'Live'}
-            </div>
-            {scorecardTeamId ? (
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            {scorecardTeamId && (
               <a href={`/${orgSlug}/score/${scorecardTeamId}`}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                style={{ background: navy, color: '#d1d5db', borderColor: 'rgba(255,255,255,0.4)' }}>
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                style={{ background: gold, color: navy }}>
                 Enter Scores
               </a>
-            ) : (
+            )}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                <span className={`w-2 h-2 rounded-full inline-block ${isComplete ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`} />
+                {isComplete ? 'Complete' : 'Live'}
+              </div>
               <button onClick={() => setShowOptions(true)}
                 className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
                 style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
                 Options
               </button>
-            )}
-            <a href={`/${orgSlug}`} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
+              <a href={`/${orgSlug}`} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
+            </div>
           </div>
         </div>
       </header>

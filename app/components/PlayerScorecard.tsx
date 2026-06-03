@@ -82,7 +82,7 @@ export default function PlayerScorecard({
   const assignments = dtData?.assignments ?? []
 
   useEffect(() => {
-    fetch('/api/auth-status', { credentials: 'include', cache: 'no-store' })
+    fetch(`/api/auth-status?orgId=${orgId}`, { credentials: 'include', cache: 'no-store' })
       .then((r) => r.json())
       .then(({ scorecardTeamId: t }: { isAdmin: boolean; scorecardTeamId: string | null }) => setScorecardTeamId(t))
       .catch(() => {})
