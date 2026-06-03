@@ -39,7 +39,7 @@ function ptsColor(pts: number | null): string {
 
 export default function AllScorecardsView({
   orgSlug, orgId, orgName, isMaster = false,
-  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {}, dtPayoutValue = 0,
+  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {}, dtPayoutValue = 0, initialHoleStrokes = {},
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   roundId: string
@@ -53,6 +53,7 @@ export default function AllScorecardsView({
   scorecardTeamId?: string | null
   teamHoleValues?: Record<string, Record<number, number>>
   dtPayoutValue?: number
+  initialHoleStrokes?: Record<string, number[]>
 }) {
   const [scores, setScores] = useState(initialScores)
   const [showOptions, setShowOptions] = useState(false)
@@ -299,10 +300,11 @@ export default function AllScorecardsView({
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const hole = holes.find((h) => h.hole_number === n)
                         const strokes = scoreMap[n] ?? null
+                        const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
                           <td key={n} style={tdCell()}>
                             {strokes != null && hole
-                              ? <ScoreNotation strokes={strokes} par={hole.par} size="sm" />
+                              ? <><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</>
                               : <span style={{ color: '#d1d5db' }}>–</span>}
                           </td>
                         )
@@ -311,10 +313,11 @@ export default function AllScorecardsView({
                       {[10,11,12,13,14,15,16,17,18].map((n) => {
                         const hole = holes.find((h) => h.hole_number === n)
                         const strokes = scoreMap[n] ?? null
+                        const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
                           <td key={n} style={tdCell()}>
                             {strokes != null && hole
-                              ? <ScoreNotation strokes={strokes} par={hole.par} size="sm" />
+                              ? <><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</>
                               : <span style={{ color: '#d1d5db' }}>–</span>}
                           </td>
                         )

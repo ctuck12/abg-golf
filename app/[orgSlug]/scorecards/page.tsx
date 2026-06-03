@@ -36,13 +36,19 @@ export default async function OrgAllScorecardsPage({
   const { data: players } = await sb.from('players').select('id, name, team_id').in('team_id', teamIds.length ? teamIds : [''])
   const playerIds = (players ?? []).map((p: { id: string }) => p.id)
 
-  const [{ data: holes }, { data: scores }, { data: assignments }, { data: holeValuesRaw }, { data: ballValuesRaw }] = await Promise.all([
+  const [{ data: holes }, { data: scores }, { data: assignments }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: holeStrokesRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
     sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
     sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id),
+    playerIds.length ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id).in('player_id', playerIds) : Promise.resolve({ data: [] }),
   ])
+  const initialHoleStrokes: Record<string, number[]> = {}
+  for (const hs of (holeStrokesRaw ?? []) as { hole_number: number; player_id: string }[]) {
+    if (!initialHoleStrokes[hs.player_id]) initialHoleStrokes[hs.player_id] = []
+    initialHoleStrokes[hs.player_id].push(hs.hole_number)
+  }
 
   const dtPayoutValue = (ballValuesRaw as { ball_number: number; value_dollars: number }[] | null)?.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
   const teamHoleValues: Record<string, Record<number, number>> = {}
@@ -87,6 +93,7 @@ export default async function OrgAllScorecardsPage({
       scorecardTeamId={scorecardTeamId}
       teamHoleValues={teamHoleValues}
       dtPayoutValue={dtPayoutValue}
+      initialHoleStrokes={initialHoleStrokes}
     />
   )
 }

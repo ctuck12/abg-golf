@@ -27,7 +27,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
   const playerIds = (players ?? []).map((p) => p.id)
   const isDaytona = (round.format ?? 'standard') === 'daytona'
 
-  const [{ data: holes }, { data: scores }, { data: assignments }, { data: holeValuesRaw }, { data: ballValuesRaw }] = await Promise.all([
+  const [{ data: holes }, { data: scores }, { data: assignments }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: holeStrokesRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
     isDaytona && playerIds.length
@@ -35,7 +35,13 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
       : Promise.resolve({ data: [] }),
     isDaytona ? sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', round.id).eq('team_id', teamId) : Promise.resolve({ data: [] }),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id),
+    playerIds.length ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id).in('player_id', playerIds) : Promise.resolve({ data: [] }),
   ])
+  const holeStrokes: Record<string, number[]> = {}
+  for (const hs of (holeStrokesRaw ?? []) as { hole_number: number; player_id: string }[]) {
+    if (!holeStrokes[hs.player_id]) holeStrokes[hs.player_id] = []
+    holeStrokes[hs.player_id].push(hs.hole_number)
+  }
 
   const dtPayoutValue = (ballValuesRaw as { ball_number: number; value_dollars: number }[] | null)?.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
   const pressedHoles: Record<number, number> = {}
@@ -60,6 +66,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
       isAdmin={isAdmin}
       pressedHoles={pressedHoles}
       dtPayoutValue={dtPayoutValue}
+      holeStrokes={holeStrokes}
     />
   )
 }

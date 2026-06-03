@@ -47,7 +47,7 @@ function ptsColor(pts: number | null): string {
 
 export default function PlayerScorecard({
   orgSlug, orgId, orgName, isMaster = false,
-  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false,
+  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false, strokeHoles = [],
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   player: { id: string; name: string }
@@ -66,6 +66,7 @@ export default function PlayerScorecard({
     dtPayoutValue?: number
   }
   isAdmin?: boolean
+  strokeHoles?: number[]
 }) {
   const [scores, setScores] = useState(initialScores)
   const [allRoundScores, setAllRoundScores] = useState<RoundScore[]>(dtData?.allRoundScores ?? [])
@@ -353,10 +354,11 @@ export default function PlayerScorecard({
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
                   const strokes = scoreMap[n] ?? null
+                  const hasStroke = strokeHoles.includes(n)
                   return (
                     <td key={n} style={tdScore()}>
                       {strokes != null && hole
-                        ? <ScoreNotation strokes={strokes} par={hole.par} size="sm" />
+                        ? <><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</>
                         : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
@@ -367,10 +369,11 @@ export default function PlayerScorecard({
                 {[10,11,12,13,14,15,16,17,18].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
                   const strokes = scoreMap[n] ?? null
+                  const hasStroke = strokeHoles.includes(n)
                   return (
                     <td key={n} style={tdScore()}>
                       {strokes != null && hole
-                        ? <ScoreNotation strokes={strokes} par={hole.par} size="sm" />
+                        ? <><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</>
                         : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )

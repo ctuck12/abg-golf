@@ -1154,12 +1154,14 @@ export default function ScoreEntry({
                         <td style={{ ...tdC(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
                         {frontHoles.map((h) => {
                           const s = scoreMap[h.hole_number] ?? null
-                          return <td key={h.hole_number} style={tdC()}>{s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                          const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(p.id)
+                          return <td key={h.hole_number} style={tdC()}>{s != null ? <><ScoreNotation strokes={s} par={h.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                         })}
                         {frontHoles.length > 0 && <td style={tdC(true)}>{frontScores.length > 0 ? fStrokes : '–'}</td>}
                         {backHoles.map((h) => {
                           const s = scoreMap[h.hole_number] ?? null
-                          return <td key={h.hole_number} style={tdC()}>{s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                          const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(p.id)
+                          return <td key={h.hole_number} style={tdC()}>{s != null ? <><ScoreNotation strokes={s} par={h.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                         })}
                         {backHoles.length > 0 && <td style={tdC(true)}>{backScores.length > 0 ? bStrokes : '–'}</td>}
                         <td style={{ ...tdC(), fontWeight: 700, color: '#111827' }}>{pScores.length > 0 ? tStrokes : '–'}</td>

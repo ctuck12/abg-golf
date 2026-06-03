@@ -49,7 +49,7 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 
 export default function ScorecardViewer({
   orgSlug, orgId, orgName, isMaster = false,
-  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0,
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0, holeStrokes = {},
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   teamName: string
@@ -63,6 +63,7 @@ export default function ScorecardViewer({
   isAdmin?: boolean
   pressedHoles?: Record<number, number>
   dtPayoutValue?: number
+  holeStrokes?: Record<string, number[]>
 }) {
   const [scores, setScores] = useState(initialScores)
   const [scorecardTeamId, setScorecardTeamId] = useState<string | null>(null)
@@ -261,9 +262,10 @@ export default function ScorecardViewer({
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const d = holeData.find((d) => d.hole.hole_number === n)
                   const s = d?.playerScores[pi] ?? null
+                  const hasStroke = !!(holeStrokes[p.id]?.includes(n))
                   return (
                     <td key={n} style={tdScore()}>
-                      {s != null && d ? <ScoreNotation strokes={s} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
+                      {s != null && d ? <><ScoreNotation strokes={s} par={d.hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</> : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
                 })}
@@ -273,9 +275,10 @@ export default function ScorecardViewer({
                 {[10,11,12,13,14,15,16,17,18].map((n) => {
                   const d = holeData.find((d) => d.hole.hole_number === n)
                   const s = d?.playerScores[pi] ?? null
+                  const hasStroke = !!(holeStrokes[p.id]?.includes(n))
                   return (
                     <td key={n} style={tdScore()}>
-                      {s != null && d ? <ScoreNotation strokes={s} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
+                      {s != null && d ? <><ScoreNotation strokes={s} par={d.hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</> : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
                 })}

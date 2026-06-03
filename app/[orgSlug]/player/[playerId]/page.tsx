@@ -28,10 +28,12 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
   const { data: round } = await sb.from('rounds').select('id, is_started, format, daytona_variant, org_id').eq('id', team.round_id).single()
   if (!round || !round.is_started || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
-  const [{ data: holes }, { data: scores }] = await Promise.all([
+  const [{ data: holes }, { data: scores }, { data: holeStrokesRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('hole_number, strokes').eq('player_id', playerId),
+    sb.from('hole_strokes').select('hole_number').eq('round_id', round.id).eq('player_id', playerId),
   ])
+  const strokeHoles = (holeStrokesRaw ?? []).map((r: { hole_number: number }) => r.hole_number)
 
   let dtData: Parameters<typeof PlayerScorecard>[0]['dtData']
 
@@ -78,6 +80,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
       format={round.format ?? 'standard'}
       dtData={dtData}
       isAdmin={isAdmin}
+      strokeHoles={strokeHoles}
     />
   )
 }
