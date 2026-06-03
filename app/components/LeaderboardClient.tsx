@@ -13,7 +13,7 @@ import { ScoreNotation } from './ScoreNotation'
 
 type Team = { id: string; name: string; daytona_variant?: string | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean }
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type BallValue = { ball_number: number; value_dollars: number }
 
@@ -316,7 +316,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, playingGroups = [], groupPlayerMap = {},
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {},
 }: {
   orgSlug: string
   orgId: string
@@ -337,8 +337,9 @@ export default function LeaderboardClient({
   scorecardTeamId?: string | null
   scorecardGroupId?: string | null
   isMixedGroups?: boolean
-  playingGroups?: { id: string; name: string }[]
+  playingGroups?: { id: string; name: string; daytona_variant?: string | null }[]
   groupPlayerMap?: Record<string, string[]>
+  groupHoleStrokes?: Record<number, string[]>
   isAdmin?: boolean
   roundId?: string
   initialAssignments?: DaytonaHoleAssignment[]
@@ -352,6 +353,7 @@ export default function LeaderboardClient({
   const [mixedTab, setMixedTab] = useState<'team' | 'group' | 'individual'>('team')
   const [scores, setScores] = useState<Score[]>(initialScores)
   const [assignments, setAssignments] = useState<DaytonaHoleAssignment[]>(initialAssignments)
+  const [liveHoleStrokes, setLiveHoleStrokes] = useState<Record<number, string[]>>(groupHoleStrokes)
   const [liveHoleValues, setLiveHoleValues] = useState<Record<string, Record<number, number>>>(initialHoleValues)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [showPin, setShowPin] = useState(false)
@@ -416,7 +418,7 @@ export default function LeaderboardClient({
       const { data } = await supabase
         .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
       if (data) { setScores(data); setLastUpdated(new Date()) }
-      if (isDaytona && roundId) {
+      if ((isDaytona || isMixedGroups) && roundId) {
         const { data: hvData } = await supabase
           .from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId)
         if (hvData) {
@@ -467,16 +469,28 @@ export default function LeaderboardClient({
   }, [showPayouts])
 
   useEffect(() => {
-    if (!isDaytona || !roundId) return
+    if (!roundId) return
+    const fetchAssignments = async () => {
+      const { data } = await supabase
+        .from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
+      if (data && data.length > 0) { setAssignments(data as DaytonaHoleAssignment[]); setLastUpdated(new Date()) }
+      const { data: hsData } = await supabase
+        .from('hole_strokes').select('hole_number, player_id').eq('round_id', roundId)
+      if (hsData) {
+        const m: Record<number, string[]> = {}
+        for (const hs of hsData as { hole_number: number; player_id: string }[]) {
+          if (!m[hs.hole_number]) m[hs.hole_number] = []
+          m[hs.hole_number].push(hs.player_id)
+        }
+        setLiveHoleStrokes(m)
+      }
+    }
+    fetchAssignments()
     const channel = supabase.channel('leaderboard-assignments')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daytona_hole_assignments' }, async () => {
-        const { data } = await supabase
-          .from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
-        if (data) { setAssignments(data as DaytonaHoleAssignment[]); setLastUpdated(new Date()) }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daytona_hole_assignments' }, fetchAssignments)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [isDaytona, roundId])
+  }, [roundId])
 
   const frontHoles = holes.filter((h) => h.hole_number <= 9)
   const backHoles = holes.filter((h) => h.hole_number >= 10)
@@ -596,6 +610,83 @@ export default function LeaderboardClient({
         })
         .filter((g) => g.rows.length > 0)
         .sort((a, b) => a.team.name.localeCompare(b.team.name, undefined, { numeric: true, sensitivity: 'base' }))
+    : []
+
+  const hasStandardGroupView = !isDaytona && !isTraditional && (isMixedGroups || initialTeams.some((t) => !!t.daytona_variant))
+
+  const standardGroupRows = hasStandardGroupView
+    ? isMixedGroups
+      ? (playingGroups ?? []).map((pg) => {
+          const pids = groupPlayerMap[pg.id] ?? []
+          const groupPlayers = players.filter((p) => pids.includes(p.id))
+          const rows = groupPlayers.map((p) => {
+            const ps = scores.filter((s) => s.player_id === p.id)
+            const holesPlayed = ps.length
+            const totalStrokes = ps.reduce((sum, s) => sum + s.strokes, 0)
+            const totalPar = holes.filter((h) => ps.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
+            return { player: p, holesPlayed, vspar: holesPlayed > 0 ? totalStrokes - totalPar : null }
+          }).sort((a, b) => {
+            if (!a.holesPlayed && !b.holesPlayed) return a.player.name.localeCompare(b.player.name)
+            if (!a.holesPlayed) return 1; if (!b.holesPlayed) return -1
+            return (a.vspar ?? 999) - (b.vspar ?? 999)
+          })
+          const hasDaytona = !!pg.daytona_variant
+          let pointsMap: Map<string, number> | null = null
+          if (hasDaytona) {
+            const tAssign = assignments.filter((a) => pids.includes(a.player_id))
+            const tScores = scores.filter((s) => pids.includes(s.player_id))
+            const variant = pg.daytona_variant!.split('|')[0]
+            const is5ManGroup = variant.startsWith('5man')
+            const ptsMap = new Map<string, number>()
+            const assignedIds = new Set<string>()
+            for (const hole of holes) {
+              const ha = tAssign.filter((a) => a.hole_number === hole.hole_number)
+              if (!ha.length) continue
+              const leftIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
+              const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
+              for (const id of [...leftIds, ...rightIds]) assignedIds.add(id)
+              const strokeIds = liveHoleStrokes[hole.hole_number] ?? []
+              const netScores = tScores.map((s) => ({
+                ...s,
+                strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0),
+              }))
+              if (is5ManGroup) {
+                if (leftIds.length < 2 || rightIds.length < 3) continue
+                const holePts = computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par)
+                for (const [id, pts] of holePts) ptsMap.set(id, (ptsMap.get(id) ?? 0) + pts)
+              } else {
+                if (leftIds.length < 2 || rightIds.length < 2) continue
+                const lSc = leftIds.map((id) => netScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+                const rSc = rightIds.map((id) => netScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+                if (lSc.length < 2 || rSc.length < 2) continue
+                const { leftDt, rightDt } = computeHoleDaytonaWithSides(lSc, rSc, hole.par)
+                if (leftDt === null || rightDt === null) continue
+                const diff = Math.abs(leftDt - rightDt)
+                const leftPts = leftDt < rightDt ? diff : leftDt > rightDt ? -diff : 0
+                for (const id of leftIds) ptsMap.set(id, (ptsMap.get(id) ?? 0) + leftPts)
+                for (const id of rightIds) ptsMap.set(id, (ptsMap.get(id) ?? 0) - leftPts)
+              }
+            }
+            for (const id of assignedIds) { if (!ptsMap.has(id)) ptsMap.set(id, 0) }
+            pointsMap = ptsMap
+          }
+          return { id: pg.id, name: pg.name, daytona_variant: pg.daytona_variant ?? null, rows, hasDaytona, pointsMap }
+        }).filter((g) => g.rows.length > 0)
+      : initialTeams
+          .map((team) => {
+            const rows = ballIndividualRows.filter((r) => r.player.team_id === team.id)
+            const hasDaytona = !!team.daytona_variant
+            let pointsMap: Map<string, number> | null = null
+            if (hasDaytona) {
+              const tpIds = rows.map((r) => r.player.id)
+              const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
+              const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+              pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
+            }
+            return { id: team.id, name: team.name, daytona_variant: team.daytona_variant ?? null, rows, hasDaytona, pointsMap }
+          })
+          .filter((g) => g.rows.length > 0)
+          .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
     : []
 
   // Payout computations (mirrors AdminDashboard)
@@ -1098,15 +1189,20 @@ export default function LeaderboardClient({
 
       {showAllScorecards && (() => {
         const baseRows = isDaytona ? dtIndividualRows : isTraditional ? traditionalPlayerRows : ballIndividualRows
-        const groupRows = allScorecardsGroupId ? baseRows.filter((r) => r.player.team_id === allScorecardsGroupId) : baseRows
+        const groupRows = allScorecardsGroupId
+          ? groupPlayerMap[allScorecardsGroupId]
+            ? baseRows.filter((r) => (groupPlayerMap[allScorecardsGroupId] ?? []).includes(r.player.id))
+            : baseRows.filter((r) => r.player.team_id === allScorecardsGroupId)
+          : baseRows
         const isGroupView = !!allScorecardsGroupId
         const filteredRows = (!isGroupView && skinsEnabled && allScorecardsFilter === 'skins')
           ? groupRows.filter((r) => r.player.skins_participant)
           : groupRows
 
-        // Daytona side game for this group
+        // Daytona side game for this group (check both teams and playing groups)
         const activeTeam = allScorecardsGroupId ? initialTeams.find((t) => t.id === allScorecardsGroupId) : null
-        const groupVariant = activeTeam?.daytona_variant ?? null
+        const activePlayingGroup = allScorecardsGroupId && groupPlayerMap[allScorecardsGroupId] ? playingGroups.find((pg) => pg.id === allScorecardsGroupId) : null
+        const groupVariant = activeTeam?.daytona_variant ?? activePlayingGroup?.daytona_variant ?? null
         const groupHasDaytona = !!groupVariant
         const gIs5Man = groupVariant?.startsWith('5man') ?? false
         const gIsFlares = groupVariant?.startsWith('5man-flares') ?? false
@@ -1117,12 +1213,16 @@ export default function LeaderboardClient({
             const ha = assignments.filter((a) => a.hole_number === hole.hole_number && groupPlayerIds.has(a.player_id))
             const leftIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
             const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
+            const strokeIds = liveHoleStrokes[hole.hole_number] ?? []
+            const netScoresForHole = scores.map((s) => ({
+              ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0),
+            }))
             if (gIs5Man) {
               if (leftIds.length >= 2 && rightIds.length >= 3)
-                holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, scores, hole.hole_number, hole.par))
+                holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScoresForHole, hole.hole_number, hole.par))
             } else if (leftIds.length >= 2 && rightIds.length >= 2) {
-              const leftSc = leftIds.map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-              const rightSc = rightIds.map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+              const leftSc = leftIds.map((id) => netScoresForHole.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+              const rightSc = rightIds.map((id) => netScoresForHole.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
               if (leftSc.length >= 2 && rightSc.length >= 2) {
                 const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftSc, rightSc, hole.par)
                 if (leftDt !== null && rightDt !== null) {
@@ -1162,11 +1262,13 @@ export default function LeaderboardClient({
           color: highlight ? '#1e40af' : undefined,
           fontSize: '0.7rem', textAlign: 'center', padding: '0.25rem 0.2rem',
         })
+        const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
+        const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
         return (
           <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAllScorecards(false)}>
             <div className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-                <h3 className="font-bold text-gray-900 text-base">{activeTeam ? activeTeam.name : 'All Scorecards'}</h3>
+                <h3 className="font-bold text-gray-900 text-base">{activeTeam?.name ?? activePlayingGroup?.name ?? 'All Scorecards'}</h3>
                 <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
               </div>
               {!isGroupView && skinsEnabled && (
@@ -1185,7 +1287,15 @@ export default function LeaderboardClient({
               )}
               <div className="px-4 py-4 space-y-4">
                 {filteredRows.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No players.</p>}
-                {filteredRows.map((row, i) => {
+                {(groupHasDaytona && holePtsMaps.size > 0
+                  ? [...filteredRows].sort((a, b) => {
+                      const aTot = [...holePtsMaps.values()].reduce((s, m) => s + (m.get(a.player.id) ?? 0), 0)
+                      const bTot = [...holePtsMaps.values()].reduce((s, m) => s + (m.get(b.player.id) ?? 0), 0)
+                      if (aTot !== bTot) return bTot - aTot
+                      return a.player.name.localeCompare(b.player.name)
+                    })
+                  : filteredRows
+                ).map((row, i) => {
                   const scoreMap = Object.fromEntries(scores.filter((s) => s.player_id === row.player.id).map((s) => [s.hole_number, s.strokes]))
                   const frontScored = scFrontNine.filter((h) => scoreMap[h.hole_number] != null)
                   const frontStrokes = frontScored.reduce((s, h) => s + scoreMap[h.hole_number]!, 0)
@@ -1213,7 +1323,7 @@ export default function LeaderboardClient({
                         <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
                           <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                             <tr>
-                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
+                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                               {scFrontNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
                               {scFrontNine.length > 0 && <th style={thSt(true)}>Out</th>}
                               {scBackNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
@@ -1223,7 +1333,15 @@ export default function LeaderboardClient({
                           </thead>
                           <tbody>
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PAR</td>
+                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                              {scFrontNine.length > 0 && <td style={tdPar(true)} />}
+                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                              {scBackNine.length > 0 && <td style={tdPar(true)} />}
+                              <td style={tdPar()} />
+                            </tr>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
                               {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
                               {scFrontNine.length > 0 && <td style={tdPar(true)}>{scFrontPar}</td>}
                               {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
@@ -1231,22 +1349,24 @@ export default function LeaderboardClient({
                               <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
                             </tr>
                             <tr style={{ borderBottom: groupHasDaytona ? '1px solid #e5e7eb' : undefined }}>
-                              <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
+                              <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
                               {scFrontNine.map((h) => {
                                 const s = scoreMap[h.hole_number] ?? null
-                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
+                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={s} par={h.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: s - h.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                               })}
                               {scFrontNine.length > 0 && <td style={tdSc(true)}>{frontScored.length > 0 ? frontStrokes : '–'}</td>}
                               {scBackNine.map((h) => {
                                 const s = scoreMap[h.hole_number] ?? null
-                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
+                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={s} par={h.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: s - h.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                               })}
                               {scBackNine.length > 0 && <td style={tdSc(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>}
                               <td style={{ ...tdSc(), fontWeight: 700, color: '#111827' }}>{thru > 0 ? totalStrokes : '–'}</td>
                             </tr>
                             {groupHasDaytona && <>
                               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
+                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PTS</td>
                                 {scFrontNine.map((h) => {
                                   const pts = holePtsMaps.get(h.hole_number)?.has(row.player.id) ? holePtsMaps.get(h.hole_number)!.get(row.player.id)! : null
                                   return <td key={h.hole_number} style={tdSc()}><span style={{ fontWeight: 600, color: pColor(pts), fontSize: '0.7rem' }}>{pStr(pts)}</span></td>
@@ -1261,7 +1381,7 @@ export default function LeaderboardClient({
                               </tr>
                               {groupHasDaytona && (
                                 <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                  <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                                  <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
                                   {scFrontNine.map((h) => {
                                     const scored = scoreMap[h.hole_number] != null
                                     const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
@@ -1279,7 +1399,7 @@ export default function LeaderboardClient({
                                 </tr>
                               )}
                               <tr>
-                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
+                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                                 {scFrontNine.map((h) => {
                                   const a = assignments.find((a) => a.player_id === row.player.id && a.hole_number === h.hole_number)
                                   const side = a?.side ?? null
@@ -1323,10 +1443,10 @@ export default function LeaderboardClient({
                 <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
                   {roundCourse && `${roundCourse} · `}{formattedDate}
                 </p>
-                {(isAdmin || scorecardTeamId) && (
+                {(isAdmin || scorecardTeamId || scorecardGroupId) && (
                   <div className="flex items-center gap-1.5 mt-1">
                     {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
-                    {scorecardTeamId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                    {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
                   </div>
                 )}
               </div>
@@ -1510,10 +1630,12 @@ export default function LeaderboardClient({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             {(isDaytona
-              ? [{ view: 'group', label: 'Group Leaderboard' }, { view: 'individual', label: 'Individual Leaderboard' }]
+              ? [{ view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }]
               : isTraditional
-              ? [{ view: 'individual', label: 'Individual Leaderboard' }, { view: 'group', label: 'Group Leaderboard' }]
-              : [{ view: 'team', label: 'Team Leaderboard' }, { view: 'individual', label: 'Individual Leaderboard' }]
+              ? [{ view: 'individual', label: 'Individual' }, { view: 'group', label: 'Group' }]
+              : hasStandardGroupView
+              ? [{ view: 'team', label: 'Team' }, { view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }]
+              : [{ view: 'team', label: 'Team' }, { view: 'individual', label: 'Individual' }]
             ).map(({ view, label }) => (
               <button
                 key={view}
@@ -1589,7 +1711,7 @@ export default function LeaderboardClient({
           <div className="space-y-4">
             {traditionalGroupRows.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No groups yet.</p>}
             {traditionalGroupRows.map((group) => {
-              const gView = traditionalGroupView[group.team.id] ?? 'score'
+              const gView = traditionalGroupView[group.team.id] ?? (group.hasDaytona ? 'points' : 'score')
               const showingPoints = gView === 'points' && group.hasDaytona && group.pointsMap
               const sortedRows = showingPoints
                 ? [...group.rows].sort((a, b) => {
@@ -1625,6 +1747,90 @@ export default function LeaderboardClient({
                       )}
                       <button
                         onClick={() => { setAllScorecardsGroupId(group.team.id); setShowAllScorecards(true) }}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                        style={{ background: gold, color: navy }}>
+                        All Scorecards
+                      </button>
+                    </div>
+                    <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
+                      <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
+                      <span className="flex-1 min-w-0" style={{ color: '#64748b' }}>Player</span>
+                      <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: navy }}>{showingPoints ? 'Points' : 'Score'}</span>
+                      <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem', color: '#64748b' }}>Thru</span>
+                    </div>
+                  </div>
+                  {sortedRows.map((row, i) => {
+                    if (showingPoints) {
+                      const pts = group.pointsMap!.get(row.player.id) ?? null
+                      const ptCol = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
+                      const ptStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
+                      return (
+                        <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
+                          className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                          <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
+                          <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                          <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: ptCol }}>{ptStr}</span>
+                          <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
+                        </a>
+                      )
+                    }
+                    const vp = row.vspar
+                    const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
+                    const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                    return (
+                      <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
+                        className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                        <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
+                        <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                        <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
+                        <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
+                      </a>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        ) : hasStandardGroupView && leaderboardView === 'group' ? (
+          <div className="space-y-4">
+            {standardGroupRows.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No groups yet.</p>}
+            {standardGroupRows.map((group) => {
+              const gView = traditionalGroupView[group.id] ?? (group.hasDaytona ? 'points' : 'score')
+              const showingPoints = gView === 'points' && group.hasDaytona && group.pointsMap
+              const sortedRows = showingPoints
+                ? [...group.rows].sort((a, b) => {
+                    const aPts = group.pointsMap!.get(a.player.id) ?? 0
+                    const bPts = group.pointsMap!.get(b.player.id) ?? 0
+                    if (aPts !== bPts) return bPts - aPts
+                    return a.player.name.localeCompare(b.player.name)
+                  })
+                : group.rows
+              return (
+                <div key={group.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div style={{ background: navy }}>
+                    <div className="flex items-center px-4 pt-3 pb-1.5 gap-2">
+                      <span className="text-sm font-bold text-white flex-1">
+                        {group.name}
+                        {group.daytona_variant?.startsWith('5man-flares') && (
+                          <span className="ml-1.5 text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>(Flares)</span>
+                        )}
+                      </span>
+                      {group.hasDaytona && (
+                        <div className="flex items-center rounded-full overflow-hidden border text-[10px] font-semibold flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.35)' }}>
+                          <button onClick={() => setTraditionalGroupView((v) => ({ ...v, [group.id]: 'score' }))}
+                            className="px-2.5 py-0.5 transition"
+                            style={{ background: gView === 'score' ? 'white' : 'transparent', color: gView === 'score' ? navy : 'rgba(255,255,255,0.7)' }}>
+                            Score
+                          </button>
+                          <button onClick={() => setTraditionalGroupView((v) => ({ ...v, [group.id]: 'points' }))}
+                            className="px-2.5 py-0.5 transition"
+                            style={{ background: gView === 'points' ? 'white' : 'transparent', color: gView === 'points' ? navy : 'rgba(255,255,255,0.7)' }}>
+                            Points
+                          </button>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => { setAllScorecardsGroupId(group.id); setShowAllScorecards(true) }}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
                         style={{ background: gold, color: navy }}>
                         All Scorecards
@@ -1817,10 +2023,13 @@ export default function LeaderboardClient({
                 <p className="text-center text-gray-500 text-sm py-8">No scores yet.</p>
               )}
               {rows.map((row, i) => {
-                const thruCount = row.summary?.holesPerBall?.[0] ?? 0
-                const hasScores = thruCount > 0
                 const isExpanded = expandedTeam === row.team.id
                 const teamPlayers = players.filter((p) => p.team_id === row.team.id)
+                const teamPlayerIds = teamPlayers.map((p) => p.id)
+                const thruCount = teamPlayerIds.length > 0
+                  ? holes.filter((h) => teamPlayerIds.every((id) => scores.some((s) => s.player_id === id && s.hole_number === h.hole_number))).length
+                  : 0
+                const hasScores = thruCount > 0
                 return (
                   <div key={row.team.id} className="border-b border-gray-100 last:border-0">
                     <button

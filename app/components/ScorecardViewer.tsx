@@ -6,7 +6,7 @@ import { computeHoleBallScores, computeHoleDaytonaWithSides, type DaytonaHoleAss
 import { ScoreNotation } from './ScoreNotation'
 
 type Player = { id: string; name: string }
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 
 const navy = '#0f172a'
@@ -21,17 +21,17 @@ function fmtAmt(val: number): string {
 const steelBlueBg = '#dbeafe'
 const BALL_LABELS = ['1B', '2B', '3B', '4B']
 
-const thStyle = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
-  background: highlight ? steelBlue : isHoleNum ? '#dde4ee' : navy,
-  color: highlight || !isHoleNum ? 'white' : navy,
+const thStyle = (highlight?: boolean): React.CSSProperties => ({
+  background: highlight ? steelBlue : navy,
+  color: 'white',
   fontWeight: 700,
   fontSize: '0.65rem',
   textAlign: 'center',
   padding: '0.4rem 0.25rem',
   whiteSpace: 'nowrap',
 })
-const tdPar = (highlight?: boolean): React.CSSProperties => ({
-  background: highlight ? steelBlueBg : 'white',
+const tdPar = (highlight?: boolean, isHcp?: boolean): React.CSSProperties => ({
+  background: highlight ? steelBlueBg : isHcp ? '#dde4ee' : 'white',
   color: highlight ? '#1e40af' : '#6b7280',
   fontWeight: highlight ? 700 : 400,
   fontSize: '0.7rem',
@@ -143,6 +143,9 @@ export default function ScorecardViewer({
     return played.reduce((s, d) => s + getValue(d)!, 0)
   }
 
+  const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
+  const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
+
   const optionsPopup = showOptions && (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowOptions(false)}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
@@ -155,6 +158,11 @@ export default function ScorecardViewer({
             ? <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Hub</a>
             : <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Login</a>
           }
+          {scorecardTeamId && (
+            <a href={`/${orgSlug}/score/${scorecardTeamId}`} className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+              Enter Scores
+            </a>
+          )}
           {isMaster && <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>← Master Admin</a>}
           {!isMaster && (showSignOutConfirm ? (
             <div className="space-y-2">
@@ -180,7 +188,7 @@ export default function ScorecardViewer({
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-4xl mx-auto flex items-start justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Scorecard</p>
+            <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Team Scorecard</p>
             <h1 className="font-bold text-lg">{teamName}</h1>
             {(isAdmin || scorecardTeamId) && (
               <div className="flex items-center gap-1.5 mt-1">
@@ -190,31 +198,24 @@ export default function ScorecardViewer({
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
-            {scorecardTeamId ? (
-              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                style={{ background: gold, color: navy }}>
-                Enter Scores
-              </a>
-            ) : (
-              <button onClick={() => setShowOptions(true)}
-                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                Options
-              </button>
-            )}
+            <button onClick={() => setShowOptions(true)}
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+              style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+              Options
+            </button>
             <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-3 py-4 overflow-x-auto">
-        <table className="border-collapse bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-200" style={{ minWidth: '600px', width: '100%' }}>
+      <div className="max-w-4xl mx-auto px-3 py-4">
+        <div className="bg-white rounded-2xl overflow-hidden overflow-x-auto shadow-sm border border-gray-200">
+        <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
+              <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
               {[1,2,3,4,5,6,7,8,9].map((n) => (
-                <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
+                <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
                   {n}
                   {isDaytona && pressedHoles[n] !== undefined && (
                     <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressedHoles[n]), lineHeight: 1, fontWeight: 800 }}>↑</span>
@@ -223,7 +224,7 @@ export default function ScorecardViewer({
               ))}
               <th style={thStyle(true)}>Front</th>
               {[10,11,12,13,14,15,16,17,18].map((n) => (
-                <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
+                <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
                   {n}
                   {isDaytona && pressedHoles[n] !== undefined && (
                     <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressedHoles[n]), lineHeight: 1, fontWeight: 800 }}>↑</span>
@@ -235,9 +236,23 @@ export default function ScorecardViewer({
             </tr>
           </thead>
           <tbody>
+            {/* HCP row */}
+            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ ...tdPar(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+              {[1,2,3,4,5,6,7,8,9].map((n) => {
+                const d = holeData.find((d) => d.hole.hole_number === n)
+                return <td key={n} style={tdPar(false, true)}>{d?.hole.stroke_index ?? '–'}</td>
+              })}
+              <td style={tdPar(true)} />
+              {[10,11,12,13,14,15,16,17,18].map((n) => {
+                const d = holeData.find((d) => d.hole.hole_number === n)
+                return <td key={n} style={tdPar(false, true)}>{d?.hole.stroke_index ?? '–'}</td>
+              })}
+              <td style={tdPar(true)} /><td style={tdPar()} />
+            </tr>
             {/* PAR row */}
             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PAR</td>
+              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
               {[1,2,3,4,5,6,7,8,9].map((n) => {
                 const d = holeData.find((d) => d.hole.hole_number === n)
                 return <td key={n} style={tdPar()}>{d?.hole.par ?? '–'}</td>
@@ -254,7 +269,7 @@ export default function ScorecardViewer({
             {/* One row per player */}
             {players.map((p, pi) => (
               <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>
+                <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap', ...stickyFirst }}>
                   <a href={`/player/${p.id}`} className="underline underline-offset-2" style={{ color: navy }}>
                     {p.name.split(' ')[0]}
                   </a>
@@ -262,10 +277,10 @@ export default function ScorecardViewer({
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const d = holeData.find((d) => d.hole.hole_number === n)
                   const s = d?.playerScores[pi] ?? null
-                  const hasStroke = !!(holeStrokes[p.id]?.includes(n))
+                  const hasStroke = isDaytona && !!(holeStrokes[p.id]?.includes(n))
                   return (
                     <td key={n} style={tdScore()}>
-                      {s != null && d ? <><ScoreNotation strokes={s} par={d.hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</> : <span style={{ color: '#d1d5db' }}>–</span>}
+                      {s != null && d ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={s} par={d.hole.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: s - d.hole.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span> : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
                 })}
@@ -275,10 +290,10 @@ export default function ScorecardViewer({
                 {[10,11,12,13,14,15,16,17,18].map((n) => {
                   const d = holeData.find((d) => d.hole.hole_number === n)
                   const s = d?.playerScores[pi] ?? null
-                  const hasStroke = !!(holeStrokes[p.id]?.includes(n))
+                  const hasStroke = isDaytona && !!(holeStrokes[p.id]?.includes(n))
                   return (
                     <td key={n} style={tdScore()}>
-                      {s != null && d ? <><ScoreNotation strokes={s} par={d.hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</> : <span style={{ color: '#d1d5db' }}>–</span>}
+                      {s != null && d ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={s} par={d.hole.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: s - d.hole.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span> : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
                 })}
@@ -304,7 +319,7 @@ export default function ScorecardViewer({
                   const getDt = (d: typeof holeData[0]) => side === 'left' ? d.leftDt : d.rightDt
                   return (
                     <tr key={side}>
-                      <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color }}>
+                      <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color, ...stickyFirst }}>
                         {label}
                       </td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
@@ -346,7 +361,7 @@ export default function ScorecardViewer({
                   const pressColor = (val: number) => PRESS_COLORS[sortedRates.indexOf(val) % PRESS_COLORS.length]
                   return (
                     <tr>
-                      <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                      <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
                         const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
@@ -367,7 +382,7 @@ export default function ScorecardViewer({
             ) : (
               Array.from({ length: ballsCount }, (_, bi) => (
                 <tr key={bi}>
-                  <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#92400e' }}>
+                  <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#92400e', ...stickyFirst }}>
                     {BALL_LABELS[bi]}
                   </td>
                   {[1,2,3,4,5,6,7,8,9].map((n) => {
@@ -402,6 +417,7 @@ export default function ScorecardViewer({
             )}
           </tbody>
         </table>
+        </div>
 
         <div className="pb-8" />
       </div>

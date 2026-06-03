@@ -47,16 +47,10 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
 
   const isMixedGroups = round?.mixed_groups ?? false
 
-  // In mixed groups mode, look for playing group auth cookies instead of team auth
-  let scorecardTeamId: string | null = null
-  let scorecardGroupId: string | null = null
-
-  if (isMixedGroups && round) {
-    const { data: pgroups } = await sb.from('playing_groups').select('id').eq('round_id', round.id)
-    scorecardGroupId = (pgroups ?? []).find((g) => cookieStore.get(`playing_group_auth_${g.id}`)?.value === 'true')?.id ?? null
-  } else {
-    scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
-  }
+  // Detect active scorecard session from cookies
+  const scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
+  const groupAuthCookie = cookieStore.getAll().find((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
+  const scorecardGroupId = groupAuthCookie ? groupAuthCookie.name.replace('playing_group_auth_', '') : null
 
   if (!round || !round.is_started) {
     // Fetch playing groups for pre-round PIN entry in mixed mode
@@ -84,27 +78,32 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const isDaytona = (round.format ?? 'standard') === 'daytona'
   const isTraditional = (round.format ?? 'standard') === 'traditional'
 
-  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }] = await Promise.all([
+  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }, { data: holeStrokesRaw }] = await Promise.all([
     sb.from('players').select('id, team_id, name, position, skins_participant').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
-    sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
+    sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
-    (isDaytona || isTraditional)
-      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id)
-      : Promise.resolve({ data: [] }),
+    sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
     sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', round.id).order('created_at'),
     sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', round.id).order('created_at'),
-    isDaytona
+    (isDaytona || isMixedGroups)
       ? sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id)
       : Promise.resolve({ data: [] }),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
-    isMixedGroups ? sb.from('playing_groups').select('id, name').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    isMixedGroups ? sb.from('playing_groups').select('id, name, daytona_variant').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string; daytona_variant?: string | null }[] }),
     isMixedGroups ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', (await sb.from('playing_groups').select('id').eq('round_id', round.id)).data?.map((g) => g.id) ?? []) : Promise.resolve({ data: [] as { playing_group_id: string; player_id: string }[] }),
+    isMixedGroups ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id) : Promise.resolve({ data: [] as { hole_number: number; player_id: string }[] }),
   ])
 
   const lbGroupPlayerMap: Record<string, string[]> = {}
   for (const gp of (lbGroupPlayersRaw ?? []) as { playing_group_id: string; player_id: string }[]) {
     if (!lbGroupPlayerMap[gp.playing_group_id]) lbGroupPlayerMap[gp.playing_group_id] = []
     lbGroupPlayerMap[gp.playing_group_id].push(gp.player_id)
+  }
+
+  const lbHoleStrokeMap: Record<number, string[]> = {}
+  for (const hs of (holeStrokesRaw ?? []) as { hole_number: number; player_id: string }[]) {
+    if (!lbHoleStrokeMap[hs.hole_number]) lbHoleStrokeMap[hs.hole_number] = []
+    lbHoleStrokeMap[hs.hole_number].push(hs.player_id)
   }
 
   const initialHoleValues: Record<string, Record<number, number>> = {}
@@ -154,6 +153,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       isMixedGroups={isMixedGroups}
       playingGroups={lbPlayingGroupsRaw ?? []}
       groupPlayerMap={lbGroupPlayerMap}
+      groupHoleStrokes={lbHoleStrokeMap}
     />
   )
 }

@@ -37,7 +37,7 @@ export default async function OrgAllScorecardsPage({
   const playerIds = (players ?? []).map((p: { id: string }) => p.id)
 
   const [{ data: holes }, { data: scores }, { data: assignments }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: holeStrokesRaw }] = await Promise.all([
-    sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
+    sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
     sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
     sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id),

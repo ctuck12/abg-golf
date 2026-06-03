@@ -15,7 +15,7 @@ const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
 const steelBlueBg = '#dbeafe'
 const holeBg = '#dde4ee'
 
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type PlayerInfo = { id: string; name: string; teamName: string; teamId?: string }
 
@@ -165,6 +165,8 @@ export default function AllScorecardsView({
     textAlign: 'center',
     padding: '0.25rem 0.2rem',
   })
+  const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
+  const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -266,7 +268,7 @@ export default function AllScorecardsView({
                 <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
-                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
+                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                       {[1,2,3,4,5,6,7,8,9].map((n) => (
                         <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>{n}</th>
                       ))}
@@ -279,9 +281,23 @@ export default function AllScorecardsView({
                     </tr>
                   </thead>
                   <tbody>
+                    {/* HCP */}
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const hole = holes.find((h) => h.hole_number === n)
+                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
+                      })}
+                      <td style={tdPar(true)} />
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const hole = holes.find((h) => h.hole_number === n)
+                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
+                      })}
+                      <td style={tdPar(true)} /><td style={tdPar()} />
+                    </tr>
                     {/* PAR */}
                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PAR</td>
+                      <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const hole = holes.find((h) => h.hole_number === n)
                         return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
@@ -296,7 +312,7 @@ export default function AllScorecardsView({
                     </tr>
                     {/* SCORE */}
                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
+                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const hole = holes.find((h) => h.hole_number === n)
                         const strokes = scoreMap[n] ?? null
@@ -304,7 +320,7 @@ export default function AllScorecardsView({
                         return (
                           <td key={n} style={tdCell()}>
                             {strokes != null && hole
-                              ? <><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</>
+                              ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: strokes - hole.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span>
                               : <span style={{ color: '#d1d5db' }}>–</span>}
                           </td>
                         )
@@ -317,7 +333,7 @@ export default function AllScorecardsView({
                         return (
                           <td key={n} style={tdCell()}>
                             {strokes != null && hole
-                              ? <><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</>
+                              ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: strokes - hole.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span>
                               : <span style={{ color: '#d1d5db' }}>–</span>}
                           </td>
                         )
@@ -336,7 +352,7 @@ export default function AllScorecardsView({
                       return (
                         <>
                           <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                            <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
+                            <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PTS</td>
                             {[1,2,3,4,5,6,7,8,9].map((n) => {
                               const holePts = holePtsMaps.get(n)?.has(player.id) ? holePtsMaps.get(n)!.get(player.id)! : null
                               return (
@@ -359,7 +375,7 @@ export default function AllScorecardsView({
                           </tr>
                           {(
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                              <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
                               {[1,2,3,4,5,6,7,8,9].map((n) => {
                                 const scored = scoreMap[n] != null
                                 const rate = teamVals[n] !== undefined ? teamVals[n] : dtPayoutValue
@@ -382,7 +398,7 @@ export default function AllScorecardsView({
                     })()}
                     {/* TEAM */}
                     <tr>
-                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
+                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null

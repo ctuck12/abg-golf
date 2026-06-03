@@ -28,7 +28,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
   const isDaytona = (round.format ?? 'standard') === 'daytona'
 
   const [{ data: holes }, { data: scores }, { data: assignments }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: holeStrokesRaw }] = await Promise.all([
-    sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
+    sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
     isDaytona && playerIds.length
       ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', playerIds)

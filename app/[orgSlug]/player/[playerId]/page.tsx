@@ -19,7 +19,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
   const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
   const orgName = orgRow?.name ?? orgSlug
 
-  const { data: player } = await sb.from('players').select('id, name, team_id').eq('id', playerId).single()
+  const { data: player } = await sb.from('players').select('id, name, team_id, handicap').eq('id', playerId).single()
   if (!player) redirect(`/${orgSlug}`)
 
   const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant').eq('id', player.team_id).single()
@@ -29,7 +29,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
   if (!round || !round.is_started || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
   const [{ data: holes }, { data: scores }, { data: holeStrokesRaw }] = await Promise.all([
-    sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
+    sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('hole_number, strokes').eq('player_id', playerId),
     sb.from('hole_strokes').select('hole_number').eq('round_id', round.id).eq('player_id', playerId),
   ])
@@ -72,7 +72,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
       orgId={orgId}
       orgName={orgName}
       isMaster={isMaster}
-      player={{ id: player.id, name: player.name }}
+      player={{ id: player.id, name: player.name, handicap: (player as { handicap?: number | null }).handicap ?? null }}
       teamName={team.name}
       teamId={team.id}
       holes={holes ?? []}

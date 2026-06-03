@@ -16,7 +16,7 @@ function fmtAmt(val: number): string {
   return `$${val.toFixed(2).replace(/^0/, '')}`
 }
 
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { hole_number: number; strokes: number }
 type RoundScore = { player_id: string; hole_number: number; strokes: number }
 
@@ -50,7 +50,7 @@ export default function PlayerScorecard({
   player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false, strokeHoles = [],
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
-  player: { id: string; name: string }
+  player: { id: string; name: string; handicap?: number | null }
   teamName: string
   teamId: string
   holes: Hole[]
@@ -205,8 +205,8 @@ export default function PlayerScorecard({
     padding: '0.4rem 0.25rem',
     whiteSpace: 'nowrap',
   })
-  const tdPar = (highlight?: boolean, isParCell?: boolean): React.CSSProperties => ({
-    background: highlight ? steelBlueBg : isParCell ? '#dde4ee' : 'white',
+  const tdPar = (highlight?: boolean, isHcp?: boolean): React.CSSProperties => ({
+    background: highlight ? steelBlueBg : isHcp ? '#dde4ee' : 'white',
     color: highlight ? '#1e40af' : '#6b7280',
     fontWeight: highlight ? 700 : 400,
     fontSize: '0.7rem',
@@ -221,6 +221,8 @@ export default function PlayerScorecard({
     textAlign: 'center',
     padding: '0.25rem 0.2rem',
   })
+  const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
+  const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
 
   const optionsPopup = showOptions && (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowOptions(false)}>
@@ -234,6 +236,11 @@ export default function PlayerScorecard({
             ? <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Hub</a>
             : <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Login</a>
           }
+          {scorecardTeamId && (
+            <a href={`/${orgSlug}/score/${scorecardTeamId}`} className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+              Enter Scores
+            </a>
+          )}
           {isMaster && <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>← Master Admin</a>}
           {!isMaster && (showSignOutConfirm ? (
             <div className="space-y-2">
@@ -262,7 +269,7 @@ export default function PlayerScorecard({
             <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>
               Player Scorecard
             </p>
-            <h1 className="font-bold text-xl">{player.name}</h1>
+            <h1 className="font-bold text-xl">{player.name}{player.handicap != null && <span className="text-sm font-normal ml-2" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {player.handicap}</span>}</h1>
             <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
               {teamName}
             </p>
@@ -274,19 +281,11 @@ export default function PlayerScorecard({
             )}
           </div>
           <div className="flex items-center gap-2 mt-1 flex-shrink-0">
-            {scorecardTeamId ? (
-              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
-                Enter Scores
-              </a>
-            ) : (
-              <button onClick={() => setShowOptions(true)}
-                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                Options
-              </button>
-            )}
+            <button onClick={() => setShowOptions(true)}
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+              style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+              Options
+            </button>
             <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
@@ -320,7 +319,7 @@ export default function PlayerScorecard({
           <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
             <thead>
               <tr>
-                <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem' }}>HOLE</th>
+                <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                 {[1,2,3,4,5,6,7,8,9].map((n) => (
                   <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>
                 ))}
@@ -333,24 +332,38 @@ export default function PlayerScorecard({
               </tr>
             </thead>
             <tbody>
-              {/* PAR row */}
+              {/* HCP row */}
               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ ...tdPar(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PAR</td>
+                <td style={{ ...tdPar(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
-                  return <td key={n} style={tdPar(false, true)}>{hole?.par ?? '–'}</td>
+                  return <td key={n} style={tdPar(false, true)}>{hole?.stroke_index ?? '–'}</td>
+                })}
+                <td style={tdPar(true)} />
+                {[10,11,12,13,14,15,16,17,18].map((n) => {
+                  const hole = holes.find((h) => h.hole_number === n)
+                  return <td key={n} style={tdPar(false, true)}>{hole?.stroke_index ?? '–'}</td>
+                })}
+                <td style={tdPar(true)} /><td style={tdPar()} />
+              </tr>
+              {/* PAR row */}
+              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
+                {[1,2,3,4,5,6,7,8,9].map((n) => {
+                  const hole = holes.find((h) => h.hole_number === n)
+                  return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
                 })}
                 <td style={tdPar(true)}>{frontNine.length > 0 ? frontPar : '–'}</td>
                 {[10,11,12,13,14,15,16,17,18].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
-                  return <td key={n} style={tdPar(false, true)}>{hole?.par ?? '–'}</td>
+                  return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
                 })}
                 <td style={tdPar(true)}>{backNine.length > 0 ? backPar : '–'}</td>
                 <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
               </tr>
               {/* SCORE row */}
               <tr style={isDaytona ? { borderBottom: '1px solid #e5e7eb' } : {}}>
-                <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
+                <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const hole = holes.find((h) => h.hole_number === n)
                   const strokes = scoreMap[n] ?? null
@@ -358,7 +371,7 @@ export default function PlayerScorecard({
                   return (
                     <td key={n} style={tdScore()}>
                       {strokes != null && hole
-                        ? <><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</>
+                        ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: strokes - hole.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span>
                         : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
@@ -373,7 +386,7 @@ export default function PlayerScorecard({
                   return (
                     <td key={n} style={tdScore()}>
                       {strokes != null && hole
-                        ? <><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</>
+                        ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={strokes} par={hole.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: strokes - hole.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span>
                         : <span style={{ color: '#d1d5db' }}>–</span>}
                     </td>
                   )
@@ -396,7 +409,7 @@ export default function PlayerScorecard({
                 return (
                   <>
                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>PTS</td>
+                      <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PTS</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const pts = holePointsMap.has(n) ? holePointsMap.get(n)! : null
                         return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, color: ptsColor(pts), fontSize: '0.7rem' }}>{ptsStr(pts)}</span></td>
@@ -411,7 +424,7 @@ export default function PlayerScorecard({
                     </tr>
                     {(
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>AMT</td>
+                        <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
                         {[1,2,3,4,5,6,7,8,9].map((n) => {
                           if (!holePointsMap.has(n)) return <td key={n} style={tdScore()}><span style={{ color: '#d1d5db' }}>–</span></td>
                           const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
@@ -430,7 +443,7 @@ export default function PlayerScorecard({
                       </tr>
                     )}
                     <tr>
-                      <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
+                      <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null
