@@ -565,7 +565,7 @@ function computeMatchupPayouts(
 
 export default function MatchupClient({
   orgSlug, orgId, orgName, isMaster = false,
-  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard', teams = [],
+  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard', teams = [], isMixedGroups = false, playingGroups = [], scorecardGroupId: scorecardGroupIdProp = null,
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   roundId: string
@@ -579,6 +579,9 @@ export default function MatchupClient({
   scorecardTeamId?: string | null
   format?: string
   teams?: { id: string; name: string }[]
+  isMixedGroups?: boolean
+  playingGroups?: { id: string; name: string }[]
+  scorecardGroupId?: string | null
 }) {
   const [scores, setScores] = useState(initialScores)
   const [matchups, setMatchups] = useState(initialMatchups)
@@ -586,6 +589,14 @@ export default function MatchupClient({
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [showPinLogin, setShowPinLogin] = useState(false)
+  const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
+  const [scorecardGroupId] = useState<string | null>(scorecardGroupIdProp)
+
+  // In mixed-groups rounds, scorer auth comes from the group cookie; otherwise from the team cookie
+  const effectiveScorerId = isMixedGroups ? scorecardGroupId : scorecardTeamId
+  const enterScoresHref = isMixedGroups
+    ? `/${orgSlug}/score/group/${scorecardGroupId}`
+    : `/${orgSlug}/score/${scorecardTeamId}`
 
   async function handleSignOut() {
     await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
@@ -682,7 +693,6 @@ export default function MatchupClient({
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' } | null>(null)
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
   const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | null>(null)
-  const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -872,8 +882,8 @@ export default function MatchupClient({
                 ? <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Hub</a>
                 : <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Login</a>
               }
-              {scorecardTeamId ? (
-                <a href={`/${orgSlug}/score/${scorecardTeamId}`} className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+              {effectiveScorerId ? (
+                <a href={enterScoresHref} className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
                   Enter Scores
                 </a>
               ) : (
@@ -881,7 +891,7 @@ export default function MatchupClient({
                   onClick={() => { setShowOptions(false); setShowPinLogin(true) }}
                   className="w-full text-center py-3 rounded-xl font-semibold text-sm border"
                   style={{ borderColor: navy, color: navy }}>
-                  Log In as Scorer
+                  {isMixedGroups ? 'Log In as Scorer (Group PIN)' : 'Log In as Scorer'}
                 </button>
               )}
               {isMaster && <a href="/master/dashboard" className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>← Master Admin</a>}
@@ -905,7 +915,8 @@ export default function MatchupClient({
 
       {showPinLogin && (
         <PinLoginModal
-          teams={teams}
+          teams={isMixedGroups ? [] : teams}
+          playingGroups={isMixedGroups ? playingGroups : undefined}
           orgSlug={orgSlug}
           onClose={() => setShowPinLogin(false)}
         />
@@ -1135,10 +1146,10 @@ export default function MatchupClient({
           <div>
             <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>Matchups</p>
             <h1 className="font-bold text-lg">{roundName}</h1>
-            {(isAdmin || scorecardTeamId) && (
+            {(isAdmin || effectiveScorerId) && (
               <div className="flex items-center gap-1.5 mt-1">
                 {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
-                {scorecardTeamId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                {effectiveScorerId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
               </div>
             )}
           </div>
