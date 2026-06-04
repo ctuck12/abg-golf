@@ -401,6 +401,11 @@ export default function LeaderboardClient({
     window.location.href = isMaster ? '/master/dashboard' : '/'
   }
 
+  async function handleGroupSignOut() {
+    await fetch('/api/playing-group-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groupId: scorecardGroupId }) })
+    window.location.href = `/${orgSlug}`
+  }
+
   // Re-fetch auth state on mount so navigating back from another page doesn't
   // show stale RSC props.  credentials:'include' + cache:'no-store' ensures the
   // browser always sends cookies and never returns a cached response.
@@ -807,9 +812,13 @@ export default function LeaderboardClient({
               )}
               {showSignOutConfirm ? (
                 <div className="space-y-2">
-                  <p className="text-sm text-center text-gray-700 font-medium">Sign out of this group?</p>
+                  <p className="text-sm text-center text-gray-700 font-medium">
+                    {isMixedGroups && scorecardGroupId
+                      ? `Sign out of ${playingGroups?.find((g) => g.id === scorecardGroupId)?.name ?? 'this group'}?`
+                      : 'Sign out of this group?'}
+                  </p>
                   <div className="flex gap-2">
-                    <button onClick={handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>
+                    <button onClick={isMixedGroups && scorecardGroupId ? handleGroupSignOut : handleSignOut} className="flex-1 py-2.5 rounded-xl font-semibold text-sm text-white" style={{ background: '#dc2626' }}>
                       Sign Out
                     </button>
                     <button onClick={() => setShowSignOutConfirm(false)} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-gray-300 text-gray-700">
@@ -823,7 +832,9 @@ export default function LeaderboardClient({
                   className="w-full py-3 rounded-xl font-semibold text-sm text-white"
                   style={{ background: '#6b7280' }}
                 >
-                  Sign Out of {orgName}
+                  {isMixedGroups && scorecardGroupId
+                    ? `Sign Out of ${playingGroups?.find((g) => g.id === scorecardGroupId)?.name ?? 'Group'}`
+                    : `Sign Out of ${orgName}`}
                 </button>
               )}
             </div>

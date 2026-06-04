@@ -176,8 +176,8 @@ export default function PlayingGroupScoreEntry({
         if (p.id === bankerId) continue
         const playerNet = netSavedGlobal(p.id, hole.hole_number)
         if (playerNet === undefined) continue
-        const bet = bankerBets[hole.hole_number]?.[p.id]
-        if (!bet || bet.baseBet <= 0) continue
+        const bet = bankerBets[hole.hole_number]?.[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+        if (bet.baseBet <= 0) continue
         const effective = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
         let result = 0
         if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
@@ -188,7 +188,20 @@ export default function PlayingGroupScoreEntry({
     }
     return totals
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isBanker, savedHoles, bankerHoles, bankerBets, savedScores, holeStrokes, holes, players])
+  }, [isBanker, savedHoles, bankerHoles, bankerBets, bankerMinBet, savedScores, holeStrokes, holes, players])
+
+  async function handleBankerDoubleAll(holeNumber: number, currentlyDoubled: boolean) {
+    const hd = bankerHoles[holeNumber]
+    if (!hd?.bankerPlayerId) return
+    const currentBets = bankerBets[holeNumber] ?? {}
+    const newBets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }> = {}
+    for (const p of players) {
+      if (p.id === hd.bankerPlayerId) continue
+      const pb = currentBets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+      newBets[p.id] = { ...pb, bankerDoubled: !currentlyDoubled }
+    }
+    await handleSaveBankerBets(holeNumber, newBets)
+  }
 
   async function handleSaveBankerHole(holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
     setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId, maxBet } }))
@@ -196,7 +209,7 @@ export default function PlayingGroupScoreEntry({
   }
   async function handleSaveBankerBets(holeNumber: number, bets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>) {
     setBankerBets((prev) => ({ ...prev, [holeNumber]: bets }))
-    const arr = Object.entries(bets).map(([pid, b]) => ({ playerId: pid, ...b }))
+    const arr = Object.entries(bets).map(([pid, b]) => ({ playerId: pid, baseBet: b.baseBet, playerDoubled: b.playerDoubled, bankerDoubled: b.bankerDoubled }))
     await saveBankerBets(roundId, groupId, holeNumber, arr)
   }
 
@@ -400,7 +413,7 @@ export default function PlayingGroupScoreEntry({
                 </div>
               ) : (
                 <button onClick={() => setShowSignOutConfirm(true)} className="w-full py-3 rounded-xl text-sm font-semibold text-white" style={{ background: '#6b7280' }}>
-                  Sign Out of {orgName}
+                  Sign Out of {groupName}
                 </button>
               )}
             </div>
@@ -784,7 +797,7 @@ export default function PlayingGroupScoreEntry({
                                 const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
                                 return (
                                   <div key={p.id} className="bg-white rounded-lg p-2 border border-gray-100">
-                                    <div className="flex items-center gap-2 mb-1.5">
+                                    <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
                                       <div className="flex items-center gap-1">
                                         <span className="text-xs text-gray-500">$</span>
@@ -795,27 +808,31 @@ export default function PlayingGroupScoreEntry({
                                           }}
                                           className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
                                       </div>
+                                      <button type="button"
+                                        onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
+                                        className={`text-xs px-2 py-1 rounded border font-semibold transition ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
+                                        {pb.playerDoubled ? '2× ✓' : '2×'}
+                                      </button>
                                     </div>
-                                    {hole.par === 3 && (
-                                      <div className="flex gap-2">
-                                        <button type="button"
-                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
-                                          className={`text-xs px-2 py-1 rounded border font-medium transition ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-300 text-gray-500'}`}>
-                                          {p.name.split(' ')[0]} 2× in-air
-                                        </button>
-                                        <button type="button"
-                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, bankerDoubled: !pb.bankerDoubled } })}
-                                          className={`text-xs px-2 py-1 rounded border font-medium transition ${pb.bankerDoubled ? 'bg-orange-500 text-white border-orange-500' : 'border-gray-300 text-gray-500'}`}>
-                                          Banker 2×
-                                        </button>
-                                        {(pb.playerDoubled || pb.bankerDoubled) && (
-                                          <span className="text-xs text-gray-500 self-center">→ ${effective}</span>
-                                        )}
-                                      </div>
+                                    {(pb.playerDoubled || pb.bankerDoubled) && (
+                                      <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                                        {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${effective.toFixed(2)}
+                                      </p>
                                     )}
                                   </div>
                                 )
                               })}
+                              {/* Banker doubles ALL bets */}
+                              {(() => {
+                                const isDoubled = Object.values(bets).some((b) => b.bankerDoubled)
+                                return (
+                                  <button type="button"
+                                    onClick={() => handleBankerDoubleAll(hole.hole_number, isDoubled)}
+                                    className={`w-full text-xs py-1.5 rounded-lg border font-semibold transition mt-1 ${isDoubled ? 'bg-orange-500 text-white border-orange-500' : 'border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100'}`}>
+                                    {isDoubled ? 'Banker 2× All ✓ (tap to undo)' : 'Banker 2× All Bets'}
+                                  </button>
+                                )
+                              })()}
                             </div>
                           </div>
                         )}
@@ -925,7 +942,10 @@ export default function PlayingGroupScoreEntry({
                   {/* ── Handicap Strokes ── */}
                   {(() => {
                     const autoIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : getAutoStrokes(hole.hole_number)
-                    const visiblePlayers = players.filter((p) => autoIds.includes(p.id) || holeStrokeIds.includes(p.id))
+                    const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null
+                    const visiblePlayers = isBanker && bankerPlayerId
+                      ? players.filter((p) => p.id !== bankerPlayerId)
+                      : players.filter((p) => autoIds.includes(p.id) || holeStrokeIds.includes(p.id))
                     if (visiblePlayers.length === 0) return null
                     return (
                       <div className="pt-2 border-t border-gray-100">

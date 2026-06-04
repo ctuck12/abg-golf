@@ -1,0 +1,2 @@
+-- No migration needed: player_doubled and banker_doubled columns already exist in banker_bets.
+-- The app now uses player_doubled (per-player toggle) and banker_doubled (per-hole, stored per player row).
