@@ -2084,7 +2084,7 @@ export default function LeaderboardClient({
                     if (showingDollars) {
                       const amt = group.bankerTotals[row.player.id] ?? 0
                       const amtColor = amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280'
-                      const amtStr = amt > 0 ? `+$${Math.round(amt)}` : amt < 0 ? `-$${Math.round(Math.abs(amt))}` : '$0'
+                      const amtStr = amt !== 0 ? `$${Math.round(Math.abs(amt))}` : '$0'
                       return (
                         <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
                           className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
