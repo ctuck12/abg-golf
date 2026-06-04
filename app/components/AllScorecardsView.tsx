@@ -305,7 +305,7 @@ export default function AllScorecardsView({
                           </th>
                         )
                       })}
-                      <th style={thStyle(true)}>Front</th>
+                      <th style={{ ...thStyle(true), minWidth: '3.5rem' }}>Front</th>
                       {[10,11,12,13,14,15,16,17,18].map((n) => {
                         const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
@@ -314,8 +314,8 @@ export default function AllScorecardsView({
                           </th>
                         )
                       })}
-                      <th style={thStyle(true)}>Back</th>
-                      <th style={thStyle()}>TOTAL</th>
+                      <th style={{ ...thStyle(true), minWidth: '3.5rem' }}>Back</th>
+                      <th style={{ ...thStyle(), minWidth: '3.5rem' }}>TOTAL</th>
                     </tr>
                   </thead>
                   <tbody>

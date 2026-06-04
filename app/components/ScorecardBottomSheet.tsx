@@ -232,7 +232,7 @@ export default function ScorecardBottomSheet({
                             </th>
                           )
                         })}
-                        {frontNine.length > 0 && <th style={thSt(true)}>Out</th>}
+                        {frontNine.length > 0 && <th style={{ ...thSt(true), minWidth: '3.5rem' }}>Out</th>}
                         {backNine.map((h) => {
                           const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
@@ -241,8 +241,8 @@ export default function ScorecardBottomSheet({
                             </th>
                           )
                         })}
-                        {backNine.length > 0 && <th style={thSt(true)}>In</th>}
-                        <th style={thSt()}>TOT</th>
+                        {backNine.length > 0 && <th style={{ ...thSt(true), minWidth: '3.5rem' }}>In</th>}
+                        <th style={{ ...thSt(), minWidth: '3.5rem' }}>TOT</th>
                       </tr>
                     </thead>
                     <tbody>
