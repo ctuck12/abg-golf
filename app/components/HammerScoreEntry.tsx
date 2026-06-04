@@ -340,11 +340,11 @@ export default function HammerScoreEntry({
         )}
 
         {savedHoles.size === holes.length && holes.length > 0 && (
-          <div className="rounded-xl border-2 px-4 py-4 flex items-center gap-3" style={{ borderColor: gold, background: '#fffbeb' }}>
-            <span className="text-3xl flex-shrink-0">⛳</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-900">All {holes.length} holes submitted!</p>
-              <a href={`/${orgSlug}`} className="text-sm font-bold text-amber-700 underline">Leaderboard →</a>
+          <div className="rounded-xl border-2 px-4 py-4 flex items-center gap-4" style={{ borderColor: gold, background: '#fffbeb' }}>
+            <span className="text-4xl flex-shrink-0">⛳</span>
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <p className="font-bold text-gray-900">All {holes.length} holes submitted!</p>
+              <a href={`/${orgSlug}`} className="text-sm font-bold text-amber-700 underline">View Leaderboard →</a>
             </div>
           </div>
         )}
