@@ -714,7 +714,39 @@ export default function PlayingGroupScoreEntry({
                           </div>
                         )}
                       </>
-                    ) : (
+                    ) : isBanker ? (() => {
+                      const hd = bankerHoles[hole.hole_number]
+                      const bankerId = hd?.bankerPlayerId ?? null
+                      if (!bankerId) return null
+                      const bets = bankerBets[hole.hole_number] ?? {}
+                      const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
+                      if (bankerNet === undefined) return null
+                      let bankerTotal = 0
+                      const playerAmts: Record<string, number> = {}
+                      for (const p of players) {
+                        if (p.id === bankerId) continue
+                        const playerNet = netSavedGlobal(p.id, hole.hole_number)
+                        if (playerNet === undefined) continue
+                        const bet = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+                        const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
+                        let result = 0
+                        if (playerNet < bankerNet) result = eff * bankerMultiplier(playerNet, hole.par)
+                        else if (playerNet > bankerNet) result = -eff * bankerMultiplier(bankerNet, hole.par)
+                        playerAmts[p.id] = result
+                        bankerTotal -= result
+                      }
+                      return players.map((p) => {
+                        const amt = p.id === bankerId ? bankerTotal : (playerAmts[p.id] ?? 0)
+                        return (
+                          <div key={p.id} className="text-center">
+                            <p className="text-[10px] text-gray-400">{p.name.split(' ')[0]}</p>
+                            <p className="text-xs font-semibold" style={{ color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
+                              {amt > 0 ? `+$${Math.round(amt)}` : amt < 0 ? `-$${Math.round(Math.abs(amt))}` : 'E'}
+                            </p>
+                          </div>
+                        )
+                      })
+                    })() : (
                       players.map((p) => {
                         const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
                         const rel = sc ? sc.strokes - hole.par : null
