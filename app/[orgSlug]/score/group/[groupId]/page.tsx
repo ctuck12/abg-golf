@@ -24,7 +24,7 @@ export default async function PlayingGroupScorecardPage({
 
   const { data: group } = await sb
     .from('playing_groups')
-    .select('id, name, round_id, daytona_variant')
+    .select('id, name, round_id, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes')
     .eq('id', groupId)
     .single()
   if (!group) redirect(`/${orgSlug}`)
@@ -61,6 +61,8 @@ export default async function PlayingGroupScorecardPage({
   const [parsedDaytonaVariant, parsedPayoutStr] = groupDaytonaRaw?.includes('|')
     ? groupDaytonaRaw.split('|') : [groupDaytonaRaw ?? '4man', null]
   const defaultDtPayoutValue = parsedPayoutStr ? (parseFloat(parsedPayoutStr) || 0.25) : 0.25
+  const isBankerSideGame = !!(group as { banker_side_game?: boolean }).banker_side_game
+  const bankerMinBet = (group as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
 
   // Fetch all teams in this round to get full team rosters for ball score popup
   const { data: allTeams } = await sb.from('teams').select('id, name').eq('round_id', round.id)
@@ -74,7 +76,7 @@ export default async function PlayingGroupScorecardPage({
   const allPlayers = allPlayersRaw ?? []
   const allPlayerIds = allPlayers.map((p) => p.id)
 
-  const [{ data: holes }, { data: allScores }, { data: ballValuesRaw }, { data: assignmentsRaw }, { data: holeStrokesRaw }, { data: holeValuesRaw }] = await Promise.all([
+  const [{ data: holes }, { data: allScores }, { data: ballValuesRaw }, { data: assignmentsRaw }, { data: holeStrokesRaw }, { data: holeValuesRaw }, { data: bankerHolesRaw }, { data: bankerBetsRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds.length ? allPlayerIds : ['']),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
@@ -87,6 +89,12 @@ export default async function PlayingGroupScorecardPage({
     isDaytonaSideGame
       ? sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', round.id).eq('team_id', groupId)
       : Promise.resolve({ data: [] }),
+    isBankerSideGame
+      ? sb.from('banker_holes').select('hole_number, banker_player_id, max_bet').eq('round_id', round.id).eq('team_id', groupId)
+      : Promise.resolve({ data: [] }),
+    isBankerSideGame
+      ? sb.from('banker_bets').select('hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', round.id).eq('team_id', groupId)
+      : Promise.resolve({ data: [] }),
   ])
 
   const initialHoleStrokes: Record<number, string[]> = {}
@@ -97,6 +105,15 @@ export default async function PlayingGroupScorecardPage({
   const initialHoleValues: Record<number, number> = {}
   for (const hv of (holeValuesRaw ?? []) as { hole_number: number; value_per_point: number }[]) {
     initialHoleValues[hv.hole_number] = hv.value_per_point
+  }
+  const initialBankerHoles: Record<number, { bankerPlayerId: string | null; maxBet: number }> = {}
+  for (const bh of (bankerHolesRaw ?? []) as { hole_number: number; banker_player_id: string | null; max_bet: number }[]) {
+    initialBankerHoles[bh.hole_number] = { bankerPlayerId: bh.banker_player_id, maxBet: bh.max_bet }
+  }
+  const initialBankerBets: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>> = {}
+  for (const bb of (bankerBetsRaw ?? []) as { hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
+    if (!initialBankerBets[bb.hole_number]) initialBankerBets[bb.hole_number] = {}
+    initialBankerBets[bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled }
   }
 
   // Build team player map: teamId -> playerIds (in order)
@@ -139,6 +156,10 @@ export default async function PlayingGroupScorecardPage({
       initialAssignments={(assignmentsRaw ?? []) as { player_id: string; hole_number: number; side: string }[]}
       initialHoleStrokes={initialHoleStrokes}
       initialHoleValues={initialHoleValues}
+      bankerSideGame={isBankerSideGame}
+      bankerMinBet={bankerMinBet}
+      initialBankerHoles={initialBankerHoles}
+      initialBankerBets={initialBankerBets}
     />
   )
 }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes } from '@/app/actions'
+import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
@@ -42,6 +42,7 @@ export default function PlayingGroupScoreEntry({
   ballsCount, teamPlayerMap, teamMap, includeTotal, ballValues, isStarted,
   daytonaVariant, isDaytonaSideGame, defaultDtPayoutValue, initialAssignments,
   initialHoleStrokes = {}, initialHoleValues = {},
+  bankerSideGame = false, bankerMinBet = 2, initialBankerHoles = {}, initialBankerBets = {},
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster: boolean; isAdmin: boolean
   groupId: string; groupName: string; roundId: string; roundName: string; roundDate: string; roundCourse: string
@@ -52,6 +53,10 @@ export default function PlayingGroupScoreEntry({
   initialAssignments?: { player_id: string; hole_number: number; side: string }[]
   initialHoleStrokes?: Record<number, string[]>
   initialHoleValues?: Record<number, number>
+  bankerSideGame?: boolean
+  bankerMinBet?: number
+  initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
+  initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
 }) {
   const isDaytonaMode = !!isDaytonaSideGame
   const isFlares = daytonaVariant === '5man-flares'
@@ -114,6 +119,9 @@ export default function PlayingGroupScoreEntry({
   const [pressConfirmHole, setPressConfirmHole] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
   const [strokesPending, setStrokesPending] = useState(false)
+  const isBanker = !!bankerSideGame
+  const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
+  const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
 
   const formattedDate = roundDate
     ? new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -131,10 +139,80 @@ export default function PlayingGroupScoreEntry({
   function getAutoStrokes(holeNumber: number): string[] {
     const hole = holes.find((h) => h.hole_number === holeNumber)
     if (!hole?.stroke_index) return []
+    const handicaps = players.map((p) => p.handicap).filter((h): h is number => h != null)
+    if (handicaps.length === 0) return []
+    const minHcp = Math.min(...handicaps)
     return players.filter((p) => {
       if (p.handicap == null) return false
-      const strokes = Math.max(0, Math.round(p.handicap))
+      const strokes = Math.floor(p.handicap - minHcp)
       return strokes > 0 && hole.stroke_index! <= strokes
+    }).map((p) => p.id)
+  }
+
+  function netSavedGlobal(pid: string, holeNumber: number): number | undefined {
+    const gross = savedScores.find((s) => s.player_id === pid && s.hole_number === holeNumber)?.strokes
+    if (gross === undefined) return undefined
+    return gross - ((holeStrokes[holeNumber] ?? []).includes(pid) ? 1 : 0)
+  }
+
+  function bankerMultiplier(net: number, par: number): number {
+    if (net <= par - 2) return 3
+    if (net === par - 1) return 2
+    return 1
+  }
+
+  const bankerRunningTotals = useMemo(() => {
+    if (!isBanker) return {}
+    const totals: Record<string, number> = {}
+    for (const p of players) totals[p.id] = 0
+    for (const hole of holes) {
+      if (!savedHoles.has(hole.hole_number)) continue
+      const hd = bankerHoles[hole.hole_number]
+      if (!hd?.bankerPlayerId) continue
+      const bankerId = hd.bankerPlayerId
+      const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
+      if (bankerNet === undefined) continue
+      for (const p of players) {
+        if (p.id === bankerId) continue
+        const playerNet = netSavedGlobal(p.id, hole.hole_number)
+        if (playerNet === undefined) continue
+        const bet = bankerBets[hole.hole_number]?.[p.id]
+        if (!bet || bet.baseBet <= 0) continue
+        const effective = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
+        let result = 0
+        if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
+        else if (playerNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
+        totals[p.id] = (totals[p.id] ?? 0) + result
+        totals[bankerId] = (totals[bankerId] ?? 0) - result
+      }
+    }
+    return totals
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBanker, savedHoles, bankerHoles, bankerBets, savedScores, holeStrokes, holes, players])
+
+  async function handleSaveBankerHole(holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
+    setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId, maxBet } }))
+    await saveBankerHole(roundId, groupId, holeNumber, bankerPlayerId, maxBet)
+  }
+  async function handleSaveBankerBets(holeNumber: number, bets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>) {
+    setBankerBets((prev) => ({ ...prev, [holeNumber]: bets }))
+    const arr = Object.entries(bets).map(([pid, b]) => ({ playerId: pid, ...b }))
+    await saveBankerBets(roundId, groupId, holeNumber, arr)
+  }
+
+  function getBankerAutoStrokes(holeNumber: number): string[] {
+    const hole = holes.find((h) => h.hole_number === holeNumber)
+    if (!hole?.stroke_index) return []
+    const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
+    if (!bankerPlayerId) return []
+    const bankerHcp = players.find((p) => p.id === bankerPlayerId)?.handicap ?? null
+    if (bankerHcp == null) return []
+    return players.filter((p) => {
+      if (p.id === bankerPlayerId) return false
+      const hcp = p.handicap ?? null
+      if (hcp == null) return false
+      const diff = Math.floor(hcp - bankerHcp)
+      return diff > 0 && hole.stroke_index! <= diff
     }).map((p) => p.id)
   }
 
@@ -465,6 +543,21 @@ export default function PlayingGroupScoreEntry({
               </div>
             )
           })()}
+          {isBanker && Object.values(bankerRunningTotals).some((v) => v !== 0) && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-white/10 mt-1">
+              {players.map((p) => {
+                const amt = bankerRunningTotals[p.id] ?? 0
+                return (
+                  <span key={p.id} className="flex items-center gap-1 text-xs">
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
+                    <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
+                      {amt > 0 ? `+$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : '$0'}
+                    </span>
+                  </span>
+                )
+              })}
+            </div>
+          )}
         </div>
       </header>
 
@@ -571,6 +664,11 @@ export default function PlayingGroupScoreEntry({
                     ↑${holeValues[hole.hole_number]}
                   </span>
                 )}
+                {isBanker && bankerHoles[hole.hole_number]?.bankerPlayerId && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+                    🏦 {players.find((p) => p.id === bankerHoles[hole.hole_number].bankerPlayerId)?.name.split(' ')[0] ?? 'Banker'}
+                  </span>
+                )}
                 <div className="flex-1" />
                 {isSaved && (
                   <div className="flex items-center gap-3 mr-2">
@@ -629,6 +727,132 @@ export default function PlayingGroupScoreEntry({
 
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 py-3 space-y-2">
+
+                  {/* ── Banker hole setup ── */}
+                  {isBanker && (() => {
+                    const hd = bankerHoles[hole.hole_number] ?? { bankerPlayerId: null, maxBet: 5 }
+                    const bets = bankerBets[hole.hole_number] ?? {}
+                    const isLastTwo = hole.hole_number >= (holes.length > 9 ? 17 : holes[holes.length - 2]?.hole_number ?? 17)
+                    const suggestedBankerId = isLastTwo
+                      ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
+                      : null
+                    return (
+                      <div className="bg-blue-50 rounded-xl p-3 space-y-3 border border-blue-100">
+                        <div>
+                          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
+                            Select Banker{isLastTwo ? ' (auto: most down)' : ''}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {players.map((p) => {
+                              const isBankerPlayer = hd.bankerPlayerId === p.id
+                              const isSuggested = suggestedBankerId === p.id && !hd.bankerPlayerId
+                              return (
+                                <button key={p.id} type="button"
+                                  onClick={() => handleSaveBankerHole(hole.hole_number, p.id, hd.maxBet)}
+                                  className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold border transition ${isBankerPlayer ? 'text-white border-transparent' : 'border-gray-300 text-gray-600 bg-white'}`}
+                                  style={isBankerPlayer ? { background: navy } : isSuggested ? { borderColor: '#f59e0b', color: '#92400e' } : {}}>
+                                  {p.name}{isSuggested && !isBankerPlayer ? ' ★' : ''}
+                                </button>
+                              )
+                            })}
+                            {hd.bankerPlayerId && (
+                              <button type="button" onClick={() => handleSaveBankerHole(hole.hole_number, null, hd.maxBet)}
+                                className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-400">Clear</button>
+                            )}
+                          </div>
+                        </div>
+                        {hd.bankerPlayerId && (
+                          <div>
+                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
+                              Banker Sets Max Bet (min ${bankerMinBet})
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">$</span>
+                              <input type="number" value={hd.maxBet} min={bankerMinBet} step="0.5"
+                                onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, parseFloat(e.target.value) || bankerMinBet)}
+                                className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                              <span className="text-xs text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
+                            </div>
+                          </div>
+                        )}
+                        {hd.bankerPlayerId && (
+                          <div>
+                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Player Bets</p>
+                            <div className="space-y-2">
+                              {players.filter((p) => p.id !== hd.bankerPlayerId).map((p) => {
+                                const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+                                const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
+                                return (
+                                  <div key={p.id} className="bg-white rounded-lg p-2 border border-gray-100">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-xs text-gray-500">$</span>
+                                        <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="0.5"
+                                          onChange={(e) => {
+                                            const v = Math.min(Math.max(parseFloat(e.target.value) || bankerMinBet, bankerMinBet), hd.maxBet)
+                                            handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
+                                          }}
+                                          className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
+                                      </div>
+                                    </div>
+                                    {hole.par === 3 && (
+                                      <div className="flex gap-2">
+                                        <button type="button"
+                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
+                                          className={`text-xs px-2 py-1 rounded border font-medium transition ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-300 text-gray-500'}`}>
+                                          {p.name.split(' ')[0]} 2× in-air
+                                        </button>
+                                        <button type="button"
+                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, bankerDoubled: !pb.bankerDoubled } })}
+                                          className={`text-xs px-2 py-1 rounded border font-medium transition ${pb.bankerDoubled ? 'bg-orange-500 text-white border-orange-500' : 'border-gray-300 text-gray-500'}`}>
+                                          Banker 2×
+                                        </button>
+                                        {(pb.playerDoubled || pb.bankerDoubled) && (
+                                          <span className="text-xs text-gray-500 self-center">→ ${effective}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {hd.bankerPlayerId && Object.keys(bets).length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Projected Result (saved scores)</p>
+                            {isSaved && (() => {
+                              const bankerId = hd.bankerPlayerId!
+                              const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
+                              if (bankerNet === undefined) return <p className="text-xs text-gray-400">Enter scores to see result</p>
+                              return (
+                                <div className="space-y-1">
+                                  {players.filter((p) => p.id !== bankerId).map((p) => {
+                                    const playerNet = netSavedGlobal(p.id, hole.hole_number)
+                                    if (playerNet === undefined) return null
+                                    const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+                                    const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
+                                    let result = 0
+                                    if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
+                                    else if (playerNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
+                                    const label = result === 0 ? 'Push' : result > 0 ? `+$${result.toFixed(2)}` : `-$${Math.abs(result).toFixed(2)}`
+                                    return (
+                                      <div key={p.id} className="flex items-center justify-between text-xs">
+                                        <span className="text-gray-600">{p.name}</span>
+                                        <span className={`font-semibold ${result > 0 ? 'text-green-600' : result < 0 ? 'text-red-600' : 'text-gray-400'}`}>{label}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {players.map((player) => {
                     const val = strokes[player.id]?.[hole.hole_number] ?? hole.par
                     const side = holeAssignments[player.id] as 'left' | 'right' | undefined
@@ -700,7 +924,7 @@ export default function PlayingGroupScoreEntry({
 
                   {/* ── Handicap Strokes ── */}
                   {(() => {
-                    const autoIds = getAutoStrokes(hole.hole_number)
+                    const autoIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : getAutoStrokes(hole.hole_number)
                     const visiblePlayers = players.filter((p) => autoIds.includes(p.id) || holeStrokeIds.includes(p.id))
                     if (visiblePlayers.length === 0) return null
                     return (
