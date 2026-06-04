@@ -658,16 +658,16 @@ export default function PlayingGroupScoreEntry({
 
         {/* Completion box */}
         {savedHoles.size === holes.length && holes.length > 0 && (
-          <div className="rounded-xl border-2 px-4 py-3 flex items-center gap-3" style={{ borderColor: '#f59e0b', background: '#fffbeb' }}>
-            <span className="text-2xl flex-shrink-0">⛳</span>
+          <div className="rounded-xl border-2 px-4 py-4 flex items-center gap-3" style={{ borderColor: '#f59e0b', background: '#fffbeb' }}>
+            <span className="text-3xl flex-shrink-0">⛳</span>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-900 text-sm">All {holes.length} holes submitted!</p>
-              {allGroupsDone === null && <p className="text-xs text-gray-400">Checking other groups…</p>}
+              <p className="font-semibold text-gray-900">All {holes.length} holes submitted!</p>
+              {allGroupsDone === null && <p className="text-sm text-gray-400">Checking other groups…</p>}
               {allGroupsDone === false && (
-                <p className="text-xs text-gray-500">Waiting for other groups to finish… <button type="button" onClick={checkAllGroupsDone} className="text-blue-600 underline">Refresh</button></p>
+                <p className="text-sm text-gray-500">Waiting for other groups to finish… <button type="button" onClick={checkAllGroupsDone} className="text-blue-600 underline">Refresh</button></p>
               )}
               {allGroupsDone === true && (
-                <a href={`/${orgSlug}`} className="text-xs font-bold text-amber-700 underline">Final Payouts →</a>
+                <a href={`/${orgSlug}`} className="text-sm font-bold text-amber-700 underline">Final Payouts →</a>
               )}
             </div>
           </div>

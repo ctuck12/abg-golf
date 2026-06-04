@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, Fragment } from 'react'
+import { useState, useMemo, Fragment, useEffect, useRef } from 'react'
 import { saveHammerHole, submitHammerHoleScores, saveHoleStrokes } from '@/app/actions'
 
 const navy = '#0f172a'
@@ -76,6 +76,14 @@ export default function HammerScoreEntry({
   const [hammerHoles, setHammerHoles] = useState<Record<number, HammerHoleState>>(initialHammerHoles)
   const [pendingHammer, setPendingHammer] = useState<{ fromTeam: 1 | 2; holeNumber: number } | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
+  const prevSavedCount = useRef(savedHoles.size)
+  useEffect(() => {
+    const nowComplete = savedHoles.size === holes.length && holes.length > 0
+    const wasComplete = prevSavedCount.current === holes.length && holes.length > 0
+    if (nowComplete && !wasComplete) window.scrollTo({ top: 0, behavior: 'smooth' })
+    prevSavedCount.current = savedHoles.size
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedHoles.size])
   const [playerPopup, setPlayerPopup] = useState<string | null>(null)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
@@ -328,6 +336,16 @@ export default function HammerScoreEntry({
         {!isStarted && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-center">
             <p className="text-sm font-semibold text-amber-800">Round not yet active</p>
+          </div>
+        )}
+
+        {savedHoles.size === holes.length && holes.length > 0 && (
+          <div className="rounded-xl border-2 px-4 py-4 flex items-center gap-3" style={{ borderColor: gold, background: '#fffbeb' }}>
+            <span className="text-3xl flex-shrink-0">⛳</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900">All {holes.length} holes submitted!</p>
+              <a href={`/${orgSlug}`} className="text-sm font-bold text-amber-700 underline">Leaderboard →</a>
+            </div>
           </div>
         )}
 
