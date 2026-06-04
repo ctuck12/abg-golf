@@ -406,9 +406,13 @@ export default function PlayingGroupScoreEntry({
                 style={{ background: gold, color: navy }}>
                 Scorecards
               </button>
-              {isAdmin && (
+              {isAdmin ? (
                 <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm text-white" style={{ background: navy }}>
                   Admin Hub
+                </a>
+              ) : (
+                <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm text-white" style={{ background: navy }}>
+                  Admin Login
                 </a>
               )}
               {isMaster && (
