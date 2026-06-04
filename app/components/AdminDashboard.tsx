@@ -690,6 +690,7 @@ export default function AdminDashboard({
   const [groupError, setGroupError] = useState('')
   const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null)
   const [confirmRemoveGroupPlayer, setConfirmRemoveGroupPlayer] = useState<{ playerId: string; playerName: string; isManual: boolean } | null>(null)
+  const [confirmDisableSideGame, setConfirmDisableSideGame] = useState<{ label: string; onConfirm: () => void } | null>(null)
   const [expandedGroupAssign, setExpandedGroupAssign] = useState<string | null>(null)
   const [groupAssignSearch, setGroupAssignSearch] = useState('')
   const [manualGroupName, setManualGroupName] = useState('')
@@ -1568,6 +1569,33 @@ export default function AdminDashboard({
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
                 style={{ background: '#dc2626' }}>
                 Yes, Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Disable side game confirmation modal ── */}
+      {confirmDisableSideGame && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg font-bold">!</div>
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base leading-snug">Disable {confirmDisableSideGame.label}?</h2>
+                <p className="text-sm text-gray-500 mt-1 leading-relaxed">The round is active. Disabling this side game will remove it from scoring. This cannot be undone without re-enabling and re-saving.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setConfirmDisableSideGame(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button type="button"
+                onClick={() => { confirmDisableSideGame.onConfirm(); setConfirmDisableSideGame(null) }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                style={{ background: '#d97706' }}>
+                Yes, Disable
               </button>
             </div>
           </div>
@@ -2495,7 +2523,12 @@ export default function AdminDashboard({
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                       <button type="button"
-                                        onClick={() => updateGroupSG(g.id, { daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: false })}
+                                        onClick={() => {
+                                          const doIt = () => updateGroupSG(g.id, { daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: false })
+                                          if (sg.daytonaEnabled && round?.is_started) {
+                                            setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: doIt })
+                                          } else { doIt() }
+                                        }}
                                         className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.daytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                         {sg.daytonaEnabled ? 'On' : 'Off'}
                                       </button>
@@ -2535,7 +2568,12 @@ export default function AdminDashboard({
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
                                       <button type="button"
-                                        onClick={() => updateGroupSG(g.id, { bankerEnabled: !sg.bankerEnabled, autoStrokes: false })}
+                                        onClick={() => {
+                                          const doIt = () => updateGroupSG(g.id, { bankerEnabled: !sg.bankerEnabled, autoStrokes: false })
+                                          if (sg.bankerEnabled && round?.is_started) {
+                                            setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: doIt })
+                                          } else { doIt() }
+                                        }}
                                         className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.bankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                         {sg.bankerEnabled ? 'On' : 'Off'}
                                       </button>
@@ -3147,7 +3185,12 @@ export default function AdminDashboard({
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                       <button type="button"
-                                        onClick={() => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditAutoStrokes(false) }}
+                                        onClick={() => {
+                                          const doIt = () => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditAutoStrokes(false) }
+                                          if (editDaytonaEnabled && round?.is_started) {
+                                            setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: doIt })
+                                          } else { doIt() }
+                                        }}
                                         className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                         {editDaytonaEnabled ? 'On' : 'Off'}
                                       </button>
@@ -3191,7 +3234,12 @@ export default function AdminDashboard({
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
                                       <button type="button"
-                                        onClick={() => { setEditBankerEnabled(v => !v); setEditAutoStrokes(false) }}
+                                        onClick={() => {
+                                          const doIt = () => { setEditBankerEnabled(v => !v); setEditAutoStrokes(false) }
+                                          if (editBankerEnabled && round?.is_started) {
+                                            setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: doIt })
+                                          } else { doIt() }
+                                        }}
                                         className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                         {editBankerEnabled ? 'On' : 'Off'}
                                       </button>
