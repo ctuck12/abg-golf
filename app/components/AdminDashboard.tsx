@@ -2333,7 +2333,6 @@ export default function AdminDashboard({
                             {assignedPlayers.map((p) => (
                               <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
                                 {p.name}
-                                {p.team_id === null && <span className="text-xs opacity-60">·guest</span>}
                                 <button type="button"
                                   onClick={() => setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null })}
                                   className="ml-0.5 hover:text-red-600 leading-none">×</button>
