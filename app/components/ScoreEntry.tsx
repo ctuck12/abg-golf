@@ -455,7 +455,7 @@ export default function ScoreEntry({
     return players.filter((p) => {
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const strokes = Math.round(hcp - minHcp)
+      const strokes = Math.floor(hcp - minHcp)
       return strokes > 0 && hole.stroke_index! <= strokes
     }).map((p) => p.id)
   }
@@ -471,7 +471,7 @@ export default function ScoreEntry({
       if (p.id === bankerPlayerId) return false
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const diff = Math.round(hcp - bankerHcp)
+      const diff = Math.floor(hcp - bankerHcp)
       return diff > 0 && hole.stroke_index! <= diff
     }).map((p) => p.id)
   }
