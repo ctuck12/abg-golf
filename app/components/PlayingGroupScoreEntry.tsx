@@ -564,7 +564,7 @@ export default function PlayingGroupScoreEntry({
                   <span key={p.id} className="flex items-center gap-1 text-xs">
                     <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
-                      {amt > 0 ? `+$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : '$0'}
+                      {amt > 0 ? `+$${Math.round(amt)}` : amt < 0 ? `-$${Math.round(Math.abs(amt))}` : '$0'}
                     </span>
                   </span>
                 )
@@ -781,8 +781,8 @@ export default function PlayingGroupScoreEntry({
                             </p>
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-gray-500">$</span>
-                              <input type="number" value={hd.maxBet} min={bankerMinBet} step="0.5"
-                                onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, parseFloat(e.target.value) || bankerMinBet)}
+                              <input type="number" value={hd.maxBet} min={bankerMinBet} step="1"
+                                onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.round(parseFloat(e.target.value) || bankerMinBet))}
                                 className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                               <span className="text-xs text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
                             </div>
@@ -801,9 +801,9 @@ export default function PlayingGroupScoreEntry({
                                       <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
                                       <div className="flex items-center gap-1">
                                         <span className="text-xs text-gray-500">$</span>
-                                        <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="0.5"
+                                        <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="1"
                                           onChange={(e) => {
-                                            const v = Math.min(Math.max(parseFloat(e.target.value) || bankerMinBet, bankerMinBet), hd.maxBet)
+                                            const v = Math.min(Math.max(Math.round(parseFloat(e.target.value) || bankerMinBet), bankerMinBet), hd.maxBet)
                                             handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
                                           }}
                                           className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
@@ -816,7 +816,7 @@ export default function PlayingGroupScoreEntry({
                                     </div>
                                     {(pb.playerDoubled || pb.bankerDoubled) && (
                                       <p className="text-xs text-amber-700 font-semibold mt-0.5">
-                                        {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${effective.toFixed(2)}
+                                        {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${Math.round(effective)}
                                       </p>
                                     )}
                                   </div>
@@ -853,7 +853,7 @@ export default function PlayingGroupScoreEntry({
                                     let result = 0
                                     if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
                                     else if (playerNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
-                                    const label = result === 0 ? 'Push' : result > 0 ? `+$${result.toFixed(2)}` : `-$${Math.abs(result).toFixed(2)}`
+                                    const label = result === 0 ? 'Push' : result > 0 ? `+$${Math.round(result)}` : `-$${Math.round(Math.abs(result))}`
                                     return (
                                       <div key={p.id} className="flex items-center justify-between text-xs">
                                         <span className="text-gray-600">{p.name}</span>
@@ -942,10 +942,7 @@ export default function PlayingGroupScoreEntry({
                   {/* ── Handicap Strokes ── */}
                   {(() => {
                     const autoIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : getAutoStrokes(hole.hole_number)
-                    const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null
-                    const visiblePlayers = isBanker && bankerPlayerId
-                      ? players.filter((p) => p.id !== bankerPlayerId)
-                      : players.filter((p) => autoIds.includes(p.id) || holeStrokeIds.includes(p.id))
+                    const visiblePlayers = players.filter((p) => autoIds.includes(p.id) || holeStrokeIds.includes(p.id))
                     if (visiblePlayers.length === 0) return null
                     return (
                       <div className="pt-2 border-t border-gray-100">

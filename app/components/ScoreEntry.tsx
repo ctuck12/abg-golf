@@ -1754,8 +1754,8 @@ export default function ScoreEntry({
                             </p>
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-gray-500">$</span>
-                              <input type="number" value={hd.maxBet} min={bankerMinBet} step="0.5"
-                                onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, parseFloat(e.target.value) || bankerMinBet)}
+                              <input type="number" value={hd.maxBet} min={bankerMinBet} step="1"
+                                onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.round(parseFloat(e.target.value) || bankerMinBet))}
                                 className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                               <span className="text-xs text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
                             </div>
@@ -1776,9 +1776,9 @@ export default function ScoreEntry({
                                       <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
                                       <div className="flex items-center gap-1">
                                         <span className="text-xs text-gray-500">$</span>
-                                        <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="0.5"
+                                        <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="1"
                                           onChange={(e) => {
-                                            const v = Math.min(Math.max(parseFloat(e.target.value) || bankerMinBet, bankerMinBet), hd.maxBet)
+                                            const v = Math.min(Math.max(Math.round(parseFloat(e.target.value) || bankerMinBet), bankerMinBet), hd.maxBet)
                                             handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
                                           }}
                                           className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
@@ -1791,7 +1791,7 @@ export default function ScoreEntry({
                                     </div>
                                     {(pb.playerDoubled || pb.bankerDoubled) && (
                                       <p className="text-xs text-amber-700 font-semibold mt-0.5">
-                                        {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${effective.toFixed(2)}
+                                        {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${Math.round(effective)}
                                       </p>
                                     )}
                                   </div>
@@ -1830,7 +1830,7 @@ export default function ScoreEntry({
                                     let result = 0
                                     if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
                                     else if (playerNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
-                                    const label = result === 0 ? 'Push' : result > 0 ? `+$${result.toFixed(2)}` : `-$${Math.abs(result).toFixed(2)}`
+                                    const label = result === 0 ? 'Push' : result > 0 ? `+$${Math.round(result)}` : `-$${Math.round(Math.abs(result))}`
                                     return (
                                       <div key={p.id} className="flex items-center justify-between text-xs">
                                         <span className="text-gray-600">{p.name}</span>
@@ -2066,12 +2066,9 @@ export default function ScoreEntry({
                   {(() => {
                     const suggestedIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : (autoHandicap ? getAutoStrokes(hole.hole_number) : [])
                     const activeStrokeIds = holeStrokes[hole.hole_number] ?? []
-                    const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null
-                    const visiblePlayers = isBanker && bankerPlayerId
-                      ? players.filter((p) => p.id !== bankerPlayerId)
-                      : players.filter((p) => suggestedIds.includes(p.id) || activeStrokeIds.includes(p.id))
+                    const visiblePlayers = players.filter((p) => suggestedIds.includes(p.id) || activeStrokeIds.includes(p.id))
                     if (visiblePlayers.length === 0) return null
-                    const hasBankerSet = isBanker && !!bankerPlayerId
+                    const hasBankerSet = isBanker && !!bankerHoles[hole.hole_number]?.bankerPlayerId
                     const canAutoFill = (isBanker && hasBankerSet) || autoHandicap
                     return (
                       <div className="mt-3 pt-3 border-t border-gray-100">
