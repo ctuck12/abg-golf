@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
@@ -122,6 +122,16 @@ export default function PlayingGroupScoreEntry({
   const isBanker = !!bankerSideGame
   const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
   const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
+
+  // Auto-assign a random banker on the first hole if none is set yet
+  useEffect(() => {
+    if (!isBanker || !isStarted || players.length === 0 || holes.length === 0) return
+    const firstHole = holes[0].hole_number
+    if (bankerHoles[firstHole]?.bankerPlayerId) return
+    const randomPlayer = players[Math.floor(Math.random() * players.length)]
+    handleSaveBankerHole(firstHole, randomPlayer.id, bankerMinBet)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const formattedDate = roundDate
     ? new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
