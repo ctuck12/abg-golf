@@ -62,12 +62,26 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
     initialHoleStrokes[hs.hole_number].push(hs.player_id)
   }
 
+  // For Daytona side game: find playing group to get all group players' data
+  let sideGameGroupPlayerIds: string[] = playerIds
+  let sideGameGroupScores: { player_id: string; hole_number: number; strokes: number }[] = []
+  if (isDaytonaSideGame && playerIds.length) {
+    const { data: pgLinks } = await sb.from('playing_group_players').select('playing_group_id, player_id').in('player_id', playerIds).limit(1)
+    const pgId = pgLinks?.[0]?.playing_group_id
+    if (pgId) {
+      const { data: allGroupLinks } = await sb.from('playing_group_players').select('player_id').eq('playing_group_id', pgId)
+      sideGameGroupPlayerIds = (allGroupLinks ?? []).map((l: { player_id: string }) => l.player_id)
+      const { data: groupScores } = await sb.from('scores').select('player_id, hole_number, strokes').in('player_id', sideGameGroupPlayerIds)
+      sideGameGroupScores = groupScores ?? []
+    }
+  }
+
   const isBanker = (round.format ?? 'standard') === 'banker'
   const [{ data: holes }, { data: scores }, { data: assignments }, { data: ballValuesRaw }, { data: holeValuesRaw }, { data: bankerHolesRaw }, { data: bankerBetsRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds.length ? playerIds : ['']),
-    (isDaytona || isDaytonaSideGame) && playerIds.length
-      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', playerIds)
+    (isDaytona || isDaytonaSideGame) && sideGameGroupPlayerIds.length
+      ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', sideGameGroupPlayerIds)
       : Promise.resolve({ data: [] }),
     isDaytona ? sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number') : Promise.resolve({ data: [] }),
     (isDaytona || isDaytonaSideGame) ? sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', round.id).eq('team_id', team.id) : Promise.resolve({ data: [] }),
@@ -132,6 +146,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       bankerSideGame={teamBankerSideGame}
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}
+      sideGameGroupScores={isDaytonaSideGame ? sideGameGroupScores : undefined}
     />
   )
 }

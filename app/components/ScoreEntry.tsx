@@ -301,7 +301,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {},
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores,
 }: {
   orgSlug: string
   orgId: string
@@ -330,6 +330,7 @@ export default function ScoreEntry({
   bankerSideGame?: boolean
   initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
+  sideGameGroupScores?: { player_id: string; hole_number: number; strokes: number }[]
 }) {
   const isDaytona = format === 'daytona'
   const isDaytonaMode = isDaytona || !!isDaytonaSideGame
@@ -1520,38 +1521,33 @@ export default function ScoreEntry({
 
           // Compute Left/Right DT for collapsed row using saved data (net scores)
           const holeAssignments = assignments[hole.hole_number] ?? {}
-          const savedLeftScores = players
-            .filter((p) => holeAssignments[p.id] === 'left')
-            .map((p) => netSaved(p.id, hole.hole_number))
-            .filter((s): s is number => s !== undefined)
-          const savedRightScores = players
-            .filter((p) => holeAssignments[p.id] === 'right')
-            .map((p) => netSaved(p.id, hole.hole_number))
-            .filter((s): s is number => s !== undefined)
+          // For side games, use all group players from the assignments map; for pure Daytona use team players
+          const allHoleLeftIds = Object.entries(holeAssignments).filter(([, s]) => s === 'left').map(([id]) => id)
+          const allHoleRightIds = Object.entries(holeAssignments).filter(([, s]) => s === 'right').map(([id]) => id)
+          const groupScoreSource = sideGameGroupScores ?? savedScores
+          const netGroup = (pid: string) => {
+            const gross = groupScoreSource.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
+            if (gross === undefined) return undefined
+            return gross - ((holeStrokes[hole.hole_number] ?? []).includes(pid) ? 1 : 0)
+          }
+          const savedLeftScores = allHoleLeftIds.map(netGroup).filter((s): s is number => s !== undefined)
+          const savedRightScores = allHoleRightIds.map(netGroup).filter((s): s is number => s !== undefined)
           const { leftDt, rightDt } = isDaytonaMode
             ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par)
             : { leftDt: null, rightDt: null }
 
           // For 5-man: compute DT for each of the 3 right-side pairs (and corresponding left scores)
           const savedRightPairDts: (number | null)[] = (() => {
-            if (!is5Man) return []
-            const rightPlayers = players.filter((p) => holeAssignments[p.id] === 'right')
-            if (rightPlayers.length !== 3) return []
+            if (!is5Man || allHoleRightIds.length !== 3) return []
             return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
-              const pScores = [rightPlayers[a], rightPlayers[b]]
-                .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
-                .filter((s): s is number => s !== undefined)
+              const pScores = [allHoleRightIds[a], allHoleRightIds[b]].map(netGroup).filter((s): s is number => s !== undefined)
               return computeHoleDaytonaWithSides(savedLeftScores, pScores, hole.par).rightDt
             })
           })()
           const savedLeftPairDts: (number | null)[] = (() => {
-            if (!is5Man) return []
-            const rightPlayers = players.filter((p) => holeAssignments[p.id] === 'right')
-            if (rightPlayers.length !== 3) return []
+            if (!is5Man || allHoleRightIds.length !== 3) return []
             return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
-              const pScores = [rightPlayers[a], rightPlayers[b]]
-                .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
-                .filter((s): s is number => s !== undefined)
+              const pScores = [allHoleRightIds[a], allHoleRightIds[b]].map(netGroup).filter((s): s is number => s !== undefined)
               return computeHoleDaytonaWithSides(savedLeftScores, pScores, hole.par).leftDt
             })
           })()
