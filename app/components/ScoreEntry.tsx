@@ -1629,8 +1629,6 @@ export default function ScoreEntry({
                     🏦 {players.find((p) => p.id === bankerHoles[hole.hole_number].bankerPlayerId)?.name.split(' ')[0] ?? 'Banker'}
                   </span>
                 )}
-                {(holeStrokes[hole.hole_number] ?? []).length > 0 && (
-                )}
                 <div className="flex-1" />
                 {isDaytonaMode && isSaved && holeValues[hole.hole_number] !== undefined && (
                   <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-1 flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>

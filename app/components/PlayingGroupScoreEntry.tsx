@@ -566,8 +566,6 @@ export default function PlayingGroupScoreEntry({
                     <p className="text-xs font-semibold text-gray-500">{hole.stroke_index}</p>
                   </div>
                 )}
-                {holeStrokeIds.length > 0 && (
-                )}
                 {isDaytonaMode && isSaved && holeValues[hole.hole_number] !== undefined && (
                   <span className="text-xs font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>
                     ↑${holeValues[hole.hole_number]}
