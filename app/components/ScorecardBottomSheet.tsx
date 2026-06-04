@@ -20,18 +20,18 @@ type Player = { id: string; name: string; handicap?: number | null }
 const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
   background: highlight ? steelBlue : isHoleNum ? holeBg : navy,
   color: highlight ? 'white' : isHoleNum ? navy : 'white',
-  fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.4rem 0.25rem', whiteSpace: 'nowrap',
+  fontWeight: 700, fontSize: '0.6rem', textAlign: 'center', padding: '0.25rem 0.15rem', whiteSpace: 'nowrap',
 })
 const tdPar = (highlight?: boolean): React.CSSProperties => ({
   background: highlight ? '#dbeafe' : 'white',
   color: highlight ? '#1e40af' : '#6b7280',
-  fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.35rem 0.25rem',
+  fontWeight: highlight ? 700 : 400, fontSize: '0.62rem', textAlign: 'center', padding: '0.2rem 0.15rem',
 })
 const tdSc = (highlight?: boolean): React.CSSProperties => ({
   background: highlight ? '#dbeafe' : 'white',
   fontWeight: highlight ? 700 : 400,
   color: highlight ? '#1e40af' : undefined,
-  fontSize: '0.7rem', textAlign: 'center', padding: '0.25rem 0.2rem',
+  fontSize: '0.62rem', textAlign: 'center', padding: '0.16rem 0.1rem',
 })
 const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
 const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -163,7 +163,7 @@ export default function ScorecardBottomSheet({
           </div>
           <button onClick={onClose} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
         </div>
-        <div className="px-4 py-4 space-y-4">
+        <div className="px-3 py-3 space-y-3">
           {rankedPlayers.map((player, rank) => {
             const scoreMap = Object.fromEntries(
               scores.filter((s) => s.player_id === player.id).map((s) => [s.hole_number, s.strokes])
@@ -198,35 +198,35 @@ export default function ScorecardBottomSheet({
               : null
 
             return (
-              <div key={player.id} className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-3 px-4 py-1.5" style={{ background: navy }}>
+              <div key={player.id} className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-1" style={{ background: navy }}>
                   {isDaytonaMode && (
-                    <span className="text-base font-bold w-8 flex-shrink-0"
+                    <span className="text-sm font-bold w-7 flex-shrink-0"
                       style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                       {thru > 0 ? `#${rank + 1}` : '–'}
                     </span>
                   )}
                   <span className="font-bold text-white text-sm">{player.name}</span>
                   {player.handicap != null && (
-                    <span className="text-[10px] font-semibold ml-1.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    <span className="text-[9px] font-semibold ml-1 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       HCP {player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}
                     </span>
                   )}
                   <span className="flex-1" />
-                  <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                    <span>Front: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
-                    <span>Back: <span style={{ color: vpColor(backVspar) }}>{fmtVsp(backVspar)}</span></span>
-                    <span>Total: <span style={{ color: vpColor(vspar) }}>{fmtVsp(vspar)}</span></span>
+                  <div className="flex items-center gap-2 text-[9px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                    <span>F: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
+                    <span>B: <span style={{ color: vpColor(backVspar) }}>{fmtVsp(backVspar)}</span></span>
+                    <span>T: <span style={{ color: vpColor(vspar) }}>{fmtVsp(vspar)}</span></span>
                   </div>
                 </div>
                 <div className="overflow-x-auto bg-white">
-                  <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
+                  <table className="border-collapse" style={{ minWidth: '500px', width: '100%' }}>
                     <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                       <tr>
-                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
-                        {frontNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
+                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.5rem', minWidth: '2.8rem', ...stickyFirstTh }}>HOLE</th>
+                        {frontNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '1.7rem' }}>{h.hole_number}</th>)}
                         {frontNine.length > 0 && <th style={thSt(true)}>Out</th>}
-                        {backNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
+                        {backNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '1.7rem' }}>{h.hole_number}</th>)}
                         {backNine.length > 0 && <th style={thSt(true)}>In</th>}
                         <th style={thSt()}>TOT</th>
                       </tr>
@@ -330,8 +330,8 @@ export default function ScorecardBottomSheet({
                           })}
                           <td style={tdSc(true)} /><td style={tdSc()} />
                         </tr>
-                        <tr>
-                          <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
+                        {Object.keys(holeValues).length > 0 && <tr>
+                          <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
                           {frontNine.map((h) => {
                             const pressRate = holeValues[h.hole_number]
                             const color = pressRate !== undefined ? pressColor(pressRate) : '#9ca3af'
@@ -344,7 +344,7 @@ export default function ScorecardBottomSheet({
                             return <td key={h.hole_number} style={tdSc()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(pressRate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                           })}
                           <td style={tdSc(true)} /><td style={tdSc()} />
-                        </tr>
+                        </tr>}
                       </>}
                     </tbody>
                   </table>

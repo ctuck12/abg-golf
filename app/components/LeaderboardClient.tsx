@@ -1249,18 +1249,18 @@ export default function LeaderboardClient({
         const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
           background: highlight ? '#4a7fa5' : isHoleNum ? '#dde4ee' : navy,
           color: highlight ? 'white' : isHoleNum ? navy : 'white',
-          fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.4rem 0.25rem', whiteSpace: 'nowrap',
+          fontWeight: 700, fontSize: '0.6rem', textAlign: 'center', padding: '0.25rem 0.15rem', whiteSpace: 'nowrap',
         })
         const tdPar = (highlight?: boolean): React.CSSProperties => ({
           background: highlight ? '#dbeafe' : 'white',
           color: highlight ? '#1e40af' : '#6b7280',
-          fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.35rem 0.25rem',
+          fontWeight: highlight ? 700 : 400, fontSize: '0.62rem', textAlign: 'center', padding: '0.2rem 0.15rem',
         })
         const tdSc = (highlight?: boolean): React.CSSProperties => ({
           background: highlight ? '#dbeafe' : 'white',
           fontWeight: highlight ? 700 : 400,
           color: highlight ? '#1e40af' : undefined,
-          fontSize: '0.7rem', textAlign: 'center', padding: '0.25rem 0.2rem',
+          fontSize: '0.62rem', textAlign: 'center', padding: '0.16rem 0.1rem',
         })
         const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
         const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -1290,7 +1290,7 @@ export default function LeaderboardClient({
                   </button>
                 </div>
               )}
-              <div className="px-4 py-4 space-y-4">
+              <div className="px-3 py-3 space-y-3">
                 {filteredRows.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No players.</p>}
                 {(groupHasDaytona && holePtsMaps.size > 0
                   ? [...filteredRows].sort((a, b) => {
@@ -1321,39 +1321,39 @@ export default function LeaderboardClient({
                   const totalPts = holePtsMaps.size > 0 && [...holePtsMaps.values()].some((m) => m.has(row.player.id))
                     ? [...holePtsMaps.values()].reduce((s, m) => s + (m.get(row.player.id) ?? 0), 0) : null
                   return (
-                    <div key={row.player.id} className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                      <div className="flex items-center gap-3 px-4 py-1.5" style={{ background: navy }}>
-                        <span className="text-base font-bold w-8 flex-shrink-0" style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
+                    <div key={row.player.id} className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-1" style={{ background: navy }}>
+                        <span className="text-sm font-bold w-7 flex-shrink-0" style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                           {thru > 0 ? `#${i + 1}` : '–'}
                         </span>
                         <span className="font-bold text-white text-sm">{row.player.name}</span>
                         {row.player.handicap != null && (
-                          <span className="text-[10px] font-semibold ml-1.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                          <span className="text-[9px] font-semibold ml-1 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
                             HCP {row.player.handicap < 0 ? `+${Math.abs(row.player.handicap)}` : row.player.handicap}
                           </span>
                         )}
                         <span className="flex-1" />
-                        <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                          <span>Front: <span style={{ color: vpC(frontVspar) }}>{fmtV(frontVspar)}</span></span>
-                          <span>Back: <span style={{ color: vpC(backVspar) }}>{fmtV(backVspar)}</span></span>
-                          <span>Total: <span style={{ color: vpC(totalVspar) }}>{fmtV(totalVspar)}</span></span>
+                        <div className="flex items-center gap-2 text-[9px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                          <span>F: <span style={{ color: vpC(frontVspar) }}>{fmtV(frontVspar)}</span></span>
+                          <span>B: <span style={{ color: vpC(backVspar) }}>{fmtV(backVspar)}</span></span>
+                          <span>T: <span style={{ color: vpC(totalVspar) }}>{fmtV(totalVspar)}</span></span>
                         </div>
                       </div>
                       <div className="overflow-x-auto bg-white">
-                        <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
+                        <table className="border-collapse" style={{ minWidth: '500px', width: '100%' }}>
                           <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                             <tr>
-                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
-                              {scFrontNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
+                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.5rem', minWidth: '2.8rem', ...stickyFirstTh }}>HOLE</th>
+                              {scFrontNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '1.7rem' }}>{h.hole_number}</th>)}
                               {scFrontNine.length > 0 && <th style={thSt(true)}>Out</th>}
-                              {scBackNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
+                              {scBackNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '1.7rem' }}>{h.hole_number}</th>)}
                               {scBackNine.length > 0 && <th style={thSt(true)}>In</th>}
                               <th style={thSt()}>TOT</th>
                             </tr>
                           </thead>
                           <tbody>
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
                               {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
                               {scFrontNine.length > 0 && <td style={tdPar(true)} />}
                               {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
@@ -1361,7 +1361,7 @@ export default function LeaderboardClient({
                               <td style={tdPar()} />
                             </tr>
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
+                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
                               {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
                               {scFrontNine.length > 0 && <td style={tdPar(true)}>{scFrontPar}</td>}
                               {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
@@ -1369,7 +1369,7 @@ export default function LeaderboardClient({
                               <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
                             </tr>
                             <tr style={{ borderBottom: groupHasDaytona ? '1px solid #e5e7eb' : undefined }}>
-                              <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
+                              <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
                               {scFrontNine.map((h) => {
                                 const s = scoreMap[h.hole_number] ?? null
                                 const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
@@ -1386,7 +1386,7 @@ export default function LeaderboardClient({
                             </tr>
                             {groupHasDaytona && <>
                               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PTS</td>
+                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PTS</td>
                                 {scFrontNine.map((h) => {
                                   const pts = holePtsMaps.get(h.hole_number)?.has(row.player.id) ? holePtsMaps.get(h.hole_number)!.get(row.player.id)! : null
                                   return <td key={h.hole_number} style={tdSc()}>{pts === null ? <span style={{ color: '#d1d5db' }}>–</span> : <span style={{ position: 'relative', display: 'inline-block', fontWeight: 600, color: pColor(pts), fontSize: '0.7rem' }}>{pts !== 0 && <span style={{ position: 'absolute', right: '100%', paddingRight: '1px' }}>{pts > 0 ? '+' : '-'}</span>}<span>{pts === 0 ? '0' : String(Math.abs(pts))}</span></span>}</td>
@@ -1400,7 +1400,7 @@ export default function LeaderboardClient({
                                 <td style={tdSc()}>{totalPts === null ? <span style={{ color: '#d1d5db' }}>–</span> : <span style={{ position: 'relative', display: 'inline-block', fontWeight: 700, color: pColor(totalPts) }}>{totalPts !== 0 && <span style={{ position: 'absolute', right: '100%', paddingRight: '1px' }}>{totalPts > 0 ? '+' : '-'}</span>}<span>{totalPts === 0 ? '0' : String(Math.abs(totalPts))}</span></span>}</td>
                               </tr>
                               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
+                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                                 {scFrontNine.map((h) => {
                                   const a = assignments.find((a) => a.player_id === row.player.id && a.hole_number === h.hole_number)
                                   const side = a?.side ?? null
@@ -1418,9 +1418,9 @@ export default function LeaderboardClient({
                                 })}
                                 <td style={tdSc(true)} /><td style={tdSc()} />
                               </tr>
-                              {groupHasDaytona && (
+                              {groupHasDaytona && Object.keys(teamHoleVals).length > 0 && (
                                 <tr>
-                                  <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
+                                  <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
                                   {scFrontNine.map((h) => {
                                     const pressRate = teamHoleVals[h.hole_number]
                                     const color = pressRate !== undefined ? pressColor(pressRate) : '#9ca3af'
