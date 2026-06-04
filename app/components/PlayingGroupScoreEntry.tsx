@@ -920,36 +920,6 @@ export default function PlayingGroupScoreEntry({
                             </div>
                           </div>
                         )}
-                        {hd.bankerPlayerId && Object.keys(bets).length > 0 && (
-                          <div>
-                            <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-1">Projected Result (saved scores)</p>
-                            {isSaved && (() => {
-                              const bankerId = hd.bankerPlayerId!
-                              const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
-                              if (bankerNet === undefined) return <p className="text-xs text-gray-400">Enter scores to see result</p>
-                              return (
-                                <div className="space-y-1">
-                                  {players.filter((p) => p.id !== bankerId).map((p) => {
-                                    const playerNet = netSavedGlobal(p.id, hole.hole_number)
-                                    if (playerNet === undefined) return null
-                                    const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
-                                    const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
-                                    let result = 0
-                                    if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
-                                    else if (playerNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
-                                    const label = result === 0 ? 'Push' : result > 0 ? `+$${Math.round(result)}` : `-$${Math.round(Math.abs(result))}`
-                                    return (
-                                      <div key={p.id} className="flex items-center justify-between text-xs">
-                                        <span className="text-gray-600">{p.name}</span>
-                                        <span className={`font-semibold ${result > 0 ? 'text-green-600' : result < 0 ? 'text-red-600' : 'text-gray-400'}`}>{label}</span>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        )}
                       </div>
                     )
                   })()}
