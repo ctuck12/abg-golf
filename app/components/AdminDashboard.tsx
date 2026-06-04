@@ -690,7 +690,8 @@ export default function AdminDashboard({
   const [groupError, setGroupError] = useState('')
   const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null)
   const [confirmRemoveGroupPlayer, setConfirmRemoveGroupPlayer] = useState<{ playerId: string; playerName: string; isManual: boolean } | null>(null)
-  const [confirmDisableSideGame, setConfirmDisableSideGame] = useState<{ label: string; onConfirm: () => void } | null>(null)
+  const [confirmDisableSideGame, setConfirmDisableSideGame] = useState<{ label: string; onConfirm: () => Promise<void> } | null>(null)
+  const [confirmDisableSideGamePending, setConfirmDisableSideGamePending] = useState(false)
   const [expandedGroupAssign, setExpandedGroupAssign] = useState<string | null>(null)
   const [groupAssignSearch, setGroupAssignSearch] = useState('')
   const [manualGroupName, setManualGroupName] = useState('')
@@ -1591,11 +1592,16 @@ export default function AdminDashboard({
                 className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
                 Cancel
               </button>
-              <button type="button"
-                onClick={() => { confirmDisableSideGame.onConfirm(); setConfirmDisableSideGame(null) }}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+              <button type="button" disabled={confirmDisableSideGamePending}
+                onClick={async () => {
+                  setConfirmDisableSideGamePending(true)
+                  await confirmDisableSideGame.onConfirm()
+                  setConfirmDisableSideGamePending(false)
+                  setConfirmDisableSideGame(null)
+                }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-60"
                 style={{ background: '#d97706' }}>
-                Yes, Disable
+                {confirmDisableSideGamePending ? 'Saving…' : 'Yes, Disable'}
               </button>
             </div>
           </div>
@@ -2526,7 +2532,17 @@ export default function AdminDashboard({
                                         onClick={() => {
                                           const doIt = () => updateGroupSG(g.id, { daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: false })
                                           if (sg.daytonaEnabled && round?.is_started) {
-                                            setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: doIt })
+                                            const captured = sg
+                                            setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: async () => {
+                                              updateGroupSG(g.id, { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', autoStrokes: false, saving: true })
+                                              await updatePlayingGroupSettings(g.id, {
+                                                daytona_variant: null,
+                                                banker_side_game: captured.bankerEnabled,
+                                                banker_side_game_min_bet: captured.bankerEnabled ? (parseFloat(captured.bankerMinBet) || 2) : null,
+                                                auto_strokes: false,
+                                              })
+                                              updateGroupSG(g.id, { saving: false, saved: true })
+                                            }})
                                           } else { doIt() }
                                         }}
                                         className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.daytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
@@ -2571,7 +2587,20 @@ export default function AdminDashboard({
                                         onClick={() => {
                                           const doIt = () => updateGroupSG(g.id, { bankerEnabled: !sg.bankerEnabled, autoStrokes: false })
                                           if (sg.bankerEnabled && round?.is_started) {
-                                            setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: doIt })
+                                            const captured = sg
+                                            setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: async () => {
+                                              updateGroupSG(g.id, { bankerEnabled: false, autoStrokes: false, saving: true })
+                                              const daytonaVariant = captured.daytonaEnabled
+                                                ? captured.daytonaType === '4' ? `4man|${captured.daytonaPayout || '0'}` : captured.daytonaType === '5' ? `5man-${captured.daytonaSubVariant || 'normal'}|${captured.daytonaPayout || '0'}` : null
+                                                : null
+                                              await updatePlayingGroupSettings(g.id, {
+                                                daytona_variant: daytonaVariant,
+                                                banker_side_game: false,
+                                                banker_side_game_min_bet: null,
+                                                auto_strokes: false,
+                                              })
+                                              updateGroupSG(g.id, { saving: false, saved: true })
+                                            }})
                                           } else { doIt() }
                                         }}
                                         className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.bankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
@@ -3186,7 +3215,7 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = () => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditAutoStrokes(false) }
+                                          const doIt = async () => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditAutoStrokes(false) }
                                           if (editDaytonaEnabled && round?.is_started) {
                                             setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: doIt })
                                           } else { doIt() }
@@ -3235,7 +3264,7 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = () => { setEditBankerEnabled(v => !v); setEditAutoStrokes(false) }
+                                          const doIt = async () => { setEditBankerEnabled(v => !v); setEditAutoStrokes(false) }
                                           if (editBankerEnabled && round?.is_started) {
                                             setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: doIt })
                                           } else { doIt() }
