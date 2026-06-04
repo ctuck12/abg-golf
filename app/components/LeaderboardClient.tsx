@@ -1407,6 +1407,9 @@ export default function LeaderboardClient({
                   {groupHasDaytona && groupBaseRate > 0 && (
                     <span className="text-xs text-gray-400 flex-shrink-0">{gIsFlares ? '5-Man Flares' : gIs5Man ? '5-Man Daytona' : 'Daytona'} – {groupBaseRate % 1 === 0 ? `$${groupBaseRate}` : `$${groupBaseRate.toFixed(2).replace(/^0/, '')}`}/point</span>
                   )}
+                  {groupHasBanker && (
+                    <span className="text-xs text-gray-400 flex-shrink-0">Banker – ${groupBankerMinBet} min. bet</span>
+                  )}
                 </div>
                 <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
               </div>
@@ -1557,14 +1560,14 @@ export default function LeaderboardClient({
                                     {groupBankerHoles[h.hole_number]?.bankerPlayerId === row.player.id ? <span style={{ fontSize: '0.75rem' }}>🏦</span> : <span style={{ color: '#d1d5db' }}>–</span>}
                                   </td>
                                 ))}
-                                <td style={tdSc(true)} />
+                                {(() => { const n = scFrontNine.filter(h => groupBankerHoles[h.hole_number]?.bankerPlayerId === row.player.id).length; return <td style={tdSc(true)}>{n > 0 ? <span style={{ fontWeight: 700, color: '#374151', fontSize: '0.7rem' }}>{n}</span> : null}</td> })()}
                                 {scBackNine.map((h) => (
                                   <td key={h.hole_number} style={tdSc()}>
                                     {groupBankerHoles[h.hole_number]?.bankerPlayerId === row.player.id ? <span style={{ fontSize: '0.75rem' }}>🏦</span> : <span style={{ color: '#d1d5db' }}>–</span>}
                                   </td>
                                 ))}
-                                {scBackNine.length > 0 && <td style={tdSc(true)} />}
-                                <td style={tdSc()} />
+                                {scBackNine.length > 0 && (() => { const n = scBackNine.filter(h => groupBankerHoles[h.hole_number]?.bankerPlayerId === row.player.id).length; return <td style={tdSc(true)}>{n > 0 ? <span style={{ fontWeight: 700, color: '#374151', fontSize: '0.7rem' }}>{n}</span> : null}</td> })()}
+                                {(() => { const n = [...scFrontNine, ...scBackNine].filter(h => groupBankerHoles[h.hole_number]?.bankerPlayerId === row.player.id).length; return <td style={tdSc()}>{n > 0 ? <span style={{ fontWeight: 700, color: '#374151', fontSize: '0.7rem' }}>{n}</span> : null}</td> })()}
                               </tr>
                             </>}
                             {groupHasDaytona && <>

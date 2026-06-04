@@ -220,6 +220,9 @@ export default function ScorecardBottomSheet({
             {isDaytonaMode && dtPayoutValue > 0 && (
               <span className="text-xs text-gray-400 flex-shrink-0">{isFlares ? '5-Man Flares' : is5Man ? '5-Man Daytona' : 'Daytona'} – {fmtAmt(dtPayoutValue)}/point</span>
             )}
+            {isBankerMode && (
+              <span className="text-xs text-gray-400 flex-shrink-0">Banker – ${bankerMinBet} min. bet</span>
+            )}
           </div>
           <button onClick={onClose} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
         </div>
@@ -385,7 +388,7 @@ export default function ScorecardBottomSheet({
                                 : <span style={{ color: '#d1d5db' }}>–</span>}
                             </td>
                           ))}
-                          <td style={tdSc(true)} />
+                          {(() => { const n = frontNine.filter(h => bankerHoles[h.hole_number]?.bankerPlayerId === player.id).length; return <td style={tdSc(true)}>{n > 0 ? <span style={{ fontWeight: 700, color: '#374151', fontSize: '0.7rem' }}>{n}</span> : null}</td> })()}
                           {backNine.map((h) => (
                             <td key={h.hole_number} style={tdSc()}>
                               {bankerHoles[h.hole_number]?.bankerPlayerId === player.id
@@ -393,8 +396,8 @@ export default function ScorecardBottomSheet({
                                 : <span style={{ color: '#d1d5db' }}>–</span>}
                             </td>
                           ))}
-                          {backNine.length > 0 && <td style={tdSc(true)} />}
-                          <td style={tdSc()} />
+                          {backNine.length > 0 && (() => { const n = backNine.filter(h => bankerHoles[h.hole_number]?.bankerPlayerId === player.id).length; return <td style={tdSc(true)}>{n > 0 ? <span style={{ fontWeight: 700, color: '#374151', fontSize: '0.7rem' }}>{n}</span> : null}</td> })()}
+                          {(() => { const n = [...frontNine, ...backNine].filter(h => bankerHoles[h.hole_number]?.bankerPlayerId === player.id).length; return <td style={tdSc()}>{n > 0 ? <span style={{ fontWeight: 700, color: '#374151', fontSize: '0.7rem' }}>{n}</span> : null}</td> })()}
                         </tr>
                       </>}
                       {/* PTS + AMT + TEAM — Daytona only */}
