@@ -35,16 +35,32 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   const { data: playingGroupsRaw } = isMixedGroups
     ? await sb.from('playing_groups').select('id, name').eq('round_id', round.id).order('name')
     : { data: [] as { id: string; name: string }[] }
+  const groupIds = (playingGroupsRaw ?? []).map((g) => g.id)
 
-  const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, bestBallRes] = await Promise.all([
+  const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, bestBallRes, { data: groupLinks }] = await Promise.all([
     teamIds.length
       ? sb.from('players').select('id, name, team_id, handicap').in('team_id', teamIds).order('name')
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [] as { id: string; name: string; team_id: string; handicap: number | null }[] }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
     sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', round.id).order('created_at'),
     sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press').eq('round_id', round.id).order('created_at'),
+    isMixedGroups && groupIds.length
+      ? sb.from('playing_group_players').select('player_id, playing_group_id').in('playing_group_id', groupIds)
+      : Promise.resolve({ data: [] as { player_id: string; playing_group_id: string }[] }),
   ])
+
+  // Build group name lookup and player→group map
+  const groupMap = Object.fromEntries((playingGroupsRaw ?? []).map((g) => [g.id, g.name]))
+  const playerToGroup: Record<string, string> = {}
+  for (const r of (groupLinks ?? [])) playerToGroup[r.player_id] = groupMap[r.playing_group_id] ?? ''
+
+  // Fetch guest players (team_id = null) who are in a playing group
+  const teamPlayerIdSet = new Set((playersRaw ?? []).map((p) => p.id))
+  const guestIds = (groupLinks ?? []).map((r) => r.player_id).filter((id) => !teamPlayerIdSet.has(id))
+  const { data: guestPlayersRaw } = guestIds.length
+    ? await sb.from('players').select('id, name, handicap').in('id', guestIds)
+    : { data: [] as { id: string; name: string; handicap: number | null }[] }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let savedMatchups: { id: string; player1_id: string; player2_id: string; bet: string; press: any[] }[]
@@ -65,7 +81,10 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   }
 
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t.name]))
-  const players = (playersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: teamMap[p.team_id] ?? '', handicap: p.handicap ?? null }))
+  const teamPlayers = (playersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: teamMap[p.team_id] ?? '', handicap: p.handicap ?? null }))
+  const guestPlayers = (guestPlayersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: playerToGroup[p.id] ?? '', handicap: p.handicap ?? null }))
+  const players = [...teamPlayers, ...guestPlayers].sort((a, b) => a.name.localeCompare(b.name))
+
   const scorecardTeamId = (teams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
   const groupAuthCookie = cookieStore.getAll().find((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
   const scorecardGroupId = groupAuthCookie ? groupAuthCookie.name.replace('playing_group_auth_', '') : null
