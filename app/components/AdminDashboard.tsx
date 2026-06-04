@@ -695,6 +695,7 @@ export default function AdminDashboard({
   const [manualGroupName, setManualGroupName] = useState('')
   const [manualGroupHandicap, setManualGroupHandicap] = useState('')
   const [manualGroupPending, setManualGroupPending] = useState(false)
+  const [expandedGroupCards, setExpandedGroupCards] = useState<Set<string>>(new Set())
   const [liveManualPlayers, setLiveManualPlayers] = useState<Player[]>([])
   const [expandedGroupSideGame, setExpandedGroupSideGame] = useState<string | null>(null)
   type GroupSideGame = { daytonaEnabled: boolean; daytonaType: string; daytonaSubVariant: string; daytonaPayout: string; bankerEnabled: boolean; bankerMinBet: string; autoStrokes: boolean; saving: boolean; saved: boolean }
@@ -2316,30 +2317,42 @@ export default function AdminDashboard({
                       const unassignedTeamPlayers = players.filter(p => p.team_id !== null && !allAssignedIds.has(p.id))
                       const groupFull = assignedPlayers.length >= 5
                       const isExpanded = expandedGroupAssign === g.id
+                      const isCardExpanded = expandedGroupCards.has(g.id)
+                      const toggleCard = () => setExpandedGroupCards(prev => {
+                        const next = new Set(prev)
+                        next.has(g.id) ? next.delete(g.id) : next.add(g.id)
+                        return next
+                      })
                       return (
                         <div key={g.id} className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-2.5">
-                          {/* Header */}
-                          <div className="flex items-center justify-between">
+                          {/* Header — always visible, clickable to expand */}
+                          <div className="flex items-center justify-between cursor-pointer select-none" onClick={toggleCard}>
                             <div>
-                              <p className="text-sm font-semibold text-gray-800">{g.name}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-semibold text-gray-800">{g.name}</p>
+                                <span className="text-gray-400 text-xs">{isCardExpanded ? '▲' : '▼'}</span>
+                              </div>
                               <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
                             </div>
-                            <button type="button" onClick={() => setConfirmRemoveGroupId(g.id)}
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupId(g.id) }}
                               className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
                           </div>
 
-                          {/* Assigned player chips */}
+                          {/* Assigned player chips — always visible */}
                           <div className="flex flex-wrap gap-1.5">
                             {assignedPlayers.map((p) => (
                               <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
                                 {p.name}
                                 <button type="button"
-                                  onClick={() => setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null })}
+                                  onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
                                   className="ml-0.5 hover:text-red-600 leading-none">×</button>
                               </span>
                             ))}
                             {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned yet</p>}
                           </div>
+
+                          {/* Expanded body — add-player panel + side game */}
+                          {isCardExpanded && <>
 
                           {/* Inline add-player panel */}
                           {!groupFull && (
@@ -2579,6 +2592,7 @@ export default function AdminDashboard({
                               </div>
                             )
                           })()}
+                          </>}
                         </div>
                       )
                     })}
