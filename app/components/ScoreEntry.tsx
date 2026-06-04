@@ -1532,7 +1532,7 @@ export default function ScoreEntry({
             ? computeHoleDaytonaWithSides(savedLeftScores, savedRightScores, hole.par)
             : { leftDt: null, rightDt: null }
 
-          // For 5-man: compute DT for each of the 3 right-side pairs
+          // For 5-man: compute DT for each of the 3 right-side pairs (and corresponding left scores)
           const savedRightPairDts: (number | null)[] = (() => {
             if (!is5Man) return []
             const rightPlayers = players.filter((p) => holeAssignments[p.id] === 'right')
@@ -1542,6 +1542,17 @@ export default function ScoreEntry({
                 .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
                 .filter((s): s is number => s !== undefined)
               return computeHoleDaytonaWithSides(savedLeftScores, pScores, hole.par).rightDt
+            })
+          })()
+          const savedLeftPairDts: (number | null)[] = (() => {
+            if (!is5Man) return []
+            const rightPlayers = players.filter((p) => holeAssignments[p.id] === 'right')
+            if (rightPlayers.length !== 3) return []
+            return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
+              const pScores = [rightPlayers[a], rightPlayers[b]]
+                .map((p) => savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes)
+                .filter((s): s is number => s !== undefined)
+              return computeHoleDaytonaWithSides(savedLeftScores, pScores, hole.par).leftDt
             })
           })()
 
@@ -1635,10 +1646,19 @@ export default function ScoreEntry({
                   <div className="flex items-center gap-3 mr-2">
                     {isDaytonaMode ? (
                       <>
-                        <div className="text-center mr-3">
-                          <p className="text-xs" style={{ color: '#2563eb' }}>{holeLeftLabel}</p>
-                          <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
-                        </div>
+                        {is5Man && savedLeftPairDts.length === 3 ? (
+                          <div className="text-center mr-3">
+                            <p className="text-xs" style={{ color: '#2563eb' }}>{holeLeftLabel}</p>
+                            <p className="font-bold text-sm text-gray-900">
+                              {[...savedLeftPairDts].sort((a, b) => (a ?? Infinity) - (b ?? Infinity)).map((dt) => dt ?? '–').join('/')}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-center mr-3">
+                            <p className="text-xs" style={{ color: '#2563eb' }}>{holeLeftLabel}</p>
+                            <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
+                          </div>
+                        )}
                         {is5Man && savedRightPairDts.length === 3 ? (
                           <div className="text-center">
                             <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
