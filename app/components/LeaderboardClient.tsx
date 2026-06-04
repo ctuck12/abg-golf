@@ -387,6 +387,8 @@ export default function LeaderboardClient({
   const isTraditional = format === 'traditional'
   const [traditionalGroupView, setTraditionalGroupView] = useState<Record<string, 'score' | 'points'>>({})
   const [groupBankerView, setGroupBankerView] = useState<Record<string, 'score' | 'dollars'>>({})
+  const [liveBankerHoles, setLiveBankerHoles] = useState<Record<string, Record<number, { bankerPlayerId: string | null }>>>(bankerHolesMap)
+  const [liveBankerBets, setLiveBankerBets] = useState<Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>>(bankerBetsMap)
 
   function lbBankerMultiplier(net: number, par: number): number {
     if (net <= par - 2) return 3
@@ -468,6 +470,45 @@ export default function LeaderboardClient({
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [players])
+
+  // Live-update banker holes and bets when they change
+  useEffect(() => {
+    const bankerGids = (playingGroups ?? [])
+      .filter((g) => (g as { banker_side_game?: boolean | null }).banker_side_game)
+      .map((g) => g.id)
+    if (!isMixedGroups || !roundId || bankerGids.length === 0) return
+
+    async function refetchBankerData() {
+      const [{ data: bHolesData }, { data: bBetsData }] = await Promise.all([
+        supabase.from('banker_holes').select('team_id, hole_number, banker_player_id').eq('round_id', roundId).in('team_id', bankerGids),
+        supabase.from('banker_bets').select('team_id, hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', roundId).in('team_id', bankerGids),
+      ])
+      if (bHolesData) {
+        const newHoles: Record<string, Record<number, { bankerPlayerId: string | null }>> = {}
+        for (const bh of bHolesData as { team_id: string; hole_number: number; banker_player_id: string | null }[]) {
+          if (!newHoles[bh.team_id]) newHoles[bh.team_id] = {}
+          newHoles[bh.team_id][bh.hole_number] = { bankerPlayerId: bh.banker_player_id }
+        }
+        setLiveBankerHoles(newHoles)
+      }
+      if (bBetsData) {
+        const newBets: Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>> = {}
+        for (const bb of bBetsData as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
+          if (!newBets[bb.team_id]) newBets[bb.team_id] = {}
+          if (!newBets[bb.team_id][bb.hole_number]) newBets[bb.team_id][bb.hole_number] = {}
+          newBets[bb.team_id][bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled }
+        }
+        setLiveBankerBets(newBets)
+      }
+    }
+
+    refetchBankerData()
+    const ch = supabase.channel('banker-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banker_holes' }, refetchBankerData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banker_bets' }, refetchBankerData)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [isMixedGroups, roundId, playingGroups])
 
   // Reset all collapsed-by-default sub-states when Payouts panel is closed
   useEffect(() => {
@@ -689,8 +730,8 @@ export default function LeaderboardClient({
           const hasBanker = !!(pg as { banker_side_game?: boolean | null }).banker_side_game
           const bankerTotals: Record<string, number> = {}
           if (hasBanker) {
-            const bHoles = (bankerHolesMap as Record<string, Record<number, { bankerPlayerId: string | null }>>)[pg.id] ?? {}
-            const bBets = (bankerBetsMap as Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>)[pg.id] ?? {}
+            const bHoles = liveBankerHoles[pg.id] ?? {}
+            const bBets = liveBankerBets[pg.id] ?? {}
             for (const pid of pids) bankerTotals[pid] = 0
             for (const hole of holes) {
               const hd = bHoles[hole.hole_number]

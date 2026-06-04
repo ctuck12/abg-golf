@@ -308,6 +308,19 @@ export default function PlayingGroupScoreEntry({
     setPendingHoles((prev) => { const s = new Set(prev); s.delete(holeNumber); return s })
     if (res.error) { setErrors((prev) => ({ ...prev, [holeNumber]: res.error! })); return }
     setSavedHoles((prev) => new Set([...prev, holeNumber]))
+    // Ensure all banker bets are persisted (fill in defaults for players who didn't explicitly set a bet)
+    if (isBanker) {
+      const hd = bankerHoles[holeNumber]
+      if (hd?.bankerPlayerId) {
+        const currentBets = bankerBets[holeNumber] ?? {}
+        const allBets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }> = {}
+        for (const p of players) {
+          if (p.id === hd.bankerPlayerId) continue
+          allBets[p.id] = currentBets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+        }
+        if (Object.keys(allBets).length > 0) handleSaveBankerBets(holeNumber, allBets)
+      }
+    }
     const newScores = playerScores.map((ps) => ({ player_id: ps.playerId, hole_number: holeNumber, strokes: ps.strokes }))
     setSavedScores((prev) => {
       const filtered = prev.filter((s) => s.hole_number !== holeNumber || !players.some((p) => p.id === s.player_id))
