@@ -157,26 +157,26 @@ export default function AllScorecardsView({
     background: highlight ? steelBlue : isHoleNum ? holeBg : navy,
     color: highlight ? 'white' : isHoleNum ? navy : 'white',
     fontWeight: 700,
-    fontSize: '0.6rem',
+    fontSize: '0.65rem',
     textAlign: 'center',
-    padding: '0.25rem 0.15rem',
+    padding: '0.4rem 0.3rem',
     whiteSpace: 'nowrap',
   })
   const tdPar = (highlight?: boolean): React.CSSProperties => ({
     background: highlight ? steelBlueBg : 'white',
     color: highlight ? '#1e40af' : '#6b7280',
     fontWeight: highlight ? 700 : 400,
-    fontSize: '0.62rem',
+    fontSize: '0.7rem',
     textAlign: 'center',
-    padding: '0.2rem 0.15rem',
+    padding: '0.35rem 0.3rem',
   })
   const tdCell = (highlight?: boolean): React.CSSProperties => ({
     background: highlight ? steelBlueBg : 'white',
     fontWeight: highlight ? 700 : 400,
     color: highlight ? '#1e40af' : undefined,
-    fontSize: '0.62rem',
+    fontSize: '0.7rem',
     textAlign: 'center',
-    padding: '0.16rem 0.1rem',
+    padding: '0.3rem 0.25rem',
   })
   const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
   const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -244,7 +244,7 @@ export default function AllScorecardsView({
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-3 py-3 space-y-4 pb-10">
+      <div className="max-w-4xl mx-auto px-3 py-4 space-y-6 pb-10">
         {rankedPlayers.map((player, rank) => {
           const playerScores = scores.filter((s) => s.player_id === player.id)
           const scoreMap = Object.fromEntries(playerScores.map((s) => [s.hole_number, s.strokes]))
@@ -272,7 +272,7 @@ export default function AllScorecardsView({
           return (
             <div key={player.id} className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               {/* Player card header */}
-              <div className="flex items-center gap-3 px-4 py-1.5" style={{ background: navy }}>
+              <div className="flex items-center gap-3 px-4 py-2" style={{ background: navy }}>
                 <span className="text-base font-bold w-8 flex-shrink-0"
                   style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                   {thru > 0 ? `#${rank + 1}` : '–'}
@@ -293,16 +293,16 @@ export default function AllScorecardsView({
 
               {/* Scorecard table */}
               <div className="overflow-x-auto bg-white">
-                <table className="border-collapse" style={{ minWidth: '500px', width: '100%' }}>
+                <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
-                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.5rem', minWidth: '2.8rem', ...stickyFirstTh }}>HOLE</th>
+                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                       {[1,2,3,4,5,6,7,8,9].map((n) => (
-                        <th key={n} style={{ ...thStyle(false, true), minWidth: '1.7rem' }}>{n}</th>
+                        <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>{n}</th>
                       ))}
                       <th style={thStyle(true)}>Front</th>
                       {[10,11,12,13,14,15,16,17,18].map((n) => (
-                        <th key={n} style={{ ...thStyle(false, true), minWidth: '1.7rem' }}>{n}</th>
+                        <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>{n}</th>
                       ))}
                       <th style={thStyle(true)}>Back</th>
                       <th style={thStyle()}>TOTAL</th>
@@ -438,7 +438,7 @@ export default function AllScorecardsView({
                       )
                     })()}
                     {Object.keys(player.teamId ? teamHoleValues[player.teamId] ?? {} : {}).length > 0 && <tr>
-                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
+                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const teamVals2 = player.teamId ? teamHoleValues[player.teamId] ?? {} : {}
                         const pressRate = teamVals2[n]
