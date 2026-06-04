@@ -20,18 +20,18 @@ type Player = { id: string; name: string; handicap?: number | null }
 const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
   background: highlight ? steelBlue : isHoleNum ? holeBg : navy,
   color: highlight ? 'white' : isHoleNum ? navy : 'white',
-  fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.55rem 0.55rem', whiteSpace: 'nowrap',
+  fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.5rem 0.45rem', whiteSpace: 'nowrap',
 })
 const tdPar = (highlight?: boolean): React.CSSProperties => ({
   background: highlight ? '#dbeafe' : 'white',
   color: highlight ? '#1e40af' : '#6b7280',
-  fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.5rem 0.55rem',
+  fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.45rem 0.45rem',
 })
 const tdSc = (highlight?: boolean): React.CSSProperties => ({
   background: highlight ? '#dbeafe' : 'white',
   fontWeight: highlight ? 700 : 400,
   color: highlight ? '#1e40af' : undefined,
-  fontSize: '0.7rem', textAlign: 'center', padding: '0.48rem 0.5rem',
+  fontSize: '0.7rem', textAlign: 'center', padding: '0.42rem 0.42rem',
 })
 const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
 const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -228,7 +228,7 @@ export default function ScorecardBottomSheet({
                           const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
                             <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>{h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.65rem', fontWeight: 700 }}>*</span>}</span>
+                              <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
                             </th>
                           )
                         })}
@@ -237,7 +237,7 @@ export default function ScorecardBottomSheet({
                           const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
                             <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>{h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.65rem', fontWeight: 700 }}>*</span>}</span>
+                              <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
                             </th>
                           )
                         })}
@@ -246,15 +246,6 @@ export default function ScorecardBottomSheet({
                       </tr>
                     </thead>
                     <tbody>
-                      {/* HCP */}
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
-                        {frontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                        {frontNine.length > 0 && <td style={tdPar(true)} />}
-                        {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                        {backNine.length > 0 && <td style={tdPar(true)} />}
-                        <td style={tdPar()} />
-                      </tr>
                       {/* PAR */}
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
@@ -263,6 +254,15 @@ export default function ScorecardBottomSheet({
                         {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
                         {backNine.length > 0 && <td style={tdPar(true)}>{backPar}</td>}
                         <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
+                      </tr>
+                      {/* HCP */}
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                        {frontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                        {frontNine.length > 0 && <td style={tdPar(true)} />}
+                        {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                        {backNine.length > 0 && <td style={tdPar(true)} />}
+                        <td style={tdPar()} />
                       </tr>
                       {/* SCORE */}
                       <tr style={{ borderBottom: isDaytonaMode ? '1px solid #e5e7eb' : undefined }}>

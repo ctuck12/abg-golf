@@ -1249,18 +1249,18 @@ export default function LeaderboardClient({
         const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
           background: highlight ? '#4a7fa5' : isHoleNum ? '#dde4ee' : navy,
           color: highlight ? 'white' : isHoleNum ? navy : 'white',
-          fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.55rem 0.55rem', whiteSpace: 'nowrap',
+          fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.5rem 0.45rem', whiteSpace: 'nowrap',
         })
         const tdPar = (highlight?: boolean): React.CSSProperties => ({
           background: highlight ? '#dbeafe' : 'white',
           color: highlight ? '#1e40af' : '#6b7280',
-          fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.5rem 0.55rem',
+          fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.45rem 0.45rem',
         })
         const tdSc = (highlight?: boolean): React.CSSProperties => ({
           background: highlight ? '#dbeafe' : 'white',
           fontWeight: highlight ? 700 : 400,
           color: highlight ? '#1e40af' : undefined,
-          fontSize: '0.7rem', textAlign: 'center', padding: '0.48rem 0.5rem',
+          fontSize: '0.7rem', textAlign: 'center', padding: '0.42rem 0.42rem',
         })
         const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
         const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -1348,7 +1348,7 @@ export default function LeaderboardClient({
                                 const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
                                 return (
                                   <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>{h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.65rem', fontWeight: 700 }}>*</span>}</span>
+                                    <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
                                   </th>
                                 )
                               })}
@@ -1357,7 +1357,7 @@ export default function LeaderboardClient({
                                 const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
                                 return (
                                   <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>{h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.65rem', fontWeight: 700 }}>*</span>}</span>
+                                    <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
                                   </th>
                                 )
                               })}
@@ -1367,20 +1367,20 @@ export default function LeaderboardClient({
                           </thead>
                           <tbody>
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
-                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                              {scFrontNine.length > 0 && <td style={tdPar(true)} />}
-                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                              {scBackNine.length > 0 && <td style={tdPar(true)} />}
-                              <td style={tdPar()} />
-                            </tr>
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                               <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
                               {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
                               {scFrontNine.length > 0 && <td style={tdPar(true)}>{scFrontPar}</td>}
                               {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
                               {scBackNine.length > 0 && <td style={tdPar(true)}>{scBackPar}</td>}
                               <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
+                            </tr>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                              {scFrontNine.length > 0 && <td style={tdPar(true)} />}
+                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                              {scBackNine.length > 0 && <td style={tdPar(true)} />}
+                              <td style={tdPar()} />
                             </tr>
                             <tr style={{ borderBottom: groupHasDaytona ? '1px solid #e5e7eb' : undefined }}>
                               <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
