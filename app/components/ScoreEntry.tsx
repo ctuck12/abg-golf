@@ -585,7 +585,7 @@ export default function ScoreEntry({
       .from('scores')
       .select('*', { count: 'exact', head: true })
       .in('player_id', roundPlayerIds)
-    setRoundComplete(count !== null && count >= roundPlayerIds.length * 18)
+    setRoundComplete(count !== null && count >= roundPlayerIds.length * holes.length)
   }
 
   const broadcastChannel = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -793,8 +793,12 @@ export default function ScoreEntry({
         setAssignments((a) => ({ ...a, [nextHole]: {} }))
       }
       setExpandedHole(nextHole)
-      // Scroll the just-saved hole into view so both it (collapsed ✓) and the next hole are visible
-      setTimeout(() => scrollHoleIntoView(holeNumber, 'smooth'), 50)
+      const justFinished = !nextHole && !savedHoles.has(holeNumber)
+      if (justFinished) {
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100)
+      } else {
+        setTimeout(() => scrollHoleIntoView(holeNumber, 'smooth'), 50)
+      }
       broadcastChannel.current?.send({ type: 'broadcast', event: 'refresh', payload: {} })
       checkRoundComplete()
     }

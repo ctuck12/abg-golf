@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
+import { supabase } from '@/lib/supabase'
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 
@@ -122,6 +123,45 @@ export default function PlayingGroupScoreEntry({
   const isBanker = !!bankerSideGame
   const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
   const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
+  const [allGroupsDone, setAllGroupsDone] = useState<boolean | null>(null)
+  const prevSavedCount = useRef(savedHoles.size)
+
+  async function checkAllGroupsDone() {
+    setAllGroupsDone(null)
+    const { data: groups } = await supabase.from('playing_groups').select('id').eq('round_id', roundId)
+    if (!groups?.length) { setAllGroupsDone(true); return }
+    const { data: links } = await supabase.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', groups.map(g => g.id))
+    if (!links?.length) { setAllGroupsDone(true); return }
+    const allPids = [...new Set(links.map(l => l.player_id))]
+    const { data: scoresData } = await supabase.from('scores').select('player_id, hole_number').in('player_id', allPids)
+    if (!scoresData) { setAllGroupsDone(false); return }
+    const done = groups.every(g => {
+      const gPids = links.filter(l => l.playing_group_id === g.id).map(l => l.player_id)
+      return gPids.length === 0 || holes.every(h => gPids.every(pid => scoresData.some(s => s.player_id === pid && s.hole_number === h.hole_number)))
+    })
+    setAllGroupsDone(done)
+  }
+
+  useEffect(() => {
+    const nowComplete = savedHoles.size === holes.length && holes.length > 0
+    const wasComplete = prevSavedCount.current === holes.length && holes.length > 0
+    if (nowComplete && !wasComplete) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      checkAllGroupsDone()
+    }
+    if (nowComplete && wasComplete && allGroupsDone === null) {
+      checkAllGroupsDone()
+    }
+    prevSavedCount.current = savedHoles.size
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedHoles.size])
+
+  useEffect(() => {
+    if (allGroupsDone !== false) return
+    const id = setInterval(checkAllGroupsDone, 30000)
+    return () => clearInterval(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allGroupsDone])
 
   // Auto-assign a random banker on the first hole if none is set yet
   useEffect(() => {
@@ -613,6 +653,24 @@ export default function PlayingGroupScoreEntry({
         {!isStarted && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-center">
             <p className="text-sm font-semibold text-amber-800">Round not yet active</p>
+          </div>
+        )}
+
+        {/* Completion box */}
+        {savedHoles.size === holes.length && holes.length > 0 && (
+          <div className="rounded-2xl border-2 p-4 text-center space-y-2" style={{ borderColor: '#f59e0b', background: '#fffbeb' }}>
+            <p className="text-2xl">✓</p>
+            <p className="font-bold text-gray-900">All {holes.length} holes submitted!</p>
+            {allGroupsDone === null && <p className="text-sm text-gray-400">Checking other groups…</p>}
+            {allGroupsDone === false && (
+              <div className="space-y-1">
+                <p className="text-sm text-gray-500">Waiting for other groups to finish…</p>
+                <button type="button" onClick={checkAllGroupsDone} className="text-xs text-blue-600 underline">Refresh</button>
+              </div>
+            )}
+            {allGroupsDone === true && (
+              <a href={`/${orgSlug}`} className="inline-block font-bold text-amber-700 underline text-sm">Final Payouts →</a>
+            )}
           </div>
         )}
 
