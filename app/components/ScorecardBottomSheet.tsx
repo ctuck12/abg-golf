@@ -223,62 +223,55 @@ export default function ScorecardBottomSheet({
                   <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
                     <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                       <tr>
-                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
-                        {frontNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
-                        {frontNine.length > 0 && <th style={thSt(true)}>Out</th>}
-                        {backNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
-                        {backNine.length > 0 && <th style={thSt(true)}>In</th>}
-                        <th style={thSt()}>TOT</th>
+                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>
+                          <span style={{ display: 'block' }}>HOLE</span>
+                          <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400 }}>P · HCP</span>
+                        </th>
+                        {frontNine.map((h) => {
+                          const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
+                          return (
+                            <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
+                              <span style={{ display: 'block', lineHeight: 1.3 }}>
+                                {h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
+                              </span>
+                              <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400, lineHeight: 1.3 }}>{h.par}·{h.stroke_index ?? '–'}</span>
+                            </th>
+                          )
+                        })}
+                        {frontNine.length > 0 && <th style={thSt(true)}><span style={{ display: 'block' }}>Out</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{frontPar}</span></th>}
+                        {backNine.map((h) => {
+                          const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
+                          return (
+                            <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
+                              <span style={{ display: 'block', lineHeight: 1.3 }}>
+                                {h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
+                              </span>
+                              <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400, lineHeight: 1.3 }}>{h.par}·{h.stroke_index ?? '–'}</span>
+                            </th>
+                          )
+                        })}
+                        {backNine.length > 0 && <th style={thSt(true)}><span style={{ display: 'block' }}>In</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{backPar}</span></th>}
+                        <th style={thSt()}><span style={{ display: 'block' }}>TOT</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{totalPar}</span></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {/* HCP */}
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
-                        {frontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                        {frontNine.length > 0 && <td style={tdPar(true)} />}
-                        {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                        {backNine.length > 0 && <td style={tdPar(true)} />}
-                        <td style={tdPar()} />
-                      </tr>
-                      {/* PAR */}
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
-                        {frontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
-                        {frontNine.length > 0 && <td style={tdPar(true)}>{frontPar}</td>}
-                        {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
-                        {backNine.length > 0 && <td style={tdPar(true)}>{backPar}</td>}
-                        <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
-                      </tr>
                       {/* SCORE */}
                       <tr style={{ borderBottom: isDaytonaMode ? '1px solid #e5e7eb' : undefined }}>
                         <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
                         {frontNine.map((h) => {
                           const s = scoreMap[h.hole_number] ?? null
-                          const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
                             <td key={h.hole_number} style={tdSc()}>
-                              {s != null
-                                ? <span style={{ position: 'relative', display: 'inline-block' }}>
-                                    <ScoreNotation strokes={s} par={h.par} size="sm" />
-                                    {hasStroke && <span style={{ position: 'absolute', top: '50%', right: s - h.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}
-                                  </span>
-                                : <span style={{ color: '#d1d5db' }}>–</span>}
+                              {s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
                             </td>
                           )
                         })}
                         {frontNine.length > 0 && <td style={tdSc(true)}>{frontScored.length > 0 ? frontStrokes : '–'}</td>}
                         {backNine.map((h) => {
                           const s = scoreMap[h.hole_number] ?? null
-                          const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
                             <td key={h.hole_number} style={tdSc()}>
-                              {s != null
-                                ? <span style={{ position: 'relative', display: 'inline-block' }}>
-                                    <ScoreNotation strokes={s} par={h.par} size="sm" />
-                                    {hasStroke && <span style={{ position: 'absolute', top: '50%', right: s - h.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}
-                                  </span>
-                                : <span style={{ color: '#d1d5db' }}>–</span>}
+                              {s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
                             </td>
                           )
                         })}

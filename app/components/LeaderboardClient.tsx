@@ -1343,43 +1343,48 @@ export default function LeaderboardClient({
                         <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
                           <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                             <tr>
-                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
-                              {scFrontNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
-                              {scFrontNine.length > 0 && <th style={thSt(true)}>Out</th>}
-                              {scBackNine.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>{h.hole_number}</th>)}
-                              {scBackNine.length > 0 && <th style={thSt(true)}>In</th>}
-                              <th style={thSt()}>TOT</th>
+                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>
+                                <span style={{ display: 'block' }}>HOLE</span>
+                                <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400 }}>P · HCP</span>
+                              </th>
+                              {scFrontNine.map((h) => {
+                                const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
+                                return (
+                                  <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
+                                    <span style={{ display: 'block', lineHeight: 1.3 }}>
+                                      {h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
+                                    </span>
+                                    <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400, lineHeight: 1.3 }}>{h.par}·{h.stroke_index ?? '–'}</span>
+                                  </th>
+                                )
+                              })}
+                              {scFrontNine.length > 0 && <th style={thSt(true)}><span style={{ display: 'block' }}>Out</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{scFrontPar}</span></th>}
+                              {scBackNine.map((h) => {
+                                const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
+                                return (
+                                  <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
+                                    <span style={{ display: 'block', lineHeight: 1.3 }}>
+                                      {h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
+                                    </span>
+                                    <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400, lineHeight: 1.3 }}>{h.par}·{h.stroke_index ?? '–'}</span>
+                                  </th>
+                                )
+                              })}
+                              {scBackNine.length > 0 && <th style={thSt(true)}><span style={{ display: 'block' }}>In</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{scBackPar}</span></th>}
+                              <th style={thSt()}><span style={{ display: 'block' }}>TOT</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{scTotalPar}</span></th>
                             </tr>
                           </thead>
                           <tbody>
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
-                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                              {scFrontNine.length > 0 && <td style={tdPar(true)} />}
-                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                              {scBackNine.length > 0 && <td style={tdPar(true)} />}
-                              <td style={tdPar()} />
-                            </tr>
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
-                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
-                              {scFrontNine.length > 0 && <td style={tdPar(true)}>{scFrontPar}</td>}
-                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
-                              {scBackNine.length > 0 && <td style={tdPar(true)}>{scBackPar}</td>}
-                              <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
-                            </tr>
                             <tr style={{ borderBottom: groupHasDaytona ? '1px solid #e5e7eb' : undefined }}>
                               <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
                               {scFrontNine.map((h) => {
                                 const s = scoreMap[h.hole_number] ?? null
-                                const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
-                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={s} par={h.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: s - h.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                               })}
                               {scFrontNine.length > 0 && <td style={tdSc(true)}>{frontScored.length > 0 ? frontStrokes : '–'}</td>}
                               {scBackNine.map((h) => {
                                 const s = scoreMap[h.hole_number] ?? null
-                                const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
-                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <span style={{ position: 'relative', display: 'inline-block' }}><ScoreNotation strokes={s} par={h.par} size="sm" />{hasStroke && <span style={{ position: 'absolute', top: '50%', right: s - h.par === 0 ? '-3px' : '-9px', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>*</span>}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                return <td key={h.hole_number} style={tdSc()}>{s != null ? <ScoreNotation strokes={s} par={h.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                               })}
                               {scBackNine.length > 0 && <td style={tdSc(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>}
                               <td style={{ ...tdSc(), fontWeight: 700, color: '#111827' }}>{thru > 0 ? totalStrokes : '–'}</td>
