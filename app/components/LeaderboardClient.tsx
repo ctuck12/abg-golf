@@ -1352,7 +1352,7 @@ export default function LeaderboardClient({
                                   </th>
                                 )
                               })}
-                              {scFrontNine.length > 0 && <th style={{ ...thSt(true), minWidth: '3.5rem' }}>Out</th>}
+                              {scFrontNine.length > 0 && <th style={{ ...thSt(true), minWidth: '2.8rem' }}>Out</th>}
                               {scBackNine.map((h) => {
                                 const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
                                 return (
@@ -1361,8 +1361,8 @@ export default function LeaderboardClient({
                                   </th>
                                 )
                               })}
-                              {scBackNine.length > 0 && <th style={{ ...thSt(true), minWidth: '3.5rem' }}>In</th>}
-                              <th style={{ ...thSt(), minWidth: '3.5rem' }}>TOT</th>
+                              {scBackNine.length > 0 && <th style={{ ...thSt(true), minWidth: '2.8rem' }}>In</th>}
+                              <th style={{ ...thSt(), minWidth: '2.8rem' }}>TOT</th>
                             </tr>
                           </thead>
                           <tbody>
