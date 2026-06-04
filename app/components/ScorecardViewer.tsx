@@ -203,6 +203,57 @@ export default function ScorecardViewer({
       </header>
 
       <div className="max-w-4xl mx-auto px-3 py-4">
+
+        {/* Ball score summary — only for standard (non-Daytona) format */}
+        {!isDaytona && ballsCount > 0 && (() => {
+          const fmtVsp = (score: number | null, par: number) => {
+            if (score === null) return '–'
+            const v = score - par
+            return v === 0 ? 'E' : v > 0 ? `+${v}` : String(v)
+          }
+          const vspColor = (score: number | null, par: number) => {
+            if (score === null) return '#9ca3af'
+            const v = score - par
+            return v < 0 ? '#16a34a' : v > 0 ? '#dc2626' : '#374151'
+          }
+          return (
+            <div className="mb-3 bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+              <div className="flex items-center gap-4 flex-wrap">
+                {Array.from({ length: ballsCount }, (_, bi) => {
+                  const frontScore = sumScored(frontData, (d) => d.ballScores[bi])
+                  const backScore = sumScored(backData, (d) => d.ballScores[bi])
+                  const totalScore = sumScored(holeData, (d) => d.ballScores[bi])
+                  return (
+                    <div key={bi} className="flex items-center gap-3">
+                      <span className="text-xs font-bold" style={{ color: '#92400e', minWidth: '1.5rem' }}>{BALL_LABELS[bi]}</span>
+                      <div className="flex items-center gap-2 text-xs">
+                        {frontData.length > 0 && (
+                          <span>
+                            <span className="text-gray-400">Front </span>
+                            <span className="font-bold" style={{ color: vspColor(frontScore, frontPar) }}>{fmtVsp(frontScore, frontPar)}</span>
+                          </span>
+                        )}
+                        {backData.length > 0 && (
+                          <span>
+                            <span className="text-gray-400">Back </span>
+                            <span className="font-bold" style={{ color: vspColor(backScore, backPar) }}>{fmtVsp(backScore, backPar)}</span>
+                          </span>
+                        )}
+                        {(frontData.length > 0 || backData.length > 0) && (
+                          <span>
+                            <span className="text-gray-400">Total </span>
+                            <span className="font-bold" style={{ color: vspColor(totalScore, totalPar) }}>{fmtVsp(totalScore, totalPar)}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
         <div className="bg-white rounded-2xl overflow-hidden overflow-x-auto shadow-sm border border-gray-200">
         <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
           <thead>
@@ -301,7 +352,7 @@ export default function ScorecardViewer({
             ))}
 
             {/* Divider before ball / DT rows */}
-            <tr><td colSpan={23} style={{ height: '2px', background: '#e5e7eb', padding: 0 }} /></tr>
+            <tr><td colSpan={23} style={{ height: '2px', background: isDaytona ? '#e5e7eb' : '#d97706', padding: 0 }} /></tr>
 
             {/* Daytona rows OR ball rows */}
             {isDaytona ? (
@@ -374,40 +425,46 @@ export default function ScorecardViewer({
                 })()}
               </>
             ) : (
-              Array.from({ length: ballsCount }, (_, bi) => (
-                <tr key={bi}>
-                  <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#92400e', ...stickyFirst }}>
-                    {BALL_LABELS[bi]}
-                  </td>
-                  {[1,2,3,4,5,6,7,8,9].map((n) => {
-                    const d = holeData.find((d) => d.hole.hole_number === n)
-                    const b = d?.ballScores[bi] ?? null
-                    return (
-                      <td key={n} style={tdScore(false, true)}>
-                        {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
-                      </td>
-                    )
-                  })}
-                  <td style={{ ...tdScore(true, true) }}>
-                    {sumScored(frontData, (d) => d.ballScores[bi]) ?? '–'}
-                  </td>
-                  {[10,11,12,13,14,15,16,17,18].map((n) => {
-                    const d = holeData.find((d) => d.hole.hole_number === n)
-                    const b = d?.ballScores[bi] ?? null
-                    return (
-                      <td key={n} style={tdScore(false, true)}>
-                        {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
-                      </td>
-                    )
-                  })}
-                  <td style={{ ...tdScore(true, true) }}>
-                    {sumScored(backData, (d) => d.ballScores[bi]) ?? '–'}
-                  </td>
-                  <td style={{ ...tdScore(false, true), fontWeight: 700, color: '#111827' }}>
-                    {sumScored(holeData, (d) => d.ballScores[bi]) ?? '–'}
-                  </td>
-                </tr>
-              ))
+              Array.from({ length: ballsCount }, (_, bi) => {
+                const isLast = bi === ballsCount - 1
+                const bBorder: React.CSSProperties = isLast ? { borderBottom: '2px solid #d97706' } : {}
+                const lBorder: React.CSSProperties = { borderLeft: '2px solid #d97706' }
+                const rBorder: React.CSSProperties = { borderRight: '2px solid #d97706' }
+                return (
+                  <tr key={bi}>
+                    <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#92400e', ...stickyFirst, ...lBorder, ...bBorder }}>
+                      {BALL_LABELS[bi]}
+                    </td>
+                    {[1,2,3,4,5,6,7,8,9].map((n) => {
+                      const d = holeData.find((d) => d.hole.hole_number === n)
+                      const b = d?.ballScores[bi] ?? null
+                      return (
+                        <td key={n} style={{ ...tdScore(false, true), ...bBorder }}>
+                          {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
+                        </td>
+                      )
+                    })}
+                    <td style={{ ...tdScore(true, true), ...bBorder }}>
+                      {sumScored(frontData, (d) => d.ballScores[bi]) ?? '–'}
+                    </td>
+                    {[10,11,12,13,14,15,16,17,18].map((n) => {
+                      const d = holeData.find((d) => d.hole.hole_number === n)
+                      const b = d?.ballScores[bi] ?? null
+                      return (
+                        <td key={n} style={{ ...tdScore(false, true), ...bBorder }}>
+                          {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
+                        </td>
+                      )
+                    })}
+                    <td style={{ ...tdScore(true, true), ...bBorder }}>
+                      {sumScored(backData, (d) => d.ballScores[bi]) ?? '–'}
+                    </td>
+                    <td style={{ ...tdScore(false, true), fontWeight: 700, color: '#111827', ...rBorder, ...bBorder }}>
+                      {sumScored(holeData, (d) => d.ballScores[bi]) ?? '–'}
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>
