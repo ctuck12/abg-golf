@@ -1512,15 +1512,16 @@ export default function ScoreEntry({
           </div>
         )}
         {isStarted && savedHoles.size === holes.length && holes.length > 0 && (
-          <div className="bg-white rounded-xl border-2 px-4 py-3 text-center" style={{ borderColor: gold }}>
-            <p className="font-semibold" style={{ color: navy }}>All {holes.length} holes submitted! ⛳</p>
-            {roundComplete ? (
-              <button onClick={openPayoutsModal} className="text-sm underline mt-1 inline-block" style={{ color: gold }}>
-                Final Payouts →
-              </button>
-            ) : (
-              <p className="text-xs mt-1" style={{ color: '#92400e' }}>Waiting for other groups to finish…</p>
-            )}
+          <div className="rounded-xl border-2 px-4 py-3 flex items-center gap-3" style={{ borderColor: gold, background: '#fffbeb' }}>
+            <span className="text-2xl flex-shrink-0">⛳</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 text-sm">All {holes.length} holes submitted!</p>
+              {roundComplete ? (
+                <button onClick={openPayoutsModal} className="text-xs font-bold underline" style={{ color: '#92400e' }}>Final Payouts →</button>
+              ) : (
+                <p className="text-xs text-gray-500">Waiting for other groups to finish…</p>
+              )}
+            </div>
           </div>
         )}
 
