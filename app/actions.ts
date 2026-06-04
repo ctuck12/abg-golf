@@ -529,20 +529,23 @@ export async function updateRoundAutoHandicap(roundId: string, autoHandicap: boo
 
 export async function saveBankerHole(roundId: string, teamId: string, holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
   const supabase = createServerClient()
-  await supabase.from('banker_holes').upsert(
+  const { error } = await supabase.from('banker_holes').upsert(
     { round_id: roundId, team_id: teamId, hole_number: holeNumber, banker_player_id: bankerPlayerId, max_bet: maxBet },
     { onConflict: 'round_id,team_id,hole_number' }
   )
+  if (error) return { error: error.message }
   return { success: true }
 }
 
 export async function saveBankerBets(roundId: string, teamId: string, holeNumber: number, bets: { playerId: string; baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }[]) {
   const supabase = createServerClient()
-  await supabase.from('banker_bets').delete().eq('round_id', roundId).eq('team_id', teamId).eq('hole_number', holeNumber)
+  const { error: delErr } = await supabase.from('banker_bets').delete().eq('round_id', roundId).eq('team_id', teamId).eq('hole_number', holeNumber)
+  if (delErr) return { error: delErr.message }
   if (bets.length > 0) {
-    await supabase.from('banker_bets').insert(
+    const { error: insErr } = await supabase.from('banker_bets').insert(
       bets.map((b) => ({ round_id: roundId, team_id: teamId, hole_number: holeNumber, player_id: b.playerId, base_bet: b.baseBet, player_doubled: b.playerDoubled, banker_doubled: b.bankerDoubled }))
     )
+    if (insErr) return { error: insErr.message }
   }
   return { success: true }
 }
