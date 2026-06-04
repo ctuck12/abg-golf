@@ -333,7 +333,7 @@ export default function PlayingGroupScoreEntry({
       for (const hn of affectedHoles) pressEntries.push({ holeNumber: hn, valuePerPoint: pressVal })
     }
 
-    const [res] = await Promise.all([
+    const [res, , pressRes] = await Promise.all([
       submitGroupHoleScores(groupId, holeNumber, playerScores),
       isDaytonaMode
         ? saveDaytonaAssignments(
@@ -344,8 +344,14 @@ export default function PlayingGroupScoreEntry({
         : Promise.resolve(),
       isDaytonaMode && pressEntries.length > 0
         ? saveDaytonaHoleValues(roundId, groupId, pressEntries)
-        : Promise.resolve(),
+        : Promise.resolve(null),
     ])
+
+    setPendingHoles((prev) => { const s = new Set(prev); s.delete(holeNumber); return s })
+    if (res.error) { setErrors((prev) => ({ ...prev, [holeNumber]: res.error! })); return }
+    if (pressRes && typeof pressRes === 'object' && 'error' in pressRes && pressRes.error) {
+      setErrors((prev) => ({ ...prev, [holeNumber]: `Press save failed: ${pressRes.error}` })); return
+    }
 
     if (pressEntries.length > 0) {
       setHoleValues((prev) => {
@@ -357,9 +363,6 @@ export default function PlayingGroupScoreEntry({
       setPressValueStr((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
       setPressScope((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
     }
-
-    setPendingHoles((prev) => { const s = new Set(prev); s.delete(holeNumber); return s })
-    if (res.error) { setErrors((prev) => ({ ...prev, [holeNumber]: res.error! })); return }
     setSavedHoles((prev) => new Set([...prev, holeNumber]))
     // Ensure all banker bets are persisted (fill in defaults for players who didn't explicitly set a bet)
     if (isBanker) {

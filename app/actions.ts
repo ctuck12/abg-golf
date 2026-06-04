@@ -707,9 +707,15 @@ export async function saveDaytonaHoleValues(
       .in('hole_number', toDelete)
   }
   if (toUpsert.length > 0) {
-    const { error } = await supabase.from('daytona_hole_values').upsert(
-      toUpsert.map((e) => ({ round_id: roundId, team_id: teamId, hole_number: e.holeNumber, value_per_point: e.valuePerPoint })),
-      { onConflict: 'round_id,team_id,hole_number' }
+    // Delete existing rows then insert fresh — avoids needing a unique constraint for conflict resolution
+    const holeNums = toUpsert.map((e) => e.holeNumber)
+    await supabase.from('daytona_hole_values')
+      .delete()
+      .eq('round_id', roundId)
+      .eq('team_id', teamId)
+      .in('hole_number', holeNums)
+    const { error } = await supabase.from('daytona_hole_values').insert(
+      toUpsert.map((e) => ({ round_id: roundId, team_id: teamId, hole_number: e.holeNumber, value_per_point: e.valuePerPoint }))
     )
     if (error) return { error: error.message }
   }

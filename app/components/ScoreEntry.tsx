@@ -744,7 +744,7 @@ export default function ScoreEntry({
       }
     }
 
-    const [result] = await Promise.all([
+    const [result, , pressRes] = await Promise.all([
       submitHoleScores(team.id, holeNumber, playerScores),
       isDaytonaMode && roundId
         ? saveDaytonaAssignments(
@@ -755,13 +755,15 @@ export default function ScoreEntry({
         : Promise.resolve(),
       isDaytonaMode && roundId && pressEntries.length > 0
         ? saveDaytonaHoleValues(roundId, team.id, pressEntries)
-        : Promise.resolve(),
+        : Promise.resolve(null),
     ])
 
     setPendingHoles((p) => { const n = new Set(p); n.delete(holeNumber); return n })
 
     if (result.error) {
       setErrors((e) => ({ ...e, [holeNumber]: result.error! }))
+    } else if (pressRes && typeof pressRes === 'object' && 'error' in pressRes && pressRes.error) {
+      setErrors((e) => ({ ...e, [holeNumber]: `Press save failed: ${pressRes.error}` }))
     } else {
       // Commit press values to local state
       if (pressEntries.length > 0) {
