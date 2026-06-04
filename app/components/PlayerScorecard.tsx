@@ -414,27 +414,7 @@ export default function PlayerScorecard({
                       <td style={tdScore(true)}><span style={{ fontWeight: 700, color: ptsColor(backPoints) }}>{ptsStr(backPoints)}</span></td>
                       <td style={{ ...tdScore(), fontWeight: 700, color: ptsColor(totalPoints) }}>{ptsStr(totalPoints)}</td>
                     </tr>
-                    {(
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
-                        {[1,2,3,4,5,6,7,8,9].map((n) => {
-                          if (!holePointsMap.has(n)) return <td key={n} style={tdScore()}><span style={{ color: '#d1d5db' }}>–</span></td>
-                          const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
-                          const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
-                          return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
-                        })}
-                        <td style={tdScore(true)} />
-                        {[10,11,12,13,14,15,16,17,18].map((n) => {
-                          if (!holePointsMap.has(n)) return <td key={n} style={tdScore()}><span style={{ color: '#d1d5db' }}>–</span></td>
-                          const rate = pressedHoles[n] !== undefined ? pressedHoles[n] : dtPayoutValue
-                          const color = pressedHoles[n] !== undefined ? pressColor(pressedHoles[n]) : '#9ca3af'
-                          return <td key={n} style={tdScore()}><span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span></td>
-                        })}
-                        <td style={tdScore(true)} />
-                        <td style={tdScore()} />
-                      </tr>
-                    )}
-                    <tr>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
@@ -464,6 +444,22 @@ export default function PlayerScorecard({
                               : <span style={{ color: '#d1d5db' }}>–</span>}
                           </td>
                         )
+                      })}
+                      <td style={tdScore(true)} />
+                      <td style={tdScore()} />
+                    </tr>
+                    <tr>
+                      <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const pressRate = pressedHoles[n]
+                        const color = pressRate !== undefined ? pressColor(pressRate) : '#9ca3af'
+                        return <td key={n} style={tdScore()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(pressRate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                      })}
+                      <td style={tdScore(true)} />
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const pressRate = pressedHoles[n]
+                        const color = pressRate !== undefined ? pressColor(pressRate) : '#9ca3af'
+                        return <td key={n} style={tdScore()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(pressRate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                       })}
                       <td style={tdScore(true)} />
                       <td style={tdScore()} />

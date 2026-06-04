@@ -1379,28 +1379,7 @@ export default function LeaderboardClient({
                                 <td style={tdSc(true)}>{backPts === null ? <span style={{ color: '#d1d5db' }}>–</span> : <span style={{ position: 'relative', display: 'inline-block', fontWeight: 700, color: pColor(backPts) }}>{backPts !== 0 && <span style={{ position: 'absolute', right: '100%', paddingRight: '1px' }}>{backPts > 0 ? '+' : '-'}</span>}<span>{backPts === 0 ? '0' : String(Math.abs(backPts))}</span></span>}</td>
                                 <td style={tdSc()}>{totalPts === null ? <span style={{ color: '#d1d5db' }}>–</span> : <span style={{ position: 'relative', display: 'inline-block', fontWeight: 700, color: pColor(totalPts) }}>{totalPts !== 0 && <span style={{ position: 'absolute', right: '100%', paddingRight: '1px' }}>{totalPts > 0 ? '+' : '-'}</span>}<span>{totalPts === 0 ? '0' : String(Math.abs(totalPts))}</span></span>}</td>
                               </tr>
-                              {groupHasDaytona && (
-                                <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                  <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
-                                  {scFrontNine.map((h) => {
-                                    const scored = scoreMap[h.hole_number] != null
-                                    const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
-                                    const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
-                                    const rateStr = rate % 1 === 0 ? `$${rate}` : `$${rate.toFixed(2).replace(/^0/, '')}`
-                                    return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{rateStr}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                                  })}
-                                  <td style={tdSc(true)} />
-                                  {scBackNine.map((h) => {
-                                    const scored = scoreMap[h.hole_number] != null
-                                    const rate = teamHoleVals[h.hole_number] !== undefined ? teamHoleVals[h.hole_number] : groupBaseRate
-                                    const color = teamHoleVals[h.hole_number] !== undefined ? pressColor(teamHoleVals[h.hole_number]) : '#9ca3af'
-                                    const rateStr = rate % 1 === 0 ? `$${rate}` : `$${rate.toFixed(2).replace(/^0/, '')}`
-                                    return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{rateStr}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                                  })}
-                                  <td style={tdSc(true)} /><td style={tdSc()} />
-                                </tr>
-                              )}
-                              <tr>
+                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                                 <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                                 {scFrontNine.map((h) => {
                                   const a = assignments.find((a) => a.player_id === row.player.id && a.hole_number === h.hole_number)
@@ -1419,6 +1398,25 @@ export default function LeaderboardClient({
                                 })}
                                 <td style={tdSc(true)} /><td style={tdSc()} />
                               </tr>
+                              {groupHasDaytona && (
+                                <tr>
+                                  <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
+                                  {scFrontNine.map((h) => {
+                                    const pressRate = teamHoleVals[h.hole_number]
+                                    const color = pressRate !== undefined ? pressColor(pressRate) : '#9ca3af'
+                                    const rateStr = pressRate !== undefined ? (pressRate % 1 === 0 ? `$${pressRate}` : `$${pressRate.toFixed(2).replace(/^0/, '')}`) : null
+                                    return <td key={h.hole_number} style={tdSc()}>{rateStr !== null ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{rateStr}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                  })}
+                                  <td style={tdSc(true)} />
+                                  {scBackNine.map((h) => {
+                                    const pressRate = teamHoleVals[h.hole_number]
+                                    const color = pressRate !== undefined ? pressColor(pressRate) : '#9ca3af'
+                                    const rateStr = pressRate !== undefined ? (pressRate % 1 === 0 ? `$${pressRate}` : `$${pressRate.toFixed(2).replace(/^0/, '')}`) : null
+                                    return <td key={h.hole_number} style={tdSc()}>{rateStr !== null ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{rateStr}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                                  })}
+                                  <td style={tdSc(true)} /><td style={tdSc()} />
+                                </tr>
+                              )}
                             </>}
                           </tbody>
                         </table>

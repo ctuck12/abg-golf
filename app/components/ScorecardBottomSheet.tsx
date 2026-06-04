@@ -297,23 +297,6 @@ export default function ScorecardBottomSheet({
                           <td style={tdSc()}>{renderPts(totalPoints, 700, ptsColor(totalPoints))}</td>
                         </tr>
                         <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                          <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
-                          {frontNine.map((h) => {
-                            const scored = scoreMap[h.hole_number] != null
-                            const rate = holeValues[h.hole_number] !== undefined ? holeValues[h.hole_number] : dtPayoutValue
-                            const color = holeValues[h.hole_number] !== undefined ? pressColor(holeValues[h.hole_number]) : '#9ca3af'
-                            return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                          })}
-                          <td style={tdSc(true)} />
-                          {backNine.map((h) => {
-                            const scored = scoreMap[h.hole_number] != null
-                            const rate = holeValues[h.hole_number] !== undefined ? holeValues[h.hole_number] : dtPayoutValue
-                            const color = holeValues[h.hole_number] !== undefined ? pressColor(holeValues[h.hole_number]) : '#9ca3af'
-                            return <td key={h.hole_number} style={tdSc()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                          })}
-                          <td style={tdSc(true)} /><td style={tdSc()} />
-                        </tr>
-                        <tr>
                           <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                           {frontNine.map((h) => {
                             const side = assignments[h.hole_number]?.[player.id] ?? null
@@ -339,6 +322,21 @@ export default function ScorecardBottomSheet({
                                   : <span style={{ color: '#d1d5db' }}>–</span>}
                               </td>
                             )
+                          })}
+                          <td style={tdSc(true)} /><td style={tdSc()} />
+                        </tr>
+                        <tr>
+                          <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
+                          {frontNine.map((h) => {
+                            const pressRate = holeValues[h.hole_number]
+                            const color = pressRate !== undefined ? pressColor(pressRate) : '#9ca3af'
+                            return <td key={h.hole_number} style={tdSc()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(pressRate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                          })}
+                          <td style={tdSc(true)} />
+                          {backNine.map((h) => {
+                            const pressRate = holeValues[h.hole_number]
+                            const color = pressRate !== undefined ? pressColor(pressRate) : '#9ca3af'
+                            return <td key={h.hole_number} style={tdSc()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(pressRate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                           })}
                           <td style={tdSc(true)} /><td style={tdSc()} />
                         </tr>

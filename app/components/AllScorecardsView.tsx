@@ -383,32 +383,8 @@ export default function AllScorecardsView({
                             <td style={tdCell(true)}>{renderPts(backPoints, 700, ptsColor(backPoints))}</td>
                             <td style={tdCell()}>{renderPts(totalPoints, 700, ptsColor(totalPoints))}</td>
                           </tr>
-                          {(
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
-                              {[1,2,3,4,5,6,7,8,9].map((n) => {
-                                const scored = scoreMap[n] != null
-                                const rate = teamVals[n] !== undefined ? teamVals[n] : dtPayoutValue
-                                const color = teamVals[n] !== undefined ? pressColor(teamVals[n]) : '#9ca3af'
-                                return <td key={n} style={tdCell()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                              })}
-                              <td style={tdCell(true)} />
-                              {[10,11,12,13,14,15,16,17,18].map((n) => {
-                                const scored = scoreMap[n] != null
-                                const rate = teamVals[n] !== undefined ? teamVals[n] : dtPayoutValue
-                                const color = teamVals[n] !== undefined ? pressColor(teamVals[n]) : '#9ca3af'
-                                return <td key={n} style={tdCell()}>{scored ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(rate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                              })}
-                              <td style={tdCell(true)} />
-                              <td style={tdCell()} />
-                            </tr>
-                          )}
-                        </>
-                      )
-                    })()}
-                    {/* TEAM */}
-                    <tr>
-                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
+                          <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null
@@ -438,8 +414,31 @@ export default function AllScorecardsView({
                           </td>
                         )
                       })}
+                      <td style={tdCell(true)} /><td style={tdCell()} />
+                    </tr>
+                        </>
+                      )
+                    })()}
+                    <tr>
+                      <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PRESS</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const teamVals2 = player.teamId ? teamHoleValues[player.teamId] ?? {} : {}
+                        const pressRate = teamVals2[n]
+                        const sortedRates2 = [...new Set(Object.values(teamVals2))].sort((a, b) => a - b)
+                        const pressCol2 = (val: number) => PRESS_COLORS[sortedRates2.indexOf(val) % PRESS_COLORS.length]
+                        const color = pressRate !== undefined ? pressCol2(pressRate) : '#9ca3af'
+                        return <td key={n} style={tdCell()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(pressRate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                      })}
                       <td style={tdCell(true)} />
-                      <td style={tdCell()} />
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const teamVals2 = player.teamId ? teamHoleValues[player.teamId] ?? {} : {}
+                        const pressRate = teamVals2[n]
+                        const sortedRates2 = [...new Set(Object.values(teamVals2))].sort((a, b) => a - b)
+                        const pressCol2 = (val: number) => PRESS_COLORS[sortedRates2.indexOf(val) % PRESS_COLORS.length]
+                        const color = pressRate !== undefined ? pressCol2(pressRate) : '#9ca3af'
+                        return <td key={n} style={tdCell()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color }}>{fmtAmt(pressRate)}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
+                      })}
+                      <td style={tdCell(true)} /><td style={tdCell()} />
                     </tr>
                   </tbody>
                 </table>
