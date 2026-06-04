@@ -31,7 +31,6 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const { orgId, isAdmin, isMaster } = auth
 
   const hasGroupSession = cookieStore.getAll().some((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
-  if (isAdmin && !hasGroupSession) redirect(`/${orgSlug}/admin/dashboard`)
 
   const { data: round } = await sb
     .from('rounds')
@@ -39,6 +38,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     .eq('is_active', true)
     .eq('org_id', orgId)
     .single()
+
+  if (isAdmin && !hasGroupSession && !round?.is_started) redirect(`/${orgSlug}/admin/dashboard`)
 
   const { data: teamsRaw } = round
     ? await sb.from('teams').select('id, name, daytona_variant').eq('round_id', round.id).order('name')
