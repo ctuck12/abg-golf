@@ -768,7 +768,7 @@ export default function LeaderboardClient({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
-      {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} isGroup={isDaytona || isTraditional} orgSlug={orgSlug} onBeforeNavigate={scorecardTeamId ? logoutCurrentTeam : undefined} />}
+      {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} isGroup={isDaytona || isTraditional} orgSlug={orgSlug} onBeforeNavigate={scorecardTeamId ? logoutCurrentTeam : undefined} playingGroups={isMixedGroups ? (playingGroups ?? []) : undefined} />}
 
       {showOptions && (
         <div
