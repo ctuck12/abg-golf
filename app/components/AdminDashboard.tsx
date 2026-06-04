@@ -693,6 +693,7 @@ export default function AdminDashboard({
   const [expandedGroupAssign, setExpandedGroupAssign] = useState<string | null>(null)
   const [groupAssignSearch, setGroupAssignSearch] = useState('')
   const [manualGroupName, setManualGroupName] = useState('')
+  const [manualGroupHandicap, setManualGroupHandicap] = useState('')
   const [manualGroupPending, setManualGroupPending] = useState(false)
   const [liveManualPlayers, setLiveManualPlayers] = useState<Player[]>([])
   const [expandedGroupSideGame, setExpandedGroupSideGame] = useState<string | null>(null)
@@ -2390,17 +2391,27 @@ export default function AdminDashboard({
                                       onKeyDown={async e => {
                                         if (e.key === 'Enter' && manualGroupName.trim()) {
                                           setManualGroupPending(true)
-                                          const res = await addManualPlayerToGroup(g.id, manualGroupName.trim())
+                                          const hcp = manualGroupHandicap.trim() !== '' ? parseFloat(manualGroupHandicap) : null
+                                          const res = await addManualPlayerToGroup(g.id, manualGroupName.trim(), isNaN(hcp as number) ? null : hcp)
                                           setManualGroupPending(false)
                                           if (!res.error && res.id) {
-                                            const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false }
+                                            const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false, handicap: isNaN(hcp as number) ? null : hcp }
                                             setLiveManualPlayers(prev => [...prev, newP])
                                             setLiveGroupPlayers(prev => [...prev, { playing_group_id: g.id, player_id: res.id! }])
                                             setManualGroupName('')
+                                            setManualGroupHandicap('')
                                           }
                                         }
                                       }}
                                       className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
+                                    />
+                                    <input
+                                      type="number"
+                                      placeholder="HCP"
+                                      value={manualGroupHandicap}
+                                      onChange={e => setManualGroupHandicap(e.target.value)}
+                                      step="0.1"
+                                      className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none text-center"
                                     />
                                     <button
                                       type="button"
@@ -2408,13 +2419,15 @@ export default function AdminDashboard({
                                       onClick={async () => {
                                         if (!manualGroupName.trim()) return
                                         setManualGroupPending(true)
-                                        const res = await addManualPlayerToGroup(g.id, manualGroupName.trim())
+                                        const hcp = manualGroupHandicap.trim() !== '' ? parseFloat(manualGroupHandicap) : null
+                                        const res = await addManualPlayerToGroup(g.id, manualGroupName.trim(), isNaN(hcp as number) ? null : hcp)
                                         setManualGroupPending(false)
                                         if (!res.error && res.id) {
-                                          const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false }
+                                          const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false, handicap: isNaN(hcp as number) ? null : hcp }
                                           setLiveManualPlayers(prev => [...prev, newP])
                                           setLiveGroupPlayers(prev => [...prev, { playing_group_id: g.id, player_id: res.id! }])
                                           setManualGroupName('')
+                                          setManualGroupHandicap('')
                                         }
                                       }}
                                       className="px-3 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition"
@@ -2425,14 +2438,14 @@ export default function AdminDashboard({
                                 </div>
 
                                 <button type="button"
-                                  onClick={() => { setExpandedGroupAssign(null); setGroupAssignSearch(''); setManualGroupName('') }}
+                                  onClick={() => { setExpandedGroupAssign(null); setGroupAssignSearch(''); setManualGroupName(''); setManualGroupHandicap('') }}
                                   className="text-xs text-gray-400 hover:text-gray-600">
                                   Done
                                 </button>
                               </div>
                             ) : (
                               <button type="button"
-                                onClick={() => { setExpandedGroupAssign(g.id); setGroupAssignSearch(''); setManualGroupName('') }}
+                                onClick={() => { setExpandedGroupAssign(g.id); setGroupAssignSearch(''); setManualGroupName(''); setManualGroupHandicap('') }}
                                 className="text-xs text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 font-medium transition">
                                 + Add Player
                               </button>

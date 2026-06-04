@@ -439,11 +439,11 @@ export async function toggleMixedGroups(roundId: string, value: boolean) {
   return { success: true }
 }
 
-export async function addManualPlayerToGroup(groupId: string, name: string) {
+export async function addManualPlayerToGroup(groupId: string, name: string, handicap?: number | null) {
   const supabase = createServerClient()
   const { data: player, error: pe } = await supabase
     .from('players')
-    .insert({ name, position: null, skins_participant: false })
+    .insert({ name, position: null, skins_participant: false, handicap: handicap ?? null })
     .select('id')
     .single()
   if (pe) return { error: pe.message }
