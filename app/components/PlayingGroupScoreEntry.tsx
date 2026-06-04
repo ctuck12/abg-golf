@@ -677,7 +677,7 @@ export default function PlayingGroupScoreEntry({
               className="bg-white rounded-xl border overflow-hidden"
               style={{ borderColor: isSaved ? gold : '#e5e7eb' }}>
               <button type="button"
-                className={`w-full flex items-center px-4 py-3 gap-3 text-left${isLocked ? ' cursor-not-allowed opacity-50' : ''}`}
+                className={`w-full flex items-center px-3 py-2.5 gap-2 text-left${isLocked ? ' cursor-not-allowed opacity-50' : ''}`}
                 onClick={() => expandHole(hole.hole_number)}>
                 <div className="w-8 text-center flex-shrink-0">
                   <p className="text-xs text-gray-400">Hole</p>
@@ -705,7 +705,7 @@ export default function PlayingGroupScoreEntry({
                 )}
                 <div className="flex-1" />
                 {isSaved && (
-                  <div className="flex items-center gap-3 mr-2">
+                  <div className="flex items-center gap-1.5 mr-1">
                     {isDaytonaMode ? (
                       <>
                         {is5Man && savedLeftPairDts.length === 3 ? (
@@ -759,9 +759,9 @@ export default function PlayingGroupScoreEntry({
                       return players.map((p) => {
                         const amt = p.id === bankerId ? bankerTotal : (playerAmts[p.id] ?? 0)
                         return (
-                          <div key={p.id} className="text-center">
-                            <p className="text-[10px] text-gray-400">{p.name.split(' ')[0]}</p>
-                            <p className="text-xs font-semibold" style={{ color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
+                          <div key={p.id} className="text-center flex-shrink-0" style={{ minWidth: '2rem' }}>
+                            <p className="text-[9px] text-gray-400 leading-tight">{p.name.split(' ')[0]}</p>
+                            <p className="text-[10px] font-semibold leading-tight" style={{ color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
                               {amt > 0 ? `+$${Math.round(amt)}` : amt < 0 ? `-$${Math.round(Math.abs(amt))}` : 'E'}
                             </p>
                           </div>
@@ -772,9 +772,9 @@ export default function PlayingGroupScoreEntry({
                         const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
                         const rel = sc ? sc.strokes - hole.par : null
                         return (
-                          <div key={p.id} className="text-center">
-                            <p className="text-[10px] text-gray-400">{p.name.split(' ')[0]}</p>
-                            <p className="text-xs font-semibold" style={{ color: rel == null ? '#9ca3af' : rel < 0 ? '#16a34a' : rel > 0 ? '#dc2626' : '#374151' }}>
+                          <div key={p.id} className="text-center flex-shrink-0" style={{ minWidth: '2rem' }}>
+                            <p className="text-[9px] text-gray-400 leading-tight">{p.name.split(' ')[0]}</p>
+                            <p className="text-[10px] font-semibold leading-tight" style={{ color: rel == null ? '#9ca3af' : rel < 0 ? '#16a34a' : rel > 0 ? '#dc2626' : '#374151' }}>
                               {rel == null ? '–' : rel > 0 ? `+${rel}` : rel === 0 ? 'E' : rel}
                             </p>
                           </div>
@@ -803,9 +803,9 @@ export default function PlayingGroupScoreEntry({
                       ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
                       : null
                     return (
-                      <div className="bg-blue-50 rounded-xl p-3 space-y-3 border border-blue-100">
+                      <div className="bg-blue-50 rounded-xl p-2 space-y-2 border border-blue-100">
                         <div>
-                          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
+                          <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-1">
                             Select Banker{isLastTwo ? ' (auto: most down)' : ''}
                           </p>
                           <div className="flex flex-wrap gap-1.5">
@@ -829,46 +829,46 @@ export default function PlayingGroupScoreEntry({
                         </div>
                         {hd.bankerPlayerId && (
                           <div>
-                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
-                              Banker Sets Max Bet (min ${bankerMinBet})
+                            <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                              Max Bet (min ${bankerMinBet})
                             </p>
                             <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-500">$</span>
+                              <span className="text-xs text-gray-500">$</span>
                               <input type="number" value={hd.maxBet} min={bankerMinBet} step="1"
                                 onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.round(parseFloat(e.target.value) || bankerMinBet))}
-                                className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
-                              <span className="text-xs text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
+                                className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none" />
+                              <span className="text-[11px] text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
                             </div>
                           </div>
                         )}
                         {hd.bankerPlayerId && (
                           <div>
-                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Player Bets</p>
-                            <div className="space-y-2">
+                            <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-1">Player Bets</p>
+                            <div className="space-y-1.5">
                               {players.filter((p) => p.id !== hd.bankerPlayerId).map((p) => {
                                 const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
                                 const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
                                 return (
-                                  <div key={p.id} className="bg-white rounded-lg p-2 border border-gray-100">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
+                                  <div key={p.id} className="bg-white rounded-lg px-2 py-1.5 border border-gray-100">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-medium text-gray-700 flex-1">{p.name}</span>
                                       <div className="flex items-center gap-1">
-                                        <span className="text-xs text-gray-500">$</span>
+                                        <span className="text-[11px] text-gray-500">$</span>
                                         <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="1"
                                           onChange={(e) => {
                                             const v = Math.min(Math.max(Math.round(parseFloat(e.target.value) || bankerMinBet), bankerMinBet), hd.maxBet)
                                             handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
                                           }}
-                                          className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
+                                          className="w-12 border border-gray-300 rounded px-1.5 py-0.5 text-sm focus:outline-none" />
                                       </div>
                                       <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
-                                        className={`text-xs px-2 py-1 rounded border font-semibold transition ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
+                                        className={`text-[11px] px-1.5 py-0.5 rounded border font-semibold transition ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
                                         {pb.playerDoubled ? '2× ✓' : '2×'}
                                       </button>
                                     </div>
                                     {(pb.playerDoubled || pb.bankerDoubled) && (
-                                      <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                                      <p className="text-[10px] text-amber-700 font-semibold mt-0.5">
                                         {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${Math.round(effective)}
                                       </p>
                                     )}
@@ -891,7 +891,7 @@ export default function PlayingGroupScoreEntry({
                         )}
                         {hd.bankerPlayerId && Object.keys(bets).length > 0 && (
                           <div>
-                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Projected Result (saved scores)</p>
+                            <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-1">Projected Result (saved scores)</p>
                             {isSaved && (() => {
                               const bankerId = hd.bankerPlayerId!
                               const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
