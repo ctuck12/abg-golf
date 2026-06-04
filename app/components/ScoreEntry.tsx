@@ -464,11 +464,11 @@ export default function ScoreEntry({
     if (!hole?.stroke_index) return []
     const allHandicaps = Object.values(allRoundPlayerHandicaps).filter((h): h is number => h != null)
     if (allHandicaps.length === 0) return []
-    const minHcp = Math.min(...allHandicaps)
+    const minHcp = Math.min(...allHandicaps.map((h) => Math.trunc(h)))
     return players.filter((p) => {
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const strokes = Math.floor(hcp - minHcp)
+      const strokes = Math.trunc(hcp) - minHcp
       return strokes > 0 && hole.stroke_index! <= strokes
     }).map((p) => p.id)
   }
@@ -478,13 +478,14 @@ export default function ScoreEntry({
     if (!hole?.stroke_index) return []
     const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
     if (!bankerPlayerId) return []
-    const bankerHcp = allRoundPlayerHandicaps[bankerPlayerId] ?? null
-    if (bankerHcp == null) return []
+    const bankerHcpRaw = allRoundPlayerHandicaps[bankerPlayerId] ?? null
+    if (bankerHcpRaw == null) return []
+    const bankerHcp = Math.trunc(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const diff = Math.floor(hcp - bankerHcp)
+      const diff = Math.trunc(hcp) - bankerHcp
       return diff > 0 && hole.stroke_index! <= diff
     }).map((p) => p.id)
   }
