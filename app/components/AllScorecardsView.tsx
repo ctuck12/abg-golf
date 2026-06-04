@@ -73,6 +73,8 @@ export default function AllScorecardsView({
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [assignments, setAssignments] = useState(initialAssignments)
   const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
+  const [hcpVisible, setHcpVisible] = useState<Set<string>>(new Set())
+  const toggleHcp = (id: string) => setHcpVisible((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
 
   async function handleSignOut() {
     await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
@@ -283,6 +285,7 @@ export default function AllScorecardsView({
                     HCP {player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}
                   </span>
                 )}
+                <button onClick={() => toggleHcp(player.id)} className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
                 <span className="flex-1" />
                 <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                   <span>Front: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
@@ -319,20 +322,22 @@ export default function AllScorecardsView({
                     </tr>
                   </thead>
                   <tbody>
-                    {/* HCP */}
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
-                      {[1,2,3,4,5,6,7,8,9].map((n) => {
-                        const hole = holes.find((h) => h.hole_number === n)
-                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
-                      })}
-                      <td style={tdPar(true)} />
-                      {[10,11,12,13,14,15,16,17,18].map((n) => {
-                        const hole = holes.find((h) => h.hole_number === n)
-                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
-                      })}
-                      <td style={tdPar(true)} /><td style={tdPar()} />
-                    </tr>
+                    {/* HCP — hidden by default, toggled per player */}
+                    {hcpVisible.has(player.id) && (
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                        {[1,2,3,4,5,6,7,8,9].map((n) => {
+                          const hole = holes.find((h) => h.hole_number === n)
+                          return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
+                        })}
+                        <td style={tdPar(true)} />
+                        {[10,11,12,13,14,15,16,17,18].map((n) => {
+                          const hole = holes.find((h) => h.hole_number === n)
+                          return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
+                        })}
+                        <td style={tdPar(true)} /><td style={tdPar()} />
+                      </tr>
+                    )}
                     {/* PAR */}
                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>

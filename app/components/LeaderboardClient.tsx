@@ -362,6 +362,8 @@ export default function LeaderboardClient({
   const [showAllScorecards, setShowAllScorecards] = useState(false)
   const [allScorecardsGroupId, setAllScorecardsGroupId] = useState<string | null>(null)
   const [allScorecardsFilter, setAllScorecardsFilter] = useState<'all' | 'skins'>('all')
+  const [hcpVisible, setHcpVisible] = useState<Set<string>>(new Set())
+  const toggleHcp = (id: string) => setHcpVisible((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showMatchupResults, setShowMatchupResults] = useState(false)
   const [showSkinsResults, setShowSkinsResults] = useState(false)
@@ -1332,6 +1334,7 @@ export default function LeaderboardClient({
                             HCP {row.player.handicap < 0 ? `+${Math.abs(row.player.handicap)}` : row.player.handicap}
                           </span>
                         )}
+                        <button onClick={(e) => { e.stopPropagation(); toggleHcp(row.player.id) }} className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
                         <span className="flex-1" />
                         <div className="flex items-center gap-3 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                           <span>Front: <span style={{ color: vpC(frontVspar) }}>{fmtV(frontVspar)}</span></span>
@@ -1366,14 +1369,16 @@ export default function LeaderboardClient({
                             </tr>
                           </thead>
                           <tbody>
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
-                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                              {scFrontNine.length > 0 && <td style={tdPar(true)} />}
-                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                              {scBackNine.length > 0 && <td style={tdPar(true)} />}
-                              <td style={tdPar()} />
-                            </tr>
+                            {hcpVisible.has(row.player.id) && (
+                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                                {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                                {scFrontNine.length > 0 && <td style={tdPar(true)} />}
+                                {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                                {scBackNine.length > 0 && <td style={tdPar(true)} />}
+                                <td style={tdPar()} />
+                              </tr>
+                            )}
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                               <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
                               {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}

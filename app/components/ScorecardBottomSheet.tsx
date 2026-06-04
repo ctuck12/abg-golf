@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ScoreNotation } from './ScoreNotation'
 import {
   computeHoleDaytonaWithSides,
@@ -84,6 +85,9 @@ export default function ScorecardBottomSheet({
   is5Man?: boolean
   isFlares?: boolean
 }) {
+  const [hcpVisible, setHcpVisible] = useState<Set<string>>(new Set())
+  const toggleHcp = (id: string) => setHcpVisible((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+
   const frontNine = holes.filter((h) => h.hole_number <= 9)
   const backNine = holes.filter((h) => h.hole_number > 9)
   const frontPar = frontNine.reduce((s, h) => s + h.par, 0)
@@ -212,6 +216,7 @@ export default function ScorecardBottomSheet({
                       HCP {player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}
                     </span>
                   )}
+                  <button onClick={() => toggleHcp(player.id)} className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
                   <span className="flex-1" />
                   <div className="flex items-center gap-3 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                     <span>Front: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
@@ -246,15 +251,17 @@ export default function ScorecardBottomSheet({
                       </tr>
                     </thead>
                     <tbody>
-                      {/* HCP */}
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
-                        {frontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                        {frontNine.length > 0 && <td style={tdPar(true)} />}
-                        {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
-                        {backNine.length > 0 && <td style={tdPar(true)} />}
-                        <td style={tdPar()} />
-                      </tr>
+                      {/* HCP — hidden by default, toggled per player */}
+                      {hcpVisible.has(player.id) && (
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                          {frontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                          {frontNine.length > 0 && <td style={tdPar(true)} />}
+                          {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
+                          {backNine.length > 0 && <td style={tdPar(true)} />}
+                          <td style={tdPar()} />
+                        </tr>
+                      )}
                       {/* PAR */}
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
