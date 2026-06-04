@@ -698,11 +698,42 @@ export default function PlayingGroupScoreEntry({
                     ↑${holeValues[hole.hole_number]}
                   </span>
                 )}
-                {isBanker && bankerHoles[hole.hole_number]?.bankerPlayerId && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
-                    🏦 {players.find((p) => p.id === bankerHoles[hole.hole_number].bankerPlayerId)?.name.split(' ')[0] ?? 'Banker'}
-                  </span>
-                )}
+                {isBanker && bankerHoles[hole.hole_number]?.bankerPlayerId && (() => {
+                  const bankerId = bankerHoles[hole.hole_number].bankerPlayerId!
+                  const bankerName = players.find((p) => p.id === bankerId)?.name.split(' ')[0] ?? 'Banker'
+                  let bankerResult: number | null = null
+                  if (isSaved) {
+                    const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
+                    if (bankerNet !== undefined) {
+                      const hBets = bankerBets[hole.hole_number] ?? {}
+                      let tot = 0
+                      for (const p of players) {
+                        if (p.id === bankerId) continue
+                        const pNet = netSavedGlobal(p.id, hole.hole_number)
+                        if (pNet === undefined) continue
+                        const bet = hBets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+                        const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
+                        let res = 0
+                        if (pNet < bankerNet) res = eff * bankerMultiplier(pNet, hole.par)
+                        else if (pNet > bankerNet) res = -eff * bankerMultiplier(bankerNet, hole.par)
+                        tot -= res
+                      }
+                      bankerResult = tot
+                    }
+                  }
+                  return (
+                    <div className="flex flex-col items-center flex-shrink-0">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+                        🏦 {bankerName}
+                      </span>
+                      {bankerResult !== null && (
+                        <span className="text-[10px] font-semibold leading-tight" style={{ color: bankerResult > 0 ? '#16a34a' : bankerResult < 0 ? '#dc2626' : '#6b7280' }}>
+                          {bankerResult > 0 ? `+$${Math.round(bankerResult)}` : bankerResult < 0 ? `-$${Math.round(Math.abs(bankerResult))}` : 'E'}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
                 <div className="flex-1" />
                 {isSaved && (
                   <div className="flex items-center gap-1.5 mr-1">
@@ -756,12 +787,12 @@ export default function PlayingGroupScoreEntry({
                         playerAmts[p.id] = result
                         bankerTotal -= result
                       }
-                      return players.map((p) => {
-                        const amt = p.id === bankerId ? bankerTotal : (playerAmts[p.id] ?? 0)
+                      return players.filter((p) => p.id !== bankerId).map((p) => {
+                        const amt = playerAmts[p.id] ?? 0
                         return (
-                          <div key={p.id} className="text-center flex-shrink-0" style={{ minWidth: '2rem' }}>
-                            <p className="text-[9px] text-gray-400 leading-tight">{p.name.split(' ')[0]}</p>
-                            <p className="text-[10px] font-semibold leading-tight" style={{ color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
+                          <div key={p.id} className="text-center flex-shrink-0">
+                            <p className="leading-tight text-gray-400" style={{ fontSize: 'clamp(8px, 2.2vw, 10px)' }}>{p.name.split(' ')[0]}</p>
+                            <p className="font-semibold leading-tight" style={{ fontSize: 'clamp(9px, 2.4vw, 11px)', color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
                               {amt > 0 ? `+$${Math.round(amt)}` : amt < 0 ? `-$${Math.round(Math.abs(amt))}` : 'E'}
                             </p>
                           </div>
@@ -772,9 +803,9 @@ export default function PlayingGroupScoreEntry({
                         const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
                         const rel = sc ? sc.strokes - hole.par : null
                         return (
-                          <div key={p.id} className="text-center flex-shrink-0" style={{ minWidth: '2rem' }}>
-                            <p className="text-[9px] text-gray-400 leading-tight">{p.name.split(' ')[0]}</p>
-                            <p className="text-[10px] font-semibold leading-tight" style={{ color: rel == null ? '#9ca3af' : rel < 0 ? '#16a34a' : rel > 0 ? '#dc2626' : '#374151' }}>
+                          <div key={p.id} className="text-center flex-shrink-0">
+                            <p className="leading-tight text-gray-400" style={{ fontSize: 'clamp(8px, 2.2vw, 10px)' }}>{p.name.split(' ')[0]}</p>
+                            <p className="font-semibold leading-tight" style={{ fontSize: 'clamp(9px, 2.4vw, 11px)', color: rel == null ? '#9ca3af' : rel < 0 ? '#16a34a' : rel > 0 ? '#dc2626' : '#374151' }}>
                               {rel == null ? '–' : rel > 0 ? `+${rel}` : rel === 0 ? 'E' : rel}
                             </p>
                           </div>
