@@ -2028,13 +2028,13 @@ export default function LeaderboardClient({
                       <span className="text-sm font-bold text-white flex-1 flex items-center gap-1.5">
                         {group.name}
                         {group.hasDaytona && (
-                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
                             {group.daytona_variant?.startsWith('5man-flares') ? 'Flares' : 'Daytona'}
                           </span>
                         )}
                         {group.hasBanker && (
-                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                            Banker · ${(playingGroups ?? []).find((g) => g.id === group.id)?.banker_side_game_min_bet ?? 2} min. bet
+                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                            Banker
                           </span>
                         )}
                       </span>
