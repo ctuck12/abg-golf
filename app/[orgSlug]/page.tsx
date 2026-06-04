@@ -89,7 +89,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       ? sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id)
       : Promise.resolve({ data: [] }),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
-    isMixedGroups ? sb.from('playing_groups').select('id, name, daytona_variant, banker_side_game').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null }[] }),
+    isMixedGroups ? sb.from('playing_groups').select('id, name, daytona_variant, banker_side_game, banker_side_game_min_bet').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null; banker_side_game_min_bet?: number | null }[] }),
     isMixedGroups ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', (await sb.from('playing_groups').select('id').eq('round_id', round.id)).data?.map((g) => g.id) ?? []) : Promise.resolve({ data: [] as { playing_group_id: string; player_id: string }[] }),
     isMixedGroups ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id) : Promise.resolve({ data: [] as { hole_number: number; player_id: string }[] }),
   ])

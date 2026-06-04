@@ -337,7 +337,7 @@ export default function LeaderboardClient({
   scorecardTeamId?: string | null
   scorecardGroupId?: string | null
   isMixedGroups?: boolean
-  playingGroups?: { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null }[]
+  playingGroups?: { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null; banker_side_game_min_bet?: number | null }[]
   groupPlayerMap?: Record<string, string[]>
   groupHoleStrokes?: Record<number, string[]>
   bankerHolesMap?: Record<string, Record<number, { bankerPlayerId: string | null }>>
@@ -1329,6 +1329,49 @@ export default function LeaderboardClient({
           }
         }
         const teamHoleVals = allScorecardsGroupId ? (liveHoleValues[allScorecardsGroupId] ?? {}) : {}
+        const groupHasBanker = !!(activePlayingGroup as { banker_side_game?: boolean | null } | null)?.banker_side_game
+        const groupBankerMinBet = (activePlayingGroup as { banker_side_game_min_bet?: number | null } | null)?.banker_side_game_min_bet ?? 2
+        const groupBankerHoles = allScorecardsGroupId ? (liveBankerHoles[allScorecardsGroupId] ?? {}) : {}
+        const groupBankerBets = allScorecardsGroupId ? (liveBankerBets[allScorecardsGroupId] ?? {}) : {}
+        const allGroupPids = groupRows.map((r) => r.player.id)
+        const holeBankerAmtMap = new Map<number, Map<string, number>>()
+        const totalBankerAmtMap = new Map<string, number>()
+        if (groupHasBanker) {
+          for (const hole of [...scFrontNine, ...scBackNine]) {
+            const hd = groupBankerHoles[hole.hole_number]
+            if (!hd?.bankerPlayerId) continue
+            const bankerId = hd.bankerPlayerId
+            const strokeIds = liveHoleStrokes[hole.hole_number] ?? []
+            const netOf = (pid: string) => {
+              const gross = scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
+              return gross === undefined ? undefined : gross - (strokeIds.includes(pid) ? 1 : 0)
+            }
+            const bankerNet = netOf(bankerId)
+            if (bankerNet === undefined) continue
+            const holeAmts = new Map<string, number>()
+            let bankerTotal = 0
+            for (const pid of allGroupPids) {
+              if (pid === bankerId) continue
+              const pNet = netOf(pid)
+              if (pNet === undefined) continue
+              const bet = groupBankerBets[hole.hole_number]?.[pid] ?? { baseBet: groupBankerMinBet, playerDoubled: false, bankerDoubled: false }
+              const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
+              let result = 0
+              if (pNet < bankerNet) result = eff * lbBankerMultiplier(pNet, hole.par)
+              else if (pNet > bankerNet) result = -eff * lbBankerMultiplier(bankerNet, hole.par)
+              holeAmts.set(pid, result)
+              bankerTotal -= result
+            }
+            holeAmts.set(bankerId, bankerTotal)
+            holeBankerAmtMap.set(hole.hole_number, holeAmts)
+            for (const [pid, amt] of holeAmts) totalBankerAmtMap.set(pid, (totalBankerAmtMap.get(pid) ?? 0) + amt)
+          }
+        }
+        const fmtBkrAmt = (amt: number | null): React.ReactNode => {
+          if (amt === null) return <span style={{ color: '#d1d5db' }}>–</span>
+          if (amt === 0) return <span style={{ color: '#6b7280', fontSize: '0.65rem' }}>$0</span>
+          return <span style={{ fontWeight: 600, fontSize: '0.65rem', color: amt > 0 ? '#16a34a' : '#dc2626' }}>{amt > 0 ? `+$${Math.round(amt)}` : `-$${Math.round(Math.abs(amt))}`}</span>
+        }
         const groupPayoutStr = groupVariant?.includes('|') ? groupVariant.split('|')[1] : null
         const groupBaseRate = groupPayoutStr ? (parseFloat(groupPayoutStr) || 0) : dtPayoutValue
         const PRESS_COLORS = [gold, '#3b82f6', '#8b5cf6', '#ef4444', '#10b981']
@@ -1390,6 +1433,8 @@ export default function LeaderboardClient({
                       if (aTot !== bTot) return bTot - aTot
                       return a.player.name.localeCompare(b.player.name)
                     })
+                  : groupHasBanker && totalBankerAmtMap.size > 0
+                    ? [...filteredRows].sort((a, b) => (totalBankerAmtMap.get(b.player.id) ?? 0) - (totalBankerAmtMap.get(a.player.id) ?? 0))
                   : filteredRows
                 ).map((row, i) => {
                   const scoreMap = Object.fromEntries(scores.filter((s) => s.player_id === row.player.id).map((s) => [s.hole_number, s.strokes]))
@@ -1435,7 +1480,7 @@ export default function LeaderboardClient({
                             <tr>
                               <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                               {scFrontNine.map((h) => {
-                                const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
+                                const hasStroke = (groupHasDaytona || groupHasBanker) && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
                                 return (
                                   <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
                                     <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
@@ -1444,7 +1489,7 @@ export default function LeaderboardClient({
                               })}
                               {scFrontNine.length > 0 && <th style={{ ...thSt(true), minWidth: '2.8rem' }}>Out</th>}
                               {scBackNine.map((h) => {
-                                const hasStroke = groupHasDaytona && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
+                                const hasStroke = (groupHasDaytona || groupHasBanker) && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
                                 return (
                                   <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
                                     <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
@@ -1474,7 +1519,7 @@ export default function LeaderboardClient({
                               {scBackNine.length > 0 && <td style={tdPar(true)}>{scBackPar}</td>}
                               <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
                             </tr>
-                            <tr style={{ borderBottom: groupHasDaytona ? '1px solid #e5e7eb' : undefined }}>
+                            <tr style={{ borderBottom: (groupHasDaytona || groupHasBanker) ? '1px solid #e5e7eb' : undefined }}>
                               <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
                               {scFrontNine.map((h) => {
                                 const s = scoreMap[h.hole_number] ?? null
@@ -1488,6 +1533,40 @@ export default function LeaderboardClient({
                               {scBackNine.length > 0 && <td style={tdSc(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>}
                               <td style={{ ...tdSc(), fontWeight: 700, color: '#111827' }}>{thru > 0 ? totalStrokes : '–'}</td>
                             </tr>
+                            {groupHasBanker && <>
+                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
+                                {scFrontNine.map((h) => (
+                                  <td key={h.hole_number} style={tdSc()}>
+                                    {fmtBkrAmt(holeBankerAmtMap.has(h.hole_number) ? (holeBankerAmtMap.get(h.hole_number)!.get(row.player.id) ?? 0) : null)}
+                                  </td>
+                                ))}
+                                <td style={tdSc(true)}>{fmtBkrAmt((() => { const pl = scFrontNine.filter(h => holeBankerAmtMap.get(h.hole_number)?.has(row.player.id)); return pl.length > 0 ? pl.reduce((s, h) => s + (holeBankerAmtMap.get(h.hole_number)!.get(row.player.id) ?? 0), 0) : null })())}</td>
+                                {scBackNine.map((h) => (
+                                  <td key={h.hole_number} style={tdSc()}>
+                                    {fmtBkrAmt(holeBankerAmtMap.has(h.hole_number) ? (holeBankerAmtMap.get(h.hole_number)!.get(row.player.id) ?? 0) : null)}
+                                  </td>
+                                ))}
+                                {scBackNine.length > 0 && <td style={tdSc(true)}>{fmtBkrAmt((() => { const pl = scBackNine.filter(h => holeBankerAmtMap.get(h.hole_number)?.has(row.player.id)); return pl.length > 0 ? pl.reduce((s, h) => s + (holeBankerAmtMap.get(h.hole_number)!.get(row.player.id) ?? 0), 0) : null })())}</td>}
+                                <td style={tdSc()}>{fmtBkrAmt(totalBankerAmtMap.has(row.player.id) ? totalBankerAmtMap.get(row.player.id)! : null)}</td>
+                              </tr>
+                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>BKR</td>
+                                {scFrontNine.map((h) => (
+                                  <td key={h.hole_number} style={tdSc()}>
+                                    {groupBankerHoles[h.hole_number]?.bankerPlayerId === row.player.id ? <span style={{ fontSize: '0.75rem' }}>🏦</span> : <span style={{ color: '#d1d5db' }}>–</span>}
+                                  </td>
+                                ))}
+                                <td style={tdSc(true)} />
+                                {scBackNine.map((h) => (
+                                  <td key={h.hole_number} style={tdSc()}>
+                                    {groupBankerHoles[h.hole_number]?.bankerPlayerId === row.player.id ? <span style={{ fontSize: '0.75rem' }}>🏦</span> : <span style={{ color: '#d1d5db' }}>–</span>}
+                                  </td>
+                                ))}
+                                {scBackNine.length > 0 && <td style={tdSc(true)} />}
+                                <td style={tdSc()} />
+                              </tr>
+                            </>}
                             {groupHasDaytona && <>
                               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                                 <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PTS</td>
@@ -1951,7 +2030,9 @@ export default function LeaderboardClient({
                           </span>
                         )}
                         {group.hasBanker && (
-                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>Banker</span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                            Banker · ${(playingGroups ?? []).find((g) => g.id === group.id)?.banker_side_game_min_bet ?? 2} min. bet
+                          </span>
                         )}
                       </span>
                       {group.hasDaytona && (
