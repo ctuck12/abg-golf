@@ -3125,7 +3125,7 @@ export default function AdminDashboard({
                                   className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
                               )}
                             </div>
-                            {(isTraditional || isStandard) && !mixedGroups && (
+                            {!isDaytona && !mixedGroups && (
                               <div className="space-y-2">
                                 {/* Daytona Side Game — hidden when Banker is On */}
                                 {!editBankerEnabled && (
@@ -3263,6 +3263,7 @@ export default function AdminDashboard({
                                   const label = v === '5man-flares' ? 'Daytona 5-Man Flares' : v === '5man-normal' ? 'Daytona 5-Man Normal' : 'Daytona 4-Man'
                                   return <> · <span className="font-medium text-gray-700">{label}{p && p !== '0' ? ` · $${p}/pt` : ''}</span></>
                                 })()}
+                                {team.banker_side_game && <> · <span className="font-medium text-blue-700">Banker · ${team.banker_side_game_min_bet ?? 2} min.</span></>}
                                 {team.hammer_side_game && <> · <span className="font-medium text-orange-700">Hammer · {team.hammer_format === 'match' ? 'Match' : 'Stroke'} · ${team.hammer_base_bet ?? 1}/hole</span></>}
                                 {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
                               </p>
