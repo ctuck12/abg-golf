@@ -89,7 +89,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       ? sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id)
       : Promise.resolve({ data: [] }),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
-    isMixedGroups ? sb.from('playing_groups').select('id, name, daytona_variant').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string; daytona_variant?: string | null }[] }),
+    isMixedGroups ? sb.from('playing_groups').select('id, name, daytona_variant, banker_side_game').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null }[] }),
     isMixedGroups ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', (await sb.from('playing_groups').select('id').eq('round_id', round.id)).data?.map((g) => g.id) ?? []) : Promise.resolve({ data: [] as { playing_group_id: string; player_id: string }[] }),
     isMixedGroups ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id) : Promise.resolve({ data: [] as { hole_number: number; player_id: string }[] }),
   ])
@@ -98,6 +98,30 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   for (const gp of (lbGroupPlayersRaw ?? []) as { playing_group_id: string; player_id: string }[]) {
     if (!lbGroupPlayerMap[gp.playing_group_id]) lbGroupPlayerMap[gp.playing_group_id] = []
     lbGroupPlayerMap[gp.playing_group_id].push(gp.player_id)
+  }
+
+  // Fetch banker data for groups that have banker side game enabled
+  const bankerGroupIds = (lbPlayingGroupsRaw ?? [])
+    .filter((g) => (g as { banker_side_game?: boolean | null }).banker_side_game)
+    .map((g) => g.id)
+  const [{ data: lbBankerHolesRaw }, { data: lbBankerBetsRaw }] = await Promise.all([
+    bankerGroupIds.length
+      ? sb.from('banker_holes').select('team_id, hole_number, banker_player_id').eq('round_id', round.id).in('team_id', bankerGroupIds)
+      : Promise.resolve({ data: [] as { team_id: string; hole_number: number; banker_player_id: string | null }[] }),
+    bankerGroupIds.length
+      ? sb.from('banker_bets').select('team_id, hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', round.id).in('team_id', bankerGroupIds)
+      : Promise.resolve({ data: [] as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[] }),
+  ])
+  const lbBankerHoles: Record<string, Record<number, { bankerPlayerId: string | null }>> = {}
+  for (const bh of (lbBankerHolesRaw ?? []) as { team_id: string; hole_number: number; banker_player_id: string | null }[]) {
+    if (!lbBankerHoles[bh.team_id]) lbBankerHoles[bh.team_id] = {}
+    lbBankerHoles[bh.team_id][bh.hole_number] = { bankerPlayerId: bh.banker_player_id }
+  }
+  const lbBankerBets: Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>> = {}
+  for (const bb of (lbBankerBetsRaw ?? []) as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
+    if (!lbBankerBets[bb.team_id]) lbBankerBets[bb.team_id] = {}
+    if (!lbBankerBets[bb.team_id][bb.hole_number]) lbBankerBets[bb.team_id][bb.hole_number] = {}
+    lbBankerBets[bb.team_id][bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled }
   }
 
   const lbHoleStrokeMap: Record<number, string[]> = {}
@@ -154,6 +178,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       playingGroups={lbPlayingGroupsRaw ?? []}
       groupPlayerMap={lbGroupPlayerMap}
       groupHoleStrokes={lbHoleStrokeMap}
+      bankerHolesMap={lbBankerHoles}
+      bankerBetsMap={lbBankerBets}
     />
   )
 }

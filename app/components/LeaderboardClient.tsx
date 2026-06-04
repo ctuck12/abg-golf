@@ -316,7 +316,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {},
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {},
 }: {
   orgSlug: string
   orgId: string
@@ -337,9 +337,11 @@ export default function LeaderboardClient({
   scorecardTeamId?: string | null
   scorecardGroupId?: string | null
   isMixedGroups?: boolean
-  playingGroups?: { id: string; name: string; daytona_variant?: string | null }[]
+  playingGroups?: { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null }[]
   groupPlayerMap?: Record<string, string[]>
   groupHoleStrokes?: Record<number, string[]>
+  bankerHolesMap?: Record<string, Record<number, { bankerPlayerId: string | null }>>
+  bankerBetsMap?: Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>
   isAdmin?: boolean
   roundId?: string
   initialAssignments?: DaytonaHoleAssignment[]
@@ -384,6 +386,13 @@ export default function LeaderboardClient({
   const isDaytona = format === 'daytona'
   const isTraditional = format === 'traditional'
   const [traditionalGroupView, setTraditionalGroupView] = useState<Record<string, 'score' | 'points'>>({})
+  const [groupBankerView, setGroupBankerView] = useState<Record<string, 'score' | 'dollars'>>({})
+
+  function lbBankerMultiplier(net: number, par: number): number {
+    if (net <= par - 2) return 3
+    if (net === par - 1) return 2
+    return 1
+  }
 
 
   function handleChangeTeam() {
@@ -677,7 +686,35 @@ export default function LeaderboardClient({
             for (const id of assignedIds) { if (!ptsMap.has(id)) ptsMap.set(id, 0) }
             pointsMap = ptsMap
           }
-          return { id: pg.id, name: pg.name, daytona_variant: pg.daytona_variant ?? null, rows, hasDaytona, pointsMap }
+          const hasBanker = !!(pg as { banker_side_game?: boolean | null }).banker_side_game
+          const bankerTotals: Record<string, number> = {}
+          if (hasBanker) {
+            const bHoles = (bankerHolesMap as Record<string, Record<number, { bankerPlayerId: string | null }>>)[pg.id] ?? {}
+            const bBets = (bankerBetsMap as Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>)[pg.id] ?? {}
+            for (const pid of pids) bankerTotals[pid] = 0
+            for (const hole of holes) {
+              const hd = bHoles[hole.hole_number]
+              if (!hd?.bankerPlayerId) continue
+              const bankerId = hd.bankerPlayerId
+              const bankerScore = scores.find((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)?.strokes
+              if (bankerScore === undefined) continue
+              const bankerNet = bankerScore - ((liveHoleStrokes[hole.hole_number] ?? []).includes(bankerId) ? 1 : 0)
+              for (const pid of pids) {
+                if (pid === bankerId) continue
+                const ps = scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
+                if (ps === undefined) continue
+                const playerNet = ps - ((liveHoleStrokes[hole.hole_number] ?? []).includes(pid) ? 1 : 0)
+                const bet = bBets[hole.hole_number]?.[pid] ?? { baseBet: 2, playerDoubled: false, bankerDoubled: false }
+                const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
+                let result = 0
+                if (playerNet < bankerNet) result = eff * lbBankerMultiplier(playerNet, hole.par)
+                else if (playerNet > bankerNet) result = -eff * lbBankerMultiplier(bankerNet, hole.par)
+                bankerTotals[pid] = (bankerTotals[pid] ?? 0) + result
+                bankerTotals[bankerId] = (bankerTotals[bankerId] ?? 0) - result
+              }
+            }
+          }
+          return { id: pg.id, name: pg.name, daytona_variant: pg.daytona_variant ?? null, rows, hasDaytona, hasBanker, pointsMap, bankerTotals }
         }).filter((g) => g.rows.length > 0)
       : initialTeams
           .map((team) => {
@@ -690,7 +727,7 @@ export default function LeaderboardClient({
               const tScores = scores.filter((s) => tpIds.includes(s.player_id))
               pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
             }
-            return { id: team.id, name: team.name, daytona_variant: team.daytona_variant ?? null, rows, hasDaytona, pointsMap }
+            return { id: team.id, name: team.name, daytona_variant: team.daytona_variant ?? null, rows, hasDaytona, hasBanker: false, pointsMap, bankerTotals: {} as Record<string, number> }
           })
           .filter((g) => g.rows.length > 0)
           .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
@@ -1843,6 +1880,8 @@ export default function LeaderboardClient({
             {standardGroupRows.map((group) => {
               const gView = traditionalGroupView[group.id] ?? (group.hasDaytona ? 'points' : 'score')
               const showingPoints = gView === 'points' && group.hasDaytona && group.pointsMap
+              const bankerView = groupBankerView[group.id] ?? (group.hasBanker ? 'dollars' : 'score')
+              const showingDollars = group.hasBanker && bankerView === 'dollars'
               const sortedRows = showingPoints
                 ? [...group.rows].sort((a, b) => {
                     const aPts = group.pointsMap!.get(a.player.id) ?? 0
@@ -1850,15 +1889,28 @@ export default function LeaderboardClient({
                     if (aPts !== bPts) return bPts - aPts
                     return a.player.name.localeCompare(b.player.name)
                   })
-                : group.rows
+                : showingDollars
+                  ? [...group.rows].sort((a, b) => {
+                      const aAmt = group.bankerTotals[a.player.id] ?? 0
+                      const bAmt = group.bankerTotals[b.player.id] ?? 0
+                      if (aAmt !== bAmt) return bAmt - aAmt
+                      return a.player.name.localeCompare(b.player.name)
+                    })
+                  : group.rows
+              const colHeader = showingPoints ? 'Points' : showingDollars ? '$' : 'Score'
               return (
                 <div key={group.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                   <div style={{ background: navy }}>
                     <div className="flex items-center px-4 pt-3 pb-1.5 gap-2">
-                      <span className="text-sm font-bold text-white flex-1">
+                      <span className="text-sm font-bold text-white flex-1 flex items-center gap-1.5">
                         {group.name}
-                        {group.daytona_variant?.startsWith('5man-flares') && (
-                          <span className="ml-1.5 text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>(Flares)</span>
+                        {group.hasDaytona && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                            {group.daytona_variant?.startsWith('5man-flares') ? 'Flares' : 'Daytona'}
+                          </span>
+                        )}
+                        {group.hasBanker && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>Banker</span>
                         )}
                       </span>
                       {group.hasDaytona && (
@@ -1875,6 +1927,20 @@ export default function LeaderboardClient({
                           </button>
                         </div>
                       )}
+                      {group.hasBanker && (
+                        <div className="flex items-center rounded-full overflow-hidden border text-[10px] font-semibold flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.35)' }}>
+                          <button onClick={() => setGroupBankerView((v) => ({ ...v, [group.id]: 'score' }))}
+                            className="px-2.5 py-0.5 transition"
+                            style={{ background: bankerView === 'score' ? 'white' : 'transparent', color: bankerView === 'score' ? navy : 'rgba(255,255,255,0.7)' }}>
+                            Score
+                          </button>
+                          <button onClick={() => setGroupBankerView((v) => ({ ...v, [group.id]: 'dollars' }))}
+                            className="px-2.5 py-0.5 transition"
+                            style={{ background: bankerView === 'dollars' ? 'white' : 'transparent', color: bankerView === 'dollars' ? navy : 'rgba(255,255,255,0.7)' }}>
+                            $
+                          </button>
+                        </div>
+                      )}
                       <button
                         onClick={() => { setAllScorecardsGroupId(group.id); setShowAllScorecards(true) }}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
@@ -1885,11 +1951,25 @@ export default function LeaderboardClient({
                     <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ background: '#dde4ee' }}>
                       <span className="w-5 mr-2 flex-shrink-0" style={{ color: '#64748b' }}>#</span>
                       <span className="flex-1 min-w-0" style={{ color: '#64748b' }}>Player</span>
-                      <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: navy }}>{showingPoints ? 'Points' : 'Score'}</span>
+                      <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: navy }}>{colHeader}</span>
                       <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem', color: '#64748b' }}>Thru</span>
                     </div>
                   </div>
                   {sortedRows.map((row, i) => {
+                    if (showingDollars) {
+                      const amt = group.bankerTotals[row.player.id] ?? 0
+                      const amtColor = amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280'
+                      const amtStr = amt > 0 ? `+$${Math.round(amt)}` : amt < 0 ? `-$${Math.round(Math.abs(amt))}` : '$0'
+                      return (
+                        <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
+                          className="flex items-center px-4 py-3 hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                          <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
+                          <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
+                          <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: amtColor }}>{amtStr}</span>
+                          <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>{row.holesPlayed === 0 ? '–' : row.holesPlayed === 18 ? 'F' : row.holesPlayed}</span>
+                        </a>
+                      )
+                    }
                     if (showingPoints) {
                       const pts = group.pointsMap!.get(row.player.id) ?? null
                       const ptCol = pts === null ? '#9ca3af' : pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#111827'
