@@ -1329,12 +1329,10 @@ export default function LeaderboardClient({
                           {thru > 0 ? `#${i + 1}` : '–'}
                         </span>
                         <span className="font-bold text-white text-sm">{row.player.name}</span>
-                        <button onClick={(e) => { e.stopPropagation(); toggleHcp(row.player.id) }} className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
-                        {row.player.handicap != null && (
-                          <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                            {row.player.handicap < 0 ? `+${Math.abs(row.player.handicap)}` : row.player.handicap}
-                          </span>
-                        )}
+                        <span className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={(e) => { e.stopPropagation(); toggleHcp(row.player.id) }} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
+                          {row.player.handicap != null && <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>{row.player.handicap < 0 ? `+${Math.abs(row.player.handicap)}` : row.player.handicap}</span>}
+                        </span>
                         <span className="flex-1" />
                         <div className="flex items-center gap-3 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                           <span>Front: <span style={{ color: vpC(frontVspar) }}>{fmtV(frontVspar)}</span></span>

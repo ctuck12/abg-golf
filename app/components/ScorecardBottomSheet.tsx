@@ -211,12 +211,10 @@ export default function ScorecardBottomSheet({
                     </span>
                   )}
                   <span className="font-bold text-white text-sm">{player.name}</span>
-                  <button onClick={() => toggleHcp(player.id)} className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
-                  {player.handicap != null && (
-                    <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                      {player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => toggleHcp(player.id)} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
+                    {player.handicap != null && <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>{player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}</span>}
+                  </span>
                   <span className="flex-1" />
                   <div className="flex items-center gap-3 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                     <span>Front: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
