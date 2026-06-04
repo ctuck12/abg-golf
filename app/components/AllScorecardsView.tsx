@@ -159,7 +159,7 @@ export default function AllScorecardsView({
     fontWeight: 700,
     fontSize: '0.65rem',
     textAlign: 'center',
-    padding: '0.45rem 0.4rem',
+    padding: '0.55rem 0.55rem',
     whiteSpace: 'nowrap',
   })
   const tdPar = (highlight?: boolean): React.CSSProperties => ({
@@ -168,7 +168,7 @@ export default function AllScorecardsView({
     fontWeight: highlight ? 700 : 400,
     fontSize: '0.7rem',
     textAlign: 'center',
-    padding: '0.4rem 0.4rem',
+    padding: '0.5rem 0.55rem',
   })
   const tdCell = (highlight?: boolean): React.CSSProperties => ({
     background: highlight ? steelBlueBg : 'white',
@@ -176,7 +176,7 @@ export default function AllScorecardsView({
     color: highlight ? '#1e40af' : undefined,
     fontSize: '0.7rem',
     textAlign: 'center',
-    padding: '0.38rem 0.35rem',
+    padding: '0.48rem 0.5rem',
   })
   const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
   const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -301,7 +301,7 @@ export default function AllScorecardsView({
                         const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
                           <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
-                            {n}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>{n}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.65rem', fontWeight: 700 }}>*</span>}</span>
                           </th>
                         )
                       })}
@@ -310,7 +310,7 @@ export default function AllScorecardsView({
                         const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
                           <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
-                            {n}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>{n}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.65rem', fontWeight: 700 }}>*</span>}</span>
                           </th>
                         )
                       })}

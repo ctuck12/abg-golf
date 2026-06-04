@@ -20,18 +20,18 @@ type Player = { id: string; name: string; handicap?: number | null }
 const thSt = (highlight?: boolean, isHoleNum?: boolean): React.CSSProperties => ({
   background: highlight ? steelBlue : isHoleNum ? holeBg : navy,
   color: highlight ? 'white' : isHoleNum ? navy : 'white',
-  fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.45rem 0.4rem', whiteSpace: 'nowrap',
+  fontWeight: 700, fontSize: '0.65rem', textAlign: 'center', padding: '0.55rem 0.55rem', whiteSpace: 'nowrap',
 })
 const tdPar = (highlight?: boolean): React.CSSProperties => ({
   background: highlight ? '#dbeafe' : 'white',
   color: highlight ? '#1e40af' : '#6b7280',
-  fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.4rem 0.4rem',
+  fontWeight: highlight ? 700 : 400, fontSize: '0.7rem', textAlign: 'center', padding: '0.5rem 0.55rem',
 })
 const tdSc = (highlight?: boolean): React.CSSProperties => ({
   background: highlight ? '#dbeafe' : 'white',
   fontWeight: highlight ? 700 : 400,
   color: highlight ? '#1e40af' : undefined,
-  fontSize: '0.7rem', textAlign: 'center', padding: '0.38rem 0.35rem',
+  fontSize: '0.7rem', textAlign: 'center', padding: '0.48rem 0.5rem',
 })
 const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
 const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -228,7 +228,7 @@ export default function ScorecardBottomSheet({
                           const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
                             <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
-                              {h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>{h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.65rem', fontWeight: 700 }}>*</span>}</span>
                             </th>
                           )
                         })}
@@ -237,7 +237,7 @@ export default function ScorecardBottomSheet({
                           const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
                             <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
-                              {h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>{h.hole_number}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.65rem', fontWeight: 700 }}>*</span>}</span>
                             </th>
                           )
                         })}
