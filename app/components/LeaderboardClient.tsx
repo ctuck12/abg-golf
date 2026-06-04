@@ -1367,20 +1367,20 @@ export default function LeaderboardClient({
                           </thead>
                           <tbody>
                             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
-                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
-                              {scFrontNine.length > 0 && <td style={tdPar(true)}>{scFrontPar}</td>}
-                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
-                              {scBackNine.length > 0 && <td style={tdPar(true)}>{scBackPar}</td>}
-                              <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
-                            </tr>
-                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                               <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
                               {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
                               {scFrontNine.length > 0 && <td style={tdPar(true)} />}
                               {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
                               {scBackNine.length > 0 && <td style={tdPar(true)} />}
                               <td style={tdPar()} />
+                            </tr>
+                            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
+                              {scFrontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
+                              {scFrontNine.length > 0 && <td style={tdPar(true)}>{scFrontPar}</td>}
+                              {scBackNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
+                              {scBackNine.length > 0 && <td style={tdPar(true)}>{scBackPar}</td>}
+                              <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{scTotalPar}</td>
                             </tr>
                             <tr style={{ borderBottom: groupHasDaytona ? '1px solid #e5e7eb' : undefined }}>
                               <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>

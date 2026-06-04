@@ -319,6 +319,20 @@ export default function AllScorecardsView({
                     </tr>
                   </thead>
                   <tbody>
+                    {/* HCP */}
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const hole = holes.find((h) => h.hole_number === n)
+                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
+                      })}
+                      <td style={tdPar(true)} />
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const hole = holes.find((h) => h.hole_number === n)
+                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
+                      })}
+                      <td style={tdPar(true)} /><td style={tdPar()} />
+                    </tr>
                     {/* PAR */}
                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
@@ -333,20 +347,6 @@ export default function AllScorecardsView({
                       })}
                       <td style={tdPar(true)}>{backNine.length > 0 ? backPar : '–'}</td>
                       <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
-                    </tr>
-                    {/* HCP */}
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
-                      {[1,2,3,4,5,6,7,8,9].map((n) => {
-                        const hole = holes.find((h) => h.hole_number === n)
-                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
-                      })}
-                      <td style={tdPar(true)} />
-                      {[10,11,12,13,14,15,16,17,18].map((n) => {
-                        const hole = holes.find((h) => h.hole_number === n)
-                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
-                      })}
-                      <td style={tdPar(true)} /><td style={tdPar()} />
                     </tr>
                     {/* SCORE */}
                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>

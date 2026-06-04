@@ -246,15 +246,6 @@ export default function ScorecardBottomSheet({
                       </tr>
                     </thead>
                     <tbody>
-                      {/* PAR */}
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
-                        {frontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
-                        {frontNine.length > 0 && <td style={tdPar(true)}>{frontPar}</td>}
-                        {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
-                        {backNine.length > 0 && <td style={tdPar(true)}>{backPar}</td>}
-                        <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
-                      </tr>
                       {/* HCP */}
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
@@ -263,6 +254,15 @@ export default function ScorecardBottomSheet({
                         {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.stroke_index ?? '–'}</td>)}
                         {backNine.length > 0 && <td style={tdPar(true)} />}
                         <td style={tdPar()} />
+                      </tr>
+                      {/* PAR */}
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
+                        {frontNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
+                        {frontNine.length > 0 && <td style={tdPar(true)}>{frontPar}</td>}
+                        {backNine.map((h) => <td key={h.hole_number} style={tdPar()}>{h.par}</td>)}
+                        {backNine.length > 0 && <td style={tdPar(true)}>{backPar}</td>}
+                        <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
                       </tr>
                       {/* SCORE */}
                       <tr style={{ borderBottom: isDaytonaMode ? '1px solid #e5e7eb' : undefined }}>
