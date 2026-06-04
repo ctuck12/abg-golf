@@ -37,6 +37,17 @@ const tdSc = (highlight?: boolean): React.CSSProperties => ({
 const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
 const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
 
+function bankerMult(net: number, par: number): number {
+  if (net <= par - 2) return 3
+  if (net === par - 1) return 2
+  return 1
+}
+function fmtBankerCell(amt: number | null): React.ReactNode {
+  if (amt === null) return <span style={{ color: '#d1d5db' }}>–</span>
+  if (amt === 0) return <span style={{ color: '#6b7280', fontSize: '0.65rem' }}>$0</span>
+  return <span style={{ fontWeight: 600, fontSize: '0.65rem', color: amt > 0 ? '#16a34a' : '#dc2626' }}>{amt > 0 ? `+$${Math.round(amt)}` : `-$${Math.round(Math.abs(amt))}`}</span>
+}
+
 function ptsStr(pts: number | null): string {
   if (pts === null) return '–'
   if (pts === 0) return '0'
@@ -71,6 +82,10 @@ export default function ScorecardBottomSheet({
   dtPayoutValue = 0,
   is5Man = false,
   isFlares = false,
+  isBankerMode = false,
+  bankerHoles = {},
+  bankerBets = {},
+  bankerMinBet = 2,
 }: {
   title: string
   players: Player[]
@@ -84,6 +99,10 @@ export default function ScorecardBottomSheet({
   dtPayoutValue?: number
   is5Man?: boolean
   isFlares?: boolean
+  isBankerMode?: boolean
+  bankerHoles?: Record<number, { bankerPlayerId: string | null }>
+  bankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
+  bankerMinBet?: number
 }) {
   const [hcpVisible, setHcpVisible] = useState<Set<string>>(new Set())
   const toggleHcp = (id: string) => setHcpVisible((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
@@ -133,6 +152,41 @@ export default function ScorecardBottomSheet({
     for (const [pid, pts] of m) totalPtsMap.set(pid, (totalPtsMap.get(pid) ?? 0) + pts)
   }
 
+  // ── Banker per-hole amounts ─────────────────────────────────────────────────
+  const holeBankerAmts = new Map<number, Map<string, number>>()
+  const totalBankerAmts = new Map<string, number>()
+  if (isBankerMode) {
+    for (const hole of holes) {
+      const hd = bankerHoles[hole.hole_number]
+      if (!hd?.bankerPlayerId) continue
+      const bankerId = hd.bankerPlayerId
+      const strokeIds = holeStrokes[hole.hole_number] ?? []
+      const netOf = (pid: string) => {
+        const gross = scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
+        return gross === undefined ? undefined : gross - (strokeIds.includes(pid) ? 1 : 0)
+      }
+      const bankerNet = netOf(bankerId)
+      if (bankerNet === undefined) continue
+      const holeAmts = new Map<string, number>()
+      let bankerTotal = 0
+      for (const p of players) {
+        if (p.id === bankerId) continue
+        const pNet = netOf(p.id)
+        if (pNet === undefined) continue
+        const bet = bankerBets[hole.hole_number]?.[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
+        const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
+        let result = 0
+        if (pNet < bankerNet) result = eff * bankerMult(pNet, hole.par)
+        else if (pNet > bankerNet) result = -eff * bankerMult(bankerNet, hole.par)
+        holeAmts.set(p.id, result)
+        bankerTotal -= result
+      }
+      holeAmts.set(bankerId, bankerTotal)
+      holeBankerAmts.set(hole.hole_number, holeAmts)
+      for (const [pid, amt] of holeAmts) totalBankerAmts.set(pid, (totalBankerAmts.get(pid) ?? 0) + amt)
+    }
+  }
+
   const sortedPressRates = [...new Set(Object.values(holeValues))].sort((a, b) => a - b)
   const pressColor = (val: number) => PRESS_COLORS[sortedPressRates.indexOf(val) % PRESS_COLORS.length]
 
@@ -146,7 +200,9 @@ export default function ScorecardBottomSheet({
         if (bThru === 0) return -1
         return (totalPtsMap.get(b.id) ?? 0) - (totalPtsMap.get(a.id) ?? 0)
       })
-    : players
+    : isBankerMode && totalBankerAmts.size > 0
+      ? [...players].sort((a, b) => (totalBankerAmts.get(b.id) ?? 0) - (totalBankerAmts.get(a.id) ?? 0))
+      : players
 
   return (
     <div
@@ -201,10 +257,20 @@ export default function ScorecardBottomSheet({
               ? backPtsHoles.reduce((s, h) => s + (holePtsMaps.get(h.hole_number)?.get(player.id) ?? 0), 0)
               : null
 
+            const playerBankerTotal = totalBankerAmts.get(player.id) ?? null
+            const frontBankerTotal = (() => {
+              const played = frontNine.filter((h) => holeBankerAmts.get(h.hole_number)?.has(player.id))
+              return played.length > 0 ? played.reduce((s, h) => s + (holeBankerAmts.get(h.hole_number)!.get(player.id) ?? 0), 0) : null
+            })()
+            const backBankerTotal = (() => {
+              const played = backNine.filter((h) => holeBankerAmts.get(h.hole_number)?.has(player.id))
+              return played.length > 0 ? played.reduce((s, h) => s + (holeBankerAmts.get(h.hole_number)!.get(player.id) ?? 0), 0) : null
+            })()
+
             return (
               <div key={player.id} className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-2" style={{ background: navy }}>
-                  {isDaytonaMode && (
+                  {(isDaytonaMode || (isBankerMode && totalBankerAmts.size > 0)) && (
                     <span className="text-base font-bold w-8 flex-shrink-0"
                       style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                       {thru > 0 ? `#${rank + 1}` : '–'}
@@ -292,6 +358,45 @@ export default function ScorecardBottomSheet({
                         {backNine.length > 0 && <td style={tdSc(true)}>{backScored.length > 0 ? backStrokes : '–'}</td>}
                         <td style={{ ...tdSc(), fontWeight: 700, color: '#111827' }}>{thru > 0 ? totalStrokes : '–'}</td>
                       </tr>
+                      {/* AMT + BKR — Banker only */}
+                      {isBankerMode && <>
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>AMT</td>
+                          {frontNine.map((h) => (
+                            <td key={h.hole_number} style={tdSc()}>
+                              {fmtBankerCell(holeBankerAmts.has(h.hole_number) ? (holeBankerAmts.get(h.hole_number)!.get(player.id) ?? 0) : null)}
+                            </td>
+                          ))}
+                          <td style={tdSc(true)}>{fmtBankerCell(frontBankerTotal)}</td>
+                          {backNine.map((h) => (
+                            <td key={h.hole_number} style={tdSc()}>
+                              {fmtBankerCell(holeBankerAmts.has(h.hole_number) ? (holeBankerAmts.get(h.hole_number)!.get(player.id) ?? 0) : null)}
+                            </td>
+                          ))}
+                          {backNine.length > 0 && <td style={tdSc(true)}>{fmtBankerCell(backBankerTotal)}</td>}
+                          <td style={tdSc()}>{fmtBankerCell(playerBankerTotal)}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>BKR</td>
+                          {frontNine.map((h) => (
+                            <td key={h.hole_number} style={tdSc()}>
+                              {bankerHoles[h.hole_number]?.bankerPlayerId === player.id
+                                ? <span style={{ fontSize: '0.75rem' }}>🏦</span>
+                                : <span style={{ color: '#d1d5db' }}>–</span>}
+                            </td>
+                          ))}
+                          <td style={tdSc(true)} />
+                          {backNine.map((h) => (
+                            <td key={h.hole_number} style={tdSc()}>
+                              {bankerHoles[h.hole_number]?.bankerPlayerId === player.id
+                                ? <span style={{ fontSize: '0.75rem' }}>🏦</span>
+                                : <span style={{ color: '#d1d5db' }}>–</span>}
+                            </td>
+                          ))}
+                          {backNine.length > 0 && <td style={tdSc(true)} />}
+                          <td style={tdSc()} />
+                        </tr>
+                      </>}
                       {/* PTS + AMT + TEAM — Daytona only */}
                       {isDaytonaMode && <>
                         <tr style={{ borderBottom: '1px solid #e5e7eb' }}>

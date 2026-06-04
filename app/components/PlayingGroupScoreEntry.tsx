@@ -495,6 +495,10 @@ export default function PlayingGroupScoreEntry({
           dtPayoutValue={defaultDtPayoutValue ?? 0}
           is5Man={is5Man}
           isFlares={isFlares}
+          isBankerMode={isBanker}
+          bankerHoles={bankerHoles}
+          bankerBets={bankerBets}
+          bankerMinBet={bankerMinBet}
         />
       )}
 
@@ -514,8 +518,8 @@ export default function PlayingGroupScoreEntry({
               <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>
-          {/* Player scores — Daytona points or to-par */}
-          {(() => {
+          {/* Player scores — Daytona points or to-par (hidden in banker mode) */}
+          {!isBanker && (() => {
             // Compute running totals using the same direct logic as per-hole holePlayerPoints
             const ptsMap = new Map<string, number>()
             if (isDaytonaMode) {
