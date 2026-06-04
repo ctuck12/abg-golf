@@ -178,11 +178,12 @@ export default function HammerScoreEntry({
     if (!hole?.stroke_index) return []
     const allHcps = Object.values(allPlayerHandicaps).filter((h): h is number => h != null)
     if (allHcps.length === 0) return []
-    const minHcp = Math.min(...allHcps.map((h) => Math.trunc(h)))
+    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const minHcp = Math.min(...allHcps.map(effHcp))
     return allPlayers.filter((p) => {
       const hcp = allPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const strokes = Math.trunc(hcp) - minHcp
+      const strokes = effHcp(hcp) - minHcp
       return strokes > 0 && hole.stroke_index! <= strokes
     }).map((p) => p.id)
   }

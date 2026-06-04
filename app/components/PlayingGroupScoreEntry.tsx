@@ -151,10 +151,11 @@ export default function PlayingGroupScoreEntry({
     if (!hole?.stroke_index) return []
     const handicaps = players.map((p) => p.handicap).filter((h): h is number => h != null)
     if (handicaps.length === 0) return []
-    const minHcp = Math.min(...handicaps.map((h) => Math.trunc(h)))
+    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const minHcp = Math.min(...handicaps.map(effHcp))
     return players.filter((p) => {
       if (p.handicap == null) return false
-      const strokes = Math.trunc(p.handicap) - minHcp
+      const strokes = effHcp(p.handicap) - minHcp
       return strokes > 0 && hole.stroke_index! <= strokes
     }).map((p) => p.id)
   }
@@ -230,12 +231,13 @@ export default function PlayingGroupScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = players.find((p) => p.id === bankerPlayerId)?.handicap ?? null
     if (bankerHcpRaw == null) return []
-    const bankerHcp = Math.trunc(bankerHcpRaw)
+    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const bankerHcp = effHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
       const hcp = p.handicap ?? null
       if (hcp == null) return false
-      const diff = Math.trunc(hcp) - bankerHcp
+      const diff = effHcp(hcp) - bankerHcp
       return diff > 0 && hole.stroke_index! <= diff
     }).map((p) => p.id)
   }
