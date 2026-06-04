@@ -1370,7 +1370,7 @@ export default function LeaderboardClient({
         const fmtBkrAmt = (amt: number | null): React.ReactNode => {
           if (amt === null) return <span style={{ color: '#d1d5db' }}>–</span>
           if (amt === 0) return <span style={{ color: '#6b7280', fontSize: '0.65rem' }}>$0</span>
-          return <span style={{ fontWeight: 600, fontSize: '0.65rem', color: amt > 0 ? '#16a34a' : '#dc2626' }}>{amt > 0 ? `+$${Math.round(amt)}` : `-$${Math.round(Math.abs(amt))}`}</span>
+          return <span style={{ fontWeight: 600, fontSize: '0.65rem', color: amt > 0 ? '#16a34a' : '#dc2626', whiteSpace: 'nowrap' }}>${Math.round(Math.abs(amt))}</span>
         }
         const groupPayoutStr = groupVariant?.includes('|') ? groupVariant.split('|')[1] : null
         const groupBaseRate = groupPayoutStr ? (parseFloat(groupPayoutStr) || 0) : dtPayoutValue
