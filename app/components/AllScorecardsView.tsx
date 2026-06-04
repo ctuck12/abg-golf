@@ -159,7 +159,7 @@ export default function AllScorecardsView({
     fontWeight: 700,
     fontSize: '0.65rem',
     textAlign: 'center',
-    padding: '0.4rem 0.3rem',
+    padding: '0.45rem 0.4rem',
     whiteSpace: 'nowrap',
   })
   const tdPar = (highlight?: boolean): React.CSSProperties => ({
@@ -168,7 +168,7 @@ export default function AllScorecardsView({
     fontWeight: highlight ? 700 : 400,
     fontSize: '0.7rem',
     textAlign: 'center',
-    padding: '0.35rem 0.3rem',
+    padding: '0.4rem 0.4rem',
   })
   const tdCell = (highlight?: boolean): React.CSSProperties => ({
     background: highlight ? steelBlueBg : 'white',
@@ -176,7 +176,7 @@ export default function AllScorecardsView({
     color: highlight ? '#1e40af' : undefined,
     fontSize: '0.7rem',
     textAlign: 'center',
-    padding: '0.3rem 0.25rem',
+    padding: '0.38rem 0.35rem',
   })
   const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
   const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -296,40 +296,58 @@ export default function AllScorecardsView({
                 <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
-                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>
-                        <span style={{ display: 'block' }}>HOLE</span>
-                        <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400 }}>P · HCP</span>
-                      </th>
+                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
-                        const hole = holes.find((h) => h.hole_number === n)
                         const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
                           <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
-                            <span style={{ display: 'block', lineHeight: 1.3 }}>
-                              {n}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
-                            </span>
-                            <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400, lineHeight: 1.3 }}>{hole?.par ?? '–'}·{hole?.stroke_index ?? '–'}</span>
+                            {n}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
                           </th>
                         )
                       })}
-                      <th style={thStyle(true)}><span style={{ display: 'block' }}>Front</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{frontNine.length > 0 ? frontPar : '–'}</span></th>
+                      <th style={thStyle(true)}>Front</th>
                       {[10,11,12,13,14,15,16,17,18].map((n) => {
-                        const hole = holes.find((h) => h.hole_number === n)
                         const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
                           <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
-                            <span style={{ display: 'block', lineHeight: 1.3 }}>
-                              {n}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
-                            </span>
-                            <span style={{ display: 'block', fontSize: '0.5rem', color: '#64748b', fontWeight: 400, lineHeight: 1.3 }}>{hole?.par ?? '–'}·{hole?.stroke_index ?? '–'}</span>
+                            {n}{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.5rem', verticalAlign: 'super', lineHeight: 0 }}>*</span>}
                           </th>
                         )
                       })}
-                      <th style={thStyle(true)}><span style={{ display: 'block' }}>Back</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{backNine.length > 0 ? backPar : '–'}</span></th>
-                      <th style={thStyle()}><span style={{ display: 'block' }}>TOT</span><span style={{ display: 'block', fontSize: '0.5rem', fontWeight: 400, color: 'rgba(255,255,255,0.65)' }}>{totalPar}</span></th>
+                      <th style={thStyle(true)}>Back</th>
+                      <th style={thStyle()}>TOTAL</th>
                     </tr>
                   </thead>
                   <tbody>
+                    {/* HCP */}
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>HCP</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const hole = holes.find((h) => h.hole_number === n)
+                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
+                      })}
+                      <td style={tdPar(true)} />
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const hole = holes.find((h) => h.hole_number === n)
+                        return <td key={n} style={tdPar()}>{hole?.stroke_index ?? '–'}</td>
+                      })}
+                      <td style={tdPar(true)} /><td style={tdPar()} />
+                    </tr>
+                    {/* PAR */}
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ ...tdPar(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>PAR</td>
+                      {[1,2,3,4,5,6,7,8,9].map((n) => {
+                        const hole = holes.find((h) => h.hole_number === n)
+                        return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
+                      })}
+                      <td style={tdPar(true)}>{frontNine.length > 0 ? frontPar : '–'}</td>
+                      {[10,11,12,13,14,15,16,17,18].map((n) => {
+                        const hole = holes.find((h) => h.hole_number === n)
+                        return <td key={n} style={tdPar()}>{hole?.par ?? '–'}</td>
+                      })}
+                      <td style={tdPar(true)}>{backNine.length > 0 ? backPar : '–'}</td>
+                      <td style={{ ...tdPar(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
+                    </tr>
                     {/* SCORE */}
                     <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ ...tdCell(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>SCORE</td>
