@@ -707,10 +707,11 @@ export async function saveDaytonaHoleValues(
       .in('hole_number', toDelete)
   }
   if (toUpsert.length > 0) {
-    await supabase.from('daytona_hole_values').upsert(
+    const { error } = await supabase.from('daytona_hole_values').upsert(
       toUpsert.map((e) => ({ round_id: roundId, team_id: teamId, hole_number: e.holeNumber, value_per_point: e.valuePerPoint })),
       { onConflict: 'round_id,team_id,hole_number' }
     )
+    if (error) return { error: error.message }
   }
   return { success: true }
 }

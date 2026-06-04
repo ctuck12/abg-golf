@@ -903,6 +903,17 @@ export default function ScoreEntry({
           holes={holes}
           scores={savedScores}
           onClose={() => setShowScorecards(false)}
+          isDaytonaMode={isDaytonaMode}
+          assignments={assignments}
+          holeStrokes={holeStrokes}
+          holeValues={holeValues}
+          dtPayoutValue={defaultDtPayoutValue}
+          is5Man={is5Man}
+          isFlares={isFlares}
+          isBankerMode={isBanker}
+          bankerHoles={bankerHoles}
+          bankerBets={bankerBets}
+          bankerMinBet={bankerMinBet}
         />
       )}
 
