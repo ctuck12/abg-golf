@@ -17,13 +17,16 @@ const holeBg = '#dde4ee'
 
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
-type PlayerInfo = { id: string; name: string; teamName: string; teamId?: string }
+type PlayerInfo = { id: string; name: string; teamName: string; teamId?: string; handicap?: number | null }
 
 function ptsStr(pts: number | null): string {
   if (pts === null) return '–'
   if (pts === 0) return '0'
   return pts > 0 ? `+${pts}` : String(pts)
 }
+
+function fmtVsp(n: number | null) { return n === null ? '–' : n === 0 ? 'E' : n > 0 ? `+${n}` : `${n}` }
+function vpColor(n: number | null) { return n === null ? 'rgba(255,255,255,0.55)' : n < 0 ? '#f87171' : n > 0 ? '#fbbf24' : 'rgba(255,255,255,0.8)' }
 
 function fmtAmt(val: number): string {
   if (val === Math.floor(val)) return `$${val}`
@@ -213,7 +216,7 @@ export default function AllScorecardsView({
       <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Daytona</p>
+            <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>{isFlares ? '5-Man Flares' : is5Man ? '5-Man Daytona' : 'Daytona'}{dtPayoutValue > 0 ? ` – ${fmtAmt(dtPayoutValue)}/point` : ''}</p>
             <h1 className="font-bold text-lg">All Scorecards</h1>
             {(isAdmin || scorecardTeamId) && (
               <div className="flex items-center gap-1.5 mt-1">
@@ -262,6 +265,10 @@ export default function AllScorecardsView({
             ? backPtsHoles.reduce((s, h) => s + (holePtsMaps.get(h.hole_number)?.get(player.id) ?? 0), 0)
             : null
 
+          const frontVspar = frontScored.length > 0 ? frontStrokes - frontScored.reduce((s, h) => s + h.par, 0) : null
+          const backVspar = backScored.length > 0 ? backStrokes - backScored.reduce((s, h) => s + h.par, 0) : null
+          const totalVspar = frontVspar !== null || backVspar !== null ? (frontVspar ?? 0) + (backVspar ?? 0) : null
+
           return (
             <div key={player.id} className="rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               {/* Player card header */}
@@ -270,7 +277,18 @@ export default function AllScorecardsView({
                   style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                   {thru > 0 ? `#${rank + 1}` : '–'}
                 </span>
-                <p className="font-bold text-white text-sm">{player.name}</p>
+                <span className="font-bold text-white text-sm">{player.name}</span>
+                {player.handicap != null && (
+                  <span className="text-[10px] font-semibold ml-1.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    HCP {player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}
+                  </span>
+                )}
+                <span className="flex-1" />
+                <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  <span>Front: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
+                  <span>Back: <span style={{ color: vpColor(backVspar) }}>{fmtVsp(backVspar)}</span></span>
+                  <span>Total: <span style={{ color: vpColor(totalVspar) }}>{fmtVsp(totalVspar)}</span></span>
+                </div>
               </div>
 
               {/* Scorecard table */}

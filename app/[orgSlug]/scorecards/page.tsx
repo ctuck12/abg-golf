@@ -33,7 +33,7 @@ export default async function OrgAllScorecardsPage({
   const teams = teamId ? (allTeams ?? []).filter((t: { id: string }) => t.id === teamId) : (allTeams ?? [])
   const teamIds = teams.map((t: { id: string }) => t.id)
 
-  const { data: players } = await sb.from('players').select('id, name, team_id').in('team_id', teamIds.length ? teamIds : [''])
+  const { data: players } = await sb.from('players').select('id, name, team_id, handicap').in('team_id', teamIds.length ? teamIds : [''])
   const playerIds = (players ?? []).map((p: { id: string }) => p.id)
 
   const [{ data: holes }, { data: scores }, { data: assignments }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: holeStrokesRaw }] = await Promise.all([
@@ -62,8 +62,8 @@ export default async function OrgAllScorecardsPage({
   const teamNameMap = Object.fromEntries(teams.map((t: { id: string; name: string }) => [t.id, t.name]))
 
   const rankedPlayers = (players ?? [])
-    .map((p: { id: string; name: string; team_id: string }) => ({
-      id: p.id, name: p.name, teamName: teamNameMap[p.team_id] ?? '', teamId: p.team_id,
+    .map((p: { id: string; name: string; team_id: string; handicap?: number | null }) => ({
+      id: p.id, name: p.name, teamName: teamNameMap[p.team_id] ?? '', teamId: p.team_id, handicap: p.handicap ?? null,
       points: pointsMap.get(p.id) ?? 0,
       thru: (scores ?? []).filter((s: { player_id: string }) => s.player_id === p.id).length,
     }))

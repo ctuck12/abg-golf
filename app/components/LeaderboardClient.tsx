@@ -12,7 +12,7 @@ import PinLoginModal from './PinLoginModal'
 import { ScoreNotation } from './ScoreNotation'
 
 type Team = { id: string; name: string; daytona_variant?: string | null }
-type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean }
+type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -1268,8 +1268,13 @@ export default function LeaderboardClient({
           <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAllScorecards(false)}>
             <div className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-                <h3 className="font-bold text-gray-900 text-base">{activeTeam?.name ?? activePlayingGroup?.name ?? 'All Scorecards'}</h3>
-                <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 className="font-bold text-gray-900 text-base flex-shrink-0">{activeTeam?.name ?? activePlayingGroup?.name ?? 'All Scorecards'}</h3>
+                  {groupHasDaytona && groupBaseRate > 0 && (
+                    <span className="text-xs text-gray-400 flex-shrink-0">{gIsFlares ? '5-Man Flares' : gIs5Man ? '5-Man Daytona' : 'Daytona'} – {groupBaseRate % 1 === 0 ? `$${groupBaseRate}` : `$${groupBaseRate.toFixed(2).replace(/^0/, '')}`}/point</span>
+                  )}
+                </div>
+                <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
               </div>
               {!isGroupView && skinsEnabled && (
                 <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden w-fit mx-4 mt-3">
@@ -1304,6 +1309,11 @@ export default function LeaderboardClient({
                   const totalStrokes = frontStrokes + backStrokes
                   const thru = row.holesPlayed
                   const vpStr = row.vspar === null ? '–' : row.vspar === 0 ? 'E' : row.vspar > 0 ? `+${row.vspar}` : `${row.vspar}`
+                  const frontVspar = frontScored.length > 0 ? frontStrokes - frontScored.reduce((s, h) => s + h.par, 0) : null
+                  const backVspar = backScored.length > 0 ? backStrokes - backScored.reduce((s, h) => s + h.par, 0) : null
+                  const totalVspar = frontVspar !== null || backVspar !== null ? (frontVspar ?? 0) + (backVspar ?? 0) : null
+                  const fmtV = (n: number | null) => n === null ? '–' : n === 0 ? 'E' : n > 0 ? `+${n}` : `${n}`
+                  const vpC = (n: number | null) => n === null ? 'rgba(255,255,255,0.55)' : n < 0 ? '#f87171' : n > 0 ? '#fbbf24' : 'rgba(255,255,255,0.8)'
                   const frontPts = scFrontNine.some((h) => holePtsMaps.get(h.hole_number)?.has(row.player.id))
                     ? scFrontNine.reduce((s, h) => s + (holePtsMaps.get(h.hole_number)?.get(row.player.id) ?? 0), 0) : null
                   const backPts = scBackNine.some((h) => holePtsMaps.get(h.hole_number)?.has(row.player.id))
@@ -1316,8 +1326,18 @@ export default function LeaderboardClient({
                         <span className="text-base font-bold w-8 flex-shrink-0" style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                           {thru > 0 ? `#${i + 1}` : '–'}
                         </span>
-                        <span className="font-bold text-white text-sm flex-1">{row.player.name}</span>
-                        <span className="text-xs font-bold" style={{ color: row.vspar !== null && row.vspar < 0 ? '#f87171' : row.vspar !== null && row.vspar > 0 ? '#fbbf24' : 'rgba(255,255,255,0.7)' }}>{vpStr}</span>
+                        <span className="font-bold text-white text-sm">{row.player.name}</span>
+                        {row.player.handicap != null && (
+                          <span className="text-[10px] font-semibold ml-1.5 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                            HCP {row.player.handicap < 0 ? `+${Math.abs(row.player.handicap)}` : row.player.handicap}
+                          </span>
+                        )}
+                        <span className="flex-1" />
+                        <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                          <span>Front: <span style={{ color: vpC(frontVspar) }}>{fmtV(frontVspar)}</span></span>
+                          <span>Back: <span style={{ color: vpC(backVspar) }}>{fmtV(backVspar)}</span></span>
+                          <span>Total: <span style={{ color: vpC(totalVspar) }}>{fmtV(totalVspar)}</span></span>
+                        </div>
                       </div>
                       <div className="overflow-x-auto bg-white">
                         <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>

@@ -155,8 +155,13 @@ export default function ScorecardBottomSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <h3 className="font-bold text-gray-900 text-base">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 text-xl font-bold leading-none">×</button>
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="font-bold text-gray-900 text-base flex-shrink-0">{title}</h3>
+            {isDaytonaMode && dtPayoutValue > 0 && (
+              <span className="text-xs text-gray-400 flex-shrink-0">{isFlares ? '5-Man Flares' : is5Man ? '5-Man Daytona' : 'Daytona'} – {fmtAmt(dtPayoutValue)}/point</span>
+            )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
         </div>
         <div className="px-4 py-4 space-y-4">
           {rankedPlayers.map((player, rank) => {

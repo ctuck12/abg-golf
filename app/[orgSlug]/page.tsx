@@ -79,7 +79,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const isTraditional = (round.format ?? 'standard') === 'traditional'
 
   const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }, { data: holeStrokesRaw }] = await Promise.all([
-    sb.from('players').select('id, team_id, name, position, skins_participant').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
+    sb.from('players').select('id, team_id, name, position, skins_participant, handicap').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
     sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
