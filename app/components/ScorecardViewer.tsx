@@ -219,34 +219,40 @@ export default function ScorecardViewer({
           }
           const ballChips = (scores: (number | null)[], par: number) =>
             Array.from({ length: ballsCount }, (_, bi) => (
-              <span key={bi} className="flex items-baseline gap-0.5">
-                <span className="font-bold text-[10px]" style={{ color: '#92400e' }}>{BALL_LABELS[bi]}</span>
-                <span className="font-bold" style={{ color: vspColor(scores[bi], par) }}>{fmtVsp(scores[bi], par)}</span>
+              <span key={bi} className="inline-flex items-baseline gap-0.5 rounded px-1.5 py-0.5" style={{ background: '#f1f5f9' }}>
+                <span className="font-bold text-[10px] leading-none" style={{ color: '#92400e' }}>{BALL_LABELS[bi]}</span>
+                <span className="font-semibold text-xs leading-none" style={{ color: vspColor(scores[bi], par) }}>{fmtVsp(scores[bi], par)}</span>
               </span>
             ))
           const frontScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(frontData, (d) => d.ballScores[bi]))
           const backScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(backData, (d) => d.ballScores[bi]))
           const totalScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(holeData, (d) => d.ballScores[bi]))
           return (
-            <div className="mb-3 bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
-              <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-xs">
+            <div className="mb-3 bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-2.5">
+              <div className="flex items-center gap-3 flex-wrap">
                 {frontData.length > 0 && (
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-gray-400 font-medium">Front:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: steelBlue }}>Front</span>
                     {ballChips(frontScores, frontPar)}
-                  </span>
+                  </div>
+                )}
+                {frontData.length > 0 && backData.length > 0 && (
+                  <div className="self-stretch w-px bg-gray-200" />
                 )}
                 {backData.length > 0 && (
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-gray-400 font-medium">Back:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: steelBlue }}>Back</span>
                     {ballChips(backScores, backPar)}
-                  </span>
+                  </div>
                 )}
                 {includeTotal && (
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-gray-400 font-medium">Total:</span>
-                    {ballChips(totalScores, totalPar)}
-                  </span>
+                  <>
+                    <div className="self-stretch w-px bg-gray-200" />
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total</span>
+                      {ballChips(totalScores, totalPar)}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
