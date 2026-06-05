@@ -145,35 +145,15 @@ export default function PlayingGroupScoreEntry({
     e.currentTarget.focus({ preventScroll: true })
   }
 
-  // Pin header to visual viewport top — only while keyboard is open to avoid scroll glitch
+  // Keep spacer height in sync with header height (position:fixed needs explicit spacer)
   useEffect(() => {
-    const vv = window.visualViewport
     const header = headerRef.current
-    if (!vv || !header) return
-    let lastOffsetTop = -1
-    function pin() {
-      const t = vv!.offsetTop
-      if (t === lastOffsetTop) return
-      lastOffsetTop = t
-      header!.style.transform = `translateY(${t}px)`
-    }
-    function onResize() {
-      const keyboardOpen = vv!.height < window.innerHeight - 100
-      if (keyboardOpen) {
-        vv!.addEventListener('scroll', pin)
-        pin()
-      } else {
-        vv!.removeEventListener('scroll', pin)
-        lastOffsetTop = -1
-        header!.style.transform = ''
-      }
-    }
+    if (!header) return
     const ro = new ResizeObserver(() => {
-      if (spacerRef.current) spacerRef.current.style.height = `${header!.offsetHeight}px`
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
     })
     ro.observe(header)
-    vv.addEventListener('resize', onResize)
-    return () => { vv.removeEventListener('resize', onResize); vv.removeEventListener('scroll', pin); ro.disconnect() }
+    return () => ro.disconnect()
   }, [])
 
   // After keyboard closes, scroll expanded hole back into view
@@ -652,7 +632,7 @@ export default function PlayingGroupScoreEntry({
       )}
 
       {/* Header */}
-      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, willChange: 'transform' }}>
+      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
