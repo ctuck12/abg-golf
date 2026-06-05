@@ -671,7 +671,7 @@ export default function ScoreEntry({
     const vv = window.visualViewport
     const header = headerRef.current
     if (!vv || !header) return
-    function pin() { header!.style.top = `${vv!.offsetTop}px` }
+    function pin() { header!.style.transform = `translateY(${vv!.offsetTop}px)` }
     function onResize() {
       const keyboardOpen = vv!.height < window.innerHeight - 100
       if (keyboardOpen) {
@@ -679,7 +679,7 @@ export default function ScoreEntry({
         pin()
       } else {
         vv!.removeEventListener('scroll', pin)
-        header!.style.top = '0px'
+        header!.style.transform = ''
       }
     }
     const ro = new ResizeObserver(() => {
@@ -1043,7 +1043,7 @@ export default function ScoreEntry({
       )}
 
       {/* Header */}
-      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy }}>
+      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, willChange: 'transform' }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
