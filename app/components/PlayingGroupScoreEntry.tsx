@@ -1036,20 +1036,20 @@ export default function PlayingGroupScoreEntry({
                                     <div className="flex items-center gap-1.5">
                                       <div className="flex items-center gap-1 flex-1 min-w-0">
                                         <span className="text-xs font-medium text-gray-700 truncate">{p.name}</span>
-                                        {(() => {
-                                          const draftRaw = playerBetDraft[hole.hole_number]?.[p.id]
-                                          const draftVal = draftRaw !== undefined ? parseFloat(draftRaw) : NaN
-                                          const effectiveBet = !isNaN(draftVal) ? draftVal : pb.baseBet
-                                          if (effectiveBet > effectiveMaxBet) return <span className="text-[10px] text-red-500 font-semibold whitespace-nowrap flex-shrink-0">Max ${Math.round(effectiveMaxBet)}</span>
-                                          if (!isNaN(draftVal) && draftVal < bankerMinBet) return <span className="text-[10px] text-red-500 font-semibold whitespace-nowrap flex-shrink-0">Min ${bankerMinBet}</span>
-                                          return null
-                                        })()}
                                         {(pb.playerDoubled || pb.bankerDoubled) && (
                                           <span className="text-[10px] text-amber-700 font-semibold whitespace-nowrap flex-shrink-0">
                                             {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${Math.round(effective)}
                                           </span>
                                         )}
                                       </div>
+                                      {(() => {
+                                        const draftRaw = playerBetDraft[hole.hole_number]?.[p.id]
+                                        const draftVal = draftRaw !== undefined ? parseFloat(draftRaw) : NaN
+                                        const effectiveBet = !isNaN(draftVal) ? draftVal : pb.baseBet
+                                        if (effectiveBet > effectiveMaxBet) return <span className="text-[10px] text-red-500 font-semibold whitespace-nowrap flex-shrink-0">Max ${Math.round(effectiveMaxBet)}</span>
+                                        if (!isNaN(draftVal) && draftVal < bankerMinBet) return <span className="text-[10px] text-red-500 font-semibold whitespace-nowrap flex-shrink-0">Min ${bankerMinBet}</span>
+                                        return null
+                                      })()}
                                       <div className="flex items-center gap-1">
                                         <span className="text-sm font-bold text-gray-700">$</span>
                                         <input
