@@ -221,7 +221,7 @@ export default function ScorecardViewer({
             Array.from({ length: ballsCount }, (_, bi) => (
               <span key={bi} className="inline-flex items-center rounded-full py-1" style={{ background: 'rgba(15,23,42,0.06)', width: '4.5rem' }}>
                 <span className="font-bold text-[11px] leading-none" style={{ color: '#92400e', width: '50%', textAlign: 'right', paddingRight: '2px' }}>{BALL_LABELS[bi]}:</span>
-                <span className="font-bold text-[11px] leading-none" style={{ color: vspColor(scores[bi], par), width: '50%', textAlign: 'right', paddingRight: '18px' }}>{fmtVsp(scores[bi], par)}</span>
+                <span className="font-bold text-[11px] leading-none" style={{ color: vspColor(scores[bi], par), width: '50%', textAlign: 'left', paddingLeft: '4px' }}>{fmtVsp(scores[bi], par)}</span>
               </span>
             ))
           const frontScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(frontData, (d) => d.ballScores[bi]))
