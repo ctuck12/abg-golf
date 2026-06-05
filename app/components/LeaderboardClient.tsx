@@ -2070,7 +2070,7 @@ export default function LeaderboardClient({
                     const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                     return (
                       <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                        className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                        className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                         <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                           {hasScores ? i + 1 : '–'}
                         </span>
@@ -2147,7 +2147,7 @@ export default function LeaderboardClient({
                       const ptStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                       return (
                         <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                          className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                          className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                           <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                           <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
                           <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: ptCol }}>{ptStr}</span>
@@ -2160,7 +2160,7 @@ export default function LeaderboardClient({
                     const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                     return (
                       <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                        className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                        className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                         <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                         <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
                         <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
@@ -2262,7 +2262,7 @@ export default function LeaderboardClient({
                       const amtStr = amt !== 0 ? `$${Math.round(Math.abs(amt))}` : '$0'
                       return (
                         <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                          className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                          className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                           <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                           <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
                           <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: amtColor }}>{amtStr}</span>
@@ -2276,7 +2276,7 @@ export default function LeaderboardClient({
                       const ptStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                       return (
                         <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                          className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                          className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                           <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                           <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
                           <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: ptCol }}>{ptStr}</span>
@@ -2289,7 +2289,7 @@ export default function LeaderboardClient({
                     const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                     return (
                       <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                        className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                        className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                         <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                         <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
                         <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
@@ -2362,7 +2362,7 @@ export default function LeaderboardClient({
                 const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
                   <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                    className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                     <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
                     <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
@@ -2380,7 +2380,7 @@ export default function LeaderboardClient({
                 const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
                   <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                    className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                     <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
                     <span className="inline-flex justify-center text-sm font-bold flex-shrink-0" style={{ width: '4rem', color: vp === null ? '#9ca3af' : vpColor }}>{vpStr}</span>
@@ -2401,7 +2401,7 @@ export default function LeaderboardClient({
                 const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
                   <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                    className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                       {hasScores ? i + 1 : '–'}
                     </span>
@@ -2428,7 +2428,7 @@ export default function LeaderboardClient({
                 const ptsStr = pts === null ? '–' : pts > 0 ? `+${pts}` : String(pts)
                 return (
                   <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
-                    className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition border-b border-gray-100 last:border-0">
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                       {hasScores ? i + 1 : '–'}
                     </span>
@@ -2460,7 +2460,7 @@ export default function LeaderboardClient({
                   <div key={row.team.id} className="border-b border-gray-100 last:border-0">
                     <a
                       href={`/${orgSlug}/scorecard/${row.team.id}`}
-                      className="w-full flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition">
+                      className="w-full flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-50 transition">
                       <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                         {hasScores ? i + 1 : '–'}
                       </span>
