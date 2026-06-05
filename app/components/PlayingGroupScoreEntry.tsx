@@ -1240,9 +1240,9 @@ export default function PlayingGroupScoreEntry({
                                   disabled={strokesPending}
                                   className="text-xs px-2.5 py-1 rounded-full border font-medium transition"
                                   style={hasStroke
-                                    ? { background: '#16a34a', color: 'white', borderColor: 'transparent' }
+                                    ? { background: '#1d4ed8', color: 'white', borderColor: 'transparent' }
                                     : isSuggested
-                                      ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                                      ? { background: '#eff6ff', color: '#1d4ed8', borderColor: '#93c5fd' }
                                       : { borderColor: '#d1d5db', color: '#6b7280' }}>
                                   {p.name.split(' ')[0]}
                                 </button>
