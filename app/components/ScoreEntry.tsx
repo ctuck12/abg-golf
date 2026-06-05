@@ -386,25 +386,6 @@ export default function ScoreEntry({
   const [showOptions, setShowOptions] = useState(false)
   const [showScorecards, setShowScorecards] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  // iOS-safe scroll lock: body{position:fixed} is the only reliable way to
-  // prevent window scroll on input focus on iOS Safari.
-  useEffect(() => {
-    const html = document.documentElement
-    const body = document.body
-    const prev = { hOver: html.style.overflow, hH: html.style.height, bOver: body.style.overflow, bPos: body.style.position, bW: body.style.width, bH: body.style.height }
-    html.style.overflow = 'hidden'
-    html.style.height = '100%'
-    body.style.overflow = 'hidden'
-    body.style.position = 'fixed'
-    body.style.width = '100%'
-    body.style.height = '100%'
-    return () => {
-      html.style.overflow = prev.hOver; html.style.height = prev.hH
-      body.style.overflow = prev.bOver; body.style.position = prev.bPos
-      body.style.width = prev.bW; body.style.height = prev.bH
-    }
-  }, [])
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
   const [strokesPending, setStrokesPending] = useState(false)
@@ -663,10 +644,11 @@ export default function ScoreEntry({
 
   function scrollHoleIntoView(holeNumber: number, behavior: ScrollBehavior) {
     const el = document.getElementById(`hole-${holeNumber}`)
-    const container = scrollContainerRef.current
-    if (!el || !container) return
-    const top = container.scrollTop + el.getBoundingClientRect().top - container.getBoundingClientRect().top - 8
-    container.scrollTo({ top, behavior })
+    if (!el) return
+    const header = document.querySelector('header')
+    const headerHeight = header?.offsetHeight ?? 96
+    const top = el.getBoundingClientRect().top + window.scrollY - headerHeight - 8
+    window.scrollTo({ top, behavior })
   }
 
   // On page load, scroll so the last saved hole (just above the current hole) is visible
@@ -824,7 +806,7 @@ export default function ScoreEntry({
       setExpandedHole(nextHole)
       const justFinished = !nextHole && !savedHoles.has(holeNumber)
       if (justFinished) {
-        setTimeout(() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 100)
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100)
       } else {
         setTimeout(() => scrollHoleIntoView(holeNumber, 'smooth'), 100)
       }
@@ -870,7 +852,7 @@ export default function ScoreEntry({
   const savedCount = savedHoles.size
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: '#f8fafc' }}>
+    <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {showOptions && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -992,7 +974,7 @@ export default function ScoreEntry({
       )}
 
       {/* Header */}
-      <header className="text-white px-4 pt-4 pb-3 shrink-0 z-10 shadow-md" style={{ background: navy }}>
+      <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -1102,8 +1084,6 @@ export default function ScoreEntry({
           )}
         </div>
       </header>
-
-      <div ref={scrollContainerRef} className="flex-1" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch' }}>
 
       {playerPopup && (() => {
         const p = players.find((pl) => pl.id === playerPopup)
@@ -1908,13 +1888,15 @@ export default function ScoreEntry({
                             <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
                               Banker Sets Max Bet (min ${bankerMinBet})
                             </p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-500">$</span>
-                              <input type="number" value={hd.maxBet} min={bankerMinBet} step="1"
-                                onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.round(parseFloat(e.target.value) || bankerMinBet))}
-
-                                className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
-                              <span className="text-xs text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
+                            <div className="flex items-center gap-3">
+                              <button type="button"
+                                onClick={() => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.max(bankerMinBet, hd.maxBet - 1))}
+                                className="w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">−</button>
+                              <span className="text-sm font-bold w-10 text-center">${hd.maxBet}</span>
+                              <button type="button"
+                                onClick={() => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, hd.maxBet + 1)}
+                                className="w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">+</button>
+                              <span className="text-xs text-gray-400">min ${bankerMinBet}</span>
                             </div>
                           </div>
                         )}
@@ -1931,15 +1913,14 @@ export default function ScoreEntry({
                                   <div key={p.id} className="bg-white rounded-lg p-2 border border-gray-100">
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-xs text-gray-500">$</span>
-                                        <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="1"
-                                          onChange={(e) => {
-                                            const v = Math.min(Math.max(Math.round(parseFloat(e.target.value) || bankerMinBet), bankerMinBet), hd.maxBet)
-                                            handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
-                                          }}
-          
-                                          className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
+                                      <div className="flex items-center gap-2">
+                                        <button type="button"
+                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.max(bankerMinBet, pb.baseBet - 1) } })}
+                                          className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">−</button>
+                                        <span className="text-sm font-bold w-8 text-center">${pb.baseBet}</span>
+                                        <button type="button"
+                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.min(hd.maxBet, pb.baseBet + 1) } })}
+                                          className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">+</button>
                                       </div>
                                       <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
@@ -2340,9 +2321,7 @@ export default function ScoreEntry({
         })}
       </main>
 
-      </div>{/* scroll container */}
-
-      <div className="shrink-0 bg-white border-t border-gray-200 px-4 py-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center justify-center text-sm">
           <p className="text-xs text-gray-400">{savedCount}/18 holes saved</p>
         </div>
