@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, Fragment, useMemo } from 'react'
+import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
 import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { supabase } from '@/lib/supabase'
 import {
@@ -713,13 +713,16 @@ export default function ScoreEntry({
 
   // On load, scroll so the saved hole just above the current one is visible below the header
   const didInitialScrollRef = useRef(false)
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (didInitialScrollRef.current || expandedHole === null) return
     didInitialScrollRef.current = true
-    const holeNums = holes.map((h) => h.hole_number)
-    const currentIdx = holeNums.indexOf(expandedHole)
-    const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
-    scrollHoleIntoView(scrollTarget, 'instant')
+    const t = setTimeout(() => {
+      const holeNums = holes.map((h) => h.hole_number)
+      const currentIdx = holeNums.indexOf(expandedHole)
+      const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
+      scrollHoleIntoView(scrollTarget, 'instant')
+    }, 0)
+    return () => clearTimeout(t)
   }, [expandedHole])
 
   // Per-hole press (custom payout value) state
