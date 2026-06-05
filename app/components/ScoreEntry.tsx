@@ -387,17 +387,22 @@ export default function ScoreEntry({
   const [showScorecards, setShowScorecards] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  // Lock html/body scroll so iOS input-focus scroll targets our inner container instead of window
+  // iOS-safe scroll lock: body{position:fixed} is the only reliable way to
+  // prevent window scroll on input focus on iOS Safari.
   useEffect(() => {
     const html = document.documentElement
     const body = document.body
-    const prevHtmlOverflow = html.style.overflow
-    const prevBodyOverflow = body.style.overflow
+    const prev = { hOver: html.style.overflow, hH: html.style.height, bOver: body.style.overflow, bPos: body.style.position, bW: body.style.width, bH: body.style.height }
     html.style.overflow = 'hidden'
+    html.style.height = '100%'
     body.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.width = '100%'
+    body.style.height = '100%'
     return () => {
-      html.style.overflow = prevHtmlOverflow
-      body.style.overflow = prevBodyOverflow
+      html.style.overflow = prev.hOver; html.style.height = prev.hH
+      body.style.overflow = prev.bOver; body.style.position = prev.bPos
+      body.style.width = prev.bW; body.style.height = prev.bH
     }
   }, [])
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
