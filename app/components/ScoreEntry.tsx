@@ -666,18 +666,25 @@ export default function ScoreEntry({
     const vv = window.visualViewport
     const header = headerRef.current
     if (!vv || !header) return
-    function pin() {
-      header!.style.top = `${vv!.offsetTop}px`
+    function pin() { header!.style.top = `${vv!.offsetTop}px` }
+    function onResize() {
+      const keyboardOpen = vv!.height < window.innerHeight - 100
+      if (keyboardOpen) {
+        vv!.addEventListener('scroll', pin)
+        pin()
+      } else {
+        vv!.removeEventListener('scroll', pin)
+        header!.style.top = '0px'
+      }
     }
     const ro = new ResizeObserver(() => {
       if (spacerRef.current) spacerRef.current.style.height = `${header!.offsetHeight}px`
     })
     ro.observe(header)
-    vv.addEventListener('scroll', pin)
-    vv.addEventListener('resize', pin)
+    vv.addEventListener('resize', onResize)
     return () => {
+      vv.removeEventListener('resize', onResize)
       vv.removeEventListener('scroll', pin)
-      vv.removeEventListener('resize', pin)
       ro.disconnect()
     }
   }, [])
