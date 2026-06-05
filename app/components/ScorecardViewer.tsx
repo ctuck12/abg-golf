@@ -219,7 +219,7 @@ export default function ScorecardViewer({
           }
           const ballChips = (scores: (number | null)[], par: number) =>
             Array.from({ length: ballsCount }, (_, bi) => (
-              <span key={bi} className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5" style={{ background: 'rgba(15,23,42,0.05)' }}>
+              <span key={bi} className="inline-flex items-center justify-center gap-0.5 rounded-full py-1" style={{ background: 'rgba(15,23,42,0.06)', width: '4.5rem' }}>
                 <span className="font-bold text-[11px] leading-none" style={{ color: '#92400e' }}>{BALL_LABELS[bi]}:</span>
                 <span className="font-bold text-[11px] leading-none" style={{ color: vspColor(scores[bi], par) }}>{fmtVsp(scores[bi], par)}</span>
               </span>
@@ -236,9 +236,6 @@ export default function ScorecardViewer({
                     {ballChips(frontScores, frontPar)}
                   </div>
                 )}
-                {frontData.length > 0 && backData.length > 0 && (
-                  <div className="self-stretch w-px bg-gray-300" />
-                )}
                 {backData.length > 0 && (
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: navy }}>Back</span>
@@ -247,7 +244,6 @@ export default function ScorecardViewer({
                 )}
                 {includeTotal && (
                   <>
-                    <div className="self-stretch w-px bg-gray-300" />
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: navy }}>Total</span>
                       {ballChips(totalScores, totalPar)}
@@ -259,7 +255,7 @@ export default function ScorecardViewer({
           )
         })()}
 
-        <div className="bg-white rounded-2xl overflow-x-auto shadow-sm border border-gray-200">
+        <div className="bg-white rounded-t-2xl overflow-x-auto shadow-sm border border-gray-200">
         <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
           <thead>
             <tr>
