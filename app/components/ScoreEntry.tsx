@@ -809,7 +809,7 @@ export default function ScoreEntry({
       if (justFinished) {
         setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100)
       } else {
-        setTimeout(() => scrollHoleIntoView(holeNumber, 'smooth'), 50)
+        setTimeout(() => scrollHoleIntoView(holeNumber, 'smooth'), 100)
       }
       broadcastChannel.current?.send({ type: 'broadcast', event: 'refresh', payload: {} })
       checkRoundComplete()
