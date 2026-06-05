@@ -841,25 +841,31 @@ export default function LeaderboardClient({
   // Daytona side game: groups in standardGroupRows or traditionalGroupRows with hasDaytona
   for (const group of standardGroupRows) {
     if (!group.hasDaytona) continue
-    const variant = group.daytona_variant!.split('|')[0]
+    const raw = group.daytona_variant!
+    const variant = raw.split('|')[0]
+    const payoutStr = raw.includes('|') ? raw.split('|')[1] : null
+    const groupPayoutValue = payoutStr ? (parseFloat(payoutStr) || dtPayoutValue) : dtPayoutValue
     const pids = group.rows.map((r) => r.player.id)
     const groupPlayers = players.filter((p) => pids.includes(p.id))
     const tAssign = assignments.filter((a) => pids.includes(a.player_id))
     const tScores = scores.filter((s) => pids.includes(s.player_id))
     const tHoleVals = liveHoleValues[group.id] ?? {}
-    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, dtPayoutValue, tHoleVals)
+    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
     for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
   }
   for (const group of traditionalGroupRows) {
     if (!group.hasDaytona) continue
-    const variant = group.team.daytona_variant!.split('|')[0]
+    const raw = group.team.daytona_variant!
+    const variant = raw.split('|')[0]
+    const payoutStr = raw.includes('|') ? raw.split('|')[1] : null
+    const groupPayoutValue = payoutStr ? (parseFloat(payoutStr) || dtPayoutValue) : dtPayoutValue
     const pids = group.rows.map((r) => r.player.id)
     const groupPlayers = players.filter((p) => pids.includes(p.id))
     const tAssign = assignments.filter((a) => pids.includes(a.player_id))
     const tScores = scores.filter((s) => pids.includes(s.player_id))
     const tHoleVals = liveHoleValues[group.team.id] ?? {}
-    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, dtPayoutValue, tHoleVals)
+    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
     for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
   }
@@ -1089,21 +1095,24 @@ export default function LeaderboardClient({
                   {showDaytonaSideResults && (
                     <div className="border-t border-gray-100">
                       {[...standardGroupRows.filter((g) => g.hasDaytona), ...traditionalGroupRows.filter((g) => g.hasDaytona).map((g) => ({ id: g.team.id, name: g.team.name, daytona_variant: g.team.daytona_variant, rows: g.rows, hasDaytona: true, hasBanker: false, pointsMap: g.pointsMap, bankerTotals: {} as Record<string, number> }))].map((group, ti) => {
-                        const variant = group.daytona_variant!.split('|')[0]
+                        const rawVariant = group.daytona_variant!
+                        const variant = rawVariant.split('|')[0]
+                        const payoutStr = rawVariant.includes('|') ? rawVariant.split('|')[1] : null
+                        const groupPayoutValue = payoutStr ? (parseFloat(payoutStr) || dtPayoutValue) : dtPayoutValue
                         const pids = group.rows.map((r) => r.player.id)
                         const groupPlayers = players.filter((p) => pids.includes(p.id))
                         const tAssign = assignments.filter((a) => pids.includes(a.player_id))
                         const tScores = scores.filter((s) => pids.includes(s.player_id))
                         const tHoleVals = liveHoleValues[group.id] ?? {}
                         const pointTotals = group.pointsMap ?? new Map<string, number>()
-                        const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, dtPayoutValue, tHoleVals)
+                        const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, groupPayoutValue, tHoleVals)
                         const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
                         return (
                           <div key={group.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
                             <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
                               <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{group.name}</span>
                             </div>
-                            <div className="px-4 py-2"><p className="text-xs text-gray-400">{formatHoleRateBreakdown(holes, tHoleVals, dtPayoutValue)}</p></div>
+                            <div className="px-4 py-2"><p className="text-xs text-gray-400">{formatHoleRateBreakdown(holes, tHoleVals, groupPayoutValue)}</p></div>
                             <div className="divide-y divide-gray-100">
                               {groupPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                 <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
