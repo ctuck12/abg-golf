@@ -404,28 +404,41 @@ export default function ScoreEntry({
   const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
   const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
 
+  function effectiveStrokeIds(holeNumber: number): string[] {
+    const manual = holeStrokes[holeNumber]
+    if (manual !== undefined) return manual
+    if (!autoHandicap) return []
+    if (isBanker) {
+      const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
+      const playerStrokeIds = getBankerAutoStrokes(holeNumber)
+      const bankerGetsStroke = bankerPlayerId && getBankerReceiveStrokes(holeNumber).length > 0
+      return [...playerStrokeIds, ...(bankerGetsStroke ? [bankerPlayerId!] : [])]
+    }
+    return getAutoStrokes(holeNumber)
+  }
+
   function netSaved(playerId: string, holeNumber: number): number | undefined {
     const gross = savedScores.find((s) => s.player_id === playerId && s.hole_number === holeNumber)?.strokes
     if (gross === undefined) return undefined
-    return gross - ((holeStrokes[holeNumber] ?? []).includes(playerId) ? 1 : 0)
+    return gross - (effectiveStrokeIds(holeNumber).includes(playerId) ? 1 : 0)
   }
   function netEdit(playerId: string, holeNumber: number, par: number): number {
     const gross = strokes[playerId]?.[holeNumber] ?? par
-    return gross - ((holeStrokes[holeNumber] ?? []).includes(playerId) ? 1 : 0)
+    return gross - (effectiveStrokeIds(holeNumber).includes(playerId) ? 1 : 0)
   }
-  // Per-matchup net scores: player uses holeStrokes (manual), banker gets strokes when hcp > player hcp
   function bankerMatchupNets(bankerId: string, playerId: string, holeNumber: number, strokeIndex: number | null | undefined): { bankerNet: number | undefined; playerNet: number | undefined } {
     const bankerGross = savedScores.find((s) => s.player_id === bankerId && s.hole_number === holeNumber)?.strokes
     const playerGross = savedScores.find((s) => s.player_id === playerId && s.hole_number === holeNumber)?.strokes
     if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
-    const pNet = playerGross - ((holeStrokes[holeNumber] ?? []).includes(playerId) ? 1 : 0)
+    const effIds = effectiveStrokeIds(holeNumber)
+    const pNet = playerGross - (effIds.includes(playerId) ? 1 : 0)
     const effHcp = (h: number) => Math.max(0, Math.trunc(h))
     const bHcpRaw = allRoundPlayerHandicaps[bankerId] ?? null
     const pHcpRaw = allRoundPlayerHandicaps[playerId] ?? null
     const si = strokeIndex ?? 999
     const bHcp = bHcpRaw != null ? effHcp(bHcpRaw) : null
     const pHcp = pHcpRaw != null ? effHcp(pHcpRaw) : null
-    const bankerInStrokes = (holeStrokes[holeNumber] ?? []).includes(bankerId)
+    const bankerInStrokes = effIds.includes(bankerId)
     const bankerStroke = bankerInStrokes && bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
     return { bankerNet: bankerGross - bankerStroke, playerNet: pNet }
   }
@@ -455,7 +468,7 @@ export default function ScoreEntry({
     }
     return totals
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isBanker, savedHoles, bankerHoles, bankerBets, bankerMinBet, savedScores, holeStrokes, holes, players, allRoundPlayerHandicaps])
+  }, [isBanker, savedHoles, bankerHoles, bankerBets, bankerMinBet, savedScores, holeStrokes, holes, players, allRoundPlayerHandicaps, autoHandicap])
 
   async function handleSaveBankerHole(holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
     setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId, maxBet } }))
@@ -533,7 +546,7 @@ export default function ScoreEntry({
   }
 
   async function handleStrokesToggle(holeNumber: number, playerId: string) {
-    const current = holeStrokes[holeNumber] ?? []
+    const current = effectiveStrokeIds(holeNumber)
     const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
     const updated = { ...holeStrokes, [holeNumber]: next }
     setHoleStrokes(updated)
@@ -1762,7 +1775,7 @@ export default function ScoreEntry({
           const netGroup = (pid: string) => {
             const gross = groupScoreSource.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
             if (gross === undefined) return undefined
-            return gross - ((holeStrokes[hole.hole_number] ?? []).includes(pid) ? 1 : 0)
+            return gross - (effectiveStrokeIds(hole.hole_number).includes(pid) ? 1 : 0)
           }
           const savedLeftScores = allHoleLeftIds.map(netGroup).filter((s): s is number => s !== undefined)
           const savedRightScores = allHoleRightIds.map(netGroup).filter((s): s is number => s !== undefined)
@@ -2168,7 +2181,7 @@ export default function ScoreEntry({
                           </button>
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
-                          {player.name}{(holeStrokes[hole.hole_number] ?? []).includes(player.id) ? <span className="text-blue-500 font-bold">*</span> : ''}
+                          {player.name}{effectiveStrokeIds(hole.hole_number).includes(player.id) ? <span className="text-blue-500 font-bold">*</span> : ''}
                           {isDaytonaMode && isSaved && (() => {
                             const pts = holePlayerPoints.get(player.id)
                             if (!pts) return null
@@ -2325,7 +2338,7 @@ export default function ScoreEntry({
                   {/* ── Strokes panel ── */}
                   {(() => {
                     const suggestedIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : (autoHandicap ? getAutoStrokes(hole.hole_number) : [])
-                    const activeStrokeIds = holeStrokes[hole.hole_number] ?? []
+                    const activeStrokeIds = effectiveStrokeIds(hole.hole_number)
                     const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null
                     const visiblePlayers = players.filter((p) => p.id !== bankerPlayerId && (suggestedIds.includes(p.id) || activeStrokeIds.includes(p.id)))
                     const bankerReceiveFromIds = isBanker ? getBankerReceiveStrokes(hole.hole_number) : []

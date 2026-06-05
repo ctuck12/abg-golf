@@ -63,6 +63,7 @@ export default async function PlayingGroupScorecardPage({
   const defaultDtPayoutValue = parsedPayoutStr ? (parseFloat(parsedPayoutStr) || 0.25) : 0.25
   const isBankerSideGame = !!(group as { banker_side_game?: boolean }).banker_side_game
   const bankerMinBet = (group as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
+  const autoStrokes = !!(group as { auto_strokes?: boolean }).auto_strokes
 
   // Fetch all teams in this round to get full team rosters for ball score popup
   const { data: allTeams } = await sb.from('teams').select('id, name').eq('round_id', round.id)
@@ -160,6 +161,7 @@ export default async function PlayingGroupScorecardPage({
       bankerMinBet={bankerMinBet}
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}
+      autoStrokes={autoStrokes}
     />
   )
 }

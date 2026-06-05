@@ -44,6 +44,7 @@ export default function PlayingGroupScoreEntry({
   daytonaVariant, isDaytonaSideGame, defaultDtPayoutValue, initialAssignments,
   initialHoleStrokes = {}, initialHoleValues = {},
   bankerSideGame = false, bankerMinBet = 2, initialBankerHoles = {}, initialBankerBets = {},
+  autoStrokes = false,
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster: boolean; isAdmin: boolean
   groupId: string; groupName: string; roundId: string; roundName: string; roundDate: string; roundCourse: string
@@ -58,6 +59,7 @@ export default function PlayingGroupScoreEntry({
   bankerMinBet?: number
   initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
+  autoStrokes?: boolean
 }) {
   const isDaytonaMode = !!isDaytonaSideGame
   const isFlares = daytonaVariant === '5man-flares'
@@ -250,15 +252,6 @@ export default function PlayingGroupScoreEntry({
     ? new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : ''
 
-  async function handleStrokesToggle(holeNumber: number, playerId: string) {
-    const current = holeStrokes[holeNumber] ?? []
-    const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
-    setHoleStrokes((prev) => ({ ...prev, [holeNumber]: next }))
-    setStrokesPending(true)
-    await saveHoleStrokes(roundId, holeNumber, next)
-    setStrokesPending(false)
-  }
-
   function getAutoStrokes(holeNumber: number): string[] {
     const hole = holes.find((h) => h.hole_number === holeNumber)
     if (!hole?.stroke_index) return []
@@ -270,17 +263,40 @@ export default function PlayingGroupScoreEntry({
     }).map((p) => p.id)
   }
 
+  function effectiveStrokeIds(holeNumber: number): string[] {
+    const manual = holeStrokes[holeNumber]
+    if (manual !== undefined) return manual
+    if (!autoStrokes) return []
+    if (isBanker) {
+      const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
+      const playerStrokeIds = getBankerAutoStrokes(holeNumber)
+      const bankerGetsStroke = bankerPlayerId && getBankerReceiveStrokes(holeNumber).length > 0
+      return [...playerStrokeIds, ...(bankerGetsStroke ? [bankerPlayerId!] : [])]
+    }
+    return getAutoStrokes(holeNumber)
+  }
+
+  async function handleStrokesToggle(holeNumber: number, playerId: string) {
+    const current = effectiveStrokeIds(holeNumber)
+    const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
+    setHoleStrokes((prev) => ({ ...prev, [holeNumber]: next }))
+    setStrokesPending(true)
+    await saveHoleStrokes(roundId, holeNumber, next)
+    setStrokesPending(false)
+  }
+
   function netSavedGlobal(pid: string, holeNumber: number): number | undefined {
     const gross = savedScores.find((s) => s.player_id === pid && s.hole_number === holeNumber)?.strokes
     if (gross === undefined) return undefined
-    return gross - ((holeStrokes[holeNumber] ?? []).includes(pid) ? 1 : 0)
+    return gross - (effectiveStrokeIds(holeNumber).includes(pid) ? 1 : 0)
   }
   // Per-matchup net scores: player uses holeStrokes (manual), banker gets strokes when hcp > player hcp
   function bankerMatchupNets(bankerId: string, p: { id: string; handicap?: number | null }, holeNumber: number, strokeIndex: number | null | undefined): { bankerNet: number | undefined; playerNet: number | undefined } {
     const bankerGross = savedScores.find((s) => s.player_id === bankerId && s.hole_number === holeNumber)?.strokes
     const playerGross = savedScores.find((s) => s.player_id === p.id && s.hole_number === holeNumber)?.strokes
     if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
-    const pNet = playerGross - ((holeStrokes[holeNumber] ?? []).includes(p.id) ? 1 : 0)
+    const effIds = effectiveStrokeIds(holeNumber)
+    const pNet = playerGross - (effIds.includes(p.id) ? 1 : 0)
     const effHcp = (h: number) => Math.max(0, Math.trunc(h))
     const bankerPlayer = players.find((pl) => pl.id === bankerId)
     const bHcpRaw = bankerPlayer?.handicap ?? null
@@ -288,7 +304,7 @@ export default function PlayingGroupScoreEntry({
     const si = strokeIndex ?? 999
     const bHcp = bHcpRaw != null ? effHcp(bHcpRaw) : null
     const pHcp = pHcpRaw != null ? effHcp(pHcpRaw) : null
-    const bankerInStrokes = (holeStrokes[holeNumber] ?? []).includes(bankerId)
+    const bankerInStrokes = effIds.includes(bankerId)
     const bankerStroke = bankerInStrokes && bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
     return { bankerNet: bankerGross - bankerStroke, playerNet: pNet }
   }
@@ -690,7 +706,7 @@ export default function PlayingGroupScoreEntry({
                 const holeAssignments = assignments[hole.hole_number] ?? {}
                 const leftIds = Object.entries(holeAssignments).filter(([, s]) => s === 'left').map(([id]) => id)
                 const rightIds = Object.entries(holeAssignments).filter(([, s]) => s === 'right').map(([id]) => id)
-                const strokeIds = holeStrokes[hole.hole_number] ?? []
+                const strokeIds = effectiveStrokeIds(hole.hole_number)
                 const netScores = savedScores.map((s) => ({ ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0) }))
                 if (is5Man) {
                   if (leftIds.length < 2 || rightIds.length < 3) continue
@@ -792,7 +808,7 @@ export default function PlayingGroupScoreEntry({
           const holeLeftLabel = isFlares && hole.par === 3 ? 'Close' : leftLabel
           const holeRightLabel = isFlares && hole.par === 3 ? 'Far' : rightLabel
 
-          const holeStrokeIds = holeStrokes[hole.hole_number] ?? []
+          const holeStrokeIds = effectiveStrokeIds(hole.hole_number)
           // Net = gross - 1 if player has a stroke on this hole
           const netSaved = (pid: string) => {
             const gross = savedScores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
