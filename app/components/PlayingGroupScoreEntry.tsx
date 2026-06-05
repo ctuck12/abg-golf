@@ -84,14 +84,7 @@ export default function PlayingGroupScoreEntry({
     }
     return saved
   })
-  const [expandedHole, setExpandedHole] = useState<number | null>(() => {
-    for (const h of holes) {
-      if (!players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))) {
-        return h.hole_number
-      }
-    }
-    return null
-  })
+  const [expandedHole, setExpandedHole] = useState<number | null>(null)
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [playerPopup, setPlayerPopup] = useState<string | null>(null)

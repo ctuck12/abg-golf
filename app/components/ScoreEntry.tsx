@@ -363,16 +363,7 @@ export default function ScoreEntry({
 
   const [savedScores, setSavedScores] = useState<Score[]>(initialScores)
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
-  const [expandedHole, setExpandedHole] = useState<number | null>(() => {
-    // Auto-expand the current (first unsaved) hole when the page loads
-    const saved = new Set<number>()
-    for (let h = 1; h <= 18; h++) {
-      if (players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
-        saved.add(h)
-      }
-    }
-    return holes.find((h) => !saved.has(h.hole_number))?.hole_number ?? null
-  })
+  const [expandedHole, setExpandedHole] = useState<number | null>(null)
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [roundComplete, setRoundComplete] = useState(false)
   const [showPayoutsModal, setShowPayoutsModal] = useState(false)
@@ -710,20 +701,6 @@ export default function ScoreEntry({
       if (timer) clearTimeout(timer)
     }
   }, [])
-
-  // On page load, scroll so the last saved hole (just above the current hole) is visible
-  const didInitialScrollRef = useRef(false)
-  useEffect(() => {
-    if (didInitialScrollRef.current || expandedHole === null) return
-    didInitialScrollRef.current = true
-    setTimeout(() => {
-      const holeNums = holes.map((h) => h.hole_number)
-      const currentIdx = holeNums.indexOf(expandedHole)
-      // If there's a previous hole, scroll to it so saved ✓ + current are both visible
-      const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
-      scrollHoleIntoView(scrollTarget, 'auto')
-    }, 50)
-  }, [expandedHole])
 
   // Per-hole press (custom payout value) state
   const [holeValues, setHoleValues] = useState<Record<number, number>>(initialHoleValues)
