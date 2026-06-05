@@ -1904,6 +1904,8 @@ export default function ScoreEntry({
                   {isBanker && (() => {
                     const hd = bankerHoles[hole.hole_number] ?? { bankerPlayerId: null, maxBet: 5 }
                     const bets = bankerBets[hole.hole_number] ?? {}
+                    const maxBetDraftNum = parseFloat(maxBetDraft[hole.hole_number] ?? '')
+                    const effectiveMaxBet = !isNaN(maxBetDraftNum) && maxBetDraftNum >= bankerMinBet ? maxBetDraftNum : hd.maxBet
                     const isLastTwo = hole.hole_number >= (holes.length > 9 ? 17 : holes[holes.length - 2]?.hole_number ?? 17)
                     const suggestedBankerId = isLastTwo
                       ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
@@ -1980,6 +1982,14 @@ export default function ScoreEntry({
                                     <div className="flex items-center gap-2">
                                       <div className="flex items-center gap-1 flex-1 min-w-0">
                                         <span className="text-sm font-medium text-gray-700 truncate">{p.name}</span>
+                                        {(() => {
+                                          const draftRaw = playerBetDraft[hole.hole_number]?.[p.id]
+                                          const draftVal = draftRaw !== undefined ? parseFloat(draftRaw) : NaN
+                                          const effectiveBet = !isNaN(draftVal) ? draftVal : pb.baseBet
+                                          if (effectiveBet > effectiveMaxBet) return <span className="text-xs text-red-500 font-semibold whitespace-nowrap flex-shrink-0">Max ${Math.round(effectiveMaxBet)}</span>
+                                          if (!isNaN(draftVal) && draftVal < bankerMinBet) return <span className="text-xs text-red-500 font-semibold whitespace-nowrap flex-shrink-0">Min ${bankerMinBet}</span>
+                                          return null
+                                        })()}
                                         {(pb.playerDoubled || pb.bankerDoubled) && (
                                           <span className="text-xs text-amber-700 font-semibold whitespace-nowrap flex-shrink-0">
                                             {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${Math.round(effective)}
@@ -1993,7 +2003,7 @@ export default function ScoreEntry({
                                           value={playerBetDraft[hole.hole_number]?.[p.id] ?? String(pb.baseBet)}
                                           min={bankerMinBet} max={hd.maxBet}
                                           style={{ fontSize: '16px', width: '44px', textAlign: 'center', fontWeight: 'bold' }}
-                                          className={`border rounded-lg px-1 py-0.5 focus:outline-none transition ${playerBetDraft[hole.hole_number]?.[p.id] !== undefined && !isNaN(parseFloat(playerBetDraft[hole.hole_number][p.id])) && (parseFloat(playerBetDraft[hole.hole_number][p.id]) < bankerMinBet || parseFloat(playerBetDraft[hole.hole_number][p.id]) > hd.maxBet) ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-blue-300'}`}
+                                          className={`border rounded-lg px-1 py-0.5 focus:outline-none transition ${(() => { const dv = playerBetDraft[hole.hole_number]?.[p.id]; const v = dv !== undefined ? parseFloat(dv) : NaN; return (!isNaN(v) && (v < bankerMinBet || v > effectiveMaxBet)) || (isNaN(v) && pb.baseBet > effectiveMaxBet) })() ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-blue-300'}`}
                                           onTouchStart={noScrollFocus}
                                           onChange={(e) => setPlayerBetDraft(prev => ({ ...prev, [hole.hole_number]: { ...(prev[hole.hole_number] ?? {}), [p.id]: e.target.value } }))}
                                           onBlur={() => {
@@ -2012,15 +2022,6 @@ export default function ScoreEntry({
                                         2×
                                       </button>
                                     </div>
-                                    {(() => {
-                                      const raw = playerBetDraft[hole.hole_number]?.[p.id]
-                                      if (raw === undefined) return null
-                                      const val = parseFloat(raw)
-                                      if (isNaN(val)) return null
-                                      if (val < bankerMinBet) return <p className="text-xs text-red-500 mt-0.5">Min ${bankerMinBet}</p>
-                                      if (val > hd.maxBet) return <p className="text-xs text-red-500 mt-0.5">Max ${hd.maxBet}</p>
-                                      return null
-                                    })()}
                                   </div>
                                 )
                               })}
