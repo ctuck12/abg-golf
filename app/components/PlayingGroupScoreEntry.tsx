@@ -277,7 +277,7 @@ export default function PlayingGroupScoreEntry({
   }
 
   async function handleStrokesToggle(holeNumber: number, playerId: string) {
-    const current = effectiveStrokeIds(holeNumber)
+    const current = holeStrokes[holeNumber] ?? []
     const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
     setHoleStrokes((prev) => ({ ...prev, [holeNumber]: next }))
     setStrokesPending(true)

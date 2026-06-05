@@ -546,7 +546,7 @@ export default function ScoreEntry({
   }
 
   async function handleStrokesToggle(holeNumber: number, playerId: string) {
-    const current = effectiveStrokeIds(holeNumber)
+    const current = holeStrokes[holeNumber] ?? []
     const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
     const updated = { ...holeStrokes, [holeNumber]: next }
     setHoleStrokes(updated)
