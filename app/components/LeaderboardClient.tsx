@@ -1972,26 +1972,26 @@ export default function LeaderboardClient({
         <div className="flex items-center gap-2 mb-3">
             <button
               onClick={() => setShowPayouts(true)}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
-              style={{ borderColor: navy, color: navy }}>
+              className="text-xs font-semibold px-4 py-1.5 rounded-full"
+              style={{ background: navy, color: 'white' }}>
               Payouts
             </button>
-            <a href={`/${orgSlug}/matchup`} className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
-              style={{ borderColor: navy, color: navy }}>
+            <a href={`/${orgSlug}/matchup`} className="text-xs font-semibold px-4 py-1.5 rounded-full"
+              style={{ background: navy, color: 'white' }}>
               Matchups
             </a>
             {isDaytona && initialTeams.length === 1 && (
               <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
-                style={{ borderColor: navy, color: navy }}>
+                className="text-xs font-semibold px-4 py-1.5 rounded-full"
+                style={{ background: navy, color: 'white' }}>
                 All Scorecards
               </a>
             )}
             {leaderboardView === 'individual' && (
               <button
                 onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
-                style={{ borderColor: navy, color: navy }}>
+                className="text-xs font-semibold px-4 py-1.5 rounded-full"
+                style={{ background: navy, color: 'white' }}>
                 All Scorecards
               </button>
             )}
