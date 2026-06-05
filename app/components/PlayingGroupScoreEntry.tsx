@@ -276,7 +276,7 @@ export default function PlayingGroupScoreEntry({
     return gross - ((holeStrokes[holeNumber] ?? []).includes(pid) ? 1 : 0)
   }
   // Per-matchup net scores: player uses holeStrokes (manual), banker gets strokes when hcp > player hcp
-  function bankerMatchupNets(bankerId: string, p: { id: string; handicap: number | null }, holeNumber: number, strokeIndex: number | null | undefined): { bankerNet: number | undefined; playerNet: number | undefined } {
+  function bankerMatchupNets(bankerId: string, p: { id: string; handicap?: number | null }, holeNumber: number, strokeIndex: number | null | undefined): { bankerNet: number | undefined; playerNet: number | undefined } {
     const bankerGross = savedScores.find((s) => s.player_id === bankerId && s.hole_number === holeNumber)?.strokes
     const playerGross = savedScores.find((s) => s.player_id === p.id && s.hole_number === holeNumber)?.strokes
     if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
