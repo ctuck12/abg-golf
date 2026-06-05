@@ -259,11 +259,11 @@ export default function ScorecardViewer({
           )
         })()}
 
-        <div className="bg-white rounded-2xl overflow-hidden overflow-x-auto shadow-sm border border-gray-200">
+        <div className="bg-white rounded-2xl overflow-x-auto shadow-sm border border-gray-200">
         <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
+              <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh, borderTopLeftRadius: '1rem' }}>HOLE</th>
               {[1,2,3,4,5,6,7,8,9].map((n) => (
                 <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
                   {n}
@@ -282,7 +282,7 @@ export default function ScorecardViewer({
                 </th>
               ))}
               <th style={thStyle(true)}>Back</th>
-              <th style={thStyle()}>TOTAL</th>
+              <th style={{ ...thStyle(), borderTopRightRadius: '1rem' }}>TOTAL</th>
             </tr>
           </thead>
           <tbody>
