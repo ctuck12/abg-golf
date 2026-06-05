@@ -1950,9 +1950,6 @@ export default function ScoreEntry({
                               Banker Sets Max Bet (min ${bankerMinBet})
                             </p>
                             <div className="flex items-center gap-3">
-                              <button type="button"
-                                onClick={() => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.max(bankerMinBet, hd.maxBet - 1))}
-                                className="w-5 h-5 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">−</button>
                               <input
                                 type="number" inputMode="numeric"
                                 value={maxBetDraft[hole.hole_number] ?? String(hd.maxBet)}
@@ -1970,9 +1967,6 @@ export default function ScoreEntry({
                                   }
                                 }}
                               />
-                              <button type="button"
-                                onClick={() => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, hd.maxBet + 1)}
-                                className="w-5 h-5 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">+</button>
                               <span className="text-xs text-gray-400">min ${bankerMinBet}</span>
                             </div>
                           </div>
@@ -1991,9 +1985,6 @@ export default function ScoreEntry({
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
                                       <div className="flex items-center gap-2">
-                                        <button type="button"
-                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.max(bankerMinBet, pb.baseBet - 1) } })}
-                                          className="w-5 h-5 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">−</button>
                                         <input
                                           type="number" inputMode="numeric"
                                           value={playerBetDraft[hole.hole_number]?.[p.id] ?? String(pb.baseBet)}
@@ -2011,9 +2002,6 @@ export default function ScoreEntry({
                                             }
                                           }}
                                         />
-                                        <button type="button"
-                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.min(hd.maxBet, pb.baseBet + 1) } })}
-                                          className="w-5 h-5 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">+</button>
                                       </div>
                                       <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
