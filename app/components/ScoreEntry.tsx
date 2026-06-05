@@ -387,6 +387,14 @@ export default function ScoreEntry({
   const [showScorecards, setShowScorecards] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const applyHeight = () => { if (outerRef.current) outerRef.current.style.height = `${window.innerHeight}px` }
+    applyHeight()
+    const onOrient = () => setTimeout(applyHeight, 200)
+    window.addEventListener('orientationchange', onOrient)
+    return () => window.removeEventListener('orientationchange', onOrient)
+  }, [])
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
   const [strokesPending, setStrokesPending] = useState(false)
@@ -852,7 +860,7 @@ export default function ScoreEntry({
   const savedCount = savedHoles.size
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: '100dvh', background: '#f8fafc' }}>
+    <div ref={outerRef} className="flex flex-col overflow-hidden" style={{ background: '#f8fafc' }}>
       {showOptions && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -1085,7 +1093,7 @@ export default function ScoreEntry({
         </div>
       </header>
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1" style={{ overflowY: 'scroll', WebkitOverflowScrolling: 'touch' }}>
 
       {playerPopup && (() => {
         const p = players.find((pl) => pl.id === playerPopup)
