@@ -383,9 +383,11 @@ export default function LeaderboardClient({
   const [scorecardTeamId, setScorecardTeamId] = useState(scorecardTeamIdProp)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
-  const [leaderboardView, setLeaderboardView] = useState<'group' | 'team' | 'individual'>(
-    format === 'daytona' ? 'group' : format === 'traditional' ? 'individual' : 'team'
-  )
+  const [leaderboardView, setLeaderboardView] = useState<'group' | 'team' | 'individual'>(() => {
+    const saved = typeof window !== 'undefined' ? sessionStorage.getItem('leaderboardView') : null
+    if (saved === 'group' || saved === 'team' || saved === 'individual') return saved
+    return format === 'daytona' ? 'group' : format === 'traditional' ? 'individual' : 'team'
+  })
 
   const isDaytona = format === 'daytona'
   const isTraditional = format === 'traditional'
@@ -2014,7 +2016,7 @@ export default function LeaderboardClient({
             ).map(({ view, label }) => (
               <button
                 key={view}
-                onClick={() => setLeaderboardView(view as 'group' | 'team' | 'individual')}
+                onClick={() => { const v = view as 'group' | 'team' | 'individual'; setLeaderboardView(v); sessionStorage.setItem('leaderboardView', v) }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition"
                 style={leaderboardView === view
                   ? { background: navy, color: 'white', borderColor: navy }
