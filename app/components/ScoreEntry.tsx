@@ -738,7 +738,7 @@ export default function ScoreEntry({
         const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
         const scope = pressScope[holeNumber] ?? 'this'
         const affectedHoles = scope === 'forward'
-          ? holes.filter((h) => h.hole_number >= holeNumber && !savedHoles.has(h.hole_number)).map((h) => h.hole_number)
+          ? holes.filter((h) => h.hole_number >= holeNumber).map((h) => h.hole_number)
           : [holeNumber]
         for (const hn of affectedHoles) pressEntries.push({ holeNumber: hn, valuePerPoint: pressVal })
       }
