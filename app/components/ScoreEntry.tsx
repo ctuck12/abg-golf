@@ -396,6 +396,17 @@ export default function ScoreEntry({
     setHeaderHeight(el.offsetHeight)
     return () => obs.disconnect()
   }, [])
+  // Keep header pinned to visual viewport top on iOS (keyboard open shifts vv within lv)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const pin = () => {
+      if (headerRef.current) headerRef.current.style.top = `${vv.offsetTop}px`
+    }
+    vv.addEventListener('resize', pin)
+    vv.addEventListener('scroll', pin)
+    return () => { vv.removeEventListener('resize', pin); vv.removeEventListener('scroll', pin) }
+  }, [])
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
   const [strokesPending, setStrokesPending] = useState(false)
