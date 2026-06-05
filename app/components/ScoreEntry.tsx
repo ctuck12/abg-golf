@@ -716,13 +716,16 @@ export default function ScoreEntry({
   useEffect(() => {
     if (didInitialScrollRef.current || expandedHole === null) return
     didInitialScrollRef.current = true
-    const t = setTimeout(() => {
-      const holeNums = holes.map((h) => h.hole_number)
-      const currentIdx = holeNums.indexOf(expandedHole)
-      const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
-      scrollHoleIntoView(scrollTarget, 'instant')
-    }, 0)
-    return () => clearTimeout(t)
+    // Double rAF fires after Next.js router's own scroll-to-top (which uses rAF internally)
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        const holeNums = holes.map((h) => h.hole_number)
+        const currentIdx = holeNums.indexOf(expandedHole)
+        const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
+        scrollHoleIntoView(scrollTarget, 'instant')
+      })
+    })
+    return () => cancelAnimationFrame(raf)
   }, [expandedHole])
 
   // Per-hole press (custom payout value) state

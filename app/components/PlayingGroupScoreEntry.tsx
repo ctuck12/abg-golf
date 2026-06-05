@@ -190,16 +190,19 @@ export default function PlayingGroupScoreEntry({
   useEffect(() => {
     if (didInitialScrollRef.current || expandedHole === null) return
     didInitialScrollRef.current = true
-    const t = setTimeout(() => {
-      const holeNums = holes.map((h) => h.hole_number)
-      const currentIdx = holeNums.indexOf(expandedHole)
-      const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
-      const el = document.getElementById(`hole-${scrollTarget}`)
-      if (!el) return
-      const headerHeight = headerRef.current?.offsetHeight ?? 96
-      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'instant' })
-    }, 0)
-    return () => clearTimeout(t)
+    // Double rAF fires after Next.js router's own scroll-to-top (which uses rAF internally)
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        const holeNums = holes.map((h) => h.hole_number)
+        const currentIdx = holeNums.indexOf(expandedHole)
+        const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
+        const el = document.getElementById(`hole-${scrollTarget}`)
+        if (!el) return
+        const headerHeight = headerRef.current?.offsetHeight ?? 96
+        window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'instant' })
+      })
+    })
+    return () => cancelAnimationFrame(raf)
   }, [expandedHole])
 
   async function checkAllGroupsDone() {
