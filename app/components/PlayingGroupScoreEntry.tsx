@@ -122,6 +122,8 @@ export default function PlayingGroupScoreEntry({
   const [strokesPending, setStrokesPending] = useState(false)
   const isBanker = !!bankerSideGame
   const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
+  // Draft strings for bet inputs — keyed by holeNumber then playerId, allows free typing
+  const [betInputDraft, setBetInputDraft] = useState<Record<number, Record<string, string>>>({})
   const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
   const [allGroupsDone, setAllGroupsDone] = useState<boolean | null>(null)
   const prevSavedCount = useRef(savedHoles.size)
@@ -637,7 +639,7 @@ export default function PlayingGroupScoreEntry({
                   <span key={p.id} className="flex items-center gap-1 text-xs">
                     <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
-                      {amt > 0 ? `+$${Math.round(amt)}` : amt < 0 ? `-$${Math.round(Math.abs(amt))}` : '$0'}
+                      {`$${Math.abs(Math.round(amt))}`}
                     </span>
                   </span>
                 )
@@ -799,7 +801,7 @@ export default function PlayingGroupScoreEntry({
                       </span>
                       {bankerResult !== null && (
                         <span className="text-[10px] font-semibold leading-tight" style={{ color: bankerResult > 0 ? '#16a34a' : bankerResult < 0 ? '#dc2626' : '#6b7280' }}>
-                          {bankerResult > 0 ? `+$${Math.round(bankerResult)}` : bankerResult < 0 ? `-$${Math.round(Math.abs(bankerResult))}` : 'E'}
+                          {`$${Math.abs(Math.round(bankerResult))}`}
                         </span>
                       )}
                     </div>
@@ -864,7 +866,7 @@ export default function PlayingGroupScoreEntry({
                           <div key={p.id} className="text-center flex-shrink-0">
                             <p className="leading-tight text-gray-400" style={{ fontSize: 'clamp(8px, 2.2vw, 10px)' }}>{p.name.split(' ')[0]}</p>
                             <p className="font-semibold leading-tight" style={{ fontSize: 'clamp(9px, 2.4vw, 11px)', color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
-                              {amt > 0 ? `+$${Math.round(amt)}` : amt < 0 ? `-$${Math.round(Math.abs(amt))}` : 'E'}
+                              {`$${Math.abs(Math.round(amt))}`}
                             </p>
                           </div>
                         )
@@ -937,18 +939,44 @@ export default function PlayingGroupScoreEntry({
                               {players.filter((p) => p.id !== hd.bankerPlayerId).map((p) => {
                                 const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
                                 const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
+                                const draftStr = betInputDraft[hole.hole_number]?.[p.id]
+                                const draftNum = draftStr !== undefined ? parseFloat(draftStr) : NaN
+                                const betWarning = draftStr !== undefined && draftStr !== '' && !isNaN(draftNum) && (draftNum < bankerMinBet || draftNum > hd.maxBet)
                                 return (
                                   <div key={p.id} className="bg-white rounded-lg px-2 py-1.5 border border-gray-100">
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-xs font-medium text-gray-700 flex-1">{p.name}</span>
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-[11px] text-gray-500">$</span>
-                                        <input type="number" value={pb.baseBet} min={bankerMinBet} max={hd.maxBet} step="1"
-                                          onChange={(e) => {
-                                            const v = Math.min(Math.max(Math.round(parseFloat(e.target.value) || bankerMinBet), bankerMinBet), hd.maxBet)
-                                            handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
-                                          }}
-                                          className="w-12 border border-gray-300 rounded px-1.5 py-0.5 text-sm focus:outline-none" />
+                                      <div className="flex flex-col items-end gap-0.5">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-[11px] text-gray-500">$</span>
+                                          <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            value={draftStr !== undefined ? draftStr : String(pb.baseBet)}
+                                            step="1"
+                                            onChange={(e) => {
+                                              setBetInputDraft((prev) => ({ ...prev, [hole.hole_number]: { ...(prev[hole.hole_number] ?? {}), [p.id]: e.target.value } }))
+                                            }}
+                                            onBlur={() => {
+                                              const raw = betInputDraft[hole.hole_number]?.[p.id]
+                                              setBetInputDraft((prev) => {
+                                                const n = { ...prev }
+                                                const h = { ...(n[hole.hole_number] ?? {}) }
+                                                delete h[p.id]
+                                                n[hole.hole_number] = h
+                                                return n
+                                              })
+                                              if (raw === undefined) return
+                                              const parsed = parseFloat(raw)
+                                              if (isNaN(parsed) || parsed < bankerMinBet || parsed > hd.maxBet) return
+                                              handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.round(parsed) } })
+                                            }}
+                                            className={`w-12 border rounded px-1.5 py-0.5 text-sm focus:outline-none ${betWarning ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                          />
+                                        </div>
+                                        {betWarning && (
+                                          <span className="text-[10px] text-red-500 font-medium">${bankerMinBet}–${hd.maxBet}</span>
+                                        )}
                                       </div>
                                       <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
