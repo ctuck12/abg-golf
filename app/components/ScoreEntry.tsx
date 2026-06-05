@@ -651,38 +651,21 @@ export default function ScoreEntry({
     window.scrollTo({ top, behavior })
   }
 
-  const [editingBet, setEditingBet] = useState<{ holeNumber: number; playerId: string; value: string; min: number; max: number } | null>(null)
   const savedScrollRef = useRef(0)
-  useEffect(() => {
-    if (!editingBet) return
+  const [maxBetDraft, setMaxBetDraft] = useState<Record<number, string>>({})
+  const [playerBetDraft, setPlayerBetDraft] = useState<Record<number, Record<string, string>>>({})
+
+  function lockScroll() {
     savedScrollRef.current = window.scrollY
     document.body.style.position = 'fixed'
     document.body.style.top = `-${savedScrollRef.current}px`
     document.body.style.width = '100%'
-    return () => {
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.width = ''
-      window.scrollTo(0, savedScrollRef.current)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!editingBet])
-
-  function commitEditingBet() {
-    if (!editingBet) return
-    const num = Math.round(parseFloat(editingBet.value))
-    if (!isNaN(num)) {
-      const clamped = Math.max(editingBet.min, Math.min(editingBet.max, num))
-      if (editingBet.playerId === 'maxBet') {
-        const hd = bankerHoles[editingBet.holeNumber] ?? { bankerPlayerId: null, maxBet: bankerMinBet }
-        handleSaveBankerHole(editingBet.holeNumber, hd.bankerPlayerId, clamped)
-      } else {
-        const bets = bankerBets[editingBet.holeNumber] ?? {}
-        const pb = bets[editingBet.playerId] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
-        handleSaveBankerBets(editingBet.holeNumber, { ...bets, [editingBet.playerId]: { ...pb, baseBet: clamped } })
-      }
-    }
-    setEditingBet(null)
+  }
+  function unlockScroll() {
+    document.body.style.position = ''
+    document.body.style.top = ''
+    document.body.style.width = ''
+    window.scrollTo(0, savedScrollRef.current)
   }
 
   // Pin header to top of visual viewport so it survives iOS keyboard scroll
@@ -1164,34 +1147,6 @@ export default function ScoreEntry({
         </div>
       </header>
       <div ref={spacerRef} />
-
-      {/* Fixed bet-edit overlay — appears above keyboard without moving the page */}
-      {editingBet && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200, background: 'white', borderTop: '1px solid #e5e7eb', boxShadow: '0 -2px 12px rgba(0,0,0,0.1)' }}>
-          <div className="flex items-center gap-3 px-4 py-3 max-w-lg mx-auto">
-            <span className="text-sm font-semibold text-gray-700 flex-1">
-              {editingBet.playerId === 'maxBet' ? 'Max Bet' : players.find(p => p.id === editingBet.playerId)?.name.split(' ')[0]}
-            </span>
-            <span className="text-gray-400 text-sm">$</span>
-            <input
-              autoFocus
-              type="number"
-              inputMode="numeric"
-              value={editingBet.value}
-              min={editingBet.min}
-              max={editingBet.max}
-              onChange={(e) => setEditingBet(prev => prev ? { ...prev, value: e.target.value } : null)}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitEditingBet() }}
-              className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:border-blue-400"
-              style={{ fontSize: '16px' }}
-            />
-            <button type="button" onClick={commitEditingBet}
-              className="px-5 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: navy }}>
-              Done
-            </button>
-          </div>
-        </div>
-      )}
 
       {playerPopup && (() => {
         const p = players.find((pl) => pl.id === playerPopup)
@@ -2000,8 +1955,24 @@ export default function ScoreEntry({
                               <button type="button"
                                 onClick={() => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.max(bankerMinBet, hd.maxBet - 1))}
                                 className="w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">−</button>
-                              <button type="button" onClick={() => setEditingBet({ holeNumber: hole.hole_number, playerId: 'maxBet', value: String(hd.maxBet), min: bankerMinBet, max: 99 })}
-                                className="text-sm font-bold w-10 text-center underline decoration-dashed underline-offset-2">${hd.maxBet}</button>
+                              <input
+                                type="number" inputMode="numeric"
+                                value={maxBetDraft[hole.hole_number] ?? String(hd.maxBet)}
+                                min={bankerMinBet}
+                                style={{ fontSize: '16px', width: '52px', textAlign: 'center', fontWeight: 'bold' }}
+                                className="border border-gray-200 rounded-lg px-1 py-0.5 focus:outline-none focus:border-blue-300"
+                                onTouchStart={lockScroll}
+                                onChange={(e) => setMaxBetDraft(prev => ({ ...prev, [hole.hole_number]: e.target.value }))}
+                                onBlur={() => {
+                                  unlockScroll()
+                                  const raw = maxBetDraft[hole.hole_number]
+                                  setMaxBetDraft(prev => { const n = { ...prev }; delete n[hole.hole_number]; return n })
+                                  if (raw !== undefined) {
+                                    const v = Math.max(bankerMinBet, Math.round(parseFloat(raw) || bankerMinBet))
+                                    handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, v)
+                                  }
+                                }}
+                              />
                               <button type="button"
                                 onClick={() => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, hd.maxBet + 1)}
                                 className="w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">+</button>
@@ -2026,8 +1997,24 @@ export default function ScoreEntry({
                                         <button type="button"
                                           onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.max(bankerMinBet, pb.baseBet - 1) } })}
                                           className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">−</button>
-                                        <button type="button" onClick={() => setEditingBet({ holeNumber: hole.hole_number, playerId: p.id, value: String(pb.baseBet), min: bankerMinBet, max: hd.maxBet })}
-                                          className="text-sm font-bold w-8 text-center underline decoration-dashed underline-offset-2">${pb.baseBet}</button>
+                                        <input
+                                          type="number" inputMode="numeric"
+                                          value={playerBetDraft[hole.hole_number]?.[p.id] ?? String(pb.baseBet)}
+                                          min={bankerMinBet} max={hd.maxBet}
+                                          style={{ fontSize: '16px', width: '44px', textAlign: 'center', fontWeight: 'bold' }}
+                                          className="border border-gray-200 rounded-lg px-1 py-0.5 focus:outline-none focus:border-blue-300"
+                                          onTouchStart={lockScroll}
+                                          onChange={(e) => setPlayerBetDraft(prev => ({ ...prev, [hole.hole_number]: { ...(prev[hole.hole_number] ?? {}), [p.id]: e.target.value } }))}
+                                          onBlur={() => {
+                                            unlockScroll()
+                                            const raw = playerBetDraft[hole.hole_number]?.[p.id]
+                                            setPlayerBetDraft(prev => { const n = { ...prev }; const h = { ...(n[hole.hole_number] ?? {}) }; delete h[p.id]; n[hole.hole_number] = h; return n })
+                                            if (raw !== undefined) {
+                                              const v = Math.min(hd.maxBet, Math.max(bankerMinBet, Math.round(parseFloat(raw) || bankerMinBet)))
+                                              handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
+                                            }
+                                          }}
+                                        />
                                         <button type="button"
                                           onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.min(hd.maxBet, pb.baseBet + 1) } })}
                                           className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">+</button>
