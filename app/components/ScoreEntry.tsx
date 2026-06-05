@@ -2013,7 +2013,7 @@ export default function ScoreEntry({
                                       </div>
                                       <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
-                                        className={`text-xs w-9 py-1 rounded border font-semibold transition flex-shrink-0 ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
+                                        className={`text-sm w-10 py-1 rounded border font-semibold transition flex-shrink-0 ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
                                         2×
                                       </button>
                                     </div>

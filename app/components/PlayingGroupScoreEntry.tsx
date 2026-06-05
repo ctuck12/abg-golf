@@ -1062,7 +1062,7 @@ export default function PlayingGroupScoreEntry({
                                       </div>
                                       <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
-                                        className={`text-[11px] w-8 py-0.5 rounded border font-semibold transition flex-shrink-0 ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
+                                        className={`text-xs w-9 py-1 rounded border font-semibold transition flex-shrink-0 ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
                                         2×
                                       </button>
                                     </div>
