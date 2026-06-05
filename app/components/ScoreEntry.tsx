@@ -386,27 +386,7 @@ export default function ScoreEntry({
   const [showOptions, setShowOptions] = useState(false)
   const [showScorecards, setShowScorecards] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
-  const headerRef = useRef<HTMLElement>(null)
-  const [headerHeight, setHeaderHeight] = useState(96)
-  useEffect(() => {
-    const el = headerRef.current
-    if (!el) return
-    const obs = new ResizeObserver(() => setHeaderHeight(el.offsetHeight))
-    obs.observe(el)
-    setHeaderHeight(el.offsetHeight)
-    return () => obs.disconnect()
-  }, [])
-  // Keep header pinned to visual viewport top on iOS (keyboard open shifts vv within lv)
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const pin = () => {
-      if (headerRef.current) headerRef.current.style.top = `${vv.offsetTop}px`
-    }
-    vv.addEventListener('resize', pin)
-    vv.addEventListener('scroll', pin)
-    return () => { vv.removeEventListener('resize', pin); vv.removeEventListener('scroll', pin) }
-  }, [])
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
   const [strokesPending, setStrokesPending] = useState(false)
@@ -663,14 +643,12 @@ export default function ScoreEntry({
     checkRoundComplete()
   }, [])
 
-  // Scroll a hole card into view just below the sticky header with a small gap
   function scrollHoleIntoView(holeNumber: number, behavior: ScrollBehavior) {
     const el = document.getElementById(`hole-${holeNumber}`)
-    if (!el) return
-    const header = document.querySelector('header')
-    const headerHeight = header?.offsetHeight ?? 96
-    const top = el.getBoundingClientRect().top + window.scrollY - headerHeight - 8
-    window.scrollTo({ top, behavior })
+    const container = scrollContainerRef.current
+    if (!el || !container) return
+    const top = container.scrollTop + el.getBoundingClientRect().top - container.getBoundingClientRect().top - 8
+    container.scrollTo({ top, behavior })
   }
 
   // On page load, scroll so the last saved hole (just above the current hole) is visible
@@ -828,7 +806,7 @@ export default function ScoreEntry({
       setExpandedHole(nextHole)
       const justFinished = !nextHole && !savedHoles.has(holeNumber)
       if (justFinished) {
-        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100)
+        setTimeout(() => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 100)
       } else {
         setTimeout(() => scrollHoleIntoView(holeNumber, 'smooth'), 100)
       }
@@ -874,7 +852,7 @@ export default function ScoreEntry({
   const savedCount = savedHoles.size
 
   return (
-    <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+    <div className="flex flex-col overflow-hidden" style={{ height: '100dvh', background: '#f8fafc' }}>
       {showOptions && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -996,7 +974,7 @@ export default function ScoreEntry({
       )}
 
       {/* Header */}
-      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 fixed top-0 left-0 right-0 w-full z-10 shadow-md" style={{ background: navy }}>
+      <header className="text-white px-4 pt-4 pb-3 shrink-0 z-10 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -1106,7 +1084,8 @@ export default function ScoreEntry({
           )}
         </div>
       </header>
-      <div style={{ height: headerHeight }} />
+
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
 
       {playerPopup && (() => {
         const p = players.find((pl) => pl.id === playerPopup)
@@ -2343,7 +2322,9 @@ export default function ScoreEntry({
         })}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
+      </div>{/* scroll container */}
+
+      <div className="shrink-0 bg-white border-t border-gray-200 px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center justify-center text-sm">
           <p className="text-xs text-gray-400">{savedCount}/18 holes saved</p>
         </div>
