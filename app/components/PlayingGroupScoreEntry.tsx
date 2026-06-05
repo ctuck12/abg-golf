@@ -1182,7 +1182,7 @@ export default function PlayingGroupScoreEntry({
                           </button>
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
-                          {player.name}{holeStrokeIds.includes(player.id) ? <span className="text-blue-500 font-bold">*</span> : ''}
+                          {player.name}{holeStrokeIds.includes(player.id) ? <span className="text-blue-500 font-bold">*</span> : ''}{(() => { const bpId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null; return bpId && holeStrokeIds.includes(bpId) && getBankerReceiveStrokes(hole.hole_number).includes(player.id) ? <span className="text-orange-400 font-bold">*</span> : null })()}
                           {isDaytonaMode && isSaved && (() => {
                             const pts = holePlayerPoints.get(player.id)
                             if (!pts) return null
