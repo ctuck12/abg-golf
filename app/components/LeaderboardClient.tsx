@@ -1978,17 +1978,17 @@ export default function LeaderboardClient({
             <button
               onClick={() => setShowPayouts(true)}
               className="text-xs font-semibold px-4 py-1.5 rounded-full"
-              style={{ border: `2px solid ${navy}`, color: navy, background: 'white', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.12)' }}>
+              style={{ background: navy, color: gold, boxShadow: '0 3px 8px rgba(0,0,0,0.28)' }}>
               Payouts
             </button>
             <a href={`/${orgSlug}/matchup`} className="text-xs font-semibold px-4 py-1.5 rounded-full"
-              style={{ border: `2px solid ${navy}`, color: navy, background: 'white', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.12)' }}>
+              style={{ background: navy, color: gold, boxShadow: '0 3px 8px rgba(0,0,0,0.28)' }}>
               Matchups
             </a>
             {isDaytona && initialTeams.length === 1 && (
               <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
                 className="text-xs font-semibold px-4 py-1.5 rounded-full"
-                style={{ border: `2px solid ${navy}`, color: navy, background: 'white', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.12)' }}>
+                style={{ background: navy, color: gold, boxShadow: '0 3px 8px rgba(0,0,0,0.28)' }}>
                 All Scorecards
               </a>
             )}
@@ -1996,7 +1996,7 @@ export default function LeaderboardClient({
               <button
                 onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
                 className="text-xs font-semibold px-4 py-1.5 rounded-full"
-                style={{ border: `2px solid ${navy}`, color: navy, background: 'white', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.12)' }}>
+                style={{ background: navy, color: gold, boxShadow: '0 3px 8px rgba(0,0,0,0.28)' }}>
                 All Scorecards
               </button>
             )}
