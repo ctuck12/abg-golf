@@ -999,7 +999,8 @@ export default function PlayingGroupScoreEntry({
                             <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-1">
                               Max Bet (min ${bankerMinBet})
                             </p>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-bold text-gray-700">$</span>
                               <input
                                 type="number" inputMode="numeric"
                                 value={maxBetDraft[hole.hole_number] ?? String(hd.maxBet)}
@@ -1017,7 +1018,6 @@ export default function PlayingGroupScoreEntry({
                                   }
                                 }}
                               />
-                              <span className="text-xs text-gray-400">min ${bankerMinBet}</span>
                             </div>
                             {maxBetDraft[hole.hole_number] !== undefined && !isNaN(parseFloat(maxBetDraft[hole.hole_number])) && parseFloat(maxBetDraft[hole.hole_number]) < bankerMinBet && (
                               <p className="text-xs text-red-500 mt-1">Must be at least ${bankerMinBet}</p>
@@ -1035,7 +1035,8 @@ export default function PlayingGroupScoreEntry({
                                   <div key={p.id} className="bg-white rounded-lg px-2 py-1.5 border border-gray-100">
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-xs font-medium text-gray-700 flex-1 truncate">{p.name}</span>
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-sm font-bold text-gray-700">$</span>
                                         <input
                                           type="number" inputMode="numeric"
                                           value={playerBetDraft[hole.hole_number]?.[p.id] ?? String(pb.baseBet)}
