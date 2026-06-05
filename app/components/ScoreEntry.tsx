@@ -386,6 +386,16 @@ export default function ScoreEntry({
   const [showOptions, setShowOptions] = useState(false)
   const [showScorecards, setShowScorecards] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  const headerRef = useRef<HTMLElement>(null)
+  const [headerHeight, setHeaderHeight] = useState(96)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(() => setHeaderHeight(el.offsetHeight))
+    obs.observe(el)
+    setHeaderHeight(el.offsetHeight)
+    return () => obs.disconnect()
+  }, [])
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
   const [strokesPending, setStrokesPending] = useState(false)
@@ -975,7 +985,7 @@ export default function ScoreEntry({
       )}
 
       {/* Header */}
-      <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
+      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 fixed top-0 left-0 right-0 w-full z-10 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -1085,6 +1095,7 @@ export default function ScoreEntry({
           )}
         </div>
       </header>
+      <div style={{ height: headerHeight }} />
 
       {playerPopup && (() => {
         const p = players.find((pl) => pl.id === playerPopup)
@@ -1893,7 +1904,7 @@ export default function ScoreEntry({
                               <span className="text-sm text-gray-500">$</span>
                               <input type="number" value={hd.maxBet} min={bankerMinBet} step="1"
                                 onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.round(parseFloat(e.target.value) || bankerMinBet))}
-                                onFocus={(e) => { const el = e.currentTarget; setTimeout(() => { const hh = (document.querySelector('header') as HTMLElement | null)?.offsetHeight ?? 96; window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - hh - 16, behavior: 'smooth' }) }, 300) }}
+
                                 className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                               <span className="text-xs text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
                             </div>
@@ -1919,7 +1930,7 @@ export default function ScoreEntry({
                                             const v = Math.min(Math.max(Math.round(parseFloat(e.target.value) || bankerMinBet), bankerMinBet), hd.maxBet)
                                             handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
                                           }}
-                                          onFocus={(e) => { const el = e.currentTarget; setTimeout(() => { const hh = (document.querySelector('header') as HTMLElement | null)?.offsetHeight ?? 96; window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - hh - 16, behavior: 'smooth' }) }, 300) }}
+          
                                           className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
                                       </div>
                                       <button type="button"
