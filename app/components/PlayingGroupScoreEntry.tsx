@@ -299,7 +299,7 @@ export default function PlayingGroupScoreEntry({
     })
   }
 
-  async function saveHole(holeNumber: number) {
+  async function saveHole(holeNumber: number, pressActive = false, pressValue = '', pressHoleScope: 'this' | 'forward' = 'this') {
     const hole = holes.find((h) => h.hole_number === holeNumber)
     if (!hole) return
 
@@ -321,13 +321,12 @@ export default function PlayingGroupScoreEntry({
 
     const holeAssignments = assignments[holeNumber] ?? {}
 
-    // Collect press entries to save
+    // Collect press entries to save — scope/value passed explicitly to avoid stale closure
     const pressEntries: { holeNumber: number; valuePerPoint: number | null }[] = []
-    if (isDaytonaMode && pressShowInput[holeNumber]) {
-      const rawVal = parseFloat(pressValueStr[holeNumber] ?? '')
+    if (isDaytonaMode && pressActive && pressValue !== undefined) {
+      const rawVal = parseFloat(pressValue)
       const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
-      const scope = pressScope[holeNumber] ?? 'this'
-      const affectedHoles = scope === 'forward'
+      const affectedHoles = pressHoleScope === 'forward'
         ? holes.filter((h) => h.hole_number >= holeNumber && !savedHoles.has(h.hole_number)).map((h) => h.hole_number)
         : [holeNumber]
       for (const hn of affectedHoles) pressEntries.push({ holeNumber: hn, valuePerPoint: pressVal })
@@ -1125,6 +1124,22 @@ export default function PlayingGroupScoreEntry({
                               : { background: 'white', color: '#6b7280', borderColor: '#e5e7eb' }}>
                             {existingVal !== undefined && !isActive ? `↑ Press $${existingVal}` : isActive ? '✕ Press' : '↑ Press'}
                           </button>
+                          {existingVal !== undefined && !isActive && (
+                            pressConfirmHole === hole.hole_number ? (
+                              <span className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500">Remove?</span>
+                                <button type="button" onClick={async () => {
+                                  await saveDaytonaHoleValues(roundId, groupId, [{ holeNumber: hole.hole_number, valuePerPoint: null }])
+                                  setHoleValues((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
+                                  setPressConfirmHole(null)
+                                }} className="text-xs font-semibold text-red-500 hover:text-red-700">Yes</button>
+                                <button type="button" onClick={() => setPressConfirmHole(null)} className="text-xs text-gray-400">Cancel</button>
+                              </span>
+                            ) : (
+                              <button type="button" onClick={() => setPressConfirmHole(hole.hole_number)}
+                                className="text-xs text-gray-400 hover:text-red-500 transition">Clear</button>
+                            )
+                          )}
                         </div>
                         {isActive && (
                           <div className="mt-2 space-y-2">
@@ -1154,7 +1169,12 @@ export default function PlayingGroupScoreEntry({
 
                   {error && <p className="text-xs text-red-500">{error}</p>}
                   <button type="button"
-                    onClick={() => saveHole(hole.hole_number)}
+                    onClick={() => saveHole(
+                      hole.hole_number,
+                      !!pressShowInput[hole.hole_number],
+                      pressValueStr[hole.hole_number] ?? '',
+                      pressScope[hole.hole_number] ?? 'this'
+                    )}
                     disabled={isPending}
                     className="w-full mt-1 text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
                     style={{ background: navy }}>
