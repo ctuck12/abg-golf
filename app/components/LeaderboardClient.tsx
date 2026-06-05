@@ -366,6 +366,7 @@ export default function LeaderboardClient({
   const [allScorecardsFilter, setAllScorecardsFilter] = useState<'all' | 'skins'>('all')
   const [hcpVisible, setHcpVisible] = useState<Set<string>>(new Set())
   const toggleHcp = (id: string) => setHcpVisible((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+  const [showBallResults, setShowBallResults] = useState(false)
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showDaytonaSideResults, setShowDaytonaSideResults] = useState(false)
   const [showDaytonaSideSettlements, setShowDaytonaSideSettlements] = useState(false)
@@ -516,6 +517,7 @@ export default function LeaderboardClient({
   // Reset all collapsed-by-default sub-states when Payouts panel is closed
   useEffect(() => {
     if (!showPayouts) {
+      setShowBallResults(false)
       setShowDaytonaResults(false)
       setShowMatchupResults(false)
       setShowSkinsResults(false)
@@ -1053,14 +1055,17 @@ export default function LeaderboardClient({
                 </div>
               )}
 
-              {/* ── Ball Results (standard, not collapsible) ── */}
+              {/* ── Ball Results (collapsible) ── */}
               {!isDaytona && !isTraditional && (
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
-                    <p className="text-xs text-gray-500">{ballsCount * numSegments} results · ties wash · ${perBallValue}/player</p>
-                  </div>
-                  <div className="px-4 py-4 space-y-4">
+                  <button onClick={() => setShowBallResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                    <div>
+                      <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
+                      <p className="text-xs text-gray-500">{ballsCount * numSegments} results · ties wash · ${perBallValue}/player</p>
+                    </div>
+                    <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{showBallResults ? '▲ Hide' : '▼ Show'}</span>
+                  </button>
+                  {showBallResults && <div className="border-t border-gray-100 px-4 py-4 space-y-4">
                     {Array.from({ length: ballsCount }, (_, bi) => {
                       const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
                       const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
@@ -1086,7 +1091,7 @@ export default function LeaderboardClient({
                         </div>
                       )
                     })}
-                  </div>
+                  </div>}
                 </div>
               )}
 
