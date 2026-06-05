@@ -1042,6 +1042,43 @@ export default function LeaderboardClient({
                 </div>
               )}
 
+              {/* ── Ball Results (standard, not collapsible) ── */}
+              {!isDaytona && !isTraditional && (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
+                    <p className="text-xs text-gray-500">{ballsCount * numSegments} results · ties wash · ${perBallValue}/player</p>
+                  </div>
+                  <div className="px-4 py-4 space-y-4">
+                    {Array.from({ length: ballsCount }, (_, bi) => {
+                      const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
+                      const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
+                      const total = includeTotal ? ballResults.find((r) => r.ball === bi + 1 && r.half === 'Total 18') : undefined
+                      const segs = includeTotal ? [front, back, total] : [front, back]
+                      return (
+                        <div key={bi}>
+                          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>{BALL_NAMES[bi]}</p>
+                          <div className={`grid gap-2 ${includeTotal ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                            {segs.map((result, hi) => {
+                              if (!result) return <div key={hi} />
+                              const vp = result.winnerVsPar
+                              const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                              const halfLabel = result.half === 'Total 18' ? 'Total' : result.half === 'Front 9' ? 'Front' : 'Back'
+                              return (
+                                <div key={hi} className="bg-gray-50 rounded-lg px-3 py-2">
+                                  <p className="text-xs text-gray-500 mb-0.5">{halfLabel}</p>
+                                  {!result.played ? <p className="text-sm text-gray-300 font-medium">–</p> : result.tied ? <p className="text-sm text-gray-500 font-medium">Tie</p> : (<><p className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</p>{vpStr && <p className="text-xs text-gray-400">{vpStr}</p>}</>)}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* ── Daytona Side Game Results (collapsible) ── */}
               {!isDaytona && (standardGroupRows.some((g) => g.hasDaytona) || traditionalGroupRows.some((g) => g.hasDaytona)) && (
                 <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
@@ -1123,43 +1160,6 @@ export default function LeaderboardClient({
                       })}
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* ── Ball Results (standard, not collapsible) ── */}
-              {!isDaytona && !isTraditional && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
-                    <p className="text-xs text-gray-500">{ballsCount * numSegments} results · ties wash · ${perBallValue}/player</p>
-                  </div>
-                  <div className="px-4 py-4 space-y-4">
-                    {Array.from({ length: ballsCount }, (_, bi) => {
-                      const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
-                      const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
-                      const total = includeTotal ? ballResults.find((r) => r.ball === bi + 1 && r.half === 'Total 18') : undefined
-                      const segs = includeTotal ? [front, back, total] : [front, back]
-                      return (
-                        <div key={bi}>
-                          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>{BALL_NAMES[bi]}</p>
-                          <div className={`grid gap-2 ${includeTotal ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                            {segs.map((result, hi) => {
-                              if (!result) return <div key={hi} />
-                              const vp = result.winnerVsPar
-                              const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
-                              const halfLabel = result.half === 'Total 18' ? 'Total' : result.half === 'Front 9' ? 'Front' : 'Back'
-                              return (
-                                <div key={hi} className="bg-gray-50 rounded-lg px-3 py-2">
-                                  <p className="text-xs text-gray-500 mb-0.5">{halfLabel}</p>
-                                  {!result.played ? <p className="text-sm text-gray-300 font-medium">–</p> : result.tied ? <p className="text-sm text-gray-500 font-medium">Tie</p> : (<><p className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</p>{vpStr && <p className="text-xs text-gray-400">{vpStr}</p>}</>)}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
                 </div>
               )}
 
