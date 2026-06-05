@@ -651,6 +651,29 @@ export default function ScoreEntry({
     window.scrollTo({ top, behavior })
   }
 
+  // Pin header to top of visual viewport so it survives iOS keyboard scroll
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const vv = window.visualViewport
+    const header = headerRef.current
+    if (!vv || !header) return
+    function pin() {
+      header!.style.top = `${vv!.offsetTop}px`
+    }
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header!.offsetHeight}px`
+    })
+    ro.observe(header)
+    vv.addEventListener('scroll', pin)
+    vv.addEventListener('resize', pin)
+    return () => {
+      vv.removeEventListener('scroll', pin)
+      vv.removeEventListener('resize', pin)
+      ro.disconnect()
+    }
+  }, [])
+
   // When any input loses focus (keyboard starts closing), scroll expanded hole into view
   // 350ms delay covers the iOS keyboard dismiss animation (~250ms)
   const expandedHoleRef = useRef(expandedHole)
@@ -996,7 +1019,7 @@ export default function ScoreEntry({
       )}
 
       {/* Header */}
-      <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
+      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -1106,6 +1129,7 @@ export default function ScoreEntry({
           )}
         </div>
       </header>
+      <div ref={spacerRef} />
 
       {playerPopup && (() => {
         const p = players.find((pl) => pl.id === playerPopup)
