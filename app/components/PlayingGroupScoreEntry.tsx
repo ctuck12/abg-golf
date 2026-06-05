@@ -92,6 +92,11 @@ export default function PlayingGroupScoreEntry({
     }
     return null
   })
+  // Hide page until initial scroll fires so user never sees scroll=0 flash
+  const [scrollReady, setScrollReady] = useState(() => {
+    const idx = holes.findIndex(h => h.hole_number === expandedHole)
+    return idx <= 0 // no scroll needed: first hole or no unsaved hole
+  })
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [playerPopup, setPlayerPopup] = useState<string | null>(null)
@@ -190,16 +195,18 @@ export default function PlayingGroupScoreEntry({
   useEffect(() => {
     if (didInitialScrollRef.current || expandedHole === null) return
     didInitialScrollRef.current = true
-    // Double rAF fires after Next.js router's own scroll-to-top (which uses rAF internally)
+    // Double rAF fires after browser paints scroll=0; page stays invisible until we reveal below
     let raf = requestAnimationFrame(() => {
       raf = requestAnimationFrame(() => {
         const holeNums = holes.map((h) => h.hole_number)
         const currentIdx = holeNums.indexOf(expandedHole)
         const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
         const el = document.getElementById(`hole-${scrollTarget}`)
-        if (!el) return
-        const headerHeight = headerRef.current?.offsetHeight ?? 96
-        window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'instant' })
+        if (el) {
+          const headerHeight = headerRef.current?.offsetHeight ?? 96
+          window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'instant' })
+        }
+        setScrollReady(true)
       })
     })
     return () => cancelAnimationFrame(raf)
@@ -521,7 +528,7 @@ export default function PlayingGroupScoreEntry({
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+    <div className="min-h-screen" style={{ background: '#f8fafc', opacity: scrollReady ? 1 : 0 }}>
 
       {/* Options modal */}
       {showOptions && (

@@ -372,6 +372,11 @@ export default function ScoreEntry({
     }
     return holes.find((h) => !saved.has(h.hole_number))?.hole_number ?? null
   })
+  // Hide page until initial scroll fires so user never sees scroll=0 flash
+  const [scrollReady, setScrollReady] = useState(() => {
+    const idx = holes.findIndex(h => h.hole_number === expandedHole)
+    return idx <= 0 // no scroll needed: first hole or no unsaved hole
+  })
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [roundComplete, setRoundComplete] = useState(false)
   const [showPayoutsModal, setShowPayoutsModal] = useState(false)
@@ -716,13 +721,14 @@ export default function ScoreEntry({
   useEffect(() => {
     if (didInitialScrollRef.current || expandedHole === null) return
     didInitialScrollRef.current = true
-    // Double rAF fires after Next.js router's own scroll-to-top (which uses rAF internally)
+    // Double rAF fires after browser paints scroll=0; page stays invisible until we reveal below
     let raf = requestAnimationFrame(() => {
       raf = requestAnimationFrame(() => {
         const holeNums = holes.map((h) => h.hole_number)
         const currentIdx = holeNums.indexOf(expandedHole)
         const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
         scrollHoleIntoView(scrollTarget, 'instant')
+        setScrollReady(true)
       })
     })
     return () => cancelAnimationFrame(raf)
@@ -915,7 +921,7 @@ export default function ScoreEntry({
   const savedCount = savedHoles.size
 
   return (
-    <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+    <div className="min-h-screen" style={{ background: '#f8fafc', opacity: scrollReady ? 1 : 0 }}>
       {showOptions && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
