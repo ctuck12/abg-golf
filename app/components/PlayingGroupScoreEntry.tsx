@@ -356,8 +356,13 @@ export default function PlayingGroupScoreEntry({
   }
 
   async function handleSaveBankerHole(holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
+    const prevBankerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
     setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId, maxBet } }))
     await saveBankerHole(roundId, groupId, holeNumber, bankerPlayerId, maxBet)
+    if (bankerPlayerId !== prevBankerId) {
+      setHoleStrokes((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
+      await saveHoleStrokes(roundId, holeNumber, [])
+    }
   }
   async function handleSaveBankerBets(holeNumber: number, bets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>) {
     setBankerBets((prev) => ({ ...prev, [holeNumber]: bets }))
