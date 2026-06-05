@@ -2454,10 +2454,9 @@ export default function LeaderboardClient({
                 const hasScores = thruCount > 0
                 return (
                   <div key={row.team.id} className="border-b border-gray-100 last:border-0">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedTeam(isExpanded ? null : row.team.id)}
-                      className="w-full flex items-center px-4 py-3 hover:bg-gray-50 transition text-left">
+                    <a
+                      href={`/${orgSlug}/scorecard/${row.team.id}`}
+                      className="w-full flex items-center px-4 py-3 hover:bg-gray-50 transition">
                       <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
                         {hasScores ? i + 1 : '–'}
                       </span>
@@ -2476,49 +2475,8 @@ export default function LeaderboardClient({
                       <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>
                         {thruCount === 0 ? '–' : thruCount === 18 ? 'F' : thruCount}
                       </span>
-                      <span className="inline-flex justify-center text-gray-400 text-xs flex-shrink-0" style={{ width: '1.5rem' }}>{isExpanded ? '▲' : '▼'}</span>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="bg-gray-50 border-t border-gray-100 px-4 py-2 space-y-1">
-                        <div className="flex justify-end mb-1">
-                          <a href={`/${orgSlug}/scorecard/${row.team.id}`}
-                            className="text-xs font-medium underline underline-offset-2"
-                            style={{ color: navy }}>
-                            Team Scorecard →
-                          </a>
-                        </div>
-                        {teamPlayers.map((player) => {
-                          const playerScores = scores.filter((s) => s.player_id === player.id)
-                          const frontScores = playerScores.filter((s) => s.hole_number <= 9)
-                          const frontStrokes = frontScores.reduce((sum, s) => sum + s.strokes, 0)
-                          const frontPar = holes.filter((h) => h.hole_number <= 9 && frontScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
-                          const frontVp: number | null = frontScores.length > 0 ? frontStrokes - frontPar : null
-                          const backScores = playerScores.filter((s) => s.hole_number >= 10)
-                          const backStrokes = backScores.reduce((sum, s) => sum + s.strokes, 0)
-                          const backPar = holes.filter((h) => h.hole_number >= 10 && backScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
-                          const backVp: number | null = backScores.length > 0 ? backStrokes - backPar : null
-                          const totalPar = holes.filter((h) => playerScores.some((s) => s.hole_number === h.hole_number)).reduce((sum, h) => sum + h.par, 0)
-                          const totalVp: number | null = playerScores.length > 0 ? playerScores.reduce((sum, s) => sum + s.strokes, 0) - totalPar : null
-                          return (
-                            <a key={player.id} href={`/${orgSlug}/player/${player.id}`}
-                              className="w-full flex items-center py-1.5 pl-2 pr-0 rounded-lg hover:bg-white transition">
-                              <span className="flex-1 text-sm text-gray-800">{player.name}</span>
-                              <span className="flex items-center text-xs flex-shrink-0" style={{ gap: '0.6rem' }}>
-                                {([['Front', frontVp], ['Back', backVp], ['Total', totalVp]] as [string, number | null][]).map(([label, vp]) => (
-                                  <span key={label} className="flex items-center" style={{ gap: '0.15rem' }}>
-                                    <span className="text-gray-400">{label}:</span>
-                                    <span className="font-semibold" style={{ color: vp === null ? '#9ca3af' : vpColor(vp), display: 'inline-block', width: '1rem', textAlign: 'right' }}>
-                                      {vpDisplay(vp)}
-                                    </span>
-                                  </span>
-                                ))}
-                              </span>
-                            </a>
-                          )
-                        })}
-                      </div>
-                    )}
+                      <span className="inline-flex justify-center text-gray-400 text-xs flex-shrink-0" style={{ width: '1.5rem' }}>›</span>
+                    </a>
                   </div>
                 )
               })}
@@ -2530,7 +2488,7 @@ export default function LeaderboardClient({
         )}
 
         <p className="text-center text-xs text-gray-400 mt-3">
-          {(isDaytona || isTraditional) ? 'Tap a player for their scorecard' : 'Tap a team to expand · tap a player for their scorecard'}
+          {(isDaytona || isTraditional) ? 'Tap a player for their scorecard' : 'Tap a team for their scorecard'}
         </p>
         </>}
       </div>
