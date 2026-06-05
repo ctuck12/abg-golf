@@ -131,21 +131,12 @@ export default function PlayingGroupScoreEntry({
   const expandedHoleRef = useRef(expandedHole)
   useEffect(() => { expandedHoleRef.current = expandedHole }, [expandedHole])
 
-  const savedScrollRef = useRef(0)
   const [maxBetDraft, setMaxBetDraft] = useState<Record<number, string>>({})
   const [playerBetDraft, setPlayerBetDraft] = useState<Record<number, Record<string, string>>>({})
 
-  function lockScroll() {
-    savedScrollRef.current = window.scrollY
-    document.body.style.position = 'fixed'
-    document.body.style.top = `-${savedScrollRef.current}px`
-    document.body.style.width = '100%'
-  }
-  function unlockScroll() {
-    document.body.style.position = ''
-    document.body.style.top = ''
-    document.body.style.width = ''
-    window.scrollTo(0, savedScrollRef.current)
+  function noScrollFocus(e: React.TouchEvent<HTMLInputElement>) {
+    e.preventDefault()
+    e.currentTarget.focus({ preventScroll: true })
   }
 
   // Pin header to visual viewport top so iOS keyboard scroll can't push it off screen
@@ -991,10 +982,9 @@ export default function PlayingGroupScoreEntry({
                                 min={bankerMinBet}
                                 style={{ fontSize: '16px', width: '52px', textAlign: 'center', fontWeight: 'bold' }}
                                 className="border border-gray-200 rounded-lg px-1 py-0.5 focus:outline-none focus:border-blue-300"
-                                onTouchStart={lockScroll}
+                                onTouchStart={noScrollFocus}
                                 onChange={(e) => setMaxBetDraft(prev => ({ ...prev, [hole.hole_number]: e.target.value }))}
                                 onBlur={() => {
-                                  unlockScroll()
                                   const raw = maxBetDraft[hole.hole_number]
                                   setMaxBetDraft(prev => { const n = { ...prev }; delete n[hole.hole_number]; return n })
                                   if (raw !== undefined) {
@@ -1031,10 +1021,9 @@ export default function PlayingGroupScoreEntry({
                                           min={bankerMinBet} max={hd.maxBet}
                                           style={{ fontSize: '16px', width: '44px', textAlign: 'center', fontWeight: 'bold' }}
                                           className="border border-gray-200 rounded-lg px-1 py-0.5 focus:outline-none focus:border-blue-300"
-                                          onTouchStart={lockScroll}
+                                          onTouchStart={noScrollFocus}
                                           onChange={(e) => setPlayerBetDraft(prev => ({ ...prev, [hole.hole_number]: { ...(prev[hole.hole_number] ?? {}), [p.id]: e.target.value } }))}
                                           onBlur={() => {
-                                            unlockScroll()
                                             const raw = playerBetDraft[hole.hole_number]?.[p.id]
                                             setPlayerBetDraft(prev => { const n = { ...prev }; const h = { ...(n[hole.hole_number] ?? {}) }; delete h[p.id]; n[hole.hole_number] = h; return n })
                                             if (raw !== undefined) {
