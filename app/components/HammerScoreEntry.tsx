@@ -293,7 +293,7 @@ export default function HammerScoreEntry({
               <h1 className="font-bold text-lg">{roundName}</h1>
               <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{roundCourse} · {formattedDate}</p>
             </div>
-            <button onClick={() => setShowOptions(true)} className="text-xs px-3 py-1.5 rounded-lg border font-medium" style={{ borderColor: 'rgba(255,255,255,0.4)', color: '#d1d5db' }}>Options</button>
+            <a href={`/${orgSlug}/scorecards`} className="text-xs px-3 py-1.5 rounded-lg border font-medium" style={{ background: navy, borderColor: '#6b7280', color: '#9ca3af' }}>Scorecards</a>
           </div>
 
           {/* Team running totals */}

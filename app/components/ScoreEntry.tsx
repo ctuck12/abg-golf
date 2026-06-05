@@ -993,10 +993,10 @@ export default function ScoreEntry({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowOptions(true)}
+                onClick={() => setShowScorecards(true)}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
-                style={{ background: navy, color: '#9ca3af', borderColor: 'rgba(255,255,255,0.2)' }}>
-                Options
+                style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
+                Scorecards
               </button>
               <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
