@@ -2032,7 +2032,7 @@ export default function ScoreEntry({
                                   <button type="button"
                                     onClick={() => handleBankerDoubleAll(hole.hole_number, isDoubled)}
                                     className={`w-full text-xs py-1.5 rounded-lg border font-semibold transition mt-1 ${isDoubled ? 'bg-orange-500 text-white border-orange-500' : 'border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100'}`}>
-                                    {isDoubled ? 'Banker 2× All ✓ (tap to undo)' : 'Banker 2× All Bets'}
+                                    {isDoubled ? 'Banker 2× All Bets' : 'Banker 2× All Bets'}
                                   </button>
                                 )
                               })()}
