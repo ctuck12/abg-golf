@@ -860,7 +860,9 @@ export default function PlayingGroupScoreEntry({
                         playerAmts[p.id] = result
                         bankerTotal -= result
                       }
-                      return players.filter((p) => p.id !== bankerId).map((p) => {
+                      return players.filter((p) => p.id !== bankerId)
+                        .sort((a, b) => (playerAmts[b.id] ?? 0) - (playerAmts[a.id] ?? 0))
+                        .map((p) => {
                         const amt = playerAmts[p.id] ?? 0
                         return (
                           <div key={p.id} className="text-center flex-shrink-0">
