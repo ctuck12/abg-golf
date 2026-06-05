@@ -651,20 +651,31 @@ export default function ScoreEntry({
     window.scrollTo({ top, behavior })
   }
 
-  // When the virtual keyboard collapses, scroll the expanded hole back into view
-  const prevVpHeightRef = useRef<number>(0)
+  // When the virtual keyboard fully closes, scroll the expanded hole back into view
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-    prevVpHeightRef.current = vv.height
-    function onVpResize() {
-      if (vv!.height > prevVpHeightRef.current + 50 && expandedHole !== null) {
-        setTimeout(() => scrollHoleIntoView(expandedHole, 'smooth'), 150)
+    let maxHeight = vv.height
+    let keyboardOpen = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    function onResize() {
+      const h = vv!.height
+      if (h > maxHeight) maxHeight = h
+      const nowOpen = h < maxHeight - 80
+      if (keyboardOpen && !nowOpen) {
+        // Keyboard just fully closed — scroll after it finishes animating
+        if (timer) clearTimeout(timer)
+        timer = setTimeout(() => {
+          if (expandedHole !== null) scrollHoleIntoView(expandedHole, 'smooth')
+        }, 200)
       }
-      prevVpHeightRef.current = vv!.height
+      keyboardOpen = nowOpen
     }
-    vv.addEventListener('resize', onVpResize)
-    return () => vv.removeEventListener('resize', onVpResize)
+    vv.addEventListener('resize', onResize)
+    return () => {
+      vv.removeEventListener('resize', onResize)
+      if (timer) clearTimeout(timer)
+    }
   }, [expandedHole])
 
   // On page load, scroll so the last saved hole (just above the current hole) is visible
