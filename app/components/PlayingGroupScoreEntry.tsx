@@ -299,7 +299,7 @@ export default function PlayingGroupScoreEntry({
     })
   }
 
-  async function saveHole(holeNumber: number, pressActive = false, pressValue = '', pressHoleScope: 'this' | 'forward' = 'this') {
+  async function saveHole(holeNumber: number, pressActive = false, pressValue = '') {
     const hole = holes.find((h) => h.hole_number === holeNumber)
     if (!hole) return
 
@@ -321,15 +321,12 @@ export default function PlayingGroupScoreEntry({
 
     const holeAssignments = assignments[holeNumber] ?? {}
 
-    // Collect press entries to save — scope/value passed explicitly to avoid stale closure
+    // Collect press entry for this hole only (forward holes are saved immediately on button click)
     const pressEntries: { holeNumber: number; valuePerPoint: number | null }[] = []
-    if (isDaytonaMode && pressActive && pressValue !== undefined) {
+    if (isDaytonaMode && pressActive) {
       const rawVal = parseFloat(pressValue)
       const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
-      const affectedHoles = pressHoleScope === 'forward'
-        ? holes.filter((h) => h.hole_number >= holeNumber && !savedHoles.has(h.hole_number)).map((h) => h.hole_number)
-        : [holeNumber]
-      for (const hn of affectedHoles) pressEntries.push({ holeNumber: hn, valuePerPoint: pressVal })
+      pressEntries.push({ holeNumber, valuePerPoint: pressVal })
     }
 
     const [res, , pressRes] = await Promise.all([
@@ -1152,14 +1149,34 @@ export default function PlayingGroupScoreEntry({
                               <span className="text-xs text-gray-400">per point</span>
                             </div>
                             <div className="flex gap-2">
-                              {(['this', 'forward'] as const).map((scope) => (
-                                <button key={scope} type="button"
-                                  onClick={() => setPressScope((p) => ({ ...p, [hole.hole_number]: scope }))}
-                                  className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition ${currentScope === scope ? 'text-white border-transparent' : 'border-gray-200 text-gray-500'}`}
-                                  style={currentScope === scope ? { background: navy } : {}}>
-                                  {scope === 'this' ? 'This hole' : 'Forward holes'}
-                                </button>
-                              ))}
+                              <button type="button"
+                                onClick={() => setPressScope((p) => ({ ...p, [hole.hole_number]: 'this' }))}
+                                className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition ${currentScope === 'this' ? 'text-white border-transparent' : 'border-gray-200 text-gray-500'}`}
+                                style={currentScope === 'this' ? { background: navy } : {}}>
+                                This hole
+                              </button>
+                              <button type="button"
+                                onClick={async () => {
+                                  const rawVal = parseFloat(pressValueStr[hole.hole_number] ?? '')
+                                  const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
+                                  if (pressVal === null) return
+                                  const forwardHoles = holes.filter((h) => h.hole_number > hole.hole_number && !savedHoles.has(h.hole_number))
+                                  if (forwardHoles.length === 0) return
+                                  const entries = forwardHoles.map((h) => ({ holeNumber: h.hole_number, valuePerPoint: pressVal }))
+                                  const result = await saveDaytonaHoleValues(roundId, groupId, entries)
+                                  if (!result.error) {
+                                    setHoleValues((prev) => {
+                                      const next = { ...prev }
+                                      for (const h of forwardHoles) next[h.hole_number] = pressVal
+                                      return next
+                                    })
+                                    setPressScope((p) => ({ ...p, [hole.hole_number]: 'forward' }))
+                                  }
+                                }}
+                                className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition ${currentScope === 'forward' ? 'text-white border-transparent' : 'border-gray-200 text-gray-500'}`}
+                                style={currentScope === 'forward' ? { background: navy } : {}}>
+                                Forward holes ✓
+                              </button>
                             </div>
                           </div>
                         )}
@@ -1172,8 +1189,7 @@ export default function PlayingGroupScoreEntry({
                     onClick={() => saveHole(
                       hole.hole_number,
                       !!pressShowInput[hole.hole_number],
-                      pressValueStr[hole.hole_number] ?? '',
-                      pressScope[hole.hole_number] ?? 'this'
+                      pressValueStr[hole.hole_number] ?? ''
                     )}
                     disabled={isPending}
                     className="w-full mt-1 text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
