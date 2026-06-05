@@ -31,6 +31,9 @@ type PayoutsData = {
   teams: AllTeam[]; players: AllPlayer[]; scores: Score[]; ballValues: BallValue[]
   assignments: DaytonaHoleAssignment[]; matchups: SavedMatchup[]; bestBallMatchups: BestBallMatchup[]
   holeValues: Record<string, Record<number, number>>
+  bankerHolesAll: { team_id: string; hole_number: number; banker_player_id: string | null; max_bet: number }[]
+  bankerBetsAll: { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]
+  holeStrokesAll: { hole_number: number; player_id: string }[]
 }
 
 const navy = '#0f172a'
@@ -378,6 +381,7 @@ export default function ScoreEntry({
   const [payoutsData, setPayoutsData] = useState<PayoutsData | null>(null)
   const [payoutsLoading, setPayoutsLoading] = useState(false)
   const [showDaytonaResultsModal, setShowDaytonaResultsModal] = useState(false)
+  const [showBankerResultsModal, setShowBankerResultsModal] = useState(false)
   const [showMatchupResultsModal, setShowMatchupResultsModal] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showScorecards, setShowScorecards] = useState(false)
@@ -550,16 +554,19 @@ export default function ScoreEntry({
     setPayoutsLoading(true)
     const { data: teams } = await supabase.from('teams').select('id, name, daytona_variant').eq('round_id', roundId)
     const allTeamIds = (teams ?? []).map((t) => t.id)
-    const [{ data: allPlayers }, { data: allScores }, { data: ballValues }, { data: dtAssignments }, { data: matchupsData }, { data: bbMatchupsData }, { data: dtHoleValuesRaw }] = await Promise.all([
+    const [{ data: allPlayers }, { data: allScores }, { data: ballValues }, { data: dtAssignments }, { data: matchupsData }, { data: bbMatchupsData }, { data: dtHoleValuesRaw }, { data: bankerHolesRaw }, { data: bankerBetsRaw }, { data: holeStrokesRaw }] = await Promise.all([
       supabase.from('players').select('id, team_id, name, position').in('team_id', allTeamIds.length ? allTeamIds : ['']).order('position', { ascending: true }),
       supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', roundPlayerIds.length ? roundPlayerIds : ['']),
       supabase.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number'),
-      isDaytona
+      (isDaytona || isDaytonaSideGame)
         ? supabase.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
         : Promise.resolve({ data: [] }),
       supabase.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', roundId),
       supabase.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', roundId),
-      isDaytona ? supabase.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId) : Promise.resolve({ data: [] }),
+      (isDaytona || isDaytonaSideGame) ? supabase.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId) : Promise.resolve({ data: [] }),
+      bankerSideGame && allTeamIds.length ? supabase.from('banker_holes').select('team_id, hole_number, banker_player_id, max_bet').eq('round_id', roundId).in('team_id', allTeamIds) : Promise.resolve({ data: [] }),
+      bankerSideGame && allTeamIds.length ? supabase.from('banker_bets').select('team_id, hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', roundId).in('team_id', allTeamIds) : Promise.resolve({ data: [] }),
+      bankerSideGame && roundPlayerIds.length ? supabase.from('hole_strokes').select('hole_number, player_id').eq('round_id', roundId).in('player_id', roundPlayerIds) : Promise.resolve({ data: [] }),
     ])
     const payoutsHoleValues: Record<string, Record<number, number>> = {}
     for (const hv of (dtHoleValuesRaw ?? []) as { team_id: string; hole_number: number; value_per_point: number }[]) {
@@ -575,6 +582,9 @@ export default function ScoreEntry({
       matchups: (matchupsData ?? []) as SavedMatchup[],
       bestBallMatchups: (bbMatchupsData ?? []) as BestBallMatchup[],
       holeValues: payoutsHoleValues,
+      bankerHolesAll: (bankerHolesRaw ?? []) as { team_id: string; hole_number: number; banker_player_id: string | null; max_bet: number }[],
+      bankerBetsAll: (bankerBetsRaw ?? []) as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[],
+      holeStrokesAll: (holeStrokesRaw ?? []) as { hole_number: number; player_id: string }[],
     })
     setPayoutsLoading(false)
   }
@@ -1316,13 +1326,10 @@ export default function ScoreEntry({
                   : { results: [], playerNet: {} as Record<string, number>, settlements: [] }
                 const ballResults = poolResults.results
 
-                // Combined net
-                const combinedNet: Record<string, number> = {}
-                for (const p of payoutsData.players) {
-                  const ballNet = isDaytona ? 0 : (poolResults.playerNet[p.id] ?? 0)
-                  combinedNet[p.id] = ballNet + (matchupPayoutsResult.net[p.id] ?? 0)
-                }
-                if (isDaytona) {
+                // Daytona side game net (reused for both isDaytona and isDaytonaSideGame)
+                const isDaytonaShowing = isDaytona || isDaytonaSideGame
+                const daytonaNetByPlayer: Record<string, number> = {}
+                if (isDaytonaShowing) {
                   for (const t of payoutsData.teams) {
                     const tp = payoutsData.players.filter((p) => p.team_id === t.id)
                     const tpIds = tp.map((p) => p.id)
@@ -1331,15 +1338,56 @@ export default function ScoreEntry({
                     const tHoleVals = payoutsData.holeValues[t.id] ?? {}
                     const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant, dtPayoutValue, tHoleVals)
                     const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
-                    for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
+                    for (const [id, amt] of Object.entries(pNet)) daytonaNetByPlayer[id] = (daytonaNetByPlayer[id] ?? 0) + amt
                   }
+                }
+
+                // Banker side game net per player
+                const bankerNetByPlayer: Record<string, number> = {}
+                if (bankerSideGame) {
+                  for (const p of payoutsData.players) bankerNetByPlayer[p.id] = 0
+                  for (const t of payoutsData.teams) {
+                    const tp = payoutsData.players.filter((p) => p.team_id === t.id)
+                    for (const hole of holes) {
+                      const hd = payoutsData.bankerHolesAll.find((bh) => bh.team_id === t.id && bh.hole_number === hole.hole_number)
+                      if (!hd?.banker_player_id) continue
+                      const bankerId = hd.banker_player_id
+                      const bankerGross = payoutsData.scores.find((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)?.strokes
+                      if (bankerGross === undefined) continue
+                      const bankerAdj = payoutsData.holeStrokesAll.some((hs) => hs.hole_number === hole.hole_number && hs.player_id === bankerId) ? 1 : 0
+                      const bankerNet = bankerGross - bankerAdj
+                      for (const p of tp) {
+                        if (p.id === bankerId) continue
+                        const pGross = payoutsData.scores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes
+                        if (pGross === undefined) continue
+                        const pAdj = payoutsData.holeStrokesAll.some((hs) => hs.hole_number === hole.hole_number && hs.player_id === p.id) ? 1 : 0
+                        const pNet = pGross - pAdj
+                        const bet = payoutsData.bankerBetsAll.find((bb) => bb.team_id === t.id && bb.hole_number === hole.hole_number && bb.player_id === p.id)
+                        const baseBet = bet?.base_bet ?? bankerMinBet
+                        if (baseBet <= 0) continue
+                        const effective = baseBet * (bet?.player_doubled ? 2 : 1) * (bet?.banker_doubled ? 2 : 1)
+                        let result = 0
+                        if (pNet < bankerNet) result = effective * bankerMultiplier(pNet, hole.par)
+                        else if (pNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
+                        bankerNetByPlayer[p.id] = (bankerNetByPlayer[p.id] ?? 0) + result
+                        bankerNetByPlayer[bankerId] = (bankerNetByPlayer[bankerId] ?? 0) - result
+                      }
+                    }
+                  }
+                }
+
+                // Combined net
+                const combinedNet: Record<string, number> = {}
+                for (const p of payoutsData.players) {
+                  const ballNet = isDaytona ? 0 : (poolResults.playerNet[p.id] ?? 0)
+                  combinedNet[p.id] = ballNet + (matchupPayoutsResult.net[p.id] ?? 0) + (daytonaNetByPlayer[p.id] ?? 0) + (bankerNetByPlayer[p.id] ?? 0)
                 }
                 const combinedSettlements = minimizeSettlements(payoutsData.players, combinedNet)
 
                 return (
                   <>
                     {/* ── Daytona Results (collapsible) ── */}
-                    {isDaytona && (
+                    {isDaytonaShowing && (
                       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                         <button onClick={() => setShowDaytonaResultsModal((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
                           <span className="text-sm font-semibold text-gray-800">Daytona Results</span>
@@ -1387,6 +1435,71 @@ export default function ScoreEntry({
                                   </div>
                                   {playerSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{playerSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
                                   {playerSettlements.length === 0 && teamPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">{[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}</p>)}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── Banker Results (collapsible) ── */}
+                    {bankerSideGame && (
+                      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                        <button onClick={() => setShowBankerResultsModal((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                          <span className="text-sm font-semibold text-gray-800">Banker Results</span>
+                          <span className="text-gray-400 text-xs">{showBankerResultsModal ? '▲ Hide' : '▼ Show'}</span>
+                        </button>
+                        {showBankerResultsModal && (
+                          <div className="border-t border-gray-100">
+                            {payoutsData.teams.map((t, ti) => {
+                              const teamPlayers = payoutsData.players.filter((p) => p.team_id === t.id)
+                              const tBankerHoles = payoutsData.bankerHolesAll.filter((bh) => bh.team_id === t.id && !!bh.banker_player_id)
+                              if (tBankerHoles.length === 0) return null
+                              const tNet: Record<string, number> = {}
+                              for (const p of teamPlayers) tNet[p.id] = 0
+                              for (const hole of holes) {
+                                const hd = tBankerHoles.find((bh) => bh.hole_number === hole.hole_number)
+                                if (!hd?.banker_player_id) continue
+                                const bankerId = hd.banker_player_id
+                                const bankerGross = payoutsData.scores.find((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)?.strokes
+                                if (bankerGross === undefined) continue
+                                const bankerAdj = payoutsData.holeStrokesAll.some((hs) => hs.hole_number === hole.hole_number && hs.player_id === bankerId) ? 1 : 0
+                                const bankerNet = bankerGross - bankerAdj
+                                for (const p of teamPlayers) {
+                                  if (p.id === bankerId) continue
+                                  const pGross = payoutsData.scores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes
+                                  if (pGross === undefined) continue
+                                  const pAdj = payoutsData.holeStrokesAll.some((hs) => hs.hole_number === hole.hole_number && hs.player_id === p.id) ? 1 : 0
+                                  const pNet = pGross - pAdj
+                                  const bet = payoutsData.bankerBetsAll.find((bb) => bb.team_id === t.id && bb.hole_number === hole.hole_number && bb.player_id === p.id)
+                                  const baseBet = bet?.base_bet ?? bankerMinBet
+                                  if (baseBet <= 0) continue
+                                  const effective = baseBet * (bet?.player_doubled ? 2 : 1) * (bet?.banker_doubled ? 2 : 1)
+                                  let result = 0
+                                  if (pNet < bankerNet) result = effective * bankerMultiplier(pNet, hole.par)
+                                  else if (pNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
+                                  tNet[p.id] = (tNet[p.id] ?? 0) + result
+                                  tNet[bankerId] = (tNet[bankerId] ?? 0) - result
+                                }
+                              }
+                              const tSettlements = minimizeSettlements(teamPlayers, tNet)
+                              return (
+                                <div key={t.id} className={ti > 0 ? 'border-t border-gray-100' : ''}>
+                                  <div className="px-4 py-2.5"><p className="font-semibold text-gray-900 text-sm">{t.name}</p></div>
+                                  <div className="divide-y divide-gray-100">
+                                    {teamPlayers.map((p) => {
+                                      const v = Math.round((tNet[p.id] ?? 0) * 100) / 100
+                                      return (
+                                        <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
+                                          <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                  {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
+                                  {tSettlements.length === 0 && teamPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">All even — no payments needed.</p>)}
                                 </div>
                               )
                             })}
@@ -1493,7 +1606,7 @@ export default function ScoreEntry({
                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       <div className="px-4 py-3 border-b border-gray-100">
                         <h4 className="font-semibold text-gray-900 text-sm">Combined Settlements</h4>
-                        <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game' : 'Ball game'} + all matchup bets</p>
+                        <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game' : 'Ball game'}{isDaytonaSideGame ? ' + Daytona side game' : ''}{bankerSideGame ? ' + Banker side game' : ''} + all matchup bets</p>
                       </div>
                       <div className="px-4 pt-3 pb-2">
                         <div className="space-y-1">
