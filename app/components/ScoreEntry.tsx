@@ -2181,7 +2181,7 @@ export default function ScoreEntry({
                           </button>
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
-                          {player.name}{effectiveStrokeIds(hole.hole_number).includes(player.id) ? <span className="text-blue-500 font-bold">*</span> : ''}{(() => { const bpId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null; return bpId && effectiveStrokeIds(hole.hole_number).includes(bpId) && getBankerReceiveStrokes(hole.hole_number).includes(player.id) ? <span className="text-orange-400 font-bold">*</span> : null })()}
+                          {player.name}{(() => { const effIds = effectiveStrokeIds(hole.hole_number); const bpId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null; const hasStroke = effIds.includes(player.id); const bankerActive = bpId ? effIds.includes(bpId) : false; const bankerGetsFromThis = bankerActive && getBankerReceiveStrokes(hole.hole_number).includes(player.id); return <>{hasStroke && (bpId && player.id !== bpId ? <span className="text-green-500 font-bold text-base">*</span> : <span className="text-blue-500 font-bold text-base">*</span>)}{bankerGetsFromThis && <span className="text-orange-400 font-bold text-base">*</span>}</>; })()}
                           {isDaytonaMode && isSaved && (() => {
                             const pts = holePlayerPoints.get(player.id)
                             if (!pts) return null
@@ -2361,9 +2361,9 @@ export default function ScoreEntry({
                                   disabled={strokesPending}
                                   className="text-xs px-2.5 py-1 rounded-full border font-medium transition"
                                   style={hasStroke
-                                    ? { background: '#1d4ed8', color: 'white', borderColor: 'transparent' }
+                                    ? (isBanker ? { background: '#16a34a', color: 'white', borderColor: 'transparent' } : { background: '#1d4ed8', color: 'white', borderColor: 'transparent' })
                                     : isSuggested
-                                      ? { background: '#eff6ff', color: '#1d4ed8', borderColor: '#93c5fd' }
+                                      ? (isBanker ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' } : { background: '#eff6ff', color: '#1d4ed8', borderColor: '#93c5fd' })
                                       : { borderColor: '#d1d5db', color: '#6b7280' }}>
                                   {p.name}
                                 </button>
