@@ -84,7 +84,14 @@ export default function PlayingGroupScoreEntry({
     }
     return saved
   })
-  const [expandedHole, setExpandedHole] = useState<number | null>(null)
+  const [expandedHole, setExpandedHole] = useState<number | null>(() => {
+    for (const h of holes) {
+      if (!players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))) {
+        return h.hole_number
+      }
+    }
+    return null
+  })
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [playerPopup, setPlayerPopup] = useState<string | null>(null)
@@ -123,6 +130,7 @@ export default function PlayingGroupScoreEntry({
   const spacerRef = useRef<HTMLDivElement>(null)
   const expandedHoleRef = useRef(expandedHole)
   useEffect(() => { expandedHoleRef.current = expandedHole }, [expandedHole])
+  const didInitialScrollRef = useRef(false)
 
   const [maxBetDraft, setMaxBetDraft] = useState<Record<number, string>>({})
   const [playerBetDraft, setPlayerBetDraft] = useState<Record<number, Record<string, string>>>({})
@@ -177,6 +185,21 @@ export default function PlayingGroupScoreEntry({
     document.addEventListener('focusout', onFocusOut)
     return () => { document.removeEventListener('focusout', onFocusOut); if (timer) clearTimeout(timer) }
   }, [])
+
+  // On load, scroll so the saved hole just above the current one is visible below the header
+  useEffect(() => {
+    if (didInitialScrollRef.current || expandedHole === null) return
+    didInitialScrollRef.current = true
+    setTimeout(() => {
+      const holeNums = holes.map((h) => h.hole_number)
+      const currentIdx = holeNums.indexOf(expandedHole)
+      const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
+      const el = document.getElementById(`hole-${scrollTarget}`)
+      if (!el) return
+      const headerHeight = headerRef.current?.offsetHeight ?? 96
+      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'auto' })
+    }, 100)
+  }, [expandedHole])
 
   async function checkAllGroupsDone() {
     setAllGroupsDone(null)
