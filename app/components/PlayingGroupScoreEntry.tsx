@@ -123,10 +123,48 @@ export default function PlayingGroupScoreEntry({
   const isBanker = !!bankerSideGame
   const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
   // Draft strings for bet inputs — keyed by holeNumber then playerId, allows free typing
-  const [betInputDraft, setBetInputDraft] = useState<Record<number, Record<string, string>>>({})
   const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
   const [allGroupsDone, setAllGroupsDone] = useState<boolean | null>(null)
   const prevSavedCount = useRef(savedHoles.size)
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  const expandedHoleRef = useRef(expandedHole)
+  useEffect(() => { expandedHoleRef.current = expandedHole }, [expandedHole])
+
+  // Pin header to visual viewport top so iOS keyboard scroll can't push it off screen
+  useEffect(() => {
+    const vv = window.visualViewport
+    const header = headerRef.current
+    if (!vv || !header) return
+    function pin() { header!.style.top = `${vv!.offsetTop}px` }
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header!.offsetHeight}px`
+    })
+    ro.observe(header)
+    vv.addEventListener('scroll', pin)
+    vv.addEventListener('resize', pin)
+    return () => { vv.removeEventListener('scroll', pin); vv.removeEventListener('resize', pin); ro.disconnect() }
+  }, [])
+
+  // After keyboard closes, scroll expanded hole back into view
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    function onFocusOut(e: FocusEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        const hole = expandedHoleRef.current
+        if (hole === null) return
+        const el = document.getElementById(`hole-${hole}`)
+        if (!el) return
+        const headerHeight = headerRef.current?.offsetHeight ?? 96
+        window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'smooth' })
+      }, 350)
+    }
+    document.addEventListener('focusout', onFocusOut)
+    return () => { document.removeEventListener('focusout', onFocusOut); if (timer) clearTimeout(timer) }
+  }, [])
 
   async function checkAllGroupsDone() {
     setAllGroupsDone(null)
@@ -561,7 +599,7 @@ export default function PlayingGroupScoreEntry({
       )}
 
       {/* Header */}
-      <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
+      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -648,6 +686,7 @@ export default function PlayingGroupScoreEntry({
           )}
         </div>
       </header>
+      <div ref={spacerRef} />
 
       {/* Hole list */}
       <div className="max-w-lg mx-auto px-4 pt-4 pb-16 space-y-2">
@@ -925,12 +964,15 @@ export default function PlayingGroupScoreEntry({
                             <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-1">
                               Max Bet (min ${bankerMinBet})
                             </p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500">$</span>
-                              <input type="number" value={hd.maxBet} min={bankerMinBet} step="1"
-                                onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.round(parseFloat(e.target.value) || bankerMinBet))}
-                                className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none" />
-                              <span className="text-[11px] text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
+                            <div className="flex items-center gap-3">
+                              <button type="button"
+                                onClick={() => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.max(bankerMinBet, hd.maxBet - 1))}
+                                className="w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">−</button>
+                              <span className="text-sm font-bold w-10 text-center">${hd.maxBet}</span>
+                              <button type="button"
+                                onClick={() => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, hd.maxBet + 1)}
+                                className="w-8 h-8 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">+</button>
+                              <span className="text-xs text-gray-400">min ${bankerMinBet}</span>
                             </div>
                           </div>
                         )}
@@ -941,44 +983,18 @@ export default function PlayingGroupScoreEntry({
                               {players.filter((p) => p.id !== hd.bankerPlayerId).map((p) => {
                                 const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
                                 const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
-                                const draftStr = betInputDraft[hole.hole_number]?.[p.id]
-                                const draftNum = draftStr !== undefined ? parseFloat(draftStr) : NaN
-                                const betWarning = draftStr !== undefined && draftStr !== '' && !isNaN(draftNum) && (draftNum < bankerMinBet || draftNum > hd.maxBet)
                                 return (
                                   <div key={p.id} className="bg-white rounded-lg px-2 py-1.5 border border-gray-100">
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-xs font-medium text-gray-700 flex-1">{p.name}</span>
-                                      <div className="flex flex-col items-end gap-0.5">
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-[11px] text-gray-500">$</span>
-                                          <input
-                                            type="number"
-                                            inputMode="decimal"
-                                            value={draftStr !== undefined ? draftStr : String(pb.baseBet)}
-                                            step="1"
-                                            onChange={(e) => {
-                                              setBetInputDraft((prev) => ({ ...prev, [hole.hole_number]: { ...(prev[hole.hole_number] ?? {}), [p.id]: e.target.value } }))
-                                            }}
-                                            onBlur={() => {
-                                              const raw = betInputDraft[hole.hole_number]?.[p.id]
-                                              setBetInputDraft((prev) => {
-                                                const n = { ...prev }
-                                                const h = { ...(n[hole.hole_number] ?? {}) }
-                                                delete h[p.id]
-                                                n[hole.hole_number] = h
-                                                return n
-                                              })
-                                              if (raw === undefined) return
-                                              const parsed = parseFloat(raw)
-                                              if (isNaN(parsed) || parsed < bankerMinBet || parsed > hd.maxBet) return
-                                              handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.round(parsed) } })
-                                            }}
-                                            className={`w-12 border rounded px-1.5 py-0.5 text-sm focus:outline-none ${betWarning ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                                          />
-                                        </div>
-                                        {betWarning && (
-                                          <span className="text-[10px] text-red-500 font-medium">${bankerMinBet}–${hd.maxBet}</span>
-                                        )}
+                                      <div className="flex items-center gap-2">
+                                        <button type="button"
+                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.max(bankerMinBet, pb.baseBet - 1) } })}
+                                          className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">−</button>
+                                        <span className="text-sm font-bold w-8 text-center">${pb.baseBet}</span>
+                                        <button type="button"
+                                          onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: Math.min(hd.maxBet, pb.baseBet + 1) } })}
+                                          className="w-7 h-7 rounded-full bg-gray-100 font-bold flex items-center justify-center hover:bg-gray-200 active:scale-90 transition">+</button>
                                       </div>
                                       <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
