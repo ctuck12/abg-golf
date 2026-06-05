@@ -387,13 +387,18 @@ export default function ScoreEntry({
   const [showScorecards, setShowScorecards] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const outerRef = useRef<HTMLDivElement>(null)
+  // Lock html/body scroll so iOS input-focus scroll targets our inner container instead of window
   useEffect(() => {
-    const applyHeight = () => { if (outerRef.current) outerRef.current.style.height = `${window.innerHeight}px` }
-    applyHeight()
-    const onOrient = () => setTimeout(applyHeight, 200)
-    window.addEventListener('orientationchange', onOrient)
-    return () => window.removeEventListener('orientationchange', onOrient)
+    const html = document.documentElement
+    const body = document.body
+    const prevHtmlOverflow = html.style.overflow
+    const prevBodyOverflow = body.style.overflow
+    html.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+    return () => {
+      html.style.overflow = prevHtmlOverflow
+      body.style.overflow = prevBodyOverflow
+    }
   }, [])
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
@@ -860,7 +865,7 @@ export default function ScoreEntry({
   const savedCount = savedHoles.size
 
   return (
-    <div ref={outerRef} className="flex flex-col overflow-hidden" style={{ background: '#f8fafc' }}>
+    <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: '#f8fafc' }}>
       {showOptions && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
