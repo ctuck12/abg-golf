@@ -49,7 +49,7 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 
 export default function ScorecardViewer({
   orgSlug, orgId, orgName, isMaster = false,
-  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0, holeStrokes = {}, scorecardTeamId: scorecardTeamIdProp = null,
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0, holeStrokes = {}, scorecardTeamId: scorecardTeamIdProp = null, includeTotal = false,
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   teamName: string
@@ -65,6 +65,7 @@ export default function ScorecardViewer({
   dtPayoutValue?: number
   holeStrokes?: Record<string, number[]>
   scorecardTeamId?: string | null
+  includeTotal?: boolean
 }) {
   const [scores, setScores] = useState(initialScores)
   const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
@@ -214,41 +215,39 @@ export default function ScorecardViewer({
           const vspColor = (score: number | null, par: number) => {
             if (score === null) return '#9ca3af'
             const v = score - par
-            return v < 0 ? '#16a34a' : v > 0 ? '#dc2626' : '#374151'
+            return v < 0 ? '#dc2626' : '#374151'
           }
+          const ballChips = (scores: (number | null)[], par: number) =>
+            Array.from({ length: ballsCount }, (_, bi) => (
+              <span key={bi} className="flex items-baseline gap-0.5">
+                <span className="font-bold text-[10px]" style={{ color: '#92400e' }}>{BALL_LABELS[bi]}</span>
+                <span className="font-bold" style={{ color: vspColor(scores[bi], par) }}>{fmtVsp(scores[bi], par)}</span>
+              </span>
+            ))
+          const frontScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(frontData, (d) => d.ballScores[bi]))
+          const backScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(backData, (d) => d.ballScores[bi]))
+          const totalScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(holeData, (d) => d.ballScores[bi]))
           return (
             <div className="mb-3 bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
-              <div className="flex items-center gap-4 flex-wrap">
-                {Array.from({ length: ballsCount }, (_, bi) => {
-                  const frontScore = sumScored(frontData, (d) => d.ballScores[bi])
-                  const backScore = sumScored(backData, (d) => d.ballScores[bi])
-                  const totalScore = sumScored(holeData, (d) => d.ballScores[bi])
-                  return (
-                    <div key={bi} className="flex items-center gap-3">
-                      <span className="text-xs font-bold" style={{ color: '#92400e', minWidth: '1.5rem' }}>{BALL_LABELS[bi]}</span>
-                      <div className="flex items-center gap-2 text-xs">
-                        {frontData.length > 0 && (
-                          <span>
-                            <span className="text-gray-400">Front </span>
-                            <span className="font-bold" style={{ color: vspColor(frontScore, frontPar) }}>{fmtVsp(frontScore, frontPar)}</span>
-                          </span>
-                        )}
-                        {backData.length > 0 && (
-                          <span>
-                            <span className="text-gray-400">Back </span>
-                            <span className="font-bold" style={{ color: vspColor(backScore, backPar) }}>{fmtVsp(backScore, backPar)}</span>
-                          </span>
-                        )}
-                        {(frontData.length > 0 || backData.length > 0) && (
-                          <span>
-                            <span className="text-gray-400">Total </span>
-                            <span className="font-bold" style={{ color: vspColor(totalScore, totalPar) }}>{fmtVsp(totalScore, totalPar)}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-xs">
+                {frontData.length > 0 && (
+                  <span className="flex items-baseline gap-2">
+                    <span className="text-gray-400 font-medium">Front:</span>
+                    {ballChips(frontScores, frontPar)}
+                  </span>
+                )}
+                {backData.length > 0 && (
+                  <span className="flex items-baseline gap-2">
+                    <span className="text-gray-400 font-medium">Back:</span>
+                    {ballChips(backScores, backPar)}
+                  </span>
+                )}
+                {includeTotal && (
+                  <span className="flex items-baseline gap-2">
+                    <span className="text-gray-400 font-medium">Total:</span>
+                    {ballChips(totalScores, totalPar)}
+                  </span>
+                )}
               </div>
             </div>
           )
@@ -351,8 +350,8 @@ export default function ScorecardViewer({
               </tr>
             ))}
 
-            {/* Divider before ball / DT rows */}
-            <tr><td colSpan={23} style={{ height: '2px', background: isDaytona ? '#e5e7eb' : '#d97706', padding: 0 }} /></tr>
+            {/* Divider before DT rows */}
+            {isDaytona && <tr><td colSpan={23} style={{ height: '2px', background: '#e5e7eb', padding: 0 }} /></tr>}
 
             {/* Daytona rows OR ball rows */}
             {isDaytona ? (
@@ -426,40 +425,42 @@ export default function ScorecardViewer({
               </>
             ) : (
               Array.from({ length: ballsCount }, (_, bi) => {
+                const isFirst = bi === 0
                 const isLast = bi === ballsCount - 1
+                const tBorder: React.CSSProperties = isFirst ? { borderTop: '2px solid #d97706' } : {}
                 const bBorder: React.CSSProperties = isLast ? { borderBottom: '2px solid #d97706' } : {}
                 const lBorder: React.CSSProperties = { borderLeft: '2px solid #d97706' }
                 const rBorder: React.CSSProperties = { borderRight: '2px solid #d97706' }
                 return (
                   <tr key={bi}>
-                    <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#92400e', ...stickyFirst, ...lBorder, ...bBorder }}>
+                    <td style={{ ...tdScore(false, true), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#92400e', ...stickyFirst, ...lBorder, ...tBorder, ...bBorder }}>
                       {BALL_LABELS[bi]}
                     </td>
                     {[1,2,3,4,5,6,7,8,9].map((n) => {
                       const d = holeData.find((d) => d.hole.hole_number === n)
                       const b = d?.ballScores[bi] ?? null
                       return (
-                        <td key={n} style={{ ...tdScore(false, true), ...bBorder }}>
+                        <td key={n} style={{ ...tdScore(false, true), ...tBorder, ...bBorder }}>
                           {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
                         </td>
                       )
                     })}
-                    <td style={{ ...tdScore(true, true), ...bBorder }}>
+                    <td style={{ ...tdScore(true, true), ...tBorder, ...bBorder }}>
                       {sumScored(frontData, (d) => d.ballScores[bi]) ?? '–'}
                     </td>
                     {[10,11,12,13,14,15,16,17,18].map((n) => {
                       const d = holeData.find((d) => d.hole.hole_number === n)
                       const b = d?.ballScores[bi] ?? null
                       return (
-                        <td key={n} style={{ ...tdScore(false, true), ...bBorder }}>
+                        <td key={n} style={{ ...tdScore(false, true), ...tBorder, ...bBorder }}>
                           {b != null && d ? <ScoreNotation strokes={b} par={d.hole.par} size="sm" /> : <span style={{ color: '#d1d5db' }}>–</span>}
                         </td>
                       )
                     })}
-                    <td style={{ ...tdScore(true, true), ...bBorder }}>
+                    <td style={{ ...tdScore(true, true), ...tBorder, ...bBorder }}>
                       {sumScored(backData, (d) => d.ballScores[bi]) ?? '–'}
                     </td>
-                    <td style={{ ...tdScore(false, true), fontWeight: 700, color: '#111827', ...rBorder, ...bBorder }}>
+                    <td style={{ ...tdScore(false, true), fontWeight: 700, color: '#111827', ...rBorder, ...tBorder, ...bBorder }}>
                       {sumScored(holeData, (d) => d.ballScores[bi]) ?? '–'}
                     </td>
                   </tr>

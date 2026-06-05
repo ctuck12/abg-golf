@@ -21,7 +21,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
   const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant').eq('id', teamId).single()
   if (!team) redirect(`/${orgSlug}`)
 
-  const { data: round } = await sb.from('rounds').select('id, balls_count, format, daytona_variant, org_id').eq('id', team.round_id).single()
+  const { data: round } = await sb.from('rounds').select('id, balls_count, format, daytona_variant, include_total, org_id').eq('id', team.round_id).single()
   if (!round || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
   const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', round.id)
@@ -72,6 +72,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
       dtPayoutValue={dtPayoutValue}
       holeStrokes={holeStrokes}
       scorecardTeamId={scorecardTeamId}
+      includeTotal={round.include_total ?? false}
     />
   )
 }
