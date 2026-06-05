@@ -314,9 +314,7 @@ export default function ScorecardViewer({
             {players.map((p, pi) => (
               <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                 <td style={{ ...tdScore(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap', ...stickyFirst }}>
-                  <a href={`/player/${p.id}`} className="underline underline-offset-2" style={{ color: navy }}>
-                    {p.name.split(' ')[0]}
-                  </a>
+                  {p.name.split(' ')[0]}
                 </td>
                 {[1,2,3,4,5,6,7,8,9].map((n) => {
                   const d = holeData.find((d) => d.hole.hole_number === n)
