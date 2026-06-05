@@ -671,7 +671,13 @@ export default function ScoreEntry({
     const vv = window.visualViewport
     const header = headerRef.current
     if (!vv || !header) return
-    function pin() { header!.style.transform = `translateY(${vv!.offsetTop}px)` }
+    let lastOffsetTop = -1
+    function pin() {
+      const t = vv!.offsetTop
+      if (t === lastOffsetTop) return
+      lastOffsetTop = t
+      header!.style.transform = `translateY(${t}px)`
+    }
     function onResize() {
       const keyboardOpen = vv!.height < window.innerHeight - 100
       if (keyboardOpen) {
@@ -679,6 +685,7 @@ export default function ScoreEntry({
         pin()
       } else {
         vv!.removeEventListener('scroll', pin)
+        lastOffsetTop = -1
         header!.style.transform = ''
       }
     }
