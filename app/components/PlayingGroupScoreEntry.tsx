@@ -1160,7 +1160,7 @@ export default function PlayingGroupScoreEntry({
                                   const rawVal = parseFloat(pressValueStr[hole.hole_number] ?? '')
                                   const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
                                   if (pressVal === null) return
-                                  const forwardHoles = holes.filter((h) => h.hole_number > hole.hole_number && !savedHoles.has(h.hole_number))
+                                  const forwardHoles = holes.filter((h) => h.hole_number > hole.hole_number)
                                   if (forwardHoles.length === 0) return
                                   const entries = forwardHoles.map((h) => ({ holeNumber: h.hole_number, valuePerPoint: pressVal }))
                                   const result = await saveDaytonaHoleValues(roundId, groupId, entries)
