@@ -651,32 +651,27 @@ export default function ScoreEntry({
     window.scrollTo({ top, behavior })
   }
 
-  // When the virtual keyboard fully closes, scroll the expanded hole back into view
+  // When any input loses focus (keyboard starts closing), scroll expanded hole into view
+  // 350ms delay covers the iOS keyboard dismiss animation (~250ms)
+  const expandedHoleRef = useRef(expandedHole)
+  useEffect(() => { expandedHoleRef.current = expandedHole }, [expandedHole])
   useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    let maxHeight = vv.height
-    let keyboardOpen = false
     let timer: ReturnType<typeof setTimeout> | null = null
-    function onResize() {
-      const h = vv!.height
-      if (h > maxHeight) maxHeight = h
-      const nowOpen = h < maxHeight - 80
-      if (keyboardOpen && !nowOpen) {
-        // Keyboard just fully closed — scroll after it finishes animating
-        if (timer) clearTimeout(timer)
-        timer = setTimeout(() => {
-          if (expandedHole !== null) scrollHoleIntoView(expandedHole, 'smooth')
-        }, 200)
-      }
-      keyboardOpen = nowOpen
+    function onFocusOut(e: FocusEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        const hole = expandedHoleRef.current
+        if (hole !== null) scrollHoleIntoView(hole, 'smooth')
+      }, 350)
     }
-    vv.addEventListener('resize', onResize)
+    document.addEventListener('focusout', onFocusOut)
     return () => {
-      vv.removeEventListener('resize', onResize)
+      document.removeEventListener('focusout', onFocusOut)
       if (timer) clearTimeout(timer)
     }
-  }, [expandedHole])
+  }, [])
 
   // On page load, scroll so the last saved hole (just above the current hole) is visible
   const didInitialScrollRef = useRef(false)
