@@ -618,7 +618,7 @@ export default function PlayingGroupScoreEntry({
                     display = pts === null ? '–' : pts === 0 ? '0' : pts > 0 ? `+${pts}` : String(pts)
                     color = pts === null ? 'rgba(255,255,255,0.4)' : pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.7)'
                   } else {
-                    const toPar = scoreToPar(savedScores, p.id, holes)
+                    const toPar = scoreToPar(savedScores.filter((s) => savedHoles.has(s.hole_number)), p.id, holes)
                     display = formatToPar(toPar)
                     color = toParColor(toPar)
                   }
@@ -872,20 +872,7 @@ export default function PlayingGroupScoreEntry({
                           </div>
                         )
                       })
-                    })() : (
-                      players.map((p) => {
-                        const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
-                        const rel = sc ? sc.strokes - hole.par : null
-                        return (
-                          <div key={p.id} className="text-center flex-shrink-0">
-                            <p className="leading-tight text-gray-400" style={{ fontSize: 'clamp(8px, 2.2vw, 10px)' }}>{p.name.split(' ')[0]}</p>
-                            <p className="font-semibold leading-tight" style={{ fontSize: 'clamp(9px, 2.4vw, 11px)', color: rel == null ? '#9ca3af' : rel < 0 ? '#16a34a' : rel > 0 ? '#dc2626' : '#374151' }}>
-                              {rel == null ? '–' : rel > 0 ? `+${rel}` : rel === 0 ? 'E' : rel}
-                            </p>
-                          </div>
-                        )
-                      })
-                    )}
+                    })() : null}
                   </div>
                 )}
                 <div className="flex items-center gap-2 flex-shrink-0">

@@ -512,10 +512,11 @@ export async function submitGroupHoleScores(
   const supabase = createServerClient()
   for (const { playerId, strokes } of playerScores) {
     if (strokes < 1 || strokes > 20) continue
-    await supabase.from('scores').upsert(
+    const { error } = await supabase.from('scores').upsert(
       { player_id: playerId, hole_number: holeNumber, strokes },
       { onConflict: 'player_id,hole_number' }
     )
+    if (error) return { error: error.message }
   }
   return { success: true }
 }
