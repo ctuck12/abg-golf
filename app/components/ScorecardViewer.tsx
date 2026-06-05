@@ -219,9 +219,9 @@ export default function ScorecardViewer({
           }
           const ballChips = (scores: (number | null)[], par: number) =>
             Array.from({ length: ballsCount }, (_, bi) => (
-              <span key={bi} className="inline-flex items-center justify-center gap-0.5 rounded-full py-1" style={{ background: 'rgba(15,23,42,0.06)', width: '4.5rem' }}>
-                <span className="font-bold text-[11px] leading-none" style={{ color: '#92400e' }}>{BALL_LABELS[bi]}:</span>
-                <span className="font-bold text-[11px] leading-none" style={{ color: vspColor(scores[bi], par) }}>{fmtVsp(scores[bi], par)}</span>
+              <span key={bi} className="inline-flex items-center rounded-full py-1" style={{ background: 'rgba(15,23,42,0.06)', width: '4.5rem' }}>
+                <span className="font-bold text-[11px] leading-none" style={{ color: '#92400e', width: '50%', textAlign: 'right' }}>{BALL_LABELS[bi]}:</span>
+                <span className="font-bold text-[11px] leading-none" style={{ color: vspColor(scores[bi], par), width: '50%', textAlign: 'left', paddingLeft: '2px' }}>{fmtVsp(scores[bi], par)}</span>
               </span>
             ))
           const frontScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(frontData, (d) => d.ballScores[bi]))
