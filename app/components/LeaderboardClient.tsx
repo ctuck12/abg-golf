@@ -367,6 +367,8 @@ export default function LeaderboardClient({
   const [hcpVisible, setHcpVisible] = useState<Set<string>>(new Set())
   const toggleHcp = (id: string) => setHcpVisible((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
+  const [showDaytonaSideResults, setShowDaytonaSideResults] = useState(false)
+  const [showBankerResults, setShowBankerResults] = useState(false)
   const [showMatchupResults, setShowMatchupResults] = useState(false)
   const [showSkinsResults, setShowSkinsResults] = useState(false)
   const [showSkinsParticipants, setShowSkinsParticipants] = useState(false)
@@ -823,7 +825,7 @@ export default function LeaderboardClient({
     const ballNet = (isDaytona || isTraditional) ? 0 : (poolResults.playerNet[p.id] ?? 0)
     combinedNet[p.id] = ballNet + (matchupPayouts.net[p.id] ?? 0) + (skinsResults.playerNet[p.id] ?? 0)
   }
-  // For Daytona: add daytona per-group net
+  // For Daytona main format: add daytona per-group net
   if (isDaytona) {
     for (const group of dtGroupRows) {
       const tp = group.rows.map((r) => r.player)
@@ -834,6 +836,38 @@ export default function LeaderboardClient({
       const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, group.variant, dtPayoutValue, tHoleVals)
       const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
       for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
+    }
+  }
+  // Daytona side game: groups in standardGroupRows or traditionalGroupRows with hasDaytona
+  for (const group of standardGroupRows) {
+    if (!group.hasDaytona) continue
+    const variant = group.daytona_variant!.split('|')[0]
+    const pids = group.rows.map((r) => r.player.id)
+    const groupPlayers = players.filter((p) => pids.includes(p.id))
+    const tAssign = assignments.filter((a) => pids.includes(a.player_id))
+    const tScores = scores.filter((s) => pids.includes(s.player_id))
+    const tHoleVals = liveHoleValues[group.id] ?? {}
+    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, dtPayoutValue, tHoleVals)
+    const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
+    for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
+  }
+  for (const group of traditionalGroupRows) {
+    if (!group.hasDaytona) continue
+    const variant = group.team.daytona_variant!.split('|')[0]
+    const pids = group.rows.map((r) => r.player.id)
+    const groupPlayers = players.filter((p) => pids.includes(p.id))
+    const tAssign = assignments.filter((a) => pids.includes(a.player_id))
+    const tScores = scores.filter((s) => pids.includes(s.player_id))
+    const tHoleVals = liveHoleValues[group.team.id] ?? {}
+    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, dtPayoutValue, tHoleVals)
+    const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
+    for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
+  }
+  // Banker side game
+  for (const group of standardGroupRows) {
+    if (!group.hasBanker) continue
+    for (const [id, amt] of Object.entries(group.bankerTotals)) {
+      combinedNet[id] = (combinedNet[id] ?? 0) + amt
     }
   }
   const combinedSettlements = minimizeSettlements(players, combinedNet)
@@ -1000,6 +1034,90 @@ export default function LeaderboardClient({
                                 )}
                               </div>
                             )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Daytona Side Game Results (collapsible) ── */}
+              {!isDaytona && (standardGroupRows.some((g) => g.hasDaytona) || traditionalGroupRows.some((g) => g.hasDaytona)) && (
+                <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
+                  <button onClick={() => setShowDaytonaSideResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                    <span className="text-sm font-semibold text-gray-800">Daytona Results</span>
+                    <span className="text-gray-400 text-xs">{showDaytonaSideResults ? '▲ Hide' : '▼ Show'}</span>
+                  </button>
+                  {showDaytonaSideResults && (
+                    <div className="border-t border-gray-100">
+                      {[...standardGroupRows.filter((g) => g.hasDaytona), ...traditionalGroupRows.filter((g) => g.hasDaytona).map((g) => ({ id: g.team.id, name: g.team.name, daytona_variant: g.team.daytona_variant, rows: g.rows, hasDaytona: true, hasBanker: false, pointsMap: g.pointsMap, bankerTotals: {} as Record<string, number> }))].map((group, ti) => {
+                        const variant = group.daytona_variant!.split('|')[0]
+                        const pids = group.rows.map((r) => r.player.id)
+                        const groupPlayers = players.filter((p) => pids.includes(p.id))
+                        const tAssign = assignments.filter((a) => pids.includes(a.player_id))
+                        const tScores = scores.filter((s) => pids.includes(s.player_id))
+                        const tHoleVals = liveHoleValues[group.id] ?? {}
+                        const pointTotals = group.pointsMap ?? new Map<string, number>()
+                        const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, dtPayoutValue, tHoleVals)
+                        const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
+                        return (
+                          <div key={group.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
+                            <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{group.name}</span>
+                            </div>
+                            <div className="px-4 py-2"><p className="text-xs text-gray-400">{formatHoleRateBreakdown(holes, tHoleVals, dtPayoutValue)}</p></div>
+                            <div className="divide-y divide-gray-100">
+                              {groupPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
+                                <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
+                                  <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                  <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>
+                                  <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                </div>
+                              )})}
+                            </div>
+                            {playerSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{playerSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
+                            {playerSettlements.length === 0 && groupPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">{[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}</p>)}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Banker Results (collapsible) ── */}
+              {standardGroupRows.some((g) => g.hasBanker) && (
+                <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
+                  <button onClick={() => setShowBankerResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                    <span className="text-sm font-semibold text-gray-800">Banker Results</span>
+                    <span className="text-gray-400 text-xs">{showBankerResults ? '▲ Hide' : '▼ Show'}</span>
+                  </button>
+                  {showBankerResults && (
+                    <div className="border-t border-gray-100">
+                      {standardGroupRows.filter((g) => g.hasBanker).map((group, ti) => {
+                        const pids = group.rows.map((r) => r.player.id)
+                        const groupPlayers = players.filter((p) => pids.includes(p.id))
+                        const tNet = group.bankerTotals
+                        const tSettlements = minimizeSettlements(groupPlayers, tNet)
+                        return (
+                          <div key={group.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
+                            <div className="px-4 py-2 bg-gray-50">
+                              <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{group.name}</span>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                              {groupPlayers.map((p) => {
+                                const v = Math.round((tNet[p.id] ?? 0) * 100) / 100
+                                return (
+                                  <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
+                                    <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                    <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
+                            {tSettlements.length === 0 && groupPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">All even — no payments needed.</p>)}
                           </div>
                         )
                       })}
@@ -1255,7 +1373,7 @@ export default function LeaderboardClient({
               <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <h4 className="font-semibold text-gray-900 text-sm">Combined Settlements</h4>
-                  <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game + all matchup bets' : isTraditional ? 'All matchup bets' : 'Ball game + all matchup bets'}{skinsEnabled ? ' + skins' : ''}</p>
+                  <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game + all matchup bets' : isTraditional ? 'All matchup bets' : 'Ball game + all matchup bets'}{!isDaytona && (standardGroupRows.some((g) => g.hasDaytona) || traditionalGroupRows.some((g) => g.hasDaytona)) ? ' + Daytona side game' : ''}{standardGroupRows.some((g) => g.hasBanker) ? ' + Banker side game' : ''}{skinsEnabled ? ' + skins' : ''}</p>
                 </div>
                 {/* Net positions */}
                 <div className="px-4 pt-3 pb-2">
