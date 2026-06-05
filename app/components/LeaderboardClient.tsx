@@ -384,9 +384,13 @@ export default function LeaderboardClient({
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [leaderboardView, setLeaderboardView] = useState<'group' | 'team' | 'individual'>(() => {
-    const saved = typeof window !== 'undefined' ? sessionStorage.getItem('leaderboardView') : null
+    const defaultView = format === 'daytona' ? 'group' : format === 'traditional' ? 'individual' : 'team'
+    if (typeof window === 'undefined') return defaultView
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+    if (nav?.type === 'reload') return defaultView
+    const saved = sessionStorage.getItem('leaderboardView')
     if (saved === 'group' || saved === 'team' || saved === 'individual') return saved
-    return format === 'daytona' ? 'group' : format === 'traditional' ? 'individual' : 'team'
+    return defaultView
   })
 
   const isDaytona = format === 'daytona'
