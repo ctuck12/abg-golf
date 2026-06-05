@@ -833,8 +833,9 @@ export default function LeaderboardClient({
       const tpIds = tp.map((p) => p.id)
       const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
       const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+      const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
       const tHoleVals = liveHoleValues[group.team.id] ?? {}
-      const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, group.variant, dtPayoutValue, tHoleVals)
+      const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, group.variant, dtPayoutValue, tHoleVals)
       const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
       for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
     }
@@ -850,8 +851,9 @@ export default function LeaderboardClient({
     const groupPlayers = players.filter((p) => pids.includes(p.id))
     const tAssign = assignments.filter((a) => pids.includes(a.player_id))
     const tScores = scores.filter((s) => pids.includes(s.player_id))
+    const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
     const tHoleVals = liveHoleValues[group.id] ?? {}
-    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, groupPayoutValue, tHoleVals)
+    const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, variant, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
     for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
   }
@@ -865,8 +867,9 @@ export default function LeaderboardClient({
     const groupPlayers = players.filter((p) => pids.includes(p.id))
     const tAssign = assignments.filter((a) => pids.includes(a.player_id))
     const tScores = scores.filter((s) => pids.includes(s.player_id))
+    const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
     const tHoleVals = liveHoleValues[group.team.id] ?? {}
-    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, groupPayoutValue, tHoleVals)
+    const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, variant, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
     for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
   }
@@ -983,12 +986,13 @@ export default function LeaderboardClient({
                         const tpIds = teamPlayers.map((p) => p.id)
                         const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
                         const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+                        const netTScores2 = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
                         const tHoleVals2 = liveHoleValues[group.team.id] ?? {}
-                        const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, group.variant)
-                        const dollarTotals2 = computePlayerDaytonaDollars(holes, tScores, tAssign, group.variant, dtPayoutValue, tHoleVals2)
+                        const pointTotals = computePlayerDaytonaPoints(holes, netTScores2, tAssign, group.variant)
+                        const dollarTotals2 = computePlayerDaytonaDollars(holes, netTScores2, tAssign, group.variant, dtPayoutValue, tHoleVals2)
                         const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, dollarTotals2, 1)
                         const variantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares' : group.variant?.startsWith('5man') ? '5-Man Normal' : '4-Man'
-                        const segments = buildSegmentBreakdown(holes, tScores, tAssign, group.variant, tHoleVals2, dtPayoutValue)
+                        const segments = buildSegmentBreakdown(holes, netTScores2, tAssign, group.variant, tHoleVals2, dtPayoutValue)
                         return (
                           <div key={group.team.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
                             <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
@@ -1104,11 +1108,12 @@ export default function LeaderboardClient({
                         const groupPlayers = players.filter((p) => pids.includes(p.id))
                         const tAssign = assignments.filter((a) => pids.includes(a.player_id))
                         const tScores = scores.filter((s) => pids.includes(s.player_id))
+                        const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
                         const tHoleVals = liveHoleValues[group.id] ?? {}
                         const pointTotals = group.pointsMap ?? new Map<string, number>()
-                        const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, variant, groupPayoutValue, tHoleVals)
+                        const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, variant, groupPayoutValue, tHoleVals)
                         const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
-                        const segments = buildSegmentBreakdown(holes, tScores, tAssign, variant, tHoleVals, groupPayoutValue)
+                        const segments = buildSegmentBreakdown(holes, netTScores, tAssign, variant, tHoleVals, groupPayoutValue)
                         return (
                           <div key={group.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
                             <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
