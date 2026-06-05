@@ -999,7 +999,7 @@ export default function PlayingGroupScoreEntry({
                             <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-1">
                               Max Bet (min ${bankerMinBet})
                             </p>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2">
                               <span className="text-sm font-bold text-gray-700">$</span>
                               <input
                                 type="number" inputMode="numeric"
@@ -1018,10 +1018,10 @@ export default function PlayingGroupScoreEntry({
                                   }
                                 }}
                               />
+                              {maxBetDraft[hole.hole_number] !== undefined && !isNaN(parseFloat(maxBetDraft[hole.hole_number])) && parseFloat(maxBetDraft[hole.hole_number]) < bankerMinBet && (
+                                <span className="text-[10px] text-red-500 font-semibold whitespace-nowrap">Min ${bankerMinBet}</span>
+                              )}
                             </div>
-                            {maxBetDraft[hole.hole_number] !== undefined && !isNaN(parseFloat(maxBetDraft[hole.hole_number])) && parseFloat(maxBetDraft[hole.hole_number]) < bankerMinBet && (
-                              <p className="text-xs text-red-500 mt-1">Must be at least ${bankerMinBet}</p>
-                            )}
                           </div>
                         )}
                         {hd.bankerPlayerId && (
