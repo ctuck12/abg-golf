@@ -1983,7 +1983,14 @@ export default function ScoreEntry({
                                 return (
                                   <div key={p.id} className="bg-white rounded-lg p-2 border border-gray-100">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium text-gray-700 flex-1 truncate">{p.name}</span>
+                                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                                        <span className="text-sm font-medium text-gray-700 truncate">{p.name}</span>
+                                        {(pb.playerDoubled || pb.bankerDoubled) && (
+                                          <span className="text-xs text-amber-700 font-semibold whitespace-nowrap flex-shrink-0">
+                                            {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${Math.round(effective)}
+                                          </span>
+                                        )}
+                                      </div>
                                       <div className="flex items-center gap-1">
                                         <span className="text-sm font-bold text-gray-700">$</span>
                                         <input
@@ -2006,15 +2013,10 @@ export default function ScoreEntry({
                                       </div>
                                       <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
-                                        className={`text-xs px-2 py-1 rounded border font-semibold transition ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
-                                        {pb.playerDoubled ? '2× ✓' : '2×'}
+                                        className={`text-xs w-9 py-1 rounded border font-semibold transition flex-shrink-0 ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
+                                        2×
                                       </button>
                                     </div>
-                                    {(pb.playerDoubled || pb.bankerDoubled) && (
-                                      <p className="text-xs text-amber-700 font-semibold mt-0.5">
-                                        {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${Math.round(effective)}
-                                      </p>
-                                    )}
                                     {(() => {
                                       const raw = playerBetDraft[hole.hole_number]?.[p.id]
                                       if (raw === undefined) return null
