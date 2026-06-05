@@ -1162,7 +1162,7 @@ export default function PlayingGroupScoreEntry({
                                 onClick={() => setPressScope((p) => ({ ...p, [hole.hole_number]: 'forward' }))}
                                 className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition ${currentScope === 'forward' ? 'text-white border-transparent' : 'border-gray-200 text-gray-500'}`}
                                 style={currentScope === 'forward' ? { background: navy } : {}}>
-                                Forward holes ✓
+                                Forward holes
                               </button>
                             </div>
                           </div>
