@@ -1006,7 +1006,7 @@ export default function LeaderboardClient({
                               {teamPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                 <div key={p.id}>
                                   <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
-                                    <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                    <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                     {segments.length === 0 && <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>}
                                     <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
                                   </div>
@@ -1040,7 +1040,7 @@ export default function LeaderboardClient({
                                     ? <p className="text-xs text-gray-400 text-center">{[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}</p>
                                     : playerSettlements.map((s, i) => (
                                       <div key={i} className="flex items-center py-1 gap-2 text-sm">
-                                        <span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span>
+                                        <span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span>
                                         <span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span>
                                       </div>
                                     ))
@@ -1129,7 +1129,7 @@ export default function LeaderboardClient({
                               {groupPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                 <div key={p.id}>
                                   <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
-                                    <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                    <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                     {segments.length === 0 && <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>}
                                     <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
                                   </div>
@@ -1160,7 +1160,7 @@ export default function LeaderboardClient({
                                     ? <p className="text-xs text-gray-400 text-center">{[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}</p>
                                     : playerSettlements.map((s, i) => (
                                       <div key={i} className="flex items-center py-1 gap-2 text-sm">
-                                        <span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span>
+                                        <span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span>
                                         <span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span>
                                       </div>
                                     ))
@@ -1199,13 +1199,13 @@ export default function LeaderboardClient({
                                 const v = Math.round((tNet[p.id] ?? 0) * 100) / 100
                                 return (
                                   <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
-                                    <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                    <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                     <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span>
                                   </div>
                                 )
                               })}
                             </div>
-                            {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
+                            {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
                             {tSettlements.length === 0 && groupPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">All even — no payments needed.</p>)}
                           </div>
                         )
@@ -1279,7 +1279,7 @@ export default function LeaderboardClient({
                               <div className="space-y-1">
                                 {[...players].filter((p) => matchupPayouts.involvedIds.has(p.id)).sort((a, b) => (matchupPayouts.net[b.id] ?? 0) - (matchupPayouts.net[a.id] ?? 0)).map((p) => {
                                   const v = Math.round((matchupPayouts.net[p.id] ?? 0) * 100) / 100
-                                  return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700">{p.name}</span><span className="text-xs font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                                  return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700 min-w-0 truncate">{p.name}</span><span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
                                 })}
                               </div>
                             )}
@@ -1292,7 +1292,7 @@ export default function LeaderboardClient({
                               <span>Settlements</span>
                               <span className="text-gray-400 text-[10px]">{showMatchupSettlements ? '▲' : '▼'}</span>
                             </button>
-                            {showMatchupSettlements && (matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>)))}
+                            {showMatchupSettlements && (matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900 flex-shrink-0">${s.amount.toFixed(2)}</span></div>)))}
                           </div>
                         </>
                       )}
@@ -1382,8 +1382,8 @@ export default function LeaderboardClient({
                                     const amt = skinsResults.playerNet[p.id] ?? 0
                                     return (
                                       <div key={p.id} className="flex items-center justify-between">
-                                        <span className="text-xs text-gray-700">{p.name}</span>
-                                        <span className="text-xs font-bold tabular-nums"
+                                        <span className="text-xs text-gray-700 min-w-0 truncate">{p.name}</span>
+                                        <span className="text-xs font-bold tabular-nums flex-shrink-0"
                                           style={{ color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
                                           {amt > 0 ? `+$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : 'Even'}
                                         </span>
@@ -1432,14 +1432,14 @@ export default function LeaderboardClient({
                   <div className="space-y-1">
                     {[...players].sort((a, b) => (combinedNet[b.id] ?? 0) - (combinedNet[a.id] ?? 0)).map((p) => {
                       const v = Math.round((combinedNet[p.id] ?? 0) * 100) / 100
-                      return (<div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0"><span className="text-sm text-gray-900">{p.name}</span><span className="text-sm font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                      return (<div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0"><span className="text-sm text-gray-900 min-w-0 truncate">{p.name}</span><span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
                     })}
                   </div>
                 </div>
                 {/* Who pays who */}
                 <div className="border-t border-gray-200 px-4 py-3">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Who Pays Who</p>
-                  {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}
+                  {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900 flex-shrink-0">${s.amount.toFixed(2)}</span></div>))}
                 </div>
               </div>
             </div>
@@ -1635,12 +1635,11 @@ export default function LeaderboardClient({
                         <span className="text-base font-bold w-8 flex-shrink-0" style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                           {thru > 0 ? `#${i + 1}` : '–'}
                         </span>
-                        <span className="font-bold text-white text-sm">{row.player.name}</span>
+                        <span className="flex-1 min-w-0 font-bold text-white text-sm truncate">{row.player.name}</span>
                         <span className="flex items-center gap-1 flex-shrink-0">
                           <button onClick={(e) => { e.stopPropagation(); toggleHcp(row.player.id) }} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
                           {row.player.handicap != null && <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>{row.player.handicap < 0 ? `+${Math.abs(row.player.handicap)}` : row.player.handicap}</span>}
                         </span>
-                        <span className="flex-1" />
                         <div className="flex items-center gap-3 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                           <span>Front: <span style={{ color: vpC(frontVspar) }}>{fmtV(frontVspar)}</span></span>
                           <span>Back: <span style={{ color: vpC(backVspar) }}>{fmtV(backVspar)}</span></span>

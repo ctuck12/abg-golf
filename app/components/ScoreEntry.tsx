@@ -633,13 +633,14 @@ export default function ScoreEntry({
     checkRoundComplete()
   }, [])
 
-  function scrollHoleIntoView(holeNumber: number, behavior: ScrollBehavior) {
+  function scrollHoleIntoView(holeNumber: number, behavior: ScrollBehavior, skipIfVisible = false) {
     const el = document.getElementById(`hole-${holeNumber}`)
     if (!el) return
     const header = document.querySelector('header')
     const headerHeight = header?.offsetHeight ?? 96
-    const top = el.getBoundingClientRect().top + window.scrollY - headerHeight - 8
-    window.scrollTo({ top, behavior })
+    const rect = el.getBoundingClientRect()
+    if (skipIfVisible && rect.top >= headerHeight && rect.bottom <= window.innerHeight) return
+    window.scrollTo({ top: rect.top + window.scrollY - headerHeight - 8, behavior })
   }
 
   const [maxBetDraft, setMaxBetDraft] = useState<Record<number, string>>({})
@@ -692,7 +693,7 @@ export default function ScoreEntry({
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         const hole = expandedHoleRef.current
-        if (hole !== null) scrollHoleIntoView(hole, 'smooth')
+        if (hole !== null) scrollHoleIntoView(hole, 'smooth', true)
       }, 350)
     }
     document.addEventListener('focusout', onFocusOut)
@@ -1450,7 +1451,7 @@ export default function ScoreEntry({
                                     {teamPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                       <div key={p.id}>
                                         <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
-                                          <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                          <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                           {segments.length === 0 && <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>}
                                           <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
                                         </div>
@@ -1529,7 +1530,7 @@ export default function ScoreEntry({
                                       const v = Math.round((tNet[p.id] ?? 0) * 100) / 100
                                       return (
                                         <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
-                                          <span className="flex-1 text-sm text-gray-900">{p.name}</span>
+                                          <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                           <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span>
                                         </div>
                                       )
@@ -1960,7 +1961,7 @@ export default function ScoreEntry({
                                 return (
                                   <div key={p.id} className="bg-white rounded-lg p-2 border border-gray-100">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium text-gray-700 flex-1">{p.name}</span>
+                                      <span className="text-sm font-medium text-gray-700 flex-1 truncate">{p.name}</span>
                                       <div className="flex items-center gap-2">
                                         <input
                                           type="number" inputMode="numeric"

@@ -1119,13 +1119,12 @@ export default function MatchupClient({
                         const tVsp = fVsp !== null || bVsp !== null ? (fVsp ?? 0) + (bVsp ?? 0) : null
                         return (
                           <div key={id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: navy }}>
-                            <span className="font-bold text-white text-sm">{name}</span>
+                            <span className="flex-1 min-w-0 font-bold text-white text-sm truncate">{name}</span>
                             {fmtHcp(handicap) && (
                               <span className="text-[10px] font-semibold ml-1 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
                                 HCP {fmtHcp(handicap)}
                               </span>
                             )}
-                            <span className="flex-1" />
                             <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                               {!isOverall && <span>Front: <span style={{ color: vpColor(fVsp) }}>{fmtV(fVsp)}</span></span>}
                               {!isOverall && <span>Back: <span style={{ color: vpColor(bVsp) }}>{fmtV(bVsp)}</span></span>}

@@ -169,7 +169,9 @@ export default function PlayingGroupScoreEntry({
         const el = document.getElementById(`hole-${hole}`)
         if (!el) return
         const headerHeight = headerRef.current?.offsetHeight ?? 96
-        window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'smooth' })
+        const rect = el.getBoundingClientRect()
+        if (rect.top >= headerHeight && rect.bottom <= window.innerHeight) return
+        window.scrollTo({ top: rect.top + window.scrollY - headerHeight - 8, behavior: 'smooth' })
       }, 350)
     }
     document.addEventListener('focusout', onFocusOut)
@@ -1006,7 +1008,7 @@ export default function PlayingGroupScoreEntry({
                                 return (
                                   <div key={p.id} className="bg-white rounded-lg px-2 py-1.5 border border-gray-100">
                                     <div className="flex items-center gap-1.5">
-                                      <span className="text-xs font-medium text-gray-700 flex-1">{p.name}</span>
+                                      <span className="text-xs font-medium text-gray-700 flex-1 truncate">{p.name}</span>
                                       <div className="flex items-center gap-2">
                                         <input
                                           type="number" inputMode="numeric"

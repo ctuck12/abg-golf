@@ -2960,7 +2960,7 @@ export default function AdminDashboard({
                             <div className="space-y-0.5">
                               {team.players.map(p => (
                                 <div key={p.id} className="flex items-center gap-2 text-sm text-gray-700 py-0.5 border-b border-gray-50 last:border-0">
-                                  <span className="flex-1">{p.name}</span>
+                                  <span className="flex-1 truncate">{p.name}</span>
                                   <span className="text-xs text-gray-400">
                                     {p.handicap != null
                                       ? p.handicap < 0

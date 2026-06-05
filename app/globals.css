@@ -11,6 +11,16 @@ body {
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Keep single-line content on one line globally */
+button {
+  white-space: nowrap;
+}
+
+/* Allow flex-1 children to shrink so truncate works */
+.flex > .flex-1 {
+  min-width: 0;
+}
+
 /* Hide number input spinners */
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button {
