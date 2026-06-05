@@ -275,6 +275,22 @@ export default function PlayingGroupScoreEntry({
     if (gross === undefined) return undefined
     return gross - ((holeStrokes[holeNumber] ?? []).includes(pid) ? 1 : 0)
   }
+  // Per-matchup net scores: player uses holeStrokes (manual), banker gets strokes when hcp > player hcp
+  function bankerMatchupNets(bankerId: string, p: { id: string; handicap: number | null }, holeNumber: number, strokeIndex: number | null | undefined): { bankerNet: number | undefined; playerNet: number | undefined } {
+    const bankerGross = savedScores.find((s) => s.player_id === bankerId && s.hole_number === holeNumber)?.strokes
+    const playerGross = savedScores.find((s) => s.player_id === p.id && s.hole_number === holeNumber)?.strokes
+    if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
+    const pNet = playerGross - ((holeStrokes[holeNumber] ?? []).includes(p.id) ? 1 : 0)
+    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const bankerPlayer = players.find((pl) => pl.id === bankerId)
+    const bHcpRaw = bankerPlayer?.handicap ?? null
+    const pHcpRaw = p.handicap ?? null
+    const si = strokeIndex ?? 999
+    const bHcp = bHcpRaw != null ? effHcp(bHcpRaw) : null
+    const pHcp = pHcpRaw != null ? effHcp(pHcpRaw) : null
+    const bankerStroke = bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
+    return { bankerNet: bankerGross - bankerStroke, playerNet: pNet }
+  }
 
   function bankerMultiplier(net: number, par: number): number {
     if (net <= par - 2) return 3
@@ -291,12 +307,10 @@ export default function PlayingGroupScoreEntry({
       const hd = bankerHoles[hole.hole_number]
       if (!hd?.bankerPlayerId) continue
       const bankerId = hd.bankerPlayerId
-      const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
-      if (bankerNet === undefined) continue
       for (const p of players) {
         if (p.id === bankerId) continue
-        const playerNet = netSavedGlobal(p.id, hole.hole_number)
-        if (playerNet === undefined) continue
+        const { bankerNet, playerNet } = bankerMatchupNets(bankerId, p, hole.hole_number, hole.stroke_index)
+        if (bankerNet === undefined || playerNet === undefined) continue
         const bet = bankerBets[hole.hole_number]?.[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
         if (bet.baseBet <= 0) continue
         const effective = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
@@ -848,19 +862,19 @@ export default function PlayingGroupScoreEntry({
                   const bankerName = players.find((p) => p.id === bankerId)?.name.split(' ')[0] ?? 'Banker'
                   let bankerResult: number | null = null
                   if (isSaved) {
-                    const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
-                    if (bankerNet !== undefined) {
+                    const bankerHasScore = savedScores.some((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)
+                    if (bankerHasScore) {
                       const hBets = bankerBets[hole.hole_number] ?? {}
                       let tot = 0
                       for (const p of players) {
                         if (p.id === bankerId) continue
-                        const pNet = netSavedGlobal(p.id, hole.hole_number)
-                        if (pNet === undefined) continue
+                        const { bankerNet: bNet, playerNet: pNet } = bankerMatchupNets(bankerId, p, hole.hole_number, hole.stroke_index)
+                        if (bNet === undefined || pNet === undefined) continue
                         const bet = hBets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
                         const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
                         let res = 0
-                        if (pNet < bankerNet) res = eff * bankerMultiplier(pNet, hole.par)
-                        else if (pNet > bankerNet) res = -eff * bankerMultiplier(bankerNet, hole.par)
+                        if (pNet < bNet) res = eff * bankerMultiplier(pNet, hole.par)
+                        else if (pNet > bNet) res = -eff * bankerMultiplier(bNet, hole.par)
                         tot -= res
                       }
                       bankerResult = tot
@@ -916,19 +930,19 @@ export default function PlayingGroupScoreEntry({
                       const bankerId = hd?.bankerPlayerId ?? null
                       if (!bankerId) return null
                       const bets = bankerBets[hole.hole_number] ?? {}
-                      const bankerNet = netSavedGlobal(bankerId, hole.hole_number)
-                      if (bankerNet === undefined) return null
+                      const bankerHasScore = savedScores.some((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)
+                      if (!bankerHasScore) return null
                       let bankerTotal = 0
                       const playerAmts: Record<string, number> = {}
                       for (const p of players) {
                         if (p.id === bankerId) continue
-                        const playerNet = netSavedGlobal(p.id, hole.hole_number)
-                        if (playerNet === undefined) continue
+                        const { bankerNet: bNet, playerNet: pNet } = bankerMatchupNets(bankerId, p, hole.hole_number, hole.stroke_index)
+                        if (bNet === undefined || pNet === undefined) continue
                         const bet = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
                         const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
                         let result = 0
-                        if (playerNet < bankerNet) result = eff * bankerMultiplier(playerNet, hole.par)
-                        else if (playerNet > bankerNet) result = -eff * bankerMultiplier(bankerNet, hole.par)
+                        if (pNet < bNet) result = eff * bankerMultiplier(pNet, hole.par)
+                        else if (pNet > bNet) result = -eff * bankerMultiplier(bNet, hole.par)
                         playerAmts[p.id] = result
                         bankerTotal -= result
                       }

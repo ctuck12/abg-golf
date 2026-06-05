@@ -413,6 +413,21 @@ export default function ScoreEntry({
     const gross = strokes[playerId]?.[holeNumber] ?? par
     return gross - ((holeStrokes[holeNumber] ?? []).includes(playerId) ? 1 : 0)
   }
+  // Per-matchup net scores: player uses holeStrokes (manual), banker gets strokes when hcp > player hcp
+  function bankerMatchupNets(bankerId: string, playerId: string, holeNumber: number, strokeIndex: number | null | undefined): { bankerNet: number | undefined; playerNet: number | undefined } {
+    const bankerGross = savedScores.find((s) => s.player_id === bankerId && s.hole_number === holeNumber)?.strokes
+    const playerGross = savedScores.find((s) => s.player_id === playerId && s.hole_number === holeNumber)?.strokes
+    if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
+    const pNet = playerGross - ((holeStrokes[holeNumber] ?? []).includes(playerId) ? 1 : 0)
+    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const bHcpRaw = allRoundPlayerHandicaps[bankerId] ?? null
+    const pHcpRaw = allRoundPlayerHandicaps[playerId] ?? null
+    const si = strokeIndex ?? 999
+    const bHcp = bHcpRaw != null ? effHcp(bHcpRaw) : null
+    const pHcp = pHcpRaw != null ? effHcp(pHcpRaw) : null
+    const bankerStroke = bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
+    return { bankerNet: bankerGross - bankerStroke, playerNet: pNet }
+  }
 
   const bankerRunningTotals = useMemo(() => {
     if (!isBanker) return {}
@@ -423,12 +438,10 @@ export default function ScoreEntry({
       const hd = bankerHoles[hole.hole_number]
       if (!hd?.bankerPlayerId) continue
       const bankerId = hd.bankerPlayerId
-      const bankerNet = netSaved(bankerId, hole.hole_number)
-      if (bankerNet === undefined) continue
       for (const p of players) {
         if (p.id === bankerId) continue
-        const playerNet = netSaved(p.id, hole.hole_number)
-        if (playerNet === undefined) continue
+        const { bankerNet, playerNet } = bankerMatchupNets(bankerId, p.id, hole.hole_number, hole.stroke_index)
+        if (bankerNet === undefined || playerNet === undefined) continue
         const bet = bankerBets[hole.hole_number]?.[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
         if (bet.baseBet <= 0) continue
         const effective = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
@@ -441,7 +454,7 @@ export default function ScoreEntry({
     }
     return totals
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isBanker, savedHoles, bankerHoles, bankerBets, bankerMinBet, savedScores, holeStrokes, holes, players])
+  }, [isBanker, savedHoles, bankerHoles, bankerBets, bankerMinBet, savedScores, holeStrokes, holes, players, allRoundPlayerHandicaps])
 
   async function handleSaveBankerHole(holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
     setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId, maxBet } }))
@@ -2046,13 +2059,13 @@ export default function ScoreEntry({
                             <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Projected Result (saved scores)</p>
                             {isSaved && (() => {
                               const bankerId = hd.bankerPlayerId!
-                              const bankerNet = netSaved(bankerId, hole.hole_number)
-                              if (bankerNet === undefined) return <p className="text-xs text-gray-400">Enter scores to see result</p>
+                              const bankerHasScore = savedScores.some((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)
+                              if (!bankerHasScore) return <p className="text-xs text-gray-400">Enter scores to see result</p>
                               return (
                                 <div className="space-y-1">
                                   {players.filter((p) => p.id !== bankerId).map((p) => {
-                                    const playerNet = netSaved(p.id, hole.hole_number)
-                                    if (playerNet === undefined) return null
+                                    const { bankerNet, playerNet } = bankerMatchupNets(bankerId, p.id, hole.hole_number, hole.stroke_index)
+                                    if (bankerNet === undefined || playerNet === undefined) return null
                                     const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
                                     const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
                                     let result = 0
