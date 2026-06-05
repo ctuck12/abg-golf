@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
@@ -187,18 +187,16 @@ export default function PlayingGroupScoreEntry({
   }, [])
 
   // On load, scroll so the saved hole just above the current one is visible below the header
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (didInitialScrollRef.current || expandedHole === null) return
     didInitialScrollRef.current = true
-    setTimeout(() => {
-      const holeNums = holes.map((h) => h.hole_number)
-      const currentIdx = holeNums.indexOf(expandedHole)
-      const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
-      const el = document.getElementById(`hole-${scrollTarget}`)
-      if (!el) return
-      const headerHeight = headerRef.current?.offsetHeight ?? 96
-      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'auto' })
-    }, 100)
+    const holeNums = holes.map((h) => h.hole_number)
+    const currentIdx = holeNums.indexOf(expandedHole)
+    const scrollTarget = currentIdx > 0 ? holeNums[currentIdx - 1] : expandedHole
+    const el = document.getElementById(`hole-${scrollTarget}`)
+    if (!el) return
+    const headerHeight = headerRef.current?.offsetHeight ?? 96
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - headerHeight - 8, behavior: 'instant' })
   }, [expandedHole])
 
   async function checkAllGroupsDone() {
