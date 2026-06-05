@@ -1954,7 +1954,7 @@ export default function ScoreEntry({
                                 value={maxBetDraft[hole.hole_number] ?? String(hd.maxBet)}
                                 min={bankerMinBet}
                                 style={{ fontSize: '16px', width: '52px', textAlign: 'center', fontWeight: 'bold' }}
-                                className="border border-gray-200 rounded-lg px-1 py-0.5 focus:outline-none focus:border-blue-300"
+                                className={`border rounded-lg px-1 py-0.5 focus:outline-none transition ${maxBetDraft[hole.hole_number] !== undefined && !isNaN(parseFloat(maxBetDraft[hole.hole_number])) && parseFloat(maxBetDraft[hole.hole_number]) < bankerMinBet ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-blue-300'}`}
                                 onTouchStart={noScrollFocus}
                                 onChange={(e) => setMaxBetDraft(prev => ({ ...prev, [hole.hole_number]: e.target.value }))}
                                 onBlur={() => {
@@ -1968,6 +1968,9 @@ export default function ScoreEntry({
                               />
                               <span className="text-xs text-gray-400">min ${bankerMinBet}</span>
                             </div>
+                            {maxBetDraft[hole.hole_number] !== undefined && !isNaN(parseFloat(maxBetDraft[hole.hole_number])) && parseFloat(maxBetDraft[hole.hole_number]) < bankerMinBet && (
+                              <p className="text-xs text-red-500 mt-1">Must be at least ${bankerMinBet}</p>
+                            )}
                           </div>
                         )}
 
@@ -1989,7 +1992,7 @@ export default function ScoreEntry({
                                           value={playerBetDraft[hole.hole_number]?.[p.id] ?? String(pb.baseBet)}
                                           min={bankerMinBet} max={hd.maxBet}
                                           style={{ fontSize: '16px', width: '44px', textAlign: 'center', fontWeight: 'bold' }}
-                                          className="border border-gray-200 rounded-lg px-1 py-0.5 focus:outline-none focus:border-blue-300"
+                                          className={`border rounded-lg px-1 py-0.5 focus:outline-none transition ${playerBetDraft[hole.hole_number]?.[p.id] !== undefined && !isNaN(parseFloat(playerBetDraft[hole.hole_number][p.id])) && (parseFloat(playerBetDraft[hole.hole_number][p.id]) < bankerMinBet || parseFloat(playerBetDraft[hole.hole_number][p.id]) > hd.maxBet) ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-blue-300'}`}
                                           onTouchStart={noScrollFocus}
                                           onChange={(e) => setPlayerBetDraft(prev => ({ ...prev, [hole.hole_number]: { ...(prev[hole.hole_number] ?? {}), [p.id]: e.target.value } }))}
                                           onBlur={() => {
@@ -2013,6 +2016,15 @@ export default function ScoreEntry({
                                         {pb.playerDoubled && pb.bankerDoubled ? '×4' : '×2'} → ${Math.round(effective)}
                                       </p>
                                     )}
+                                    {(() => {
+                                      const raw = playerBetDraft[hole.hole_number]?.[p.id]
+                                      if (raw === undefined) return null
+                                      const val = parseFloat(raw)
+                                      if (isNaN(val)) return null
+                                      if (val < bankerMinBet) return <p className="text-xs text-red-500 mt-0.5">Min ${bankerMinBet}</p>
+                                      if (val > hd.maxBet) return <p className="text-xs text-red-500 mt-0.5">Max ${hd.maxBet}</p>
+                                      return null
+                                    })()}
                                   </div>
                                 )
                               })}
