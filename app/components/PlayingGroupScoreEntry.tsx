@@ -288,7 +288,8 @@ export default function PlayingGroupScoreEntry({
     const si = strokeIndex ?? 999
     const bHcp = bHcpRaw != null ? effHcp(bHcpRaw) : null
     const pHcp = pHcpRaw != null ? effHcp(pHcpRaw) : null
-    const bankerStroke = bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
+    const bankerInStrokes = (holeStrokes[holeNumber] ?? []).includes(bankerId)
+    const bankerStroke = bankerInStrokes && bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
     return { bankerNet: bankerGross - bankerStroke, playerNet: pNet }
   }
 
@@ -362,6 +363,24 @@ export default function PlayingGroupScoreEntry({
       const hcp = p.handicap ?? null
       if (hcp == null) return false
       const diff = effHcp(hcp) - bankerHcp
+      return diff > 0 && hole.stroke_index! <= diff
+    }).map((p) => p.id)
+  }
+
+  function getBankerReceiveStrokes(holeNumber: number): string[] {
+    const hole = holes.find((h) => h.hole_number === holeNumber)
+    if (!hole?.stroke_index) return []
+    const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
+    if (!bankerPlayerId) return []
+    const bankerHcpRaw = players.find((p) => p.id === bankerPlayerId)?.handicap ?? null
+    if (bankerHcpRaw == null) return []
+    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const bankerHcp = effHcp(bankerHcpRaw)
+    return players.filter((p) => {
+      if (p.id === bankerPlayerId) return false
+      const hcp = p.handicap ?? null
+      if (hcp == null) return false
+      const diff = bankerHcp - effHcp(hcp)
       return diff > 0 && hole.stroke_index! <= diff
     }).map((p) => p.id)
   }
@@ -1183,8 +1202,13 @@ export default function PlayingGroupScoreEntry({
                   {/* ── Handicap Strokes ── */}
                   {(() => {
                     const autoIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : getAutoStrokes(hole.hole_number)
-                    const visiblePlayers = players.filter((p) => autoIds.includes(p.id) || holeStrokeIds.includes(p.id))
-                    if (visiblePlayers.length === 0) return null
+                    const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null
+                    const visiblePlayers = players.filter((p) => p.id !== bankerPlayerId && (autoIds.includes(p.id) || holeStrokeIds.includes(p.id)))
+                    const bankerReceiveFromIds = isBanker ? getBankerReceiveStrokes(hole.hole_number) : []
+                    const bankerPlayer = bankerPlayerId ? players.find((p) => p.id === bankerPlayerId) : null
+                    const bankerHasStroke = bankerPlayerId ? holeStrokeIds.includes(bankerPlayerId) : false
+                    const showBankerBubble = !!bankerPlayer && bankerReceiveFromIds.length > 0
+                    if (visiblePlayers.length === 0 && !showBankerBubble) return null
                     return (
                       <div className="pt-2 border-t border-gray-100">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Handicap Strokes</p>
@@ -1192,20 +1216,37 @@ export default function PlayingGroupScoreEntry({
                           {visiblePlayers.map((p) => {
                             const hasStroke = holeStrokeIds.includes(p.id)
                             const isSuggested = autoIds.includes(p.id)
+                            const bankerGetsStrokeFromThis = bankerReceiveFromIds.includes(p.id)
                             return (
-                              <button key={p.id} type="button"
-                                onClick={() => handleStrokesToggle(hole.hole_number, p.id)}
-                                disabled={strokesPending}
-                                className="text-xs px-2.5 py-1 rounded-full border font-medium transition"
-                                style={hasStroke
-                                  ? { background: '#16a34a', color: 'white', borderColor: 'transparent' }
-                                  : isSuggested
-                                    ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
-                                    : { borderColor: '#d1d5db', color: '#6b7280' }}>
-                                {p.name.split(' ')[0]}
-                              </button>
+                              <div key={p.id} className="relative inline-flex">
+                                <button type="button"
+                                  onClick={() => handleStrokesToggle(hole.hole_number, p.id)}
+                                  disabled={strokesPending}
+                                  className="text-xs px-2.5 py-1 rounded-full border font-medium transition"
+                                  style={hasStroke
+                                    ? { background: '#16a34a', color: 'white', borderColor: 'transparent' }
+                                    : isSuggested
+                                      ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                                      : { borderColor: '#d1d5db', color: '#6b7280' }}>
+                                  {p.name.split(' ')[0]}
+                                </button>
+                                {bankerGetsStrokeFromThis && (
+                                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 border border-white" />
+                                )}
+                              </div>
                             )
                           })}
+                          {showBankerBubble && (
+                            <button type="button"
+                              onClick={() => handleStrokesToggle(hole.hole_number, bankerPlayer!.id)}
+                              disabled={strokesPending}
+                              className="text-xs px-2.5 py-1 rounded-full border font-medium transition"
+                              style={bankerHasStroke
+                                ? { background: '#1d4ed8', color: 'white', borderColor: 'transparent' }
+                                : { background: '#eff6ff', color: '#1d4ed8', borderColor: '#93c5fd' }}>
+                              {bankerPlayer!.name.split(' ')[0]} (Banker)
+                            </button>
+                          )}
                         </div>
                       </div>
                     )
