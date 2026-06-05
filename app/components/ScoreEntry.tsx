@@ -1893,6 +1893,7 @@ export default function ScoreEntry({
                               <span className="text-sm text-gray-500">$</span>
                               <input type="number" value={hd.maxBet} min={bankerMinBet} step="1"
                                 onChange={(e) => handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, Math.round(parseFloat(e.target.value) || bankerMinBet))}
+                                onFocus={(e) => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300) }}
                                 className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
                               <span className="text-xs text-gray-400">Range: ${bankerMinBet}–${hd.maxBet}</span>
                             </div>
@@ -1918,6 +1919,7 @@ export default function ScoreEntry({
                                             const v = Math.min(Math.max(Math.round(parseFloat(e.target.value) || bankerMinBet), bankerMinBet), hd.maxBet)
                                             handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
                                           }}
+                                          onFocus={(e) => { const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300) }}
                                           className="w-16 border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none" />
                                       </div>
                                       <button type="button"
