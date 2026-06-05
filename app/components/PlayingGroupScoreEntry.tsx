@@ -321,12 +321,15 @@ export default function PlayingGroupScoreEntry({
 
     const holeAssignments = assignments[holeNumber] ?? {}
 
-    // Collect press entry for this hole only (forward holes are saved immediately on button click)
     const pressEntries: { holeNumber: number; valuePerPoint: number | null }[] = []
     if (isDaytonaMode && pressActive) {
       const rawVal = parseFloat(pressValue)
       const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
-      pressEntries.push({ holeNumber, valuePerPoint: pressVal })
+      const scope = pressScope[holeNumber] ?? 'this'
+      const affectedHoles = scope === 'forward'
+        ? holes.filter((h) => h.hole_number >= holeNumber).map((h) => h.hole_number)
+        : [holeNumber]
+      for (const hn of affectedHoles) pressEntries.push({ holeNumber: hn, valuePerPoint: pressVal })
     }
 
     const [res, , pressRes] = await Promise.all([
@@ -1156,23 +1159,7 @@ export default function PlayingGroupScoreEntry({
                                 This hole
                               </button>
                               <button type="button"
-                                onClick={async () => {
-                                  const rawVal = parseFloat(pressValueStr[hole.hole_number] ?? '')
-                                  const pressVal = isNaN(rawVal) || rawVal <= 0 ? null : rawVal
-                                  if (pressVal === null) return
-                                  const forwardHoles = holes.filter((h) => h.hole_number > hole.hole_number)
-                                  if (forwardHoles.length === 0) return
-                                  const entries = forwardHoles.map((h) => ({ holeNumber: h.hole_number, valuePerPoint: pressVal }))
-                                  const result = await saveDaytonaHoleValues(roundId, groupId, entries)
-                                  if (!result.error) {
-                                    setHoleValues((prev) => {
-                                      const next = { ...prev }
-                                      for (const h of forwardHoles) next[h.hole_number] = pressVal
-                                      return next
-                                    })
-                                    setPressScope((p) => ({ ...p, [hole.hole_number]: 'forward' }))
-                                  }
-                                }}
+                                onClick={() => setPressScope((p) => ({ ...p, [hole.hole_number]: 'forward' }))}
                                 className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition ${currentScope === 'forward' ? 'text-white border-transparent' : 'border-gray-200 text-gray-500'}`}
                                 style={currentScope === 'forward' ? { background: navy } : {}}>
                                 Forward holes ✓
