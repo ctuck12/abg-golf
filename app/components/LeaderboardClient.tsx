@@ -1057,7 +1057,7 @@ export default function LeaderboardClient({
 
               {/* ── Ball Results (collapsible) ── */}
               {!isDaytona && !isTraditional && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                   <button onClick={() => setShowBallResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
                     <div>
                       <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
