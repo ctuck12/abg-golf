@@ -1978,17 +1978,17 @@ export default function LeaderboardClient({
             <button
               onClick={() => setShowPayouts(true)}
               className="text-xs font-semibold px-4 py-1.5 rounded-full"
-              style={{ border: '2px solid #d4af37', boxShadow: `0 0 0 2px ${navy}, inset 0 0 0 2px ${navy}`, color: navy, background: 'white' }}>
+              style={{ border: `2px solid ${navy}`, color: navy, background: gold }}>
               Payouts
             </button>
             <a href={`/${orgSlug}/matchup`} className="text-xs font-semibold px-4 py-1.5 rounded-full"
-              style={{ border: '2px solid #d4af37', boxShadow: `0 0 0 2px ${navy}, inset 0 0 0 2px ${navy}`, color: navy, background: 'white' }}>
+              style={{ border: `2px solid ${navy}`, color: navy, background: gold }}>
               Matchups
             </a>
             {isDaytona && initialTeams.length === 1 && (
               <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
                 className="text-xs font-semibold px-4 py-1.5 rounded-full"
-                style={{ border: '2px solid #d4af37', boxShadow: `0 0 0 2px ${navy}, inset 0 0 0 2px ${navy}`, color: navy, background: 'white' }}>
+                style={{ border: `2px solid ${navy}`, color: navy, background: gold }}>
                 All Scorecards
               </a>
             )}
@@ -1996,7 +1996,7 @@ export default function LeaderboardClient({
               <button
                 onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
                 className="text-xs font-semibold px-4 py-1.5 rounded-full"
-                style={{ border: '2px solid #d4af37', boxShadow: `0 0 0 2px ${navy}, inset 0 0 0 2px ${navy}`, color: navy, background: 'white' }}>
+                style={{ border: `2px solid ${navy}`, color: navy, background: gold }}>
                 All Scorecards
               </button>
             )}
