@@ -10,12 +10,12 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
   const { orgSlug, teamId } = await params
   const cookieStore = await cookies()
 
-  if (!cookieStore.get(`team_auth_${teamId}`)?.value) redirect(`/${orgSlug}`)
-
   const auth = await getOrgAuth(orgSlug)
   if (!auth.ok) redirect(`/${orgSlug}`)
 
   const { orgId, isAdmin, isMaster } = auth
+
+  if (!isAdmin && !isMaster && !cookieStore.get(`team_auth_${teamId}`)?.value) redirect(`/${orgSlug}`)
   const sb = createServerClient()
 
   const [{ data: orgRow }, { data: team }] = await Promise.all([
