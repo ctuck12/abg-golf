@@ -1922,7 +1922,15 @@ export default function LeaderboardClient({
       </header>
 
       <div className="max-w-lg mx-auto px-4 pt-3">
-        <h2 className="text-lg font-bold text-gray-900 mb-0">Leaderboard</h2>
+        <div className="flex items-center justify-between mb-0.5">
+          <h2 className="text-lg font-bold text-gray-900">Leaderboard</h2>
+          {(!isMixedGroups || mixedTab === 'team') && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-500" style={{ marginRight: '2px' }}>
+              <span className={`w-2 h-2 rounded-full inline-block${isComplete ? ' bg-red-500' : ' bg-green-500 animate-pulse'}`} />
+              {isComplete ? 'Complete' : 'Live'}
+            </div>
+          )}
+        </div>
 
 
         {/* Group leaderboard */}
@@ -2008,14 +2016,6 @@ export default function LeaderboardClient({
 
         {/* Existing leaderboard content (Team tab or non-mixed) */}
         {(!isMixedGroups || mixedTab === 'team') && <>
-        {/* Live indicator — above the controls row, right-aligned */}
-        <div className="flex justify-end mb-0.5">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className={`w-2 h-2 rounded-full inline-block${isComplete ? ' bg-red-500' : ' bg-green-500 animate-pulse'}`} />
-            {isComplete ? 'Complete' : 'Live'}
-          </div>
-        </div>
-
         {/* Leaderboard view toggles + divider + action buttons — single no-wrap row */}
         <div className="flex items-center gap-1.5 mb-3" style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {(isDaytona
