@@ -1115,29 +1115,33 @@ export default function LeaderboardClient({
                         }
                         const tallyEntries = Object.values(ballsByTeam).sort((a, b) => b.balls - a.balls)
                         const colClass = includeTotal ? 'grid-cols-[5rem_1fr_1fr_1fr]' : 'grid-cols-[5rem_1fr_1fr]'
-                        const getTiedTeams = (result: (typeof ballResults)[number]) => {
+                        const getTiedInfo = (result: (typeof ballResults)[number]) => {
                           const summaryMap = result.half === 'Front 9' ? frontSummaries : result.half === 'Back 9' ? backSummaries : (totalSummaries ?? new Map())
                           const bi = result.ball - 1
-                          return initialTeams.filter((t) => {
+                          const tiedTeams = initialTeams.filter((t) => {
                             const total = summaryMap.get(t.id)?.ballTotals[bi] ?? null
                             return total !== null && total === result.winnerTotal
-                          }).map((t) => t.name)
+                          })
+                          const vsPar = tiedTeams.length > 0 ? (summaryMap.get(tiedTeams[0].id)?.ballVsPar[bi] ?? null) : null
+                          return { names: tiedTeams.map((t) => t.name), vsPar }
                         }
+                        const vpColor = (vp: number | null) => vp == null ? '#9ca3af' : vp < 0 ? '#16a34a' : vp > 0 ? '#dc2626' : '#6b7280'
+                        const vpStr = (vp: number | null) => vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                         return (
                           <>
                             {/* Balls tally */}
                             {tallyEntries.length > 0 && (
-                              <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3">
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3">
                                 {tallyEntries.map((e) => (
                                   <span key={e.name} className="text-xs">
                                     <span className="font-semibold" style={{ color: navy }}>{e.name}</span>
-                                    <span className="text-gray-400"> {e.balls} Ball{e.balls !== 1 ? 's' : ''}</span>
+                                    <span className="text-gray-500"> {e.balls} Ball{e.balls !== 1 ? 's' : ''}</span>
                                   </span>
                                 ))}
                               </div>
                             )}
                             {/* Table header */}
-                            <div className={`grid ${colClass} text-[10px] font-semibold uppercase tracking-wide text-gray-400 pb-1 border-b border-gray-100`}>
+                            <div className={`grid ${colClass} text-[11px] font-bold uppercase tracking-wide text-gray-500 pb-1.5 border-b border-gray-200`}>
                               <span>Ball</span>
                               <span>Front 9</span>
                               <span>Back 9</span>
@@ -1150,22 +1154,23 @@ export default function LeaderboardClient({
                               const total = includeTotal ? ballResults.find((r) => r.ball === bi + 1 && r.half === 'Total 18') : undefined
                               const segs = includeTotal ? [front, back, total] : [front, back]
                               const renderCell = (result: typeof front) => {
-                                if (!result || !result.played) return <span className="text-gray-300 text-sm">–</span>
+                                if (!result || !result.played) return <span className="text-sm text-gray-300">–</span>
                                 if (result.tied) {
-                                  const names = getTiedTeams(result)
+                                  const { names, vsPar } = getTiedInfo(result)
+                                  const vs = vpStr(vsPar)
                                   return (
-                                    <span className="flex items-baseline gap-1 min-w-0">
+                                    <span className="flex items-baseline gap-1.5 min-w-0">
                                       <span className="text-sm font-semibold truncate" style={{ color: navy }}>{names.join(' / ')}</span>
-                                      <span className="text-[10px] text-gray-400 flex-shrink-0 italic">tie</span>
+                                      {vs && <span className="text-xs font-medium flex-shrink-0" style={{ color: vpColor(vsPar) }}>{vs}</span>}
                                     </span>
                                   )
                                 }
                                 const vp = result.winnerVsPar
-                                const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                                const vs = vpStr(vp)
                                 return (
-                                  <span className="flex items-baseline gap-1 min-w-0">
+                                  <span className="flex items-baseline gap-1.5 min-w-0">
                                     <span className="text-sm font-semibold truncate" style={{ color: navy }}>{result.winnerName}</span>
-                                    {vpStr && <span className="text-[10px] text-gray-400 flex-shrink-0">{vpStr}</span>}
+                                    {vs && <span className="text-xs font-medium flex-shrink-0" style={{ color: vpColor(vp) }}>{vs}</span>}
                                   </span>
                                 )
                               }
