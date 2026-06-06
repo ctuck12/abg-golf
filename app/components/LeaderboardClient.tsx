@@ -1332,7 +1332,7 @@ export default function LeaderboardClient({
                               winnerMap[s.winnerId].holes.push(s.holeNumber)
                             }
                           }
-                          const winners = Object.entries(winnerMap).sort((a, b) => a[1].name.localeCompare(b[1].name))
+                          const winners = Object.entries(winnerMap).sort((a, b) => b[1].holes.length - a[1].holes.length || a[1].name.localeCompare(b[1].name))
                           if (winners.length === 0) return <p className="text-xs text-gray-400">No skins won yet</p>
                           return (
                             <div className="space-y-0">
