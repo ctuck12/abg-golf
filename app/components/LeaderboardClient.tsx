@@ -1125,7 +1125,7 @@ export default function LeaderboardClient({
                           const vsPar = tiedTeams.length > 0 ? (summaryMap.get(tiedTeams[0].id)?.ballVsPar[bi] ?? null) : null
                           return { names: tiedTeams.map((t) => t.name), vsPar }
                         }
-                        const vpColor = (vp: number | null) => vp == null ? '#9ca3af' : vp < 0 ? '#16a34a' : vp > 0 ? '#dc2626' : '#6b7280'
+                        const vpColor = (vp: number | null) => vp == null ? '#9ca3af' : vp < 0 ? '#dc2626' : vp > 0 ? '#111827' : '#16a34a'
                         const vpStr = (vp: number | null) => vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                         return (
                           <>
