@@ -1748,7 +1748,7 @@ export default function MatchupClient({
                                   const asLabelStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1 }
                                   return (
                                     <tr key={player.id} className="border-t border-gray-100">
-                                      <td className="px-3 py-2">
+                                      <td className="px-3 py-2 whitespace-nowrap">
                                         <span className="text-xs font-semibold text-gray-800">{player.name}</span>
                                         {h2hHcpSide === (rowIdx === 0 ? 'p1' : 'p2') && (listHf > 0 || listHb > 0 || listHt > 0) && (
                                           <button
@@ -2330,7 +2330,7 @@ export default function MatchupClient({
                                   const asLabelStyle: React.CSSProperties = { position: 'absolute', top: 0, left: '50%', transform: 'translate(-50%, -50%)', fontWeight: 700, color: '#6b7280', background: 'white', padding: '0 3px', lineHeight: 1, whiteSpace: 'nowrap', zIndex: 1 }
                                   return (
                                     <tr key={tName} className="border-t border-gray-100">
-                                      <td className="px-3 py-2">
+                                      <td className="px-3 py-2 whitespace-nowrap">
                                         <span
                                           className="text-xs font-semibold"
                                           style={{ color }}>
