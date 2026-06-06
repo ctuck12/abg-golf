@@ -367,6 +367,8 @@ export default function LeaderboardClient({
   const [hcpVisible, setHcpVisible] = useState<Set<string>>(new Set())
   const toggleHcp = (id: string) => setHcpVisible((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
   const [showBallResults, setShowBallResults] = useState(false)
+  const [showBallNetPositions, setShowBallNetPositions] = useState(false)
+  const [showBallSettlements, setShowBallSettlements] = useState(false)
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showDaytonaSideResults, setShowDaytonaSideResults] = useState(false)
   const [showDaytonaSideSettlements, setShowDaytonaSideSettlements] = useState(false)
@@ -1090,32 +1092,119 @@ export default function LeaderboardClient({
                     </div>
                     <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{showBallResults ? '▲ Hide' : '▼ Show'}</span>
                   </button>
-                  {showBallResults && <div className="border-t border-gray-100 px-4 py-4 space-y-4">
-                    {Array.from({ length: ballsCount }, (_, bi) => {
-                      const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
-                      const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
-                      const total = includeTotal ? ballResults.find((r) => r.ball === bi + 1 && r.half === 'Total 18') : undefined
-                      const segs = includeTotal ? [front, back, total] : [front, back]
-                      return (
-                        <div key={bi}>
-                          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: gold }}>{BALL_NAMES[bi]}</p>
-                          <div className={`grid gap-2 ${includeTotal ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                            {segs.map((result, hi) => {
-                              if (!result) return <div key={hi} />
-                              const vp = result.winnerVsPar
-                              const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
-                              const halfLabel = result.half === 'Total 18' ? 'Total' : result.half === 'Front 9' ? 'Front' : 'Back'
+                  {showBallResults && <div className="border-t border-gray-100">
+                    <div className="px-4 pt-4 pb-3">
+                      {(() => {
+                        const winsByTeam: Record<string, { name: string; count: number }> = {}
+                        for (const r of ballResults) {
+                          if (r.played && !r.tied && r.winnerId && r.winnerName) {
+                            if (!winsByTeam[r.winnerId]) winsByTeam[r.winnerId] = { name: r.winnerName, count: 0 }
+                            winsByTeam[r.winnerId].count++
+                          }
+                        }
+                        const tieCount = ballResults.filter((r) => r.played && r.tied).length
+                        const winEntries = Object.values(winsByTeam).sort((a, b) => b.count - a.count)
+                        const colClass = includeTotal ? 'grid-cols-[5rem_1fr_1fr_1fr]' : 'grid-cols-[5rem_1fr_1fr]'
+                        return (
+                          <>
+                            {/* Wins tally */}
+                            {winEntries.length > 0 && (
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3">
+                                {winEntries.map((e) => (
+                                  <span key={e.name} className="text-xs text-gray-600">
+                                    <span className="font-semibold text-green-700">{e.name}</span>
+                                    <span className="text-gray-400"> {e.count}W</span>
+                                  </span>
+                                ))}
+                                {tieCount > 0 && <span className="text-xs text-gray-400">{tieCount} tie{tieCount !== 1 ? 's' : ''}</span>}
+                              </div>
+                            )}
+                            {/* Table header */}
+                            <div className={`grid ${colClass} text-[10px] font-semibold uppercase tracking-wide text-gray-400 pb-1 border-b border-gray-100`}>
+                              <span>Ball</span>
+                              <span>Front 9</span>
+                              <span>Back 9</span>
+                              {includeTotal && <span>Total</span>}
+                            </div>
+                            {/* Table rows */}
+                            {Array.from({ length: ballsCount }, (_, bi) => {
+                              const front = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
+                              const back = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
+                              const total = includeTotal ? ballResults.find((r) => r.ball === bi + 1 && r.half === 'Total 18') : undefined
+                              const segs = includeTotal ? [front, back, total] : [front, back]
+                              const renderCell = (result: typeof front) => {
+                                if (!result || !result.played) return <span className="text-gray-300 text-sm">–</span>
+                                if (result.tied) return <span className="text-sm text-gray-400 italic">Tie</span>
+                                const vp = result.winnerVsPar
+                                const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
+                                return (
+                                  <span className="flex items-baseline gap-1 min-w-0">
+                                    <span className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</span>
+                                    {vpStr && <span className="text-[10px] text-gray-400 flex-shrink-0">{vpStr}</span>}
+                                  </span>
+                                )
+                              }
                               return (
-                                <div key={hi} className="bg-gray-50 rounded-lg px-3 py-2">
-                                  <p className="text-xs text-gray-500 mb-0.5">{halfLabel}</p>
-                                  {!result.played ? <p className="text-sm text-gray-300 font-medium">–</p> : result.tied ? <p className="text-sm text-gray-500 font-medium">Tie</p> : (<><p className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</p>{vpStr && <p className="text-xs text-gray-400">{vpStr}</p>}</>)}
+                                <div key={bi} className={`grid ${colClass} items-center py-2 border-b border-gray-50 last:border-0`}>
+                                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: gold }}>{BALL_NAMES[bi]}</span>
+                                  {segs.map((result, hi) => <div key={hi}>{renderCell(result)}</div>)}
                                 </div>
                               )
                             })}
-                          </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                    <div className="border-t border-gray-100 px-4 pt-3 pb-2">
+                      <button
+                        onClick={() => setShowBallNetPositions((v) => !v)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2"
+                      >
+                        <span>Net Positions</span>
+                        <span className="text-gray-400 text-[10px]">{showBallNetPositions ? '▲' : '▼'}</span>
+                      </button>
+                      {showBallNetPositions && (
+                        <div className="space-y-1">
+                          {[...players]
+                            .filter((p) => poolResults.playerNet[p.id] !== undefined)
+                            .sort((a, b) => (poolResults.playerNet[b.id] ?? 0) - (poolResults.playerNet[a.id] ?? 0))
+                            .map((p) => {
+                              const v = Math.round((poolResults.playerNet[p.id] ?? 0) * 100) / 100
+                              return (
+                                <div key={p.id} className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-700 min-w-0 truncate">{p.name}</span>
+                                  <span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>
+                                    {v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}
+                                  </span>
+                                </div>
+                              )
+                            })}
                         </div>
-                      )
-                    })}
+                      )}
+                    </div>
+                    <div className="border-t border-gray-100 px-4 py-3">
+                      <button
+                        onClick={() => setShowBallSettlements((v) => !v)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2"
+                      >
+                        <span>Settlements</span>
+                        <span className="text-gray-400 text-[10px]">{showBallSettlements ? '▲' : '▼'}</span>
+                      </button>
+                      {showBallSettlements && (
+                        poolResults.settlements.length === 0
+                          ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p>
+                          : poolResults.settlements.map((s, i) => (
+                            <div key={i} className="flex items-center justify-between py-1">
+                              <span className="text-xs text-gray-800 min-w-0 truncate">
+                                <span className="font-semibold text-red-500">{s.fromName}</span>
+                                <span className="text-gray-400"> pays </span>
+                                <span className="font-semibold text-green-600">{s.toName}</span>
+                              </span>
+                              <span className="text-xs font-bold text-gray-900 flex-shrink-0">${s.amount.toFixed(2)}</span>
+                            </div>
+                          ))
+                      )}
+                    </div>
                   </div>}
                 </div>
               )}
