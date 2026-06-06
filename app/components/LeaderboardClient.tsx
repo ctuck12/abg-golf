@@ -369,6 +369,7 @@ export default function LeaderboardClient({
   const [showBallResults, setShowBallResults] = useState(false)
   const [showBallNetPositions, setShowBallNetPositions] = useState(false)
   const [showBallSettlements, setShowBallSettlements] = useState(false)
+  const [showBallPotBreakdown, setShowBallPotBreakdown] = useState(false)
   const [showDaytonaResults, setShowDaytonaResults] = useState(false)
   const [showDaytonaSideResults, setShowDaytonaSideResults] = useState(false)
   const [showDaytonaSideSettlements, setShowDaytonaSideSettlements] = useState(false)
@@ -808,7 +809,7 @@ export default function LeaderboardClient({
   })) : undefined
   const poolResults = (!isDaytona && !isTraditional)
     ? calculatePoolPayouts(initialTeams, players, frontSummaries, backSummaries, perBallValue, ballsCount, totalSummaries)
-    : { results: [], playerNet: {} as Record<string, number>, settlements: [], potTotal: 0, perBallResult: 0, perPlayerContribution: 0, numDecidedResults: 0 }
+    : { results: [], playerNet: {} as Record<string, number>, settlements: [], potTotal: 0, perBallResult: 0, perPlayerContribution: 0, numDecidedResults: 0, numPlayedResults: 0 }
 
   // Score map for matchup computations
   const scoreMapForMatchups: Record<string, Record<number, number>> = {}
@@ -1182,6 +1183,65 @@ export default function LeaderboardClient({
                               )
                             })}
                           </>
+                        )
+                      })()}
+                    </div>
+                    <div className="border-t border-gray-100 px-4 pt-3 pb-2">
+                      <button
+                        onClick={() => setShowBallPotBreakdown((v) => !v)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wide mb-2"
+                      >
+                        <span>Pot Breakdown</span>
+                        <span className="text-gray-400 text-[10px]">{showBallPotBreakdown ? '▲' : '▼'}</span>
+                      </button>
+                      {showBallPotBreakdown && (() => {
+                        const totalBalls = ballsCount * numSegments
+                        const { potTotal, perBallResult, perPlayerContribution, numPlayedResults } = poolResults
+                        const totalPlayers = players.filter((p) => initialTeams.some((t) => t.id === p.team_id)).length
+                        const allTeamBalls: Record<string, { name: string; balls: number; playerCount: number }> = {}
+                        for (const t of initialTeams) {
+                          allTeamBalls[t.id] = { name: t.name, balls: 0, playerCount: players.filter((p) => p.team_id === t.id).length }
+                        }
+                        for (const r of ballResults) {
+                          if (!r.played) continue
+                          if (!r.tied && r.winnerId) {
+                            if (allTeamBalls[r.winnerId]) allTeamBalls[r.winnerId].balls += 1
+                          } else if (r.tied) {
+                            const summaryMap = r.half === 'Front 9' ? frontSummaries : r.half === 'Back 9' ? backSummaries : (totalSummaries ?? new Map())
+                            const bi = r.ball - 1
+                            const tiedTeams = initialTeams.filter((t) => (summaryMap.get(t.id)?.ballTotals[bi] ?? null) === r.winnerTotal)
+                            for (const t of tiedTeams) {
+                              if (allTeamBalls[t.id]) allTeamBalls[t.id].balls += 0.5
+                            }
+                          }
+                        }
+                        const breakdown = Object.values(allTeamBalls).sort((a, b) => b.balls - a.balls)
+                        return (
+                          <div className="space-y-2">
+                            <div className="text-xs text-gray-500 space-y-0.5">
+                              <div><span className="font-semibold text-gray-700">${potTotal.toFixed(2)}</span> total pot <span className="text-gray-400">({totalPlayers} players × ${perPlayerContribution.toFixed(2)}/player)</span></div>
+                              <div><span className="font-semibold text-gray-700">${perBallResult.toFixed(2)}</span>/ball <span className="text-gray-400">(${potTotal.toFixed(2)} ÷ {numPlayedResults} ball{numPlayedResults !== 1 ? 's' : ''} played)</span></div>
+                            </div>
+                            <div className="mt-2 space-y-1">
+                              {breakdown.map((e) => {
+                                const winnings = e.balls * perBallResult
+                                const grossPerPlayer = e.playerCount > 0 ? winnings / e.playerCount : 0
+                                const netPerPlayer = grossPerPlayer - perPlayerContribution
+                                return (
+                                  <div key={e.name} className="grid grid-cols-[5rem_1fr] items-baseline gap-x-2 text-xs">
+                                    <span className="font-semibold truncate" style={{ color: navy }}>{e.name}</span>
+                                    <span className="text-gray-500">
+                                      {e.balls} Ball{e.balls > 1 ? 's' : ''} × ${perBallResult.toFixed(0)} = <span className="text-gray-700 font-medium">${winnings.toFixed(2)}</span> ÷ {e.playerCount} = <span className="text-gray-700 font-medium">${grossPerPlayer.toFixed(2)}/player</span>
+                                      {' · '}
+                                      <span className="font-bold" style={{ color: netPerPlayer > 0 ? '#16a34a' : netPerPlayer < 0 ? '#dc2626' : '#6b7280' }}>
+                                        {netPerPlayer > 0 ? `+$${netPerPlayer.toFixed(2)}` : netPerPlayer < 0 ? `-$${Math.abs(netPerPlayer).toFixed(2)}` : 'Even'} net
+                                      </span>
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
                         )
                       })()}
                     </div>

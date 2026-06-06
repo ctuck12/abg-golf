@@ -338,6 +338,7 @@ export function calculatePoolPayouts(
   perBallResult: number
   perPlayerContribution: number
   numDecidedResults: number
+  numPlayedResults: number
   settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[]
 } {
   const teamIdSet = new Set(teams.map((t) => t.id))
@@ -354,6 +355,7 @@ export function calculatePoolPayouts(
   if (totalSummaries) halves.push(['Total 18', totalSummaries])
 
   let numDecidedResults = 0
+  let numPlayedResults = 0
 
   for (const [halfName, summaries] of halves) {
     for (let bi = 0; bi < ballsCount; bi++) {
@@ -373,29 +375,39 @@ export function calculatePoolPayouts(
         continue
       }
 
+      // Ball is in play — every player contributes regardless of tie or win
+      numPlayedResults++
+      if (perBallValue > 0 && totalPlayers > 0) {
+        for (const p of teamPlayers) playerNet[p.id] -= perBallValue
+      }
+
       const minTotal = Math.min(...teamScores.map((s) => s.total))
       const winners = teamScores.filter((s) => s.total === minTotal)
       const tied = winners.length > 1
 
       if (tied) {
         results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: minTotal, winnerVsPar: null, tied: true, played: true })
-        // Ties wash — no money moves
+        // Tied — pot splits equally between the tied teams' players
+        if (perBallValue > 0 && totalPlayers > 0) {
+          const resultPot = perBallValue * totalPlayers
+          const potPerTiedTeam = resultPot / winners.length
+          for (const winner of winners) {
+            const winningPlayers = teamPlayers.filter((p) => p.team_id === winner.id)
+            if (winningPlayers.length > 0) {
+              const share = potPerTiedTeam / winningPlayers.length
+              for (const p of winningPlayers) playerNet[p.id] += share
+            }
+          }
+        }
       } else {
         const winner = winners[0]
         results.push({ ball: ballNum, half: halfName, winnerId: winner.id, winnerName: winner.name, winnerTotal: winner.total, winnerVsPar: winner.vsPar, tied: false, played: true })
-
         numDecidedResults++
-
         if (perBallValue > 0 && totalPlayers > 0) {
           const resultPot = perBallValue * totalPlayers
           const winningPlayers = teamPlayers.filter((p) => p.team_id === winner.id)
-          const numWinners = winningPlayers.length
-
-          // Every player contributes perBallValue
-          for (const p of teamPlayers) playerNet[p.id] -= perBallValue
-          // Winning team's players split the pot
-          if (numWinners > 0) {
-            const share = resultPot / numWinners
+          if (winningPlayers.length > 0) {
+            const share = resultPot / winningPlayers.length
             for (const p of winningPlayers) playerNet[p.id] += share
           }
         }
@@ -403,8 +415,8 @@ export function calculatePoolPayouts(
     }
   }
 
-  const perPlayerContribution = perBallValue * numDecidedResults
   const perBallResult = perBallValue * totalPlayers
+  const perPlayerContribution = perBallValue * numPlayedResults
   const potTotal = perPlayerContribution * totalPlayers
 
   // Minimize settlements using greedy matching of biggest winner vs biggest loser
@@ -424,7 +436,7 @@ export function calculatePoolPayouts(
     if (l.bal > -0.001) li++
   }
 
-  return { results, playerNet, potTotal, perBallResult, perPlayerContribution, numDecidedResults, settlements }
+  return { results, playerNet, potTotal, perBallResult, perPlayerContribution, numDecidedResults, numPlayedResults, settlements }
 }
 
 export type DaytonaSide = 'left' | 'right'

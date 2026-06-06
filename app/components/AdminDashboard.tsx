@@ -932,7 +932,7 @@ export default function AdminDashboard({
   })) : undefined
 
   const perBallValue = ballVals[1] ?? 5
-  const emptyPoolResult: ReturnType<typeof calculatePoolPayouts> = { results: [] as BallHalfResult[], playerNet: {} as Record<string, number>, potTotal: 0, perBallResult: 0, perPlayerContribution: 0, numDecidedResults: 0, settlements: [] }
+  const emptyPoolResult: ReturnType<typeof calculatePoolPayouts> = { results: [] as BallHalfResult[], playerNet: {} as Record<string, number>, potTotal: 0, perBallResult: 0, perPlayerContribution: 0, numDecidedResults: 0, numPlayedResults: 0, settlements: [] }
   const poolResults = !isDaytona
     ? calculatePoolPayouts(teams, teamPlayers, frontSummaries, backSummaries, perBallValue, ballsCount, totalSummaries)
     : emptyPoolResult
