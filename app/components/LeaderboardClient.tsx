@@ -1135,7 +1135,7 @@ export default function LeaderboardClient({
                                 {tallyEntries.map((e) => (
                                   <span key={e.name} className="text-xs">
                                     <span className="font-semibold" style={{ color: navy }}>{e.name}</span>
-                                    <span className="text-gray-500"> {e.balls} Ball{e.balls !== 1 ? 's' : ''}</span>
+                                    <span className="text-gray-500"> {e.balls} Ball{e.balls > 1 ? 's' : ''}</span>
                                   </span>
                                 ))}
                               </div>
