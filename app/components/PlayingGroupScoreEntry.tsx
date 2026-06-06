@@ -238,6 +238,63 @@ export default function PlayingGroupScoreEntry({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allGroupsDone])
 
+  // Real-time sync: update scores, hole strokes, and banker data when another device saves
+  useEffect(() => {
+    const playerIds = players.map((p) => p.id)
+    if (!playerIds.length) return
+
+    async function refetchScores() {
+      const { data } = await supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
+      if (!data) return
+      setSavedScores(data)
+      setAllScores((prev) => [...prev.filter((s) => !playerIds.includes(s.player_id)), ...data])
+      setSavedHoles(() => {
+        const saved = new Set<number>()
+        for (const h of holes) {
+          if (players.every((p) => data.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))) saved.add(h.hole_number)
+        }
+        return saved
+      })
+    }
+
+    async function refetchStrokes() {
+      const { data } = await supabase.from('hole_strokes').select('hole_number, player_id').eq('round_id', roundId).in('player_id', playerIds)
+      if (!data) return
+      const map: Record<number, string[]> = {}
+      for (const hs of data) { if (!map[hs.hole_number]) map[hs.hole_number] = []; map[hs.hole_number].push(hs.player_id) }
+      setHoleStrokes(map)
+    }
+
+    const channels = [
+      supabase.channel(`pgse-scores-${groupId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores).subscribe(),
+      supabase.channel(`pgse-strokes-${groupId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'hole_strokes' }, refetchStrokes).subscribe(),
+    ]
+
+    if (isBanker) {
+      channels.push(
+        supabase.channel(`pgse-banker-${groupId}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'banker_holes' }, async () => {
+            const { data } = await supabase.from('banker_holes').select('hole_number, banker_player_id, max_bet').eq('round_id', roundId).eq('team_id', groupId)
+            if (!data) return
+            const map: Record<number, { bankerPlayerId: string | null; maxBet: number }> = {}
+            for (const bh of data) map[bh.hole_number] = { bankerPlayerId: bh.banker_player_id, maxBet: bh.max_bet }
+            setBankerHoles(map)
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'banker_bets' }, async () => {
+            const { data } = await supabase.from('banker_bets').select('hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', roundId).eq('team_id', groupId)
+            if (!data) return
+            const map: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>> = {}
+            for (const bb of data) { if (!map[bb.hole_number]) map[bb.hole_number] = {}; map[bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled } }
+            setBankerBets(map)
+          })
+          .subscribe()
+      )
+    }
+
+    return () => { channels.forEach((ch) => supabase.removeChannel(ch)) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId])
+
   // Auto-assign a random banker on the first hole if none is set yet
   useEffect(() => {
     if (!isBanker || !isStarted || players.length === 0 || holes.length === 0) return
