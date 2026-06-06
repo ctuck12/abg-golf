@@ -1132,7 +1132,7 @@ export default function LeaderboardClient({
                             </div>
                             <div className="px-4 py-2"><p className="text-xs text-gray-400">{formatHoleRateBreakdown(holes, tHoleVals, groupPayoutValue)}</p></div>
                             <div className="divide-y divide-gray-100">
-                              {groupPlayers.map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
+                              {[...groupPlayers].sort((a, b) => (playerNet[b.id] ?? 0) - (playerNet[a.id] ?? 0)).map((p) => { const pts = pointTotals.get(p.id) ?? 0; const dollars = playerNet[p.id] ?? 0; return (
                                 <div key={p.id}>
                                   <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
                                     <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
