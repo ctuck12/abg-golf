@@ -226,7 +226,7 @@ export default function ScorecardBottomSheet({
           </div>
           <button onClick={onClose} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
         </div>
-        <div className="px-4 py-4 space-y-5">
+        <div className="px-4 py-4"><div className="overflow-x-auto"><div style={{ minWidth: '600px' }} className="space-y-3">
           {rankedPlayers.map((player, rank) => {
             const scoreMap = Object.fromEntries(
               scores.filter((s) => s.player_id === player.id).map((s) => [s.hole_number, s.strokes])
@@ -291,30 +291,30 @@ export default function ScorecardBottomSheet({
                     <span>Total: <span style={{ color: vpColor(vspar) }}>{fmtVsp(vspar)}</span></span>
                   </div>
                 </div>
-                <div className="overflow-x-auto bg-white">
-                  <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
+                <div className="bg-white">
+                  <table className="border-collapse" style={{ width: '100%', tableLayout: 'fixed' }}>
                     <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                       <tr>
-                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
+                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                         {frontNine.map((h) => {
                           const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
-                            <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
+                            <th key={h.hole_number} style={{ ...thSt(false, true), width: '2rem' }}>
                               <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
                             </th>
                           )
                         })}
-                        {frontNine.length > 0 && <th style={{ ...thSt(true), minWidth: '2.8rem' }}>Out</th>}
+                        {frontNine.length > 0 && <th style={{ ...thSt(true), width: '2.8rem' }}>Out</th>}
                         {backNine.map((h) => {
                           const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(player.id)
                           return (
-                            <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
+                            <th key={h.hole_number} style={{ ...thSt(false, true), width: '2rem' }}>
                               <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
                             </th>
                           )
                         })}
-                        {backNine.length > 0 && <th style={{ ...thSt(true), minWidth: '2.8rem' }}>In</th>}
-                        <th style={{ ...thSt(), minWidth: '2.8rem' }}>TOT</th>
+                        {backNine.length > 0 && <th style={{ ...thSt(true), width: '2.8rem' }}>In</th>}
+                        <th style={{ ...thSt(), width: '2.8rem' }}>TOT</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -467,7 +467,7 @@ export default function ScorecardBottomSheet({
               </div>
             )
           })}
-        </div>
+        </div></div></div>
       </div>
     </div>
   )
