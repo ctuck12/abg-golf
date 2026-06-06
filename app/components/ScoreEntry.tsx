@@ -1301,7 +1301,7 @@ export default function ScoreEntry({
               </div>
               {popupShowScorecard && (
                 <div className="border-t border-gray-100 overflow-x-auto">
-                  <table className="border-collapse" style={{ minWidth: '520px', width: '100%', tableLayout: 'fixed' }}>
+                  <table className="border-collapse" style={{ minWidth: '520px', width: '100%' }}>
                     <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                       <tr>
                         <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.5rem', width: '3rem' }}>HOLE</th>

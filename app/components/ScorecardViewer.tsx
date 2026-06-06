@@ -254,7 +254,7 @@ export default function ScorecardViewer({
         })()}
 
         <div className="bg-white rounded-t-2xl overflow-x-auto shadow-sm border border-gray-200">
-        <table className="border-collapse" style={{ minWidth: '600px', width: '100%', tableLayout: 'fixed' }}>
+        <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
           <thead>
             <tr>
               <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh, borderTopLeftRadius: '1rem' }}>HOLE</th>

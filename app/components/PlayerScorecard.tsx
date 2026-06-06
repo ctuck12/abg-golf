@@ -310,7 +310,7 @@ export default function PlayerScorecard({
 
         {/* Horizontal scorecard */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto mb-4">
-          <table className="border-collapse" style={{ minWidth: '600px', width: '100%', tableLayout: 'fixed' }}>
+          <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
             <thead>
               <tr>
                 <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
