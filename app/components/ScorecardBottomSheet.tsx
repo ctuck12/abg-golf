@@ -226,7 +226,7 @@ export default function ScorecardBottomSheet({
           </div>
           <button onClick={onClose} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
         </div>
-        <div className="px-4 py-4"><div className="overflow-x-auto"><div style={{ minWidth: '600px' }} className="space-y-3">
+        <div className="px-4 py-4 space-y-3">
           {rankedPlayers.map((player, rank) => {
             const scoreMap = Object.fromEntries(
               scores.filter((s) => s.player_id === player.id).map((s) => [s.hole_number, s.strokes])
@@ -291,8 +291,8 @@ export default function ScorecardBottomSheet({
                     <span>Total: <span style={{ color: vpColor(vspar) }}>{fmtVsp(vspar)}</span></span>
                   </div>
                 </div>
-                <div className="bg-white">
-                  <table className="border-collapse" style={{ width: '100%', tableLayout: 'fixed' }}>
+                <div className="overflow-x-auto bg-white">
+                  <table className="border-collapse" style={{ minWidth: '600px', width: '100%', tableLayout: 'fixed' }}>
                     <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                       <tr>
                         <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
@@ -467,7 +467,7 @@ export default function ScorecardBottomSheet({
               </div>
             )
           })}
-        </div></div></div>
+        </div>
       </div>
     </div>
   )

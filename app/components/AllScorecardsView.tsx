@@ -246,7 +246,7 @@ export default function AllScorecardsView({
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-3 py-4 pb-10"><div className="overflow-x-auto"><div style={{ minWidth: '600px' }} className="space-y-3">
+      <div className="max-w-4xl mx-auto px-3 py-4 space-y-3 pb-10">
         {rankedPlayers.map((player, rank) => {
           const playerScores = scores.filter((s) => s.player_id === player.id)
           const scoreMap = Object.fromEntries(playerScores.map((s) => [s.hole_number, s.strokes]))
@@ -294,8 +294,8 @@ export default function AllScorecardsView({
               </div>
 
               {/* Scorecard table */}
-              <div className="bg-white">
-                <table className="border-collapse" style={{ width: '100%', tableLayout: 'fixed' }}>
+              <div className="overflow-x-auto bg-white">
+                <table className="border-collapse" style={{ minWidth: '600px', width: '100%', tableLayout: 'fixed' }}>
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
                       <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
@@ -472,7 +472,7 @@ export default function AllScorecardsView({
             </div>
           )
         })}
-      </div></div></div>
+      </div>
     </div>
   )
 }
