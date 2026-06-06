@@ -1681,8 +1681,11 @@ export default function LeaderboardClient({
                                 const wonSkin = allScorecardsFilter === 'skins' && skinsResults.skins.some((s) => s.status === 'won' && s.winnerId === row.player.id && s.holeNumber === h.hole_number)
                                 return (
                                   <th key={h.hole_number} style={{ ...thSt(false, true), width: '2rem' }}>
-                                    <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
-                                    {wonSkin && <span style={{ display: 'block', color: '#16a34a', fontSize: '0.6rem', lineHeight: 1, marginTop: '1px' }}>✓</span>}
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>
+                                      {h.hole_number}
+                                      {hasStroke && <span style={{ color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, lineHeight: 1 }}>*</span>}
+                                      {wonSkin && <span style={{ color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                                    </span>
                                   </th>
                                 )
                               })}
@@ -1692,8 +1695,11 @@ export default function LeaderboardClient({
                                 const wonSkin = allScorecardsFilter === 'skins' && skinsResults.skins.some((s) => s.status === 'won' && s.winnerId === row.player.id && s.holeNumber === h.hole_number)
                                 return (
                                   <th key={h.hole_number} style={{ ...thSt(false, true), width: '2rem' }}>
-                                    <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
-                                    {wonSkin && <span style={{ display: 'block', color: '#16a34a', fontSize: '0.6rem', lineHeight: 1, marginTop: '1px' }}>✓</span>}
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '1px' }}>
+                                      {h.hole_number}
+                                      {hasStroke && <span style={{ color: '#16a34a', fontSize: '0.7rem', fontWeight: 700, lineHeight: 1 }}>*</span>}
+                                      {wonSkin && <span style={{ color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                                    </span>
                                   </th>
                                 )
                               })}
