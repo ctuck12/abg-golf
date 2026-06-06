@@ -20,6 +20,10 @@ type BallValue = { ball_number: number; value_dollars: number }
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 const navy = '#0f172a'
 const gold = '#f59e0b'
+// Display helpers — keep all internal math at full precision; round only at render
+const fmtDollars = (v: number) => { const r = Math.round(Math.abs(v)); return r === 0 ? 'Even' : `$${r}` }
+const fmtNetSigned = (v: number) => { const r = Math.round(Math.abs(v)); return r === 0 ? 'Even' : v > 0 ? `+$${r}` : `-$${r}` }
+const fmtSettle = (v: number) => `$${Math.round(Math.abs(v))}`
 
 function formatHoleRateBreakdown(holes: { hole_number: number }[], overrides: Record<number, number>, defaultRate: number): string {
   if (Object.keys(overrides).length === 0) return `$${defaultRate}/point`
@@ -1036,7 +1040,7 @@ export default function LeaderboardClient({
                                   <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
                                     <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                     {segments.length === 0 && <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>}
-                                    <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `$${dollars.toFixed(2)}` : dollars < 0 ? `$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                    <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{fmtDollars(dollars)}</span>
                                   </div>
                                   {segments.length > 0 && (
                                     <div className="px-4 pb-2 flex gap-x-3" style={{ fontSize: segments.length <= 2 ? '12px' : segments.length === 3 ? '10px' : '9px' }}>
@@ -1069,7 +1073,7 @@ export default function LeaderboardClient({
                                     : playerSettlements.map((s, i) => (
                                       <div key={i} className="flex items-center py-1 gap-2 text-sm">
                                         <span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span>
-                                        <span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                                        <span className="font-bold text-gray-900">{fmtSettle(s.amount)}</span>
                                       </div>
                                     ))
                                 )}
@@ -1233,7 +1237,7 @@ export default function LeaderboardClient({
                                       {e.balls} Ball{e.balls > 1 ? 's' : ''} × ${perBallResult.toFixed(0)} = <span className="text-gray-700 font-medium">${winnings.toFixed(2)}</span> ÷ {e.playerCount} = <span className="text-gray-700 font-medium">${grossPerPlayer.toFixed(2)}/player</span>
                                       {' · '}
                                       <span className="font-bold" style={{ color: netPerPlayer > 0 ? '#16a34a' : netPerPlayer < 0 ? '#dc2626' : '#6b7280' }}>
-                                        {netPerPlayer > 0 ? `+$${netPerPlayer.toFixed(2)}` : netPerPlayer < 0 ? `-$${Math.abs(netPerPlayer).toFixed(2)}` : 'Even'} net
+                                        {fmtNetSigned(netPerPlayer)} net
                                       </span>
                                     </span>
                                   </div>
@@ -1258,12 +1262,12 @@ export default function LeaderboardClient({
                             .filter((p) => poolResults.playerNet[p.id] !== undefined)
                             .sort((a, b) => (poolResults.playerNet[b.id] ?? 0) - (poolResults.playerNet[a.id] ?? 0))
                             .map((p) => {
-                              const v = Math.round((poolResults.playerNet[p.id] ?? 0) * 100) / 100
+                              const v = poolResults.playerNet[p.id] ?? 0
                               return (
                                 <div key={p.id} className="flex items-center justify-between">
                                   <span className="text-xs text-gray-700 min-w-0 truncate">{p.name}</span>
                                   <span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>
-                                    {v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}
+                                    {fmtNetSigned(v)}
                                   </span>
                                 </div>
                               )
@@ -1289,7 +1293,7 @@ export default function LeaderboardClient({
                                 <span className="text-gray-400"> pays </span>
                                 <span className="font-semibold text-green-600">{s.toName}</span>
                               </span>
-                              <span className="text-xs font-bold text-gray-900 flex-shrink-0">${s.amount.toFixed(2)}</span>
+                              <span className="text-xs font-bold text-gray-900 flex-shrink-0">{fmtSettle(s.amount)}</span>
                             </div>
                           ))
                       )}
@@ -1334,7 +1338,7 @@ export default function LeaderboardClient({
                                   <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
                                     <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                     {segments.length === 0 && <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>}
-                                    <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `$${dollars.toFixed(2)}` : dollars < 0 ? `$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                    <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{fmtDollars(dollars)}</span>
                                   </div>
                                   {segments.length > 0 && (
                                     <div className="px-4 pb-2 flex gap-x-3" style={{ fontSize: segments.length <= 2 ? '12px' : segments.length === 3 ? '10px' : '9px' }}>
@@ -1364,7 +1368,7 @@ export default function LeaderboardClient({
                                     : playerSettlements.map((s, i) => (
                                       <div key={i} className="flex items-center py-1 gap-2 text-sm">
                                         <span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span>
-                                        <span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                                        <span className="font-bold text-gray-900">{fmtSettle(s.amount)}</span>
                                       </div>
                                     ))
                                 )}
@@ -1403,12 +1407,12 @@ export default function LeaderboardClient({
                                 return (
                                   <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
                                     <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
-                                    <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span>
+                                    <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{fmtDollars(v)}</span>
                                   </div>
                                 )
                               })}
                             </div>
-                            {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
+                            {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">{fmtSettle(s.amount)}</span></div>))}</div>)}
                             {tSettlements.length === 0 && groupPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">All even — no payments needed.</p>)}
                           </div>
                         )
@@ -1481,8 +1485,8 @@ export default function LeaderboardClient({
                             {showMatchupNetPositions && (
                               <div className="space-y-1">
                                 {[...players].filter((p) => matchupPayouts.involvedIds.has(p.id)).sort((a, b) => (matchupPayouts.net[b.id] ?? 0) - (matchupPayouts.net[a.id] ?? 0)).map((p) => {
-                                  const v = Math.round((matchupPayouts.net[p.id] ?? 0) * 100) / 100
-                                  return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700 min-w-0 truncate">{p.name}</span><span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                                  const v = matchupPayouts.net[p.id] ?? 0
+                                  return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700 min-w-0 truncate">{p.name}</span><span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{fmtDollars(v)}</span></div>)
                                 })}
                               </div>
                             )}
@@ -1495,7 +1499,7 @@ export default function LeaderboardClient({
                               <span>Settlements</span>
                               <span className="text-gray-400 text-[10px]">{showMatchupSettlements ? '▲' : '▼'}</span>
                             </button>
-                            {showMatchupSettlements && (matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900 flex-shrink-0">${s.amount.toFixed(2)}</span></div>)))}
+                            {showMatchupSettlements && (matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900 flex-shrink-0">${fmtSettle(s.amount)}</span></div>)))}
                           </div>
                         </>
                       )}
@@ -1588,7 +1592,7 @@ export default function LeaderboardClient({
                                         <span className="text-xs text-gray-700 min-w-0 truncate">{p.name}</span>
                                         <span className="text-xs font-bold tabular-nums flex-shrink-0"
                                           style={{ color: amt > 0 ? '#16a34a' : amt < 0 ? '#dc2626' : '#6b7280' }}>
-                                          {amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `$${Math.abs(amt).toFixed(2)}` : 'Even'}
+                                          {fmtDollars(amt)}
                                         </span>
                                       </div>
                                     )
@@ -1613,7 +1617,7 @@ export default function LeaderboardClient({
                                   <span className="text-gray-400"> pays </span>
                                   <span className="font-semibold text-green-600">{s.toName}</span>
                                 </span>
-                                <span className="text-xs font-bold text-gray-900">${s.amount.toFixed(2)}</span>
+                                <span className="text-xs font-bold text-gray-900">${fmtSettle(s.amount)}</span>
                               </div>
                             )))}
                           </div>
@@ -1651,12 +1655,12 @@ export default function LeaderboardClient({
                 <div className="px-4 pt-3 pb-2">
                   <div className="space-y-1">
                     {[...players].sort((a, b) => (combinedNet[b.id] ?? 0) - (combinedNet[a.id] ?? 0)).map((p) => {
-                      const v = Math.round((combinedNet[p.id] ?? 0) * 100) / 100
+                      const v = combinedNet[p.id] ?? 0
                       return (
                         <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0">
                           <span className="text-sm text-gray-900 min-w-0 truncate">{p.name}</span>
                           <button onClick={() => setBreakdownPlayerId(breakdownPlayerId === p.id ? null : p.id)} className="text-sm font-bold tabular-nums flex-shrink-0 underline decoration-dotted underline-offset-2 cursor-pointer" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280', background: 'none', border: 'none', padding: 0 }}>
-                            {v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}
+                            {fmtDollars(v)}
                           </button>
                         </div>
                       )
@@ -1666,7 +1670,7 @@ export default function LeaderboardClient({
                 {/* Who pays who */}
                 <div className="border-t border-gray-200 px-4 py-3">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Who Pays Who</p>
-                  {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900 flex-shrink-0">${s.amount.toFixed(2)}</span></div>))}
+                  {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900 flex-shrink-0">${fmtSettle(s.amount)}</span></div>))}
                 </div>
               </div>
               {/* Breakdown popup */}
@@ -1674,7 +1678,7 @@ export default function LeaderboardClient({
                 const bp = players.find((p) => p.id === breakdownPlayerId)
                 if (!bp) return null
                 const bd = playerBreakdown[bp.id] ?? { ball: 0, daytona: 0, banker: 0, matchups: 0, skins: 0 }
-                const total = Math.round((combinedNet[bp.id] ?? 0) * 100) / 100
+                const total = combinedNet[bp.id] ?? 0
                 const bdRows: { label: string; val: number }[] = [
                   { label: 'Ball Results', val: bd.ball },
                   { label: 'Daytona Results', val: bd.daytona },
@@ -1696,12 +1700,11 @@ export default function LeaderboardClient({
                       <div className="px-4 py-3 space-y-2">
                         {bdRows.length === 0 && <p className="text-sm text-gray-400 text-center py-2">No results yet</p>}
                         {bdRows.map(({ label, val }) => {
-                          const fv = Math.round(val * 100) / 100
                           return (
                             <div key={label} className="flex items-center justify-between text-sm py-1 border-b border-gray-50 last:border-0">
                               <span className="text-gray-600">{label}</span>
-                              <span className="font-semibold tabular-nums" style={{ color: fv > 0 ? '#16a34a' : '#dc2626' }}>
-                                {fv > 0 ? `+$${fv.toFixed(2)}` : `-$${Math.abs(fv).toFixed(2)}`}
+                              <span className="font-semibold tabular-nums" style={{ color: val > 0 ? '#16a34a' : '#dc2626' }}>
+                                {fmtNetSigned(val)}
                               </span>
                             </div>
                           )
@@ -1709,7 +1712,7 @@ export default function LeaderboardClient({
                         <div className="flex items-center justify-between text-sm font-bold pt-2 border-t border-gray-200">
                           <span className="text-gray-900">Total</span>
                           <span style={{ color: total > 0 ? '#16a34a' : total < 0 ? '#dc2626' : '#6b7280' }}>
-                            {total > 0 ? `+$${total.toFixed(2)}` : total < 0 ? `-$${Math.abs(total).toFixed(2)}` : 'Even'}
+                            {fmtNetSigned(total)}
                           </span>
                         </div>
                       </div>
