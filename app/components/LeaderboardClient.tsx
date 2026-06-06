@@ -1672,7 +1672,7 @@ export default function LeaderboardClient({
                         </div>
                       </div>
                       <div className="overflow-x-auto bg-white">
-                        <table className="border-collapse" style={{ minWidth: '660px', width: '100%', tableLayout: 'fixed' }}>
+                        <table className="border-collapse" style={{ minWidth: '700px', width: '100%', tableLayout: 'fixed' }}>
                           <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                             <tr>
                               <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>

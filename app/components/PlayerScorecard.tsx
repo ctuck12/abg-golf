@@ -315,11 +315,11 @@ export default function PlayerScorecard({
               <tr>
                 <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                 {[1,2,3,4,5,6,7,8,9].map((n) => (
-                  <th key={n} style={{ ...thStyle(), width: '2.75rem' }}>{n}</th>
+                  <th key={n} style={{ ...thStyle(), width: '3rem' }}>{n}</th>
                 ))}
                 <th style={thStyle(true)}>Front</th>
                 {[10,11,12,13,14,15,16,17,18].map((n) => (
-                  <th key={n} style={{ ...thStyle(), width: '2.75rem' }}>{n}</th>
+                  <th key={n} style={{ ...thStyle(), width: '3rem' }}>{n}</th>
                 ))}
                 <th style={thStyle(true)}>Back</th>
                 <th style={thStyle()}>TOTAL</th>
