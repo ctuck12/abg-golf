@@ -1087,10 +1087,7 @@ export default function LeaderboardClient({
               {!isDaytona && !isTraditional && (
                 <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                   <button onClick={() => setShowBallResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
-                    <div>
-                      <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
-                      <p className="text-xs text-gray-500">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
-                    </div>
+                    <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
                     <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{showBallResults ? '▲ Hide' : '▼ Show'}</span>
                   </button>
                   {showBallResults && <div className="border-t border-gray-100">
@@ -1130,6 +1127,8 @@ export default function LeaderboardClient({
                         const vpStr = (vp: number | null) => vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                         return (
                           <>
+                            {/* Game info */}
+                            <p className="text-xs text-gray-500 mb-3">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
                             {/* Balls tally */}
                             {tallyEntries.length > 0 && (
                               <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3">
