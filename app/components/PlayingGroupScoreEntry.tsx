@@ -202,17 +202,17 @@ export default function PlayingGroupScoreEntry({
   }, [expandedHole])
 
   async function checkAllGroupsDone() {
-    setAllGroupsDone(null)
     const { data: groups } = await supabase.from('playing_groups').select('id').eq('round_id', roundId)
-    if (!groups?.length) { setAllGroupsDone(true); return }
+    if (!groups?.length) { setAllGroupsDone(false); return }
     const { data: links } = await supabase.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', groups.map(g => g.id))
-    if (!links?.length) { setAllGroupsDone(true); return }
+    if (!links?.length) { setAllGroupsDone(false); return }
     const allPids = [...new Set(links.map(l => l.player_id))]
     const { data: scoresData } = await supabase.from('scores').select('player_id, hole_number').in('player_id', allPids)
     if (!scoresData) { setAllGroupsDone(false); return }
     const done = groups.every(g => {
       const gPids = links.filter(l => l.playing_group_id === g.id).map(l => l.player_id)
-      return gPids.length === 0 || holes.every(h => gPids.every(pid => scoresData.some(s => s.player_id === pid && s.hole_number === h.hole_number)))
+      if (gPids.length === 0) return true // skip empty groups
+      return holes.every(h => gPids.every(pid => scoresData.some(s => s.player_id === pid && s.hole_number === h.hole_number)))
     })
     setAllGroupsDone(done)
   }
@@ -853,7 +853,7 @@ export default function PlayingGroupScoreEntry({
                 </div>
               )}
               {allGroupsDone === true && (
-                <a href={`/${orgSlug}`} className="text-sm font-bold text-amber-700 underline">View Final Payouts →</a>
+                <a href={`/${orgSlug}?payouts=1`} className="text-sm font-bold text-amber-700 underline">View Final Payouts →</a>
               )}
             </div>
           </div>

@@ -360,7 +360,7 @@ export default function LeaderboardClient({
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [showPin, setShowPin] = useState(false)
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
-  const [showPayouts, setShowPayouts] = useState(false)
+  const [showPayouts, setShowPayouts] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('payouts') === '1')
   const [showAllScorecards, setShowAllScorecards] = useState(false)
   const [allScorecardsGroupId, setAllScorecardsGroupId] = useState<string | null>(null)
   const [allScorecardsFilter, setAllScorecardsFilter] = useState<'all' | 'skins'>('all')
