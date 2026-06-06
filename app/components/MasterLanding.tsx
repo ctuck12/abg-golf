@@ -80,7 +80,7 @@ export default function MasterLanding({ orgs }: { orgs: Org[] }) {
               type="button"
               onClick={() => setShowMasterLogin(true)}
               className="w-full py-3 rounded-xl font-semibold text-sm border-2 transition active:scale-95"
-              style={{ borderColor: '#1e3a5f', color: 'white', background: '#1e3a5f', boxShadow: '0 2px 8px rgba(15,23,42,0.25)' }}
+              style={{ borderColor: '#0f172a', color: '#0f172a', background: '#dbeafe', boxShadow: '0 2px 6px rgba(15,23,42,0.15)' }}
             >
               Master Admin Login
             </button>
