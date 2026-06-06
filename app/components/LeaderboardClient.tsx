@@ -1088,7 +1088,7 @@ export default function LeaderboardClient({
                   <button onClick={() => setShowBallResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
                     <div>
                       <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
-                      <p className="text-xs text-gray-500">{ballsCount * numSegments} results · ties wash · ${perBallValue}/player</p>
+                      <p className="text-xs text-gray-500">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
                     </div>
                     <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{showBallResults ? '▲ Hide' : '▼ Show'}</span>
                   </button>
