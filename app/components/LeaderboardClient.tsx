@@ -1499,7 +1499,7 @@ export default function LeaderboardClient({
                               <span>Settlements</span>
                               <span className="text-gray-400 text-[10px]">{showMatchupSettlements ? '▲' : '▼'}</span>
                             </button>
-                            {showMatchupSettlements && (matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900 flex-shrink-0">${fmtSettle(s.amount)}</span></div>)))}
+                            {showMatchupSettlements && (matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900 flex-shrink-0">{fmtSettle(s.amount)}</span></div>)))}
                           </div>
                         </>
                       )}
@@ -1617,7 +1617,7 @@ export default function LeaderboardClient({
                                   <span className="text-gray-400"> pays </span>
                                   <span className="font-semibold text-green-600">{s.toName}</span>
                                 </span>
-                                <span className="text-xs font-bold text-gray-900">${fmtSettle(s.amount)}</span>
+                                <span className="text-xs font-bold text-gray-900">{fmtSettle(s.amount)}</span>
                               </div>
                             )))}
                           </div>
@@ -1670,7 +1670,7 @@ export default function LeaderboardClient({
                 {/* Who pays who */}
                 <div className="border-t border-gray-200 px-4 py-3">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Who Pays Who</p>
-                  {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900 flex-shrink-0">${fmtSettle(s.amount)}</span></div>))}
+                  {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900 flex-shrink-0">{fmtSettle(s.amount)}</span></div>))}
                 </div>
               </div>
               {/* Breakdown popup */}
