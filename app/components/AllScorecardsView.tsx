@@ -279,10 +279,12 @@ export default function AllScorecardsView({
                   style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                   {thru > 0 ? `#${rank + 1}` : '–'}
                 </span>
-                <span className="flex-1 min-w-0 font-bold text-white text-sm truncate">{player.name}</span>
-                <span className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => toggleHcp(player.id)} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
-                  {player.handicap != null && <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>{player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}</span>}
+                <span className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="font-bold text-white text-sm truncate">{player.name}</span>
+                  <span className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => toggleHcp(player.id)} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
+                    {player.handicap != null && <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>{player.handicap < 0 ? `+${Math.abs(player.handicap)}` : player.handicap}</span>}
+                  </span>
                 </span>
                 <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                   <span>Front: <span style={{ color: vpColor(frontVspar) }}>{fmtVsp(frontVspar)}</span></span>
@@ -293,29 +295,29 @@ export default function AllScorecardsView({
 
               {/* Scorecard table */}
               <div className="overflow-x-auto bg-white">
-                <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
+                <table className="border-collapse" style={{ minWidth: '600px', width: '100%', tableLayout: 'fixed' }}>
                   <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                     <tr>
-                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
+                      <th style={{ ...thStyle(false, true), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                       {[1,2,3,4,5,6,7,8,9].map((n) => {
                         const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
-                          <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
+                          <th key={n} style={{ ...thStyle(false, true), width: '2.25rem' }}>
                             <span style={{ position: 'relative', display: 'inline-block' }}>{n}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
                           </th>
                         )
                       })}
-                      <th style={{ ...thStyle(true), minWidth: '2.8rem' }}>Front</th>
+                      <th style={{ ...thStyle(true), width: '2.8rem' }}>Front</th>
                       {[10,11,12,13,14,15,16,17,18].map((n) => {
                         const hasStroke = !!(initialHoleStrokes[player.id]?.includes(n))
                         return (
-                          <th key={n} style={{ ...thStyle(false, true), minWidth: '2.25rem' }}>
+                          <th key={n} style={{ ...thStyle(false, true), width: '2.25rem' }}>
                             <span style={{ position: 'relative', display: 'inline-block' }}>{n}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
                           </th>
                         )
                       })}
-                      <th style={{ ...thStyle(true), minWidth: '2.8rem' }}>Back</th>
-                      <th style={{ ...thStyle(), minWidth: '2.8rem' }}>TOTAL</th>
+                      <th style={{ ...thStyle(true), width: '2.8rem' }}>Back</th>
+                      <th style={{ ...thStyle(), width: '2.8rem' }}>TOTAL</th>
                     </tr>
                   </thead>
                   <tbody>
