@@ -131,6 +131,22 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     lbHoleStrokeMap[hs.hole_number].push(hs.player_id)
   }
 
+  // Fetch non-team group players (org-roster players added directly to a playing group
+  // whose team_id is not in this round's teams list) so they appear on the leaderboard.
+  let allPlayers = players ?? []
+  if (isMixedGroups) {
+    const teamPlayerIdSet = new Set(allPlayers.map((p) => p.id))
+    const allGroupPlayerIds = Object.values(lbGroupPlayerMap).flat()
+    const nonTeamGroupPlayerIds = allGroupPlayerIds.filter((id) => !teamPlayerIdSet.has(id))
+    if (nonTeamGroupPlayerIds.length > 0) {
+      const { data: nonTeamPlayersRaw } = await sb
+        .from('players')
+        .select('id, team_id, name, position, skins_participant, handicap')
+        .in('id', nonTeamGroupPlayerIds)
+      allPlayers = [...allPlayers, ...(nonTeamPlayersRaw ?? [])]
+    }
+  }
+
   const initialHoleValues: Record<string, Record<number, number>> = {}
   for (const hv of (holeValuesRaw ?? []) as { team_id: string; hole_number: number; value_per_point: number }[]) {
     if (!initialHoleValues[hv.team_id]) initialHoleValues[hv.team_id] = {}
@@ -153,7 +169,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       orgName={org.name}
       isMaster={isMaster}
       initialTeams={teams}
-      players={players ?? []}
+      players={allPlayers}
       holes={holes ?? []}
       initialScores={scores ?? []}
       ballsCount={round.balls_count}
