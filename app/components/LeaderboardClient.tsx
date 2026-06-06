@@ -1222,30 +1222,27 @@ export default function LeaderboardClient({
                         const breakdown = Object.values(allTeamBalls).sort((a, b) => b.balls - a.balls)
                         return (
                           <div className="space-y-2">
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500">
-                              <span><span className="font-semibold text-gray-700">${Math.round(potTotal)}</span> total pot</span>
-                              <span><span className="font-semibold text-gray-700">${Math.round(perBallResult)}</span>/ball</span>
-                              <span>{totalPlayers} players · <span className="font-semibold text-gray-700">${Math.round(perPlayerContribution)}</span>/player in</span>
+                            <div className="text-xs text-gray-500 space-y-0.5">
+                              <div className="whitespace-nowrap overflow-x-auto"><span className="font-semibold text-gray-700">${potTotal.toFixed(2)}</span> total pot <span className="text-gray-400">({totalPlayers} players × ${perPlayerContribution.toFixed(2)}/player)</span></div>
+                              <div className="whitespace-nowrap overflow-x-auto"><span className="font-semibold text-gray-700">${perBallResult.toFixed(2)}</span>/ball <span className="text-gray-400">(${potTotal.toFixed(2)} ÷ {numPlayedResults} ball{numPlayedResults !== 1 ? 's' : ''} played)</span></div>
                             </div>
-                            <div className="w-full mt-1">
-                              <div className="grid grid-cols-[1fr_2rem_3.5rem_3rem] text-[10px] font-bold uppercase tracking-wide text-gray-400 pb-1 border-b border-gray-100">
-                                <span>Team</span>
-                                <span className="text-center">Balls</span>
-                                <span className="text-right">Gross/p</span>
-                                <span className="text-right">Net/p</span>
-                              </div>
+                            <div className="mt-2 space-y-1">
                               {breakdown.map((e) => {
                                 const winnings = e.balls * perBallResult
                                 const grossPerPlayer = e.playerCount > 0 ? winnings / e.playerCount : 0
                                 const netPerPlayer = grossPerPlayer - perPlayerContribution
                                 return (
-                                  <div key={e.name} className="grid grid-cols-[1fr_2rem_3.5rem_3rem] items-center py-1.5 border-b border-gray-50 last:border-0 text-xs">
-                                    <span className="font-semibold truncate" style={{ color: navy }}>{e.name}</span>
-                                    <span className="text-center text-gray-500">{e.balls}</span>
-                                    <span className="text-right text-gray-600">${Math.round(grossPerPlayer)}</span>
-                                    <span className="text-right font-bold" style={{ color: netPerPlayer > 0 ? '#16a34a' : netPerPlayer < 0 ? '#dc2626' : '#6b7280' }}>
-                                      {fmtNetSigned(netPerPlayer)}
-                                    </span>
+                                  <div key={e.name} className="overflow-x-auto">
+                                    <div className="grid grid-cols-[5rem_1fr] items-baseline gap-x-2 text-xs whitespace-nowrap min-w-0">
+                                      <span className="font-semibold" style={{ color: navy }}>{e.name}</span>
+                                      <span className="text-gray-500">
+                                        {e.balls} Ball{e.balls > 1 ? 's' : ''} × ${perBallResult.toFixed(0)} = <span className="text-gray-700 font-medium">${winnings.toFixed(2)}</span> ÷ {e.playerCount} = <span className="text-gray-700 font-medium">${grossPerPlayer.toFixed(2)}/player</span>
+                                        {' · '}
+                                        <span className="font-bold" style={{ color: netPerPlayer > 0 ? '#16a34a' : netPerPlayer < 0 ? '#dc2626' : '#6b7280' }}>
+                                          {fmtNetSigned(netPerPlayer)} net
+                                        </span>
+                                      </span>
+                                    </div>
                                   </div>
                                 )
                               })}
