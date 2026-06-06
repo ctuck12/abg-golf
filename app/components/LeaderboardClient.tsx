@@ -1658,10 +1658,12 @@ export default function LeaderboardClient({
                         <span className="text-base font-bold w-8 flex-shrink-0" style={{ color: thru > 0 ? gold : 'rgba(255,255,255,0.25)' }}>
                           {thru > 0 ? `#${i + 1}` : '–'}
                         </span>
-                        <span className="flex-1 min-w-0 font-bold text-white text-sm truncate">{row.player.name}</span>
-                        <span className="flex items-center gap-1 flex-shrink-0">
-                          <button onClick={(e) => { e.stopPropagation(); toggleHcp(row.player.id) }} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
-                          {row.player.handicap != null && <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>{row.player.handicap < 0 ? `+${Math.abs(row.player.handicap)}` : row.player.handicap}</span>}
+                        <span className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="font-bold text-white text-sm truncate">{row.player.name}</span>
+                          <span className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); toggleHcp(row.player.id) }} className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)', color: hcpVisible.has(row.player.id) ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.15)' }}>HCP</button>
+                            {row.player.handicap != null && <span className="text-[10px] font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>{row.player.handicap < 0 ? `+${Math.abs(row.player.handicap)}` : row.player.handicap}</span>}
+                          </span>
                         </span>
                         <div className="flex items-center gap-3 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
                           <span>Front: <span style={{ color: vpC(frontVspar) }}>{fmtV(frontVspar)}</span></span>
@@ -1670,29 +1672,33 @@ export default function LeaderboardClient({
                         </div>
                       </div>
                       <div className="overflow-x-auto bg-white">
-                        <table className="border-collapse" style={{ minWidth: '560px', width: '100%' }}>
+                        <table className="border-collapse" style={{ minWidth: '560px', width: '100%', tableLayout: 'fixed' }}>
                           <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                             <tr>
-                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
+                              <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                               {scFrontNine.map((h) => {
                                 const hasStroke = (groupHasDaytona || groupHasBanker) && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
+                                const wonSkin = allScorecardsFilter === 'skins' && skinsResults.skins.some((s) => s.status === 'won' && s.winnerId === row.player.id && s.holeNumber === h.hole_number)
                                 return (
-                                  <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
+                                  <th key={h.hole_number} style={{ ...thSt(false, true), width: '2rem' }}>
                                     <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
+                                    {wonSkin && <span style={{ display: 'block', color: '#16a34a', fontSize: '0.6rem', lineHeight: 1, marginTop: '1px' }}>✓</span>}
                                   </th>
                                 )
                               })}
-                              {scFrontNine.length > 0 && <th style={{ ...thSt(true), minWidth: '2.8rem' }}>Out</th>}
+                              {scFrontNine.length > 0 && <th style={{ ...thSt(true), width: '2.8rem' }}>Out</th>}
                               {scBackNine.map((h) => {
                                 const hasStroke = (groupHasDaytona || groupHasBanker) && (liveHoleStrokes[h.hole_number] ?? []).includes(row.player.id)
+                                const wonSkin = allScorecardsFilter === 'skins' && skinsResults.skins.some((s) => s.status === 'won' && s.winnerId === row.player.id && s.holeNumber === h.hole_number)
                                 return (
-                                  <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '2rem' }}>
+                                  <th key={h.hole_number} style={{ ...thSt(false, true), width: '2rem' }}>
                                     <span style={{ position: 'relative', display: 'inline-block' }}>{h.hole_number}{hasStroke && <span style={{ position: 'absolute', top: '50%', left: '100%', transform: 'translateY(-50%)', color: '#16a34a', fontSize: '0.75rem', fontWeight: 700, lineHeight: 1, marginLeft: '1px' }}>*</span>}</span>
+                                    {wonSkin && <span style={{ display: 'block', color: '#16a34a', fontSize: '0.6rem', lineHeight: 1, marginTop: '1px' }}>✓</span>}
                                   </th>
                                 )
                               })}
-                              {scBackNine.length > 0 && <th style={{ ...thSt(true), minWidth: '2.8rem' }}>In</th>}
-                              <th style={{ ...thSt(), minWidth: '2.8rem' }}>TOT</th>
+                              {scBackNine.length > 0 && <th style={{ ...thSt(true), width: '2.8rem' }}>In</th>}
+                              <th style={{ ...thSt(), width: '2.8rem' }}>TOT</th>
                             </tr>
                           </thead>
                           <tbody>
