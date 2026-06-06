@@ -457,6 +457,23 @@ function computeMatchupPayouts(
         }
       }
     }
+    // ── Press bets ──────────────────────────────────────────────────────────
+    for (const press of (m.press ?? [])) {
+      const pressHoles = holes.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
+      if (pressHoles.length === 0) continue
+      let p1Sum = 0, p2Sum = 0, parSum = 0, played = 0
+      for (const h of pressHoles) {
+        const s1 = scoreMap[p1]?.[h.hole_number] ?? null, s2 = scoreMap[p2]?.[h.hole_number] ?? null
+        if (s1 === null || s2 === null) continue
+        p1Sum += s1; p2Sum += s2; parSum += h.par; played++
+      }
+      if (played !== pressHoles.length || played === 0) continue
+      const strokes = press.strokes ?? 0
+      const adjP1 = (p1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
+      const adjP2 = (p2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
+      if (adjP1 < adjP2) { net[p1] = (net[p1] ?? 0) + press.amount; net[p2] = (net[p2] ?? 0) - press.amount }
+      else if (adjP2 < adjP1) { net[p2] = (net[p2] ?? 0) + press.amount; net[p1] = (net[p1] ?? 0) - press.amount }
+    }
     rows.push({ id: m.id, type: 'h2h', label: `${mp1.name} vs ${mp2.name}`, betLabel: formatBet(m.bet), segments, nassauResult })
   }
 
@@ -565,6 +582,24 @@ function computeMatchupPayouts(
           }
         }
       }
+    }
+    // ── BB Press bets ────────────────────────────────────────────────────────
+    for (const press of (m.press ?? [])) {
+      const pressHoles = holes.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
+      if (pressHoles.length === 0) continue
+      let t1Sum = 0, t2Sum = 0, parSum = 0, played = 0
+      for (const h of pressHoles) {
+        const t1Arr = ([scoreMap[t1Ids[0]]?.[h.hole_number] ?? null, scoreMap[t1Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        const t2Arr = ([scoreMap[t2Ids[0]]?.[h.hole_number] ?? null, scoreMap[t2Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        if (t1Arr.length === 0 || t2Arr.length === 0) continue
+        t1Sum += Math.min(...t1Arr); t2Sum += Math.min(...t2Arr); parSum += h.par; played++
+      }
+      if (played !== pressHoles.length || played === 0) continue
+      const strokes = press.strokes ?? 0
+      const adjT1 = (t1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
+      const adjT2 = (t2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
+      if (adjT1 < adjT2) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t2Ids) net[id] = (net[id] ?? 0) - press.amount }
+      else if (adjT2 < adjT1) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t1Ids) net[id] = (net[id] ?? 0) - press.amount }
     }
     rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: formatBet(m.bet), segments, nassauResult })
   }

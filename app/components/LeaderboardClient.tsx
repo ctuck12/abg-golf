@@ -64,7 +64,7 @@ function buildSegmentBreakdown(
 // ── Matchup payout types + helpers ───────────────────────────────────────────
 type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
 type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; press: PressEntry[] }
-type BestBallMatchup = { id: string; team1_player1_id: string; team1_player2_id: string; team2_player1_id: string; team2_player2_id: string; bet: string }
+type BestBallMatchup = { id: string; team1_player1_id: string; team1_player2_id: string; team2_player1_id: string; team2_player2_id: string; bet: string; press: PressEntry[] }
 type MatchupBetType = 'nassau' | 'straight'
 type MatchupScoringType = 'stroke' | 'match'
 type MPayoutSeg = { name: 'Front' | 'Back' | 'Total'; settled: boolean; winnerLabel: string | null; tied: boolean; amount: number; perPlayer: boolean }
@@ -291,6 +291,24 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
           }
         }
       }
+    }
+    // ── BB Press bets ────────────────────────────────────────────────────────
+    for (const press of (m.press ?? [])) {
+      const pressHoles = holes.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
+      if (pressHoles.length === 0) continue
+      let t1Sum = 0, t2Sum = 0, parSum = 0, played = 0
+      for (const h of pressHoles) {
+        const t1Arr = ([scoreMap[t1Ids[0]]?.[h.hole_number] ?? null, scoreMap[t1Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        const t2Arr = ([scoreMap[t2Ids[0]]?.[h.hole_number] ?? null, scoreMap[t2Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        if (t1Arr.length === 0 || t2Arr.length === 0) continue
+        t1Sum += Math.min(...t1Arr); t2Sum += Math.min(...t2Arr); parSum += h.par; played++
+      }
+      if (played !== pressHoles.length || played === 0) continue
+      const strokes = press.strokes ?? 0
+      const adjT1 = (t1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
+      const adjT2 = (t2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
+      if (adjT1 < adjT2) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t2Ids) net[id] = (net[id] ?? 0) - press.amount }
+      else if (adjT2 < adjT1) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t1Ids) net[id] = (net[id] ?? 0) - press.amount }
     }
     rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
   }
