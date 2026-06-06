@@ -1095,28 +1095,45 @@ export default function LeaderboardClient({
                   {showBallResults && <div className="border-t border-gray-100">
                     <div className="px-4 pt-4 pb-3">
                       {(() => {
-                        const winsByTeam: Record<string, { name: string; count: number }> = {}
+                        const ballsByTeam: Record<string, { name: string; balls: number }> = {}
                         for (const r of ballResults) {
-                          if (r.played && !r.tied && r.winnerId && r.winnerName) {
-                            if (!winsByTeam[r.winnerId]) winsByTeam[r.winnerId] = { name: r.winnerName, count: 0 }
-                            winsByTeam[r.winnerId].count++
+                          if (!r.played) continue
+                          if (!r.tied && r.winnerId && r.winnerName) {
+                            if (!ballsByTeam[r.winnerId]) ballsByTeam[r.winnerId] = { name: r.winnerName, balls: 0 }
+                            ballsByTeam[r.winnerId].balls += 1
+                          } else if (r.tied) {
+                            const summaryMap = r.half === 'Front 9' ? frontSummaries : r.half === 'Back 9' ? backSummaries : (totalSummaries ?? new Map())
+                            const bi = r.ball - 1
+                            for (const t of initialTeams) {
+                              const total = summaryMap.get(t.id)?.ballTotals[bi] ?? null
+                              if (total !== null && total === r.winnerTotal) {
+                                if (!ballsByTeam[t.id]) ballsByTeam[t.id] = { name: t.name, balls: 0 }
+                                ballsByTeam[t.id].balls += 0.5
+                              }
+                            }
                           }
                         }
-                        const tieCount = ballResults.filter((r) => r.played && r.tied).length
-                        const winEntries = Object.values(winsByTeam).sort((a, b) => b.count - a.count)
+                        const tallyEntries = Object.values(ballsByTeam).sort((a, b) => b.balls - a.balls)
                         const colClass = includeTotal ? 'grid-cols-[5rem_1fr_1fr_1fr]' : 'grid-cols-[5rem_1fr_1fr]'
+                        const getTiedTeams = (result: (typeof ballResults)[number]) => {
+                          const summaryMap = result.half === 'Front 9' ? frontSummaries : result.half === 'Back 9' ? backSummaries : (totalSummaries ?? new Map())
+                          const bi = result.ball - 1
+                          return initialTeams.filter((t) => {
+                            const total = summaryMap.get(t.id)?.ballTotals[bi] ?? null
+                            return total !== null && total === result.winnerTotal
+                          }).map((t) => t.name)
+                        }
                         return (
                           <>
-                            {/* Wins tally */}
-                            {winEntries.length > 0 && (
+                            {/* Balls tally */}
+                            {tallyEntries.length > 0 && (
                               <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3">
-                                {winEntries.map((e) => (
-                                  <span key={e.name} className="text-xs text-gray-600">
-                                    <span className="font-semibold text-green-700">{e.name}</span>
-                                    <span className="text-gray-400"> {e.count}W</span>
+                                {tallyEntries.map((e) => (
+                                  <span key={e.name} className="text-xs">
+                                    <span className="font-semibold" style={{ color: navy }}>{e.name}</span>
+                                    <span className="text-gray-400"> {e.balls} Ball{e.balls !== 1 ? 's' : ''}</span>
                                   </span>
                                 ))}
-                                {tieCount > 0 && <span className="text-xs text-gray-400">{tieCount} tie{tieCount !== 1 ? 's' : ''}</span>}
                               </div>
                             )}
                             {/* Table header */}
@@ -1134,12 +1151,20 @@ export default function LeaderboardClient({
                               const segs = includeTotal ? [front, back, total] : [front, back]
                               const renderCell = (result: typeof front) => {
                                 if (!result || !result.played) return <span className="text-gray-300 text-sm">–</span>
-                                if (result.tied) return <span className="text-sm text-gray-400 italic">Tie</span>
+                                if (result.tied) {
+                                  const names = getTiedTeams(result)
+                                  return (
+                                    <span className="flex items-baseline gap-1 min-w-0">
+                                      <span className="text-sm font-semibold truncate" style={{ color: navy }}>{names.join(' / ')}</span>
+                                      <span className="text-[10px] text-gray-400 flex-shrink-0 italic">tie</span>
+                                    </span>
+                                  )
+                                }
                                 const vp = result.winnerVsPar
                                 const vpStr = vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                                 return (
                                   <span className="flex items-baseline gap-1 min-w-0">
-                                    <span className="text-sm font-semibold text-green-700 truncate">{result.winnerName}</span>
+                                    <span className="text-sm font-semibold truncate" style={{ color: navy }}>{result.winnerName}</span>
                                     {vpStr && <span className="text-[10px] text-gray-400 flex-shrink-0">{vpStr}</span>}
                                   </span>
                                 )
