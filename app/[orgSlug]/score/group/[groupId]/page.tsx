@@ -77,9 +77,14 @@ export default async function PlayingGroupScorecardPage({
   const allPlayers = allPlayersRaw ?? []
   const allPlayerIds = allPlayers.map((p) => p.id)
 
+  // Always include this group's players in the scores query even if they are
+  // "non-team" (org-roster) players whose team_id is not in allTeamIds.
+  // Without this, saves succeed but scores disappear on reload for such groups.
+  const scoreQueryIds = [...new Set([...allPlayerIds, ...groupPlayerIds])]
+
   const [{ data: holes }, { data: allScores }, { data: ballValuesRaw }, { data: assignmentsRaw }, { data: holeStrokesRaw }, { data: holeValuesRaw }, { data: bankerHolesRaw }, { data: bankerBetsRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
-    sb.from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds.length ? allPlayerIds : ['']),
+    sb.from('scores').select('player_id, hole_number, strokes').in('player_id', scoreQueryIds.length ? scoreQueryIds : ['']),
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
     isDaytonaSideGame && groupPlayerIds.length
       ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', groupPlayerIds)
