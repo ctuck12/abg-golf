@@ -2470,7 +2470,7 @@ export default function MatchupClient({
                                   </td>
                                   <td className="px-4 py-2 text-xs font-bold text-right whitespace-nowrap">
                                     {seg.settled && !seg.tied
-                                      ? <span className="text-green-600">+${fmtAmt}{seg.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span>
+                                      ? <span className="text-green-600">${fmtAmt}{seg.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span>
                                       : <span className="font-normal text-gray-300">${seg.amount}{seg.perPlayer ? '/player' : ''}</span>}
                                   </td>
                                 </tr>
@@ -2496,7 +2496,7 @@ export default function MatchupClient({
                                   </td>
                                   <td className="px-4 py-2 text-xs font-bold text-right whitespace-nowrap">
                                     {nr.anySettled && nr.winnerLabel !== null
-                                      ? <span className="text-green-600">+${fmtAmt}{nr.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span>
+                                      ? <span className="text-green-600">${fmtAmt}{nr.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span>
                                       : null}
                                   </td>
                                 </tr>
