@@ -26,7 +26,7 @@ export function ScoreNotation({ strokes, par, size = 'md' }: Props) {
 
   if (diff <= -2) {
     return (
-      <span style={{ display: 'inline-flex', borderRadius: '50%', border: `${bw} solid #dc2626`, padding: gap }}>
+      <span style={{ display: 'inline-block', verticalAlign: 'middle', borderRadius: '50%', border: `${bw} solid #dc2626`, padding: gap }}>
         <span style={{ ...inner, borderRadius: '50%', border: `${bw} solid #dc2626`, color: '#dc2626' }}>
           {strokes}
         </span>
@@ -49,7 +49,7 @@ export function ScoreNotation({ strokes, par, size = 'md' }: Props) {
   }
   if (diff === 2) {
     return (
-      <span style={{ display: 'inline-flex', border: `${bw} solid #374151`, padding: gap }}>
+      <span style={{ display: 'inline-block', verticalAlign: 'middle', border: `${bw} solid #374151`, padding: gap }}>
         <span style={{ ...inner, border: `${bw} solid #374151` }}>
           {strokes}
         </span>
@@ -58,8 +58,8 @@ export function ScoreNotation({ strokes, par, size = 'md' }: Props) {
   }
   if (diff >= 3) {
     return (
-      <span style={{ display: 'inline-flex', border: `${bw} solid #374151`, padding: gap }}>
-        <span style={{ display: 'inline-flex', border: `${bw} solid #374151`, padding: gap }}>
+      <span style={{ display: 'inline-block', verticalAlign: 'middle', border: `${bw} solid #374151`, padding: gap }}>
+        <span style={{ display: 'inline-block', verticalAlign: 'middle', border: `${bw} solid #374151`, padding: gap }}>
           <span style={{ ...inner, border: `${bw} solid #374151` }}>
             {strokes}
           </span>
