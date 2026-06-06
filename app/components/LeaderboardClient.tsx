@@ -2036,7 +2036,7 @@ export default function LeaderboardClient({
           ))}
           <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 1px' }} />
           <a href={`/${orgSlug}/matchup`} className="font-semibold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
+            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px', marginLeft: '8px' }}>
             Matchups
           </a>
           <button
