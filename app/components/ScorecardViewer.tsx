@@ -254,12 +254,12 @@ export default function ScorecardViewer({
         })()}
 
         <div className="bg-white rounded-t-2xl overflow-x-auto shadow-sm border border-gray-200">
-        <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
+        <table className="border-collapse" style={{ minWidth: '600px', width: '100%', tableLayout: 'fixed' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh, borderTopLeftRadius: '1rem' }}>HOLE</th>
+              <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh, borderTopLeftRadius: '1rem' }}>HOLE</th>
               {[1,2,3,4,5,6,7,8,9].map((n) => (
-                <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                <th key={n} style={{ ...thStyle(), width: '2.25rem' }}>
                   {n}
                   {isDaytona && pressedHoles[n] !== undefined && (
                     <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressedHoles[n]), lineHeight: 1, fontWeight: 800 }}>↑</span>
@@ -268,7 +268,7 @@ export default function ScorecardViewer({
               ))}
               <th style={thStyle(true)}>Front</th>
               {[10,11,12,13,14,15,16,17,18].map((n) => (
-                <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>
+                <th key={n} style={{ ...thStyle(), width: '2.25rem' }}>
                   {n}
                   {isDaytona && pressedHoles[n] !== undefined && (
                     <span style={{ display: 'block', fontSize: '0.55rem', color: pressColor(pressedHoles[n]), lineHeight: 1, fontWeight: 800 }}>↑</span>

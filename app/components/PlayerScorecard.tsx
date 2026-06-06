@@ -310,16 +310,16 @@ export default function PlayerScorecard({
 
         {/* Horizontal scorecard */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto mb-4">
-          <table className="border-collapse" style={{ minWidth: '600px', width: '100%' }}>
+          <table className="border-collapse" style={{ minWidth: '600px', width: '100%', tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', minWidth: '3.5rem', ...stickyFirstTh }}>HOLE</th>
+                <th style={{ ...thStyle(), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
                 {[1,2,3,4,5,6,7,8,9].map((n) => (
-                  <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>
+                  <th key={n} style={{ ...thStyle(), width: '2.25rem' }}>{n}</th>
                 ))}
                 <th style={thStyle(true)}>Front</th>
                 {[10,11,12,13,14,15,16,17,18].map((n) => (
-                  <th key={n} style={{ ...thStyle(), minWidth: '2.25rem' }}>{n}</th>
+                  <th key={n} style={{ ...thStyle(), width: '2.25rem' }}>{n}</th>
                 ))}
                 <th style={thStyle(true)}>Back</th>
                 <th style={thStyle()}>TOTAL</th>

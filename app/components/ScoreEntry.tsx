@@ -1293,13 +1293,13 @@ export default function ScoreEntry({
               </div>
               {popupShowScorecard && (
                 <div className="border-t border-gray-100 overflow-x-auto">
-                  <table className="border-collapse" style={{ minWidth: '520px', width: '100%' }}>
+                  <table className="border-collapse" style={{ minWidth: '520px', width: '100%', tableLayout: 'fixed' }}>
                     <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                       <tr>
-                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.5rem', minWidth: '3rem' }}>HOLE</th>
-                        {frontHoles.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '1.75rem' }}>{h.hole_number}</th>)}
+                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.5rem', width: '3rem' }}>HOLE</th>
+                        {frontHoles.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), width: '1.75rem' }}>{h.hole_number}</th>)}
                         {frontHoles.length > 0 && <th style={thSt(true)}>Out</th>}
-                        {backHoles.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), minWidth: '1.75rem' }}>{h.hole_number}</th>)}
+                        {backHoles.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), width: '1.75rem' }}>{h.hole_number}</th>)}
                         {backHoles.length > 0 && <th style={thSt(true)}>In</th>}
                         <th style={thSt()}>TOT</th>
                       </tr>
