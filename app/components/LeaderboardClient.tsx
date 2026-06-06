@@ -1860,7 +1860,12 @@ export default function LeaderboardClient({
                   </div>
                 )}
               </div>
-              <div className="flex flex-col items-end gap-1.5 mt-0.5 flex-shrink-0">
+              <div className="flex flex-row items-center gap-2 mt-0.5 flex-shrink-0">
+                <button onClick={() => setShowOptions(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                  style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                  Options
+                </button>
                 {(isMixedGroups ? scorecardGroupId : scorecardTeamId) ? (
                   <a href={isMixedGroups ? `/${orgSlug}/score/group/${scorecardGroupId}` : `/${orgSlug}/score/${scorecardTeamId}`}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
@@ -1874,11 +1879,6 @@ export default function LeaderboardClient({
                     Enter Pin
                   </button>
                 )}
-                <button onClick={() => setShowOptions(true)}
-                  className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                  style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                  Options
-                </button>
               </div>
             </div>
           ) : (
@@ -1896,7 +1896,12 @@ export default function LeaderboardClient({
                   {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
                 </div>
               )}
-              <div className="absolute right-0 top-0 flex flex-col items-end gap-1.5">
+              <div className="absolute right-0 top-0 flex flex-row items-center gap-2">
+                <button onClick={() => setShowOptions(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                  style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                  Options
+                </button>
                 {(isMixedGroups ? scorecardGroupId : scorecardTeamId) ? (
                   <a href={isMixedGroups ? `/${orgSlug}/score/group/${scorecardGroupId}` : `/${orgSlug}/score/${scorecardTeamId}`}
                     className="text-xs px-3 py-1.5 rounded-lg font-semibold"
@@ -1910,11 +1915,6 @@ export default function LeaderboardClient({
                     Enter Pin
                   </button>
                 )}
-                <button onClick={() => setShowOptions(true)}
-                  className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
-                  style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                  Options
-                </button>
               </div>
             </div>
           )}
