@@ -340,9 +340,11 @@ export function calculatePoolPayouts(
   numDecidedResults: number
   settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[]
 } {
-  const totalPlayers = players.length
+  const teamIdSet = new Set(teams.map((t) => t.id))
+  const teamPlayers = players.filter((p) => teamIdSet.has(p.team_id))
+  const totalPlayers = teamPlayers.length
   const playerNet: Record<string, number> = {}
-  for (const p of players) playerNet[p.id] = 0
+  for (const p of teamPlayers) playerNet[p.id] = 0
 
   const results: BallHalfResult[] = []
   const halves: Array<['Front 9' | 'Back 9' | 'Total 18', Map<string, TeamBallSummary>]> = [
@@ -386,11 +388,11 @@ export function calculatePoolPayouts(
 
         if (perBallValue > 0 && totalPlayers > 0) {
           const resultPot = perBallValue * totalPlayers
-          const winningPlayers = players.filter((p) => p.team_id === winner.id)
+          const winningPlayers = teamPlayers.filter((p) => p.team_id === winner.id)
           const numWinners = winningPlayers.length
 
           // Every player contributes perBallValue
-          for (const p of players) playerNet[p.id] -= perBallValue
+          for (const p of teamPlayers) playerNet[p.id] -= perBallValue
           // Winning team's players split the pot
           if (numWinners > 0) {
             const share = resultPot / numWinners
@@ -406,7 +408,7 @@ export function calculatePoolPayouts(
   const potTotal = perPlayerContribution * totalPlayers
 
   // Minimize settlements using greedy matching of biggest winner vs biggest loser
-  const balances = players.map((p) => ({ id: p.id, name: p.name, bal: playerNet[p.id] ?? 0 }))
+  const balances = teamPlayers.map((p) => ({ id: p.id, name: p.name, bal: playerNet[p.id] ?? 0 }))
   const pos = balances.filter((b) => b.bal > 0.001).sort((a, b) => b.bal - a.bal)
   const neg = balances.filter((b) => b.bal < -0.001).sort((a, b) => a.bal - b.bal)
   const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
