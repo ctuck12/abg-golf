@@ -1090,12 +1090,9 @@ export default function LeaderboardClient({
               {/* ── Ball Results (collapsible) ── */}
               {!isDaytona && !isTraditional && (
                 <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
-                  <button onClick={() => setShowBallResults((v) => !v)} className="w-full flex items-start justify-between px-4 py-3 text-left">
-                    <div>
-                      <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
-                      <p className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
-                    </div>
-                    <span className="text-gray-400 text-xs flex-shrink-0 ml-2 mt-0.5">{showBallResults ? '▲ Hide' : '▼ Show'}</span>
+                  <button onClick={() => setShowBallResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                    <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
+                    <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{showBallResults ? '▲ Hide' : '▼ Show'}</span>
                   </button>
                   {showBallResults && <div className="border-t border-gray-100">
                     <div className="px-4 pt-3 pb-3">
@@ -1134,6 +1131,8 @@ export default function LeaderboardClient({
                         const vpStr = (vp: number | null) => vp == null ? '' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                         return (
                           <>
+                            {/* Game info */}
+                            <p className="text-xs text-gray-500 mb-3">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
                             {/* Balls tally */}
                             {tallyEntries.length > 0 && (
                               <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3">
@@ -1223,26 +1222,25 @@ export default function LeaderboardClient({
                         return (
                           <div className="space-y-2">
                             <div className="text-xs text-gray-500 space-y-0.5">
-                              <div className="whitespace-nowrap overflow-x-auto"><span className="font-semibold text-gray-700">${potTotal.toFixed(2)}</span> total pot <span className="text-gray-400">({totalPlayers} players × ${perPlayerContribution.toFixed(2)}/player)</span></div>
-                              <div className="whitespace-nowrap overflow-x-auto"><span className="font-semibold text-gray-700">${perBallResult.toFixed(2)}</span>/ball <span className="text-gray-400">(${potTotal.toFixed(2)} ÷ {numPlayedResults} ball{numPlayedResults !== 1 ? 's' : ''} played)</span></div>
+                              <div><span className="font-semibold text-gray-700">${potTotal.toFixed(2)}</span> total pot <span className="text-gray-400">({totalPlayers} players × ${perPlayerContribution.toFixed(2)}/player)</span></div>
+                              <div><span className="font-semibold text-gray-700">${perBallResult.toFixed(2)}</span>/ball <span className="text-gray-400">(${potTotal.toFixed(2)} ÷ {numPlayedResults} ball{numPlayedResults !== 1 ? 's' : ''} played)</span></div>
                             </div>
-                            <div className="mt-2 space-y-1">
+                            <div className="mt-2 space-y-2">
                               {breakdown.map((e) => {
                                 const winnings = e.balls * perBallResult
                                 const grossPerPlayer = e.playerCount > 0 ? winnings / e.playerCount : 0
                                 const netPerPlayer = grossPerPlayer - perPlayerContribution
                                 return (
-                                  <div key={e.name} className="overflow-x-auto">
-                                    <div className="grid grid-cols-[5rem_1fr] items-baseline gap-x-2 text-xs whitespace-nowrap min-w-0">
+                                  <div key={e.name} className="border-b border-gray-50 last:border-0 pb-1.5 last:pb-0">
+                                    <div className="flex items-center justify-between text-xs mb-0.5">
                                       <span className="font-semibold" style={{ color: navy }}>{e.name}</span>
-                                      <span className="text-gray-500">
-                                        {e.balls} Ball{e.balls > 1 ? 's' : ''} × ${perBallResult.toFixed(0)} = <span className="text-gray-700 font-medium">${winnings.toFixed(2)}</span> ÷ {e.playerCount} = <span className="text-gray-700 font-medium">${grossPerPlayer.toFixed(2)}/player</span>
-                                        {' · '}
-                                        <span className="font-bold" style={{ color: netPerPlayer > 0 ? '#16a34a' : netPerPlayer < 0 ? '#dc2626' : '#6b7280' }}>
-                                          {fmtNetSigned(netPerPlayer)} net
-                                        </span>
+                                      <span className="font-bold" style={{ color: netPerPlayer > 0 ? '#16a34a' : netPerPlayer < 0 ? '#dc2626' : '#6b7280' }}>
+                                        {fmtNetSigned(netPerPlayer)} net
                                       </span>
                                     </div>
+                                    <p className="text-[10px] text-gray-500 leading-snug">
+                                      {e.balls} Ball{e.balls > 1 ? 's' : ''} × ${perBallResult.toFixed(0)} = <span className="text-gray-700">${winnings.toFixed(2)}</span> ÷ {e.playerCount} = <span className="text-gray-700">${grossPerPlayer.toFixed(2)}/player</span>
+                                    </p>
                                   </div>
                                 )
                               })}
