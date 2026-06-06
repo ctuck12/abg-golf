@@ -1922,10 +1922,10 @@ export default function LeaderboardClient({
       </header>
 
       <div className="max-w-lg mx-auto px-4 pt-3">
-        <div className="flex items-center justify-between mb-0.5">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-gray-900">Leaderboard</h2>
           {(!isMixedGroups || mixedTab === 'team') && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500" style={{ marginRight: '2px' }}>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500" style={{ marginRight: '12px' }}>
               <span className={`w-2 h-2 rounded-full inline-block${isComplete ? ' bg-red-500' : ' bg-green-500 animate-pulse'}`} />
               {isComplete ? 'Complete' : 'Live'}
             </div>
@@ -2051,14 +2051,6 @@ export default function LeaderboardClient({
               style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
               All Scorecards
             </a>
-          )}
-          {leaderboardView === 'individual' && (
-            <button
-              onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
-              className="font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
-              All Scorecards
-            </button>
           )}
         </div>
 
@@ -2371,9 +2363,16 @@ export default function LeaderboardClient({
                 </div>
               </>
             ) : (
-              <div className="flex items-center px-4 py-2.5 text-xs font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.6)' }}>
+              <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 <span className="w-5 mr-2 flex-shrink-0">#</span>
                 <span className="flex-1 min-w-0">Player</span>
+                {leaderboardView === 'individual' && (
+                  <button
+                    onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
+                    style={{ background: 'rgba(245,158,11,0.2)', border: '1px solid #f59e0b', color: '#f59e0b', fontSize: '10px', padding: '3px 9px', borderRadius: '999px', fontWeight: 600, flexShrink: 0, marginRight: '8px', textTransform: 'none', letterSpacing: 'normal' }}>
+                    All Scorecards
+                  </button>
+                )}
                 <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>{isDaytona && leaderboardView === 'group' ? 'Points' : 'Score'}</span>
                 <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
               </div>
