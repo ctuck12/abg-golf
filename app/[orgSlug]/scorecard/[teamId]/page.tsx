@@ -25,7 +25,7 @@ export default async function OrgScorecardPage({ params }: { params: Promise<{ o
   if (!round || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
   const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', round.id)
-  const scorecardTeamId = (allTeams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? (isAdmin ? teamId : null)
+  const scorecardTeamId = (allTeams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
 
   const { data: players } = await sb.from('players').select('id, name').eq('team_id', teamId).order('name')
   const playerIds = (players ?? []).map((p) => p.id)
