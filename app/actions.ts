@@ -551,15 +551,14 @@ export async function saveBankerBets(roundId: string, teamId: string, holeNumber
   return { success: true }
 }
 
-export async function saveHoleStrokes(roundId: string, holeNumber: number, playerIds: string[]) {
+export async function saveHoleStrokes(roundId: string, holeNumber: number, playerIds: string[], scopeToPlayerIds?: string[]) {
   const supabase = createServerClient()
-  // Delete existing strokes for this hole in this round, then re-insert
-  const { data: roundPlayers } = await supabase
-    .from('players')
-    .select('id')
-    .in('id', playerIds.length > 0 ? playerIds : [''])
-  const ids = (roundPlayers ?? []).map((p: { id: string }) => p.id)
-  await supabase.from('hole_strokes').delete().eq('round_id', roundId).eq('hole_number', holeNumber)
+  // Scope the delete to only the current group's players to avoid clearing strokes for other groups in the same round
+  if (scopeToPlayerIds && scopeToPlayerIds.length > 0) {
+    await supabase.from('hole_strokes').delete().eq('round_id', roundId).eq('hole_number', holeNumber).in('player_id', scopeToPlayerIds)
+  } else {
+    await supabase.from('hole_strokes').delete().eq('round_id', roundId).eq('hole_number', holeNumber)
+  }
   if (playerIds.length > 0) {
     await supabase.from('hole_strokes').insert(
       playerIds.map((pid) => ({ round_id: roundId, hole_number: holeNumber, player_id: pid }))

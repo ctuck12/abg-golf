@@ -476,7 +476,7 @@ export default function ScoreEntry({
     await saveBankerHole(roundId, team.id, holeNumber, bankerPlayerId, maxBet)
     if (bankerPlayerId !== prevBankerId) {
       setHoleStrokes((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
-      await saveHoleStrokes(roundId, holeNumber, [])
+      await saveHoleStrokes(roundId, holeNumber, [], players.map((p) => p.id))
     }
   }
   async function handleSaveBankerBets(holeNumber: number, bets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>) {
@@ -556,7 +556,7 @@ export default function ScoreEntry({
     const updated = { ...holeStrokes, [holeNumber]: next }
     setHoleStrokes(updated)
     setStrokesPending(true)
-    await saveHoleStrokes(roundId, holeNumber, next)
+    await saveHoleStrokes(roundId, holeNumber, next, players.map((p) => p.id))
     setStrokesPending(false)
   }
   const [showEnterPinModal, setShowEnterPinModal] = useState(false)

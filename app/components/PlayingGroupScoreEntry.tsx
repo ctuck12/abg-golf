@@ -281,7 +281,7 @@ export default function PlayingGroupScoreEntry({
     const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
     setHoleStrokes((prev) => ({ ...prev, [holeNumber]: next }))
     setStrokesPending(true)
-    await saveHoleStrokes(roundId, holeNumber, next)
+    await saveHoleStrokes(roundId, holeNumber, next, players.map((p) => p.id))
     setStrokesPending(false)
   }
 
@@ -361,7 +361,7 @@ export default function PlayingGroupScoreEntry({
     await saveBankerHole(roundId, groupId, holeNumber, bankerPlayerId, maxBet)
     if (bankerPlayerId !== prevBankerId) {
       setHoleStrokes((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
-      await saveHoleStrokes(roundId, holeNumber, [])
+      await saveHoleStrokes(roundId, holeNumber, [], players.map((p) => p.id))
     }
   }
   async function handleSaveBankerBets(holeNumber: number, bets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>) {

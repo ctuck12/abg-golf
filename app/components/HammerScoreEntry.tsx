@@ -177,7 +177,7 @@ export default function HammerScoreEntry({
     const current = holeStrokes[holeNumber] ?? []
     const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
     setHoleStrokes((prev) => ({ ...prev, [holeNumber]: next }))
-    await saveHoleStrokes(roundId, holeNumber, next)
+    await saveHoleStrokes(roundId, holeNumber, next, allPlayers.map((p) => p.id))
   }
 
   async function getAutoStrokes(holeNumber: number): Promise<string[]> {
@@ -519,7 +519,7 @@ export default function HammerScoreEntry({
                     <button type="button" onClick={async () => {
                       const auto = await getAutoStrokes(hole.hole_number)
                       setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: auto }))
-                      saveHoleStrokes(roundId, hole.hole_number, auto)
+                      saveHoleStrokes(roundId, hole.hole_number, auto, allPlayers.map((p) => p.id))
                     }} className="text-xs text-blue-500 hover:text-blue-700">Auto-fill handicap strokes</button>
                   )}
 
