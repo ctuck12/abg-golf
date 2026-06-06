@@ -1093,7 +1093,7 @@ export default function LeaderboardClient({
                   <button onClick={() => setShowBallResults((v) => !v)} className="w-full flex items-start justify-between px-4 py-3 text-left">
                     <div>
                       <h4 className="font-semibold text-gray-900 text-sm">Ball Results</h4>
-                      <p className="text-xs text-gray-400 mt-0.5">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
+                      <p className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
                     </div>
                     <span className="text-gray-400 text-xs flex-shrink-0 ml-2 mt-0.5">{showBallResults ? '▲ Hide' : '▼ Show'}</span>
                   </button>
@@ -1638,22 +1638,22 @@ export default function LeaderboardClient({
               <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <h4 className="font-semibold text-gray-900 text-sm mb-1.5">Combined Settlements</h4>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-nowrap gap-1 overflow-x-auto">
                     {!isDaytona && !isTraditional && (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Ball Results</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Balls</span>
                     )}
                     {isDaytona && (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Daytona Results</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Daytona</span>
                     )}
                     {!isDaytona && (standardGroupRows.some((g) => g.hasDaytona) || traditionalGroupRows.some((g) => g.hasDaytona)) && (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Daytona Results</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Daytona</span>
                     )}
                     {standardGroupRows.some((g) => g.hasBanker) && (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Banker Results</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Banker</span>
                     )}
-                    <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Matchup Results</span>
+                    <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Matchups</span>
                     {skinsEnabled && (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Skins Game</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Skins</span>
                     )}
                   </div>
                 </div>
