@@ -1135,18 +1135,18 @@ export default function LeaderboardClient({
                             <p className="text-xs text-gray-500 mb-3">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
                             {/* Balls tally */}
                             {tallyEntries.length > 0 && (
-                              <div className="flex flex-wrap gap-2 mb-4">
+                              <div className="flex flex-nowrap gap-1.5 mb-3 overflow-x-auto">
                                 {tallyEntries.map((e) => (
-                                  <div key={e.name} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5">
-                                    <span className="text-sm font-bold" style={{ color: navy }}>{e.name}</span>
-                                    <span className="text-sm font-semibold" style={{ color: gold }}>{e.balls}</span>
-                                    <span className="text-xs text-gray-500">Ball{e.balls !== 1 ? 's' : ''}</span>
+                                  <div key={e.name} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 flex-shrink-0">
+                                    <span className="text-xs font-bold whitespace-nowrap" style={{ color: navy }}>{e.name}</span>
+                                    <span className="text-xs font-bold" style={{ color: gold }}>{e.balls}</span>
+                                    <span className="text-[10px] text-gray-500 whitespace-nowrap">Ball{e.balls !== 1 ? 's' : ''}</span>
                                   </div>
                                 ))}
                               </div>
                             )}
                             {/* Table header */}
-                            <div className={`grid ${colClass} text-xs font-bold uppercase tracking-wide text-gray-400 pb-2 border-b-2 border-gray-200`}>
+                            <div className={`grid ${colClass} text-[10px] font-bold uppercase tracking-wide text-gray-400 pb-1.5 border-b border-gray-200`}>
                               <span>Ball</span>
                               <span>Front 9</span>
                               <span>Back 9</span>
@@ -1159,28 +1159,28 @@ export default function LeaderboardClient({
                               const total = includeTotal ? ballResults.find((r) => r.ball === bi + 1 && r.half === 'Total 18') : undefined
                               const segs = includeTotal ? [front, back, total] : [front, back]
                               const renderCell = (result: typeof front) => {
-                                if (!result || !result.played) return <span className="text-base text-gray-300">–</span>
+                                if (!result || !result.played) return <span className="text-sm text-gray-300">–</span>
                                 if (result.tied) {
                                   const { names, vsPar } = getTiedInfo(result)
                                   const vs = vpStr(vsPar)
                                   return (
-                                    <span className="flex items-baseline gap-1.5 min-w-0">
-                                      <span className="text-base font-bold truncate" style={{ color: navy }}>{names.join(' / ')}</span>
-                                      {vs && <span className="text-sm font-semibold flex-shrink-0" style={{ color: vpColor(vsPar) }}>{vs}</span>}
+                                    <span className="flex items-baseline gap-1 min-w-0">
+                                      <span className="text-sm font-semibold truncate" style={{ color: navy }}>{names.join(' / ')}</span>
+                                      {vs && <span className="text-xs font-medium flex-shrink-0" style={{ color: vpColor(vsPar) }}>{vs}</span>}
                                     </span>
                                   )
                                 }
                                 const vp = result.winnerVsPar
                                 const vs = vpStr(vp)
                                 return (
-                                  <span className="flex items-baseline gap-1.5 min-w-0">
-                                    <span className="text-base font-bold truncate" style={{ color: navy }}>{result.winnerName}</span>
-                                    {vs && <span className="text-sm font-semibold flex-shrink-0" style={{ color: vpColor(vp) }}>{vs}</span>}
+                                  <span className="flex items-baseline gap-1 min-w-0">
+                                    <span className="text-sm font-semibold truncate" style={{ color: navy }}>{result.winnerName}</span>
+                                    {vs && <span className="text-xs font-medium flex-shrink-0" style={{ color: vpColor(vp) }}>{vs}</span>}
                                   </span>
                                 )
                               }
                               return (
-                                <div key={bi} className={`grid ${colClass} items-center py-3 border-b border-gray-100 last:border-0`}>
+                                <div key={bi} className={`grid ${colClass} items-center py-2 border-b border-gray-50 last:border-0`}>
                                   <span className="text-xs font-bold uppercase tracking-wide" style={{ color: gold }}>{BALL_NAMES[bi]}</span>
                                   {segs.map((result, hi) => <div key={hi}>{renderCell(result)}</div>)}
                                 </div>
