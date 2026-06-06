@@ -1430,8 +1430,21 @@ export default function LeaderboardClient({
               {/* ── Combined Settlements ── */}
               <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100">
-                  <h4 className="font-semibold text-gray-900 text-sm">Combined Settlements</h4>
-                  <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game + all matchup bets' : isTraditional ? 'All matchup bets' : 'Ball game + all matchup bets'}{!isDaytona && (standardGroupRows.some((g) => g.hasDaytona) || traditionalGroupRows.some((g) => g.hasDaytona)) ? ' + Daytona side game' : ''}{standardGroupRows.some((g) => g.hasBanker) ? ' + Banker side game' : ''}{skinsEnabled ? ' + skins' : ''}</p>
+                  <h4 className="font-semibold text-gray-900 text-sm mb-1.5">Combined Settlements</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {(isDaytona ? ['Daytona', 'Matchup bets'] : isTraditional ? ['Matchup bets'] : ['Ball game', 'Matchup bets']).map((label) => (
+                      <span key={label} className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">{label}</span>
+                    ))}
+                    {!isDaytona && (standardGroupRows.some((g) => g.hasDaytona) || traditionalGroupRows.some((g) => g.hasDaytona)) && (
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Daytona side game</span>
+                    )}
+                    {standardGroupRows.some((g) => g.hasBanker) && (
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Banker side game</span>
+                    )}
+                    {skinsEnabled && (
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Skins</span>
+                    )}
+                  </div>
                 </div>
                 {/* Net positions */}
                 <div className="px-4 pt-3 pb-2">
