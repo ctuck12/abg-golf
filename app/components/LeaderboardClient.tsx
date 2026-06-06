@@ -1620,7 +1620,7 @@ export default function LeaderboardClient({
                   </button>
                 </div>
               )}
-              <div className="px-4 py-4 space-y-5">
+              <div className="px-4 py-4"><div className="overflow-x-auto"><div style={{ minWidth: '600px' }} className="space-y-3">
                 {filteredRows.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No players.</p>}
                 {(groupHasDaytona && holePtsMaps.size > 0
                   ? [...filteredRows].sort((a, b) => {
@@ -1671,8 +1671,8 @@ export default function LeaderboardClient({
                           <span>Total: <span style={{ color: vpC(totalVspar) }}>{fmtV(totalVspar)}</span></span>
                         </div>
                       </div>
-                      <div className="overflow-x-auto bg-white">
-                        <table className="border-collapse" style={{ minWidth: '560px', width: '100%', tableLayout: 'fixed' }}>
+                      <div className="bg-white">
+                        <table className="border-collapse" style={{ width: '100%', tableLayout: 'fixed' }}>
                           <thead style={{ borderTop: '1px solid #e5e7eb' }}>
                             <tr>
                               <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.6rem', width: '3.5rem', ...stickyFirstTh }}>HOLE</th>
@@ -1834,7 +1834,7 @@ export default function LeaderboardClient({
                     </div>
                   )
                 })}
-              </div>
+              </div></div></div>
               <div className="h-6" />
             </div>
           </div>
