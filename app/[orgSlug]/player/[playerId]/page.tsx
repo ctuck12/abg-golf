@@ -30,6 +30,8 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
 
   const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', round.id)
   const scorecardTeamId = (allTeams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? (isAdmin ? team.id : null)
+  const groupAuthCookie = cookieStore.getAll().find((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
+  const scorecardGroupId = groupAuthCookie ? groupAuthCookie.name.replace('playing_group_auth_', '') : null
 
   const [{ data: holes }, { data: scores }, { data: holeStrokesRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
@@ -85,6 +87,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
       isAdmin={isAdmin}
       strokeHoles={strokeHoles}
       scorecardTeamId={scorecardTeamId}
+      scorecardGroupId={scorecardGroupId}
     />
   )
 }

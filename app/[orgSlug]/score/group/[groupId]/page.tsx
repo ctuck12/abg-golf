@@ -14,11 +14,11 @@ export default async function PlayingGroupScorecardPage({
   const { orgSlug, groupId } = await params
   const cookieStore = await cookies()
 
-  if (!cookieStore.get(`playing_group_auth_${groupId}`)?.value) redirect(`/${orgSlug}`)
-
   const auth = await getOrgAuth(orgSlug)
   if (!auth.ok) redirect(`/${orgSlug}`)
   const { orgId, isAdmin, isMaster } = auth
+
+  if (!isAdmin && !isMaster && !cookieStore.get(`playing_group_auth_${groupId}`)?.value) redirect(`/${orgSlug}`)
 
   const sb = createServerClient()
 

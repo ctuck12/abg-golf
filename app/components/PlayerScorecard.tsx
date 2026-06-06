@@ -47,7 +47,7 @@ function ptsColor(pts: number | null): string {
 
 export default function PlayerScorecard({
   orgSlug, orgId, orgName, isMaster = false,
-  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false, strokeHoles = [], scorecardTeamId: scorecardTeamIdProp = null,
+  player, teamName, teamId, holes, scores: initialScores, format = 'standard', dtData, isAdmin = false, strokeHoles = [], scorecardTeamId: scorecardTeamIdProp = null, scorecardGroupId: scorecardGroupIdProp = null,
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   player: { id: string; name: string; handicap?: number | null }
@@ -68,10 +68,12 @@ export default function PlayerScorecard({
   isAdmin?: boolean
   strokeHoles?: number[]
   scorecardTeamId?: string | null
+  scorecardGroupId?: string | null
 }) {
   const [scores, setScores] = useState(initialScores)
   const [allRoundScores, setAllRoundScores] = useState<RoundScore[]>(dtData?.allRoundScores ?? [])
   const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
+  const [scorecardGroupId] = useState<string | null>(scorecardGroupIdProp)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
 
@@ -230,8 +232,8 @@ export default function PlayerScorecard({
             ? <a href={`/${orgSlug}/admin/dashboard`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Hub</a>
             : <a href={`/${orgSlug}/admin`} className="w-full text-center py-3 rounded-xl font-semibold text-sm" style={{ background: navy, color: 'white' }}>Admin Login</a>
           }
-          {scorecardTeamId && (
-            <a href={`/${orgSlug}/score/${scorecardTeamId}`} className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
+          {(scorecardTeamId || scorecardGroupId) && (
+            <a href={scorecardGroupId ? `/${orgSlug}/score/group/${scorecardGroupId}` : `/${orgSlug}/score/${scorecardTeamId}`} className="w-full text-center py-3 rounded-xl font-semibold text-sm border" style={{ borderColor: navy, color: navy }}>
               Enter Scores
             </a>
           )}
@@ -265,10 +267,10 @@ export default function PlayerScorecard({
             </p>
             <h1 className="font-bold text-xl">{player.name}{player.handicap != null && <span className="text-sm font-normal ml-2" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {player.handicap}</span>}</h1>
 
-            {(isAdmin || scorecardTeamId) && (
+            {(isAdmin || scorecardTeamId || scorecardGroupId) && (
               <div className="flex items-center gap-1.5 mt-1">
                 {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
-                {scorecardTeamId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
               </div>
             )}
           </div>
