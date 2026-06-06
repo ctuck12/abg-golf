@@ -1155,7 +1155,7 @@ export default function ScoreEntry({
                   <div key={p.id} className="flex items-center gap-1 text-xs">
                     <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
-                      {amt > 0 ? `+$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : '$0'}
+                      {amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `$${Math.abs(amt).toFixed(2)}` : '$0'}
                     </span>
                   </div>
                 )
@@ -1517,7 +1517,7 @@ export default function ScoreEntry({
                                         <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
                                           <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                           {segments.length === 0 && <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>}
-                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `+$${dollars.toFixed(2)}` : dollars < 0 ? `-$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `$${dollars.toFixed(2)}` : dollars < 0 ? `$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
                                         </div>
                                         {segments.length > 0 && (
                                           <div className="px-4 pb-2 flex gap-x-3" style={{ fontSize: segments.length <= 2 ? '12px' : segments.length === 3 ? '10px' : '9px' }}>
@@ -1526,7 +1526,7 @@ export default function ScoreEntry({
                                                 {seg.label}:{' '}
                                                 <span style={{ color: sp > 0 ? '#16a34a' : sp < 0 ? '#dc2626' : '#6b7280' }}>{sp > 0 ? `+${sp}` : sp}pts</span>
                                                 {' ('}
-                                                <span style={{ color: sd > 0 ? '#16a34a' : sd < 0 ? '#dc2626' : '#6b7280' }}>{sd > 0 ? `+$${sd.toFixed(2)}` : sd < 0 ? `-$${Math.abs(sd).toFixed(2)}` : '$0.00'}</span>
+                                                <span style={{ color: sd > 0 ? '#16a34a' : sd < 0 ? '#dc2626' : '#6b7280' }}>{sd > 0 ? `$${sd.toFixed(2)}` : sd < 0 ? `$${Math.abs(sd).toFixed(2)}` : '$0.00'}</span>
                                                 {')'}
                                               </span>
                                             )})}
@@ -1595,7 +1595,7 @@ export default function ScoreEntry({
                                       return (
                                         <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
                                           <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
-                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span>
+                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span>
                                         </div>
                                       )
                                     })}
@@ -1689,7 +1689,7 @@ export default function ScoreEntry({
                                   <div className="space-y-1">
                                     {[...payoutsData.players].filter((p) => matchupPayoutsResult.involvedIds.has(p.id)).sort((a, b) => (matchupPayoutsResult.net[b.id] ?? 0) - (matchupPayoutsResult.net[a.id] ?? 0)).map((p) => {
                                       const v = Math.round((matchupPayoutsResult.net[p.id] ?? 0) * 100) / 100
-                                      return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700">{p.name}</span><span className="text-xs font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                                      return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700">{p.name}</span><span className="text-xs font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
                                     })}
                                   </div>
                                 </div>
@@ -1714,7 +1714,7 @@ export default function ScoreEntry({
                         <div className="space-y-1">
                           {[...payoutsData.players].sort((a, b) => (combinedNet[b.id] ?? 0) - (combinedNet[a.id] ?? 0)).map((p) => {
                             const v = Math.round((combinedNet[p.id] ?? 0) * 100) / 100
-                            return (<div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0"><span className="text-sm text-gray-900">{p.name}</span><span className="text-sm font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                            return (<div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0"><span className="text-sm text-gray-900">{p.name}</span><span className="text-sm font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
                           })}
                         </div>
                       </div>
@@ -2108,7 +2108,7 @@ export default function ScoreEntry({
                                     let result = 0
                                     if (playerNet < bankerNet) result = effective * bankerMultiplier(playerNet, hole.par)
                                     else if (playerNet > bankerNet) result = -effective * bankerMultiplier(bankerNet, hole.par)
-                                    const label = result === 0 ? 'Push' : result > 0 ? `+$${Math.round(result)}` : `-$${Math.round(Math.abs(result))}`
+                                    const label = result === 0 ? 'Push' : result > 0 ? `$${Math.round(result)}` : `$${Math.round(Math.abs(result))}`
                                     return (
                                       <div key={p.id} className="flex items-center justify-between text-xs">
                                         <span className="text-gray-600">{p.name}</span>

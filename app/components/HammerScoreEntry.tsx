@@ -301,7 +301,7 @@ export default function HammerScoreEntry({
             <div className="flex-1 text-center">
               <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{team1.name}</p>
               <p className="font-bold text-sm" style={{ color: runningTotals.team1 > 0 ? '#4ade80' : runningTotals.team1 < 0 ? '#f87171' : 'rgba(255,255,255,0.6)' }}>
-                {runningTotals.team1 > 0 ? `+$${runningTotals.team1.toFixed(2)}` : runningTotals.team1 < 0 ? `-$${Math.abs(runningTotals.team1).toFixed(2)}` : '$0'}
+                {runningTotals.team1 > 0 ? `$${runningTotals.team1.toFixed(2)}` : runningTotals.team1 < 0 ? `$${Math.abs(runningTotals.team1).toFixed(2)}` : '$0'}
               </p>
             </div>
             <div className="text-center self-center">
@@ -310,7 +310,7 @@ export default function HammerScoreEntry({
             <div className="flex-1 text-center">
               <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{team2.name}</p>
               <p className="font-bold text-sm" style={{ color: runningTotals.team2 > 0 ? '#4ade80' : runningTotals.team2 < 0 ? '#f87171' : 'rgba(255,255,255,0.6)' }}>
-                {runningTotals.team2 > 0 ? `+$${runningTotals.team2.toFixed(2)}` : runningTotals.team2 < 0 ? `-$${Math.abs(runningTotals.team2).toFixed(2)}` : '$0'}
+                {runningTotals.team2 > 0 ? `$${runningTotals.team2.toFixed(2)}` : runningTotals.team2 < 0 ? `$${Math.abs(runningTotals.team2).toFixed(2)}` : '$0'}
               </p>
             </div>
           </div>

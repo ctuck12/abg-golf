@@ -2540,7 +2540,7 @@ export default function MatchupClient({
                           <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0">
                             <span className="text-sm text-gray-900">{p.name}</span>
                             <span className="text-sm font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>
-                              {v > 0 ? `+$${v.toFixed(2)}` : v < 0 ? `-$${Math.abs(v).toFixed(2)}` : 'Even'}
+                              {v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}
                             </span>
                           </div>
                         )
