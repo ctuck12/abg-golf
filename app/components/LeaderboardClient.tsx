@@ -1921,8 +1921,8 @@ export default function LeaderboardClient({
         </div>
       </header>
 
-      <div className="max-w-lg mx-auto px-4 pt-5">
-        <h2 className="text-lg font-bold text-gray-900 mb-2">Leaderboard</h2>
+      <div className="max-w-lg mx-auto px-4 pt-3">
+        <h2 className="text-lg font-bold text-gray-900 mb-0">Leaderboard</h2>
 
 
         {/* Group leaderboard */}
@@ -2009,7 +2009,7 @@ export default function LeaderboardClient({
         {/* Existing leaderboard content (Team tab or non-mixed) */}
         {(!isMixedGroups || mixedTab === 'team') && <>
         {/* Live indicator — above the controls row, right-aligned */}
-        <div className="flex justify-end mb-1">
+        <div className="flex justify-end mb-0.5">
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <span className={`w-2 h-2 rounded-full inline-block${isComplete ? ' bg-red-500' : ' bg-green-500 animate-pulse'}`} />
             {isComplete ? 'Complete' : 'Live'}
@@ -2017,7 +2017,7 @@ export default function LeaderboardClient({
         </div>
 
         {/* Leaderboard view toggles + divider + action buttons — single no-wrap row */}
-        <div className="flex items-center gap-2 mb-3" style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        <div className="flex items-center gap-1.5 mb-3" style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {(isDaytona
             ? [{ view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }]
             : isTraditional
@@ -2029,34 +2029,34 @@ export default function LeaderboardClient({
             <button
               key={view}
               onClick={() => { const v = view as 'group' | 'team' | 'individual'; setLeaderboardView(v); sessionStorage.setItem('leaderboardView', v) }}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition"
+              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition"
               style={{ ...(leaderboardView === view ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }), flexShrink: 0 }}>
               {label}
             </button>
           ))}
-          <div style={{ width: '1px', height: '1.25rem', background: '#e5e7eb', flexShrink: 0, margin: '0 2px' }} />
-          <a href={`/${orgSlug}/matchup`} className="text-xs font-semibold px-4 py-1.5 rounded-full"
-            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0 }}>
+          <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 1px' }} />
+          <a href={`/${orgSlug}/matchup`} className="font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
             Matchups
           </a>
           <button
             onClick={() => setShowPayouts(true)}
-            className="text-xs font-semibold px-4 py-1.5 rounded-full"
-            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0 }}>
+            className="font-semibold px-2.5 py-1 rounded-full"
+            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
             Payouts
           </button>
           {isDaytona && initialTeams.length === 1 && (
             <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
-              className="text-xs font-semibold px-4 py-1.5 rounded-full"
-              style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0 }}>
+              className="font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
               All Scorecards
             </a>
           )}
           {leaderboardView === 'individual' && (
             <button
               onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
-              className="text-xs font-semibold px-4 py-1.5 rounded-full"
-              style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0 }}>
+              className="font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
               All Scorecards
             </button>
           )}
