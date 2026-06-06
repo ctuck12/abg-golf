@@ -383,6 +383,7 @@ export default function LeaderboardClient({
   const [scorecardTeamId, setScorecardTeamId] = useState(scorecardTeamIdProp)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  const [breakdownPlayerId, setBreakdownPlayerId] = useState<string | null>(null)
   const [leaderboardView, setLeaderboardView] = useState<'group' | 'team' | 'individual'>(() => {
     const defaultView = format === 'daytona' ? 'group' : format === 'traditional' ? 'individual' : 'team'
     if (typeof window === 'undefined') return defaultView
@@ -829,10 +830,18 @@ export default function LeaderboardClient({
     : { skins: [] as SkinResult[], playerNet: {} as Record<string, number>, skinsWon: 0, settlements: [] }
 
   // Combined net (ball/daytona + matchups + skins)
+  type PlayerBreakdown = { ball: number; daytona: number; banker: number; matchups: number; skins: number }
+  const playerBreakdown: Record<string, PlayerBreakdown> = {}
+  for (const p of players) playerBreakdown[p.id] = { ball: 0, daytona: 0, banker: 0, matchups: 0, skins: 0 }
   const combinedNet: Record<string, number> = {}
   for (const p of players) {
     const ballNet = (isDaytona || isTraditional) ? 0 : (poolResults.playerNet[p.id] ?? 0)
-    combinedNet[p.id] = ballNet + (matchupPayouts.net[p.id] ?? 0) + (skinsResults.playerNet[p.id] ?? 0)
+    const mNet = matchupPayouts.net[p.id] ?? 0
+    const sNet = skinsResults.playerNet[p.id] ?? 0
+    combinedNet[p.id] = ballNet + mNet + sNet
+    playerBreakdown[p.id].ball = ballNet
+    playerBreakdown[p.id].matchups = mNet
+    playerBreakdown[p.id].skins = sNet
   }
   // For Daytona main format: add daytona per-group net
   if (isDaytona) {
@@ -845,7 +854,10 @@ export default function LeaderboardClient({
       const tHoleVals = liveHoleValues[group.team.id] ?? {}
       const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, group.variant, dtPayoutValue, tHoleVals)
       const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
-      for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
+      for (const [id, amt] of Object.entries(pNet)) {
+        combinedNet[id] = (combinedNet[id] ?? 0) + amt
+        if (playerBreakdown[id]) playerBreakdown[id].daytona += amt
+      }
     }
   }
   // Daytona side game: groups in standardGroupRows or traditionalGroupRows with hasDaytona
@@ -863,7 +875,10 @@ export default function LeaderboardClient({
     const tHoleVals = liveHoleValues[group.id] ?? {}
     const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, variant, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
-    for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
+    for (const [id, amt] of Object.entries(pNet)) {
+      combinedNet[id] = (combinedNet[id] ?? 0) + amt
+      if (playerBreakdown[id]) playerBreakdown[id].daytona += amt
+    }
   }
   for (const group of traditionalGroupRows) {
     if (!group.hasDaytona) continue
@@ -879,13 +894,17 @@ export default function LeaderboardClient({
     const tHoleVals = liveHoleValues[group.team.id] ?? {}
     const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, variant, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
-    for (const [id, amt] of Object.entries(pNet)) combinedNet[id] = (combinedNet[id] ?? 0) + amt
+    for (const [id, amt] of Object.entries(pNet)) {
+      combinedNet[id] = (combinedNet[id] ?? 0) + amt
+      if (playerBreakdown[id]) playerBreakdown[id].daytona += amt
+    }
   }
   // Banker side game
   for (const group of standardGroupRows) {
     if (!group.hasBanker) continue
     for (const [id, amt] of Object.entries(group.bankerTotals)) {
       combinedNet[id] = (combinedNet[id] ?? 0) + amt
+      if (playerBreakdown[id]) playerBreakdown[id].banker += amt
     }
   }
   const combinedSettlements = minimizeSettlements(players, combinedNet)
@@ -1455,7 +1474,14 @@ export default function LeaderboardClient({
                   <div className="space-y-1">
                     {[...players].sort((a, b) => (combinedNet[b.id] ?? 0) - (combinedNet[a.id] ?? 0)).map((p) => {
                       const v = Math.round((combinedNet[p.id] ?? 0) * 100) / 100
-                      return (<div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0"><span className="text-sm text-gray-900 min-w-0 truncate">{p.name}</span><span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                      return (
+                        <div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0">
+                          <span className="text-sm text-gray-900 min-w-0 truncate">{p.name}</span>
+                          <button onClick={() => setBreakdownPlayerId(breakdownPlayerId === p.id ? null : p.id)} className="text-sm font-bold tabular-nums flex-shrink-0 underline decoration-dotted underline-offset-2 cursor-pointer" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280', background: 'none', border: 'none', padding: 0 }}>
+                            {v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}
+                          </button>
+                        </div>
+                      )
                     })}
                   </div>
                 </div>
@@ -1465,6 +1491,54 @@ export default function LeaderboardClient({
                   {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800 min-w-0 truncate"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900 flex-shrink-0">${s.amount.toFixed(2)}</span></div>))}
                 </div>
               </div>
+              {/* Breakdown popup */}
+              {breakdownPlayerId && (() => {
+                const bp = players.find((p) => p.id === breakdownPlayerId)
+                if (!bp) return null
+                const bd = playerBreakdown[bp.id] ?? { ball: 0, daytona: 0, banker: 0, matchups: 0, skins: 0 }
+                const total = Math.round((combinedNet[bp.id] ?? 0) * 100) / 100
+                const bdRows: { label: string; val: number }[] = [
+                  { label: 'Ball Results', val: bd.ball },
+                  { label: 'Daytona Results', val: bd.daytona },
+                  { label: 'Banker Results', val: bd.banker },
+                  { label: 'Matchup Results', val: bd.matchups },
+                  { label: 'Skins Game', val: bd.skins },
+                ].filter((r) => r.val !== 0)
+                return (
+                  <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setBreakdownPlayerId(null)}>
+                    <div className="absolute inset-0 bg-black/30" />
+                    <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 mb-6 sm:mb-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between" style={{ background: '#1e3a5f' }}>
+                        <div>
+                          <p className="text-xs text-blue-200 font-medium uppercase tracking-wide">Combined Breakdown</p>
+                          <p className="text-white font-bold text-base">{bp.name}</p>
+                        </div>
+                        <button onClick={() => setBreakdownPlayerId(null)} className="text-blue-200 hover:text-white text-xl leading-none ml-4">✕</button>
+                      </div>
+                      <div className="px-4 py-3 space-y-2">
+                        {bdRows.length === 0 && <p className="text-sm text-gray-400 text-center py-2">No results yet</p>}
+                        {bdRows.map(({ label, val }) => {
+                          const fv = Math.round(val * 100) / 100
+                          return (
+                            <div key={label} className="flex items-center justify-between text-sm py-1 border-b border-gray-50 last:border-0">
+                              <span className="text-gray-600">{label}</span>
+                              <span className="font-semibold tabular-nums" style={{ color: fv > 0 ? '#16a34a' : '#dc2626' }}>
+                                {fv > 0 ? `+$${fv.toFixed(2)}` : `-$${Math.abs(fv).toFixed(2)}`}
+                              </span>
+                            </div>
+                          )
+                        })}
+                        <div className="flex items-center justify-between text-sm font-bold pt-2 border-t border-gray-200">
+                          <span className="text-gray-900">Total</span>
+                          <span style={{ color: total > 0 ? '#16a34a' : total < 0 ? '#dc2626' : '#6b7280' }}>
+                            {total > 0 ? `+$${total.toFixed(2)}` : total < 0 ? `-$${Math.abs(total).toFixed(2)}` : 'Even'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
             <div className="h-6" />
           </div>
