@@ -1432,17 +1432,21 @@ export default function LeaderboardClient({
                 <div className="px-4 py-3 border-b border-gray-100">
                   <h4 className="font-semibold text-gray-900 text-sm mb-1.5">Combined Settlements</h4>
                   <div className="flex flex-wrap gap-1">
-                    {(isDaytona ? ['Daytona', 'Matchup bets'] : isTraditional ? ['Matchup bets'] : ['Ball game', 'Matchup bets']).map((label) => (
-                      <span key={label} className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">{label}</span>
-                    ))}
+                    {!isDaytona && !isTraditional && (
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Ball Results</span>
+                    )}
+                    {isDaytona && (
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Daytona Results</span>
+                    )}
                     {!isDaytona && (standardGroupRows.some((g) => g.hasDaytona) || traditionalGroupRows.some((g) => g.hasDaytona)) && (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Daytona side game</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Daytona Results</span>
                     )}
                     {standardGroupRows.some((g) => g.hasBanker) && (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Banker side game</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Banker Results</span>
                     )}
+                    <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Matchup Results</span>
                     {skinsEnabled && (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Skins</span>
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs">Skins Game</span>
                     )}
                   </div>
                 </div>
