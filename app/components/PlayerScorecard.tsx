@@ -264,9 +264,7 @@ export default function PlayerScorecard({
               Player Scorecard
             </p>
             <h1 className="font-bold text-xl">{player.name}{player.handicap != null && <span className="text-sm font-normal ml-2" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {player.handicap}</span>}</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              {teamName}
-            </p>
+
             {(isAdmin || scorecardTeamId) && (
               <div className="flex items-center gap-1.5 mt-1">
                 {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}

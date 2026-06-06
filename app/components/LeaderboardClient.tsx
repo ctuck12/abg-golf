@@ -1925,7 +1925,7 @@ export default function LeaderboardClient({
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-gray-900">Leaderboard</h2>
           {(!isMixedGroups || mixedTab === 'team') && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500" style={{ marginRight: '12px' }}>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500" style={{ marginRight: '22px' }}>
               <span className={`w-2 h-2 rounded-full inline-block${isComplete ? ' bg-red-500' : ' bg-green-500 animate-pulse'}`} />
               {isComplete ? 'Complete' : 'Live'}
             </div>
@@ -2369,7 +2369,7 @@ export default function LeaderboardClient({
                 {leaderboardView === 'individual' && (
                   <button
                     onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
-                    style={{ background: 'rgba(245,158,11,0.2)', border: '1px solid #f59e0b', color: '#f59e0b', fontSize: '10px', padding: '3px 9px', borderRadius: '999px', fontWeight: 600, flexShrink: 0, marginRight: '8px', textTransform: 'none', letterSpacing: 'normal' }}>
+                    style={{ background: '#f59e0b', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.4)', fontSize: '10px', padding: '3px 9px', borderRadius: '999px', fontWeight: 700, flexShrink: 0, marginRight: '8px', textTransform: 'none', letterSpacing: 'normal' }}>
                     All Scorecards
                   </button>
                 )}
