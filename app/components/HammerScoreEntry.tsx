@@ -236,6 +236,18 @@ export default function HammerScoreEntry({
     return () => { document.body.style.overflow = '' }
   }, [showOptions, playerPopup])
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {/* Options modal */}
@@ -291,7 +303,7 @@ export default function HammerScoreEntry({
       )}
 
       {/* Header */}
-      <header className="text-white px-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white px-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -336,6 +348,7 @@ export default function HammerScoreEntry({
           </div>
         </div>
       </header>
+      <div ref={spacerRef} />
 
       {/* Hole list */}
       <div className="max-w-lg mx-auto px-4 pt-4 pb-16 space-y-2">

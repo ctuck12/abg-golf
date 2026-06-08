@@ -1278,6 +1278,18 @@ export default function AdminDashboard({
     return () => { document.body.style.overflow = '' }
   }, [showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame])
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
 
@@ -1619,7 +1631,7 @@ export default function AdminDashboard({
       )}
 
       {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} playingGroups={mixedGroups === true ? livePlayingGroups : undefined} />}
-      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Admin</p>
@@ -1657,6 +1669,7 @@ export default function AdminDashboard({
           </div>
         </div>
       </header>
+      <div ref={spacerRef} />
 
       <div className="max-w-2xl mx-auto px-4 pt-4">
 

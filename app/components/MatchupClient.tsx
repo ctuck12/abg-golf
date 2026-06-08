@@ -933,6 +933,18 @@ export default function MatchupClient({
     return () => { document.body.style.overflow = '' }
   }, [showOptions, confirmDelete, strokesPopover, pressPopoverInfo, showDuplicateAlert, showScorecardFor, showPinLogin])
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
 
@@ -1244,7 +1256,7 @@ export default function MatchupClient({
         </div>
       )}
 
-      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
@@ -1271,6 +1283,7 @@ export default function MatchupClient({
           </div>
         </div>
       </header>
+      <div ref={spacerRef} />
 
       {/* Full-width opaque backdrop behind fixed search bar — covers from viewport top to search bar bottom so nothing bleeds through the gap */}
       {fixedSearch && searchQuery && (

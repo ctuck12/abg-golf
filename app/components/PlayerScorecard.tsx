@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ScoreNotation } from './ScoreNotation'
 import { computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, type DaytonaHoleAssignment } from '@/lib/scoring'
@@ -261,10 +261,22 @@ export default function PlayerScorecard({
     return () => { document.body.style.overflow = '' }
   }, [showOptions])
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {optionsPopup}
-      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
@@ -291,6 +303,7 @@ export default function PlayerScorecard({
           </div>
         </div>
       </header>
+      <div ref={spacerRef} />
 
       <div className="max-w-4xl mx-auto px-4 pt-4">
         {/* Summary banner */}

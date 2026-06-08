@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
@@ -188,6 +188,18 @@ export default function AllScorecardsView({
     return () => { document.body.style.overflow = '' }
   }, [showOptions])
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {showOptions && (
@@ -220,7 +232,7 @@ export default function AllScorecardsView({
           </div>
         </div>
       )}
-      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>{isFlares ? '5-Man Flares' : is5Man ? '5-Man Daytona' : 'Daytona'}{dtPayoutValue > 0 ? ` – ${fmtAmt(dtPayoutValue)}/point` : ''}</p>
@@ -250,6 +262,7 @@ export default function AllScorecardsView({
           </div>
         </div>
       </header>
+      <div ref={spacerRef} />
 
       <div className="max-w-4xl mx-auto px-3 py-4 space-y-3 pb-10">
         {rankedPlayers.map((player, rank) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 const navy = '#0f172a'
@@ -238,10 +238,22 @@ export default function MasterDashboard({
     return () => { document.body.style.overflow = '' }
   }, [confirmOrgModal, confirmCourseModal, confirmRoundModal])
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {/* Header */}
-      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-widest font-bold" style={{ color: gold }}>Master Admin</p>
@@ -257,6 +269,7 @@ export default function MasterDashboard({
           </button>
         </div>
       </header>
+      <div ref={spacerRef} />
 
       <div className="max-w-2xl mx-auto px-4 pt-5 pb-16 space-y-5">
         {actionError && (
