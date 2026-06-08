@@ -44,9 +44,12 @@ export default function MasterLanding({ orgs }: { orgs: Org[] }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
       <header className="text-white pb-4 px-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
-        <div className="max-w-sm mx-auto">
-          <div className="flex items-center gap-2.5">
-            <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
+        <div className="max-w-sm mx-auto relative min-h-[72px]">
+          <div
+            className="absolute top-1/2 -translate-y-1/2 flex items-center gap-2.5"
+            style={{ left: 'calc(50% - 125px)' }}
+          >
+            <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden">
               <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
             </div>
             <div>
