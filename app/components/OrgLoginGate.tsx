@@ -46,9 +46,21 @@ export default function OrgLoginGate({
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
-      <header className="text-white py-8 px-4 text-center shadow-md" style={{ background: navy }}>
-        <p className="text-sm font-semibold uppercase tracking-wide" style={{ color: gold }}>{orgName ?? 'Group Login'}</p>
-        <h1 className="text-3xl font-bold text-white mt-1">Login</h1>
+      <header className="text-white pb-4 px-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+        <div className="max-w-sm mx-auto relative min-h-[72px]">
+          <div
+            className="absolute top-1/2 -translate-y-1/2 flex items-center gap-2.5"
+            style={{ left: 'calc(50% - 125px)' }}
+          >
+            <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden">
+              <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest leading-tight" style={{ color: gold }}>{orgName ?? 'Group Login'}</p>
+              <h1 className="text-2xl font-bold leading-tight">Login</h1>
+            </div>
+          </div>
+        </div>
       </header>
 
       <main className="flex-1 flex items-start justify-center px-4 pt-12">
