@@ -52,11 +52,21 @@ export default function OrgAdminLoginForm({ orgSlug, orgName }: { orgSlug: strin
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
-      <header ref={headerRef} className="text-white pb-8 px-4 text-center shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
-        <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
-          {orgName}
-        </p>
-        <h1 className="text-2xl font-bold">Admin Login</h1>
+      <header ref={headerRef} className="text-white pb-4 px-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+        <div className="max-w-sm mx-auto relative min-h-[72px]">
+          <div
+            className="absolute top-1/2 -translate-y-1/2 flex items-center gap-2.5"
+            style={{ left: 'calc(50% - 125px)' }}
+          >
+            <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden">
+              <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-bold uppercase tracking-widest leading-tight" style={{ color: gold }}>{orgName}</p>
+              <h1 className="text-2xl font-bold leading-tight">Admin Login</h1>
+            </div>
+          </div>
+        </div>
       </header>
       <div ref={spacerRef} />
 
