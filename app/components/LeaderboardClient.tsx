@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   computeTeamBallSummary, computePlayerDaytonaPoints,
@@ -11,7 +11,7 @@ import {
 import PinLoginModal from './PinLoginModal'
 import { ScoreNotation } from './ScoreNotation'
 
-type Team = { id: string; name: string; daytona_variant?: string | null; exclude_matchups?: boolean | null }
+type Team = { id: string; name: string; daytona_variant?: string | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -139,7 +139,7 @@ function minimizeSettlements(players: { id: string; name: string }[], net: Recor
   let wi = 0, li = 0
   while (wi < pw.length && li < nw.length) {
     const amount = Math.round(Math.min(pw[wi].bal, -nw[li].bal) * 100) / 100
-    if (Math.round(amount) > 0) out.push({ fromId: nw[li].id, fromName: nw[li].name, toId: pw[wi].id, toName: pw[wi].name, amount })
+    if (amount > 0) out.push({ fromId: nw[li].id, fromName: nw[li].name, toId: pw[wi].id, toName: pw[wi].name, amount })
     pw[wi].bal = Math.round((pw[wi].bal - amount) * 100) / 100; nw[li].bal = Math.round((nw[li].bal + amount) * 100) / 100
     if (pw[wi].bal <= 0.005) wi++; if (nw[li].bal >= -0.005) li++
   }
@@ -301,12 +301,11 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
   return { rows, net, involvedIds }
 }
 
-function ScoreCell({ vp, gold }: { vp: number | null; gold?: boolean }) {
+function ScoreCell({ vp }: { vp: number | null }) {
   if (vp === null) return <span className="text-gray-300">–</span>
-  const val = vp < 0 ? String(vp) : vp === 0 ? 'E' : `+${vp}`
-  if (gold) return <span className="font-semibold" style={{ color: '#b45309' }}>{val}</span>
-  if (vp < 0) return <span className="font-semibold text-red-600">{val}</span>
-  return <span className="font-semibold text-gray-900">{val}</span>
+  if (vp < 0) return <span className="font-semibold text-red-600">{vp}</span>
+  if (vp === 0) return <span className="font-semibold text-gray-900">E</span>
+  return <span className="font-semibold text-gray-900">+{vp}</span>
 }
 
 function vpDisplay(vp: number | null): string {
@@ -321,7 +320,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, excludeMatchups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {},
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {},
 }: {
   orgSlug: string
   orgId: string
@@ -342,8 +341,7 @@ export default function LeaderboardClient({
   scorecardTeamId?: string | null
   scorecardGroupId?: string | null
   isMixedGroups?: boolean
-  excludeMatchups?: boolean
-  playingGroups?: { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null; banker_side_game_min_bet?: number | null; auto_strokes?: boolean | null }[]
+  playingGroups?: { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null; banker_side_game_min_bet?: number | null }[]
   groupPlayerMap?: Record<string, string[]>
   groupHoleStrokes?: Record<number, string[]>
   bankerHolesMap?: Record<string, Record<number, { bankerPlayerId: string | null }>>
@@ -391,7 +389,6 @@ export default function LeaderboardClient({
   const [isAdmin, setIsAdmin] = useState(isAdminProp)
   const [scorecardTeamId, setScorecardTeamId] = useState(scorecardTeamIdProp)
   const [showOptions, setShowOptions] = useState(false)
-  const [rosterPopup, setRosterPopup] = useState<{ name: string; handicap: number | null; frontVP: number | null; backVP: number | null; totalVP: number | null; thru: number } | null>(null)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [breakdownPlayerId, setBreakdownPlayerId] = useState<string | null>(null)
   const [leaderboardView, setLeaderboardView] = useState<'group' | 'team' | 'individual'>(() => {
@@ -453,9 +450,6 @@ export default function LeaderboardClient({
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
-    const bankerGidsForScores = (playingGroups ?? [])
-      .filter((g) => (g as { banker_side_game?: boolean | null }).banker_side_game)
-      .map((g) => g.id)
     async function refetchScores() {
       const { data } = await supabase
         .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
@@ -470,29 +464,6 @@ export default function LeaderboardClient({
             newHoleValues[hv.team_id][hv.hole_number] = hv.value_per_point
           }
           setLiveHoleValues(newHoleValues)
-        }
-      }
-      if (isMixedGroups && roundId && bankerGidsForScores.length > 0) {
-        const [{ data: bHolesData }, { data: bBetsData }] = await Promise.all([
-          supabase.from('banker_holes').select('team_id, hole_number, banker_player_id').eq('round_id', roundId).in('team_id', bankerGidsForScores),
-          supabase.from('banker_bets').select('team_id, hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', roundId).in('team_id', bankerGidsForScores),
-        ])
-        if (bHolesData) {
-          const newHoles: Record<string, Record<number, { bankerPlayerId: string | null }>> = {}
-          for (const bh of bHolesData as { team_id: string; hole_number: number; banker_player_id: string | null }[]) {
-            if (!newHoles[bh.team_id]) newHoles[bh.team_id] = {}
-            newHoles[bh.team_id][bh.hole_number] = { bankerPlayerId: bh.banker_player_id }
-          }
-          setLiveBankerHoles(newHoles)
-        }
-        if (bBetsData) {
-          const newBets: Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>> = {}
-          for (const bb of bBetsData as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
-            if (!newBets[bb.team_id]) newBets[bb.team_id] = {}
-            if (!newBets[bb.team_id][bb.hole_number]) newBets[bb.team_id][bb.hole_number] = {}
-            newBets[bb.team_id][bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled }
-          }
-          setLiveBankerBets(newBets)
         }
       }
     }
@@ -550,20 +521,11 @@ export default function LeaderboardClient({
     }
 
     refetchBankerData()
-    const bankerInterval = setInterval(refetchBankerData, 3000)
     const ch = supabase.channel('banker-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banker_holes' }, refetchBankerData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banker_bets' }, refetchBankerData)
       .subscribe()
-    function onVisibilityChangeBanker() {
-      if (document.visibilityState === 'visible') refetchBankerData()
-    }
-    document.addEventListener('visibilitychange', onVisibilityChangeBanker)
-    return () => {
-      supabase.removeChannel(ch)
-      clearInterval(bankerInterval)
-      document.removeEventListener('visibilitychange', onVisibilityChangeBanker)
-    }
+    return () => { supabase.removeChannel(ch) }
   }, [isMixedGroups, roundId, playingGroups])
 
   // Reset all collapsed-by-default sub-states when Payouts panel is closed
@@ -789,60 +751,20 @@ export default function LeaderboardClient({
           if (hasBanker) {
             const bHoles = liveBankerHoles[pg.id] ?? {}
             const bBets = liveBankerBets[pg.id] ?? {}
-            const pgAutoStrokes = !!(pg as { auto_strokes?: boolean | null }).auto_strokes
-            const pgMinBet = (pg as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
-            const effHcp = (h: number) => Math.max(0, Math.trunc(h))
             for (const pid of pids) bankerTotals[pid] = 0
             for (const hole of holes) {
               const hd = bHoles[hole.hole_number]
               if (!hd?.bankerPlayerId) continue
               const bankerId = hd.bankerPlayerId
-              const bankerPlayer = groupPlayers.find((p) => p.id === bankerId)
-              if (!bankerPlayer) continue
-              const bankerGross = scores.find((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)?.strokes
-              if (bankerGross === undefined) continue
-              // Effective stroke IDs: manual override takes precedence; auto-compute if enabled
-              const manualStrokes = liveHoleStrokes[hole.hole_number]
-              let effIds: string[]
-              if (manualStrokes !== undefined) {
-                effIds = manualStrokes
-              } else if (pgAutoStrokes) {
-                const bHcpVal = bankerPlayer.handicap != null ? effHcp(bankerPlayer.handicap) : null
-                const si = hole.stroke_index ?? 999
-                const playerAutoIds: string[] = bHcpVal != null
-                  ? groupPlayers.filter((p) => {
-                      if (p.id === bankerId) return false
-                      const ph = p.handicap != null ? effHcp(p.handicap) : null
-                      if (ph == null) return false
-                      return ph - bHcpVal > 0 && si <= ph - bHcpVal
-                    }).map((p) => p.id)
-                  : []
-                const bankerReceives = bHcpVal != null && groupPlayers.some((p) => {
-                  if (p.id === bankerId) return false
-                  const ph = p.handicap != null ? effHcp(p.handicap) : null
-                  if (ph == null) return false
-                  return bHcpVal - ph > 0 && si <= bHcpVal - ph
-                })
-                effIds = [...playerAutoIds, ...(bankerReceives ? [bankerId] : [])]
-              } else {
-                effIds = []
-              }
+              const bankerScore = scores.find((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)?.strokes
+              if (bankerScore === undefined) continue
+              const bankerNet = bankerScore - ((liveHoleStrokes[hole.hole_number] ?? []).includes(bankerId) ? 1 : 0)
               for (const pid of pids) {
                 if (pid === bankerId) continue
-                const player = groupPlayers.find((p) => p.id === pid)
-                if (!player) continue
-                const playerGross = scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
-                if (playerGross === undefined) continue
-                const playerNet = playerGross - (effIds.includes(pid) ? 1 : 0)
-                // Per-matchup banker stroke: banker gets stroke only against players where bHcp > pHcp
-                const si = hole.stroke_index ?? 999
-                const bHcp = bankerPlayer.handicap != null ? effHcp(bankerPlayer.handicap) : null
-                const pHcp = player.handicap != null ? effHcp(player.handicap) : null
-                const bankerInStrokes = effIds.includes(bankerId)
-                const bankerStroke = bankerInStrokes && bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
-                const bankerNet = bankerGross - bankerStroke
-                const bet = bBets[hole.hole_number]?.[pid] ?? { baseBet: pgMinBet, playerDoubled: false, bankerDoubled: false }
-                if (bet.baseBet <= 0) continue
+                const ps = scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
+                if (ps === undefined) continue
+                const playerNet = ps - ((liveHoleStrokes[hole.hole_number] ?? []).includes(pid) ? 1 : 0)
+                const bet = bBets[hole.hole_number]?.[pid] ?? { baseBet: 2, playerDoubled: false, bankerDoubled: false }
                 const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
                 let result = 0
                 if (playerNet < bankerNet) result = eff * lbBankerMultiplier(playerNet, hole.par)
@@ -901,11 +823,6 @@ export default function LeaderboardClient({
   }
   const matchupPayouts = computeMatchupPayouts(matchups, bestBallMatchups, players, scoreMapForMatchups, holes)
 
-  // Players whose groups have "Exclude Matchups from Payouts" toggled on
-  const visibleMatchupPayouts = excludeMatchups
-    ? { rows: [], net: {} as Record<string, number>, involvedIds: new Set<string>() }
-    : matchupPayouts
-
   // Hole splits for All Scorecards panel
   const scFrontNine = holes.filter((h) => h.hole_number <= 9).sort((a, b) => a.hole_number - b.hole_number)
   const scBackNine = holes.filter((h) => h.hole_number >= 10).sort((a, b) => a.hole_number - b.hole_number)
@@ -926,7 +843,7 @@ export default function LeaderboardClient({
   const combinedNet: Record<string, number> = {}
   for (const p of players) {
     const ballNet = (isDaytona || isTraditional) ? 0 : (poolResults.playerNet[p.id] ?? 0)
-    const mNet = visibleMatchupPayouts.net[p.id] ?? 0
+    const mNet = matchupPayouts.net[p.id] ?? 0
     const sNet = skinsResults.playerNet[p.id] ?? 0
     combinedNet[p.id] = ballNet + mNet + sNet
     playerBreakdown[p.id].ball = ballNet
@@ -998,7 +915,7 @@ export default function LeaderboardClient({
     }
   }
   const combinedSettlements = minimizeSettlements(players, combinedNet)
-  const matchupOnlySettlements = minimizeSettlements(players, visibleMatchupPayouts.net)
+  const matchupOnlySettlements = minimizeSettlements(players, matchupPayouts.net)
   const numSegments = includeTotal ? 3 : 2
   const ballResults = poolResults.results
 
@@ -1008,24 +925,6 @@ export default function LeaderboardClient({
   const formattedDate = new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
-
-  useEffect(() => {
-    const locked = showOptions || showPayouts || showAllScorecards || !!showPin || !!breakdownPlayerId
-    document.body.style.overflow = locked ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
-  }, [showOptions, showPayouts, showAllScorecards, showPin, breakdownPlayerId])
-
-  const headerRef = useRef<HTMLElement>(null)
-  const spacerRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const header = headerRef.current
-    if (!header) return
-    const ro = new ResizeObserver(() => {
-      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
-    })
-    ro.observe(header)
-    return () => ro.disconnect()
-  }, [])
 
   const scoreColW = '2rem'
   const dtColW = '3rem'
@@ -1101,10 +1000,10 @@ export default function LeaderboardClient({
 
       {showPayouts && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayouts(false)}>
-          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-10" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
-              <h3 className="font-bold text-white text-base">Payouts</h3>
-              <button onClick={() => setShowPayouts(false)} className="text-xl font-bold leading-none" style={{ color: 'rgba(255,255,255,0.7)' }}>×</button>
+          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white">
+              <h3 className="font-bold text-gray-900 text-base">Payouts</h3>
+              <button onClick={() => setShowPayouts(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
             </div>
             <div className="px-4 py-4 space-y-4">
               {/* ── Daytona Results (collapsible) ── */}
@@ -1525,8 +1424,7 @@ export default function LeaderboardClient({
                 </div>
               )}
 
-              {/* ── Matchup Results (collapsible) — hidden when all matchups excluded ── */}
-              {!excludeMatchups ? (
+              {/* ── Matchup Results (collapsible) ── */}
               <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                 <button onClick={() => setShowMatchupResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
                   <span className="text-sm font-semibold text-gray-800">Matchup Results</span>
@@ -1534,10 +1432,10 @@ export default function LeaderboardClient({
                 </button>
                 {showMatchupResults && (
                   <div className="border-t border-gray-100">
-                    {visibleMatchupPayouts.rows.length === 0 ? (
+                    {matchupPayouts.rows.length === 0 ? (
                       <p className="text-xs text-gray-400 text-center py-4">No matchups added yet.</p>
                     ) : (<>
-                      {visibleMatchupPayouts.rows.map((row, rowIdx) => {
+                      {matchupPayouts.rows.map((row, rowIdx) => {
                         const nr = row.nassauResult
                         const fmtAmt = nr ? (nr.amount % 1 === 0 ? String(nr.amount) : nr.amount.toFixed(2)) : ''
                         const overallSeg = !nr && row.segments.length === 1 ? row.segments[0] : null
@@ -1576,7 +1474,7 @@ export default function LeaderboardClient({
                           </div>
                         )
                       })}
-                      {visibleMatchupPayouts.rows.some((r) => r.segments.some((s) => s.settled)) && (
+                      {matchupPayouts.rows.some((r) => r.segments.some((s) => s.settled)) && (
                         <>
                           <div className="border-t-2 border-gray-200 px-4 pt-3 pb-2">
                             <button
@@ -1588,8 +1486,8 @@ export default function LeaderboardClient({
                             </button>
                             {showMatchupNetPositions && (
                               <div className="space-y-1">
-                                {[...players].filter((p) => visibleMatchupPayouts.involvedIds.has(p.id)).sort((a, b) => (visibleMatchupPayouts.net[b.id] ?? 0) - (visibleMatchupPayouts.net[a.id] ?? 0)).map((p) => {
-                                  const v = visibleMatchupPayouts.net[p.id] ?? 0
+                                {[...players].filter((p) => matchupPayouts.involvedIds.has(p.id)).sort((a, b) => (matchupPayouts.net[b.id] ?? 0) - (matchupPayouts.net[a.id] ?? 0)).map((p) => {
+                                  const v = matchupPayouts.net[p.id] ?? 0
                                   return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700 min-w-0 truncate">{p.name}</span><span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{fmtDollars(v)}</span></div>)
                                 })}
                               </div>
@@ -1611,7 +1509,6 @@ export default function LeaderboardClient({
                     </div>
                   )}
                 </div>
-              ) : null}
 
               {/* ── Skins Game Results ── */}
               {skinsEnabled && skinsParticipants.length > 0 && (
@@ -1750,7 +1647,7 @@ export default function LeaderboardClient({
                     {standardGroupRows.some((g) => g.hasBanker) && (
                       <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Banker</span>
                     )}
-                    {!excludeMatchups && <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Matchups</span>}
+                    <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Matchups</span>
                     {skinsEnabled && (
                       <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Skins</span>
                     )}
@@ -1792,15 +1689,15 @@ export default function LeaderboardClient({
                   { label: 'Skins Game', val: bd.skins },
                 ].filter((r) => r.val !== 0)
                 return (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setBreakdownPlayerId(null)}>
+                  <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setBreakdownPlayerId(null)}>
                     <div className="absolute inset-0 bg-black/30" />
-                    <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                      <div className="px-4 py-3 flex items-center justify-between" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+                    <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 mb-6 sm:mb-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between" style={{ background: '#1e3a5f' }}>
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#f59e0b' }}>Combined Breakdown</p>
+                          <p className="text-xs text-blue-200 font-medium uppercase tracking-wide">Combined Breakdown</p>
                           <p className="text-white font-bold text-base">{bp.name}</p>
                         </div>
-                        <button onClick={() => setBreakdownPlayerId(null)} className="text-xl leading-none ml-4" style={{ color: 'rgba(255,255,255,0.7)' }}>✕</button>
+                        <button onClick={() => setBreakdownPlayerId(null)} className="text-blue-200 hover:text-white text-xl leading-none ml-4">✕</button>
                       </div>
                       <div className="px-4 py-3 space-y-2">
                         {bdRows.length === 0 && <p className="text-sm text-gray-400 text-center py-2">No results yet</p>}
@@ -1890,62 +1787,28 @@ export default function LeaderboardClient({
         const holeBankerAmtMap = new Map<number, Map<string, number>>()
         const totalBankerAmtMap = new Map<string, number>()
         if (groupHasBanker) {
-          const scPgAutoStrokes = !!(activePlayingGroup as { auto_strokes?: boolean | null } | null)?.auto_strokes
-          const scEffHcp = (h: number) => Math.max(0, Math.trunc(h))
           for (const hole of [...scFrontNine, ...scBackNine]) {
             const hd = groupBankerHoles[hole.hole_number]
             if (!hd?.bankerPlayerId) continue
             const bankerId = hd.bankerPlayerId
-            const bankerPlayer = groupRows.find((r) => r.player.id === bankerId)?.player
-            if (!bankerPlayer) continue
-            const bankerGross = scores.find((s) => s.player_id === bankerId && s.hole_number === hole.hole_number)?.strokes
-            if (bankerGross === undefined) continue
-            // Mirror leaderboard exactly: manual strokes override, then auto-compute, then none
-            const manualStrokes = liveHoleStrokes[hole.hole_number]
-            const si = hole.stroke_index ?? 999
-            let effIds: string[]
-            if (manualStrokes !== undefined) {
-              effIds = manualStrokes
-            } else if (scPgAutoStrokes) {
-              const bHcpVal = bankerPlayer.handicap != null ? scEffHcp(bankerPlayer.handicap) : null
-              const playerAutoIds: string[] = bHcpVal != null
-                ? groupRows.filter((r) => {
-                    if (r.player.id === bankerId) return false
-                    const ph = r.player.handicap != null ? scEffHcp(r.player.handicap) : null
-                    if (ph == null) return false
-                    return ph - bHcpVal > 0 && si <= ph - bHcpVal
-                  }).map((r) => r.player.id)
-                : []
-              const bankerReceives = bHcpVal != null && groupRows.some((r) => {
-                if (r.player.id === bankerId) return false
-                const ph = r.player.handicap != null ? scEffHcp(r.player.handicap) : null
-                if (ph == null) return false
-                return bHcpVal - ph > 0 && si <= bHcpVal - ph
-              })
-              effIds = [...playerAutoIds, ...(bankerReceives ? [bankerId] : [])]
-            } else {
-              effIds = []
+            const strokeIds = liveHoleStrokes[hole.hole_number] ?? []
+            const netOf = (pid: string) => {
+              const gross = scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
+              return gross === undefined ? undefined : gross - (strokeIds.includes(pid) ? 1 : 0)
             }
+            const bankerNet = netOf(bankerId)
+            if (bankerNet === undefined) continue
             const holeAmts = new Map<string, number>()
             let bankerTotal = 0
             for (const pid of allGroupPids) {
               if (pid === bankerId) continue
-              const player = groupRows.find((r) => r.player.id === pid)?.player
-              if (!player) continue
-              const playerGross = scores.find((s) => s.player_id === pid && s.hole_number === hole.hole_number)?.strokes
-              if (playerGross === undefined) continue
-              const playerNet = playerGross - (effIds.includes(pid) ? 1 : 0)
-              // Per-matchup banker stroke: banker only gets stroke against players where bHcp > pHcp
-              const bHcp = bankerPlayer.handicap != null ? scEffHcp(bankerPlayer.handicap) : null
-              const pHcp = player.handicap != null ? scEffHcp(player.handicap) : null
-              const bankerInStrokes = effIds.includes(bankerId)
-              const bankerStroke = bankerInStrokes && bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
-              const bankerNet = bankerGross - bankerStroke
+              const pNet = netOf(pid)
+              if (pNet === undefined) continue
               const bet = groupBankerBets[hole.hole_number]?.[pid] ?? { baseBet: groupBankerMinBet, playerDoubled: false, bankerDoubled: false }
               const eff = bet.baseBet * (bet.playerDoubled ? 2 : 1) * (bet.bankerDoubled ? 2 : 1)
               let result = 0
-              if (playerNet < bankerNet) result = eff * lbBankerMultiplier(playerNet, hole.par)
-              else if (playerNet > bankerNet) result = -eff * lbBankerMultiplier(bankerNet, hole.par)
+              if (pNet < bankerNet) result = eff * lbBankerMultiplier(pNet, hole.par)
+              else if (pNet > bankerNet) result = -eff * lbBankerMultiplier(bankerNet, hole.par)
               holeAmts.set(pid, result)
               bankerTotal -= result
             }
@@ -1987,18 +1850,18 @@ export default function LeaderboardClient({
         const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
         return (
           <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAllScorecards(false)}>
-            <div className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }} onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-10" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+            <div className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
                 <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="font-bold text-white text-base flex-shrink-0">{activeTeam?.name ?? activePlayingGroup?.name ?? 'All Scorecards'}</h3>
+                  <h3 className="font-bold text-gray-900 text-base flex-shrink-0">{activeTeam?.name ?? activePlayingGroup?.name ?? 'All Scorecards'}</h3>
                   {groupHasDaytona && groupBaseRate > 0 && (
-                    <span className="text-xs flex-shrink-0" style={{ color: 'rgba(255,255,255,0.6)' }}>{gIsFlares ? '5-Man Flares' : gIs5Man ? '5-Man Daytona' : 'Daytona'} – {groupBaseRate % 1 === 0 ? `$${groupBaseRate}` : `$${groupBaseRate.toFixed(2).replace(/^0/, '')}`}/point</span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">{gIsFlares ? '5-Man Flares' : gIs5Man ? '5-Man Daytona' : 'Daytona'} – {groupBaseRate % 1 === 0 ? `$${groupBaseRate}` : `$${groupBaseRate.toFixed(2).replace(/^0/, '')}`}/point</span>
                   )}
                   {groupHasBanker && (
-                    <span className="text-xs flex-shrink-0" style={{ color: 'rgba(255,255,255,0.6)' }}>Banker – ${groupBankerMinBet} min. bet</span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">Banker – ${groupBankerMinBet} min. bet</span>
                   )}
                 </div>
-                <button onClick={() => setShowAllScorecards(false)} className="text-xl font-bold leading-none ml-2" style={{ color: 'rgba(255,255,255,0.7)' }}>×</button>
+                <button onClick={() => setShowAllScorecards(false)} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
               </div>
               {!isGroupView && skinsEnabled && (
                 <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden w-fit mx-4 mt-3">
@@ -2235,50 +2098,85 @@ export default function LeaderboardClient({
         )
       })()}
 
-      <header ref={headerRef} className="text-white pb-4 px-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header className="text-white py-4 px-4 shadow-md" style={{ background: navy }}>
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
-                <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-widest leading-tight" style={{ color: gold }}>{orgName}</p>
+          {viewOnly ? (
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
+                  {orgName}
+                </p>
                 <h1 className="text-lg font-bold leading-tight">{roundName}</h1>
-                {roundCourse && <p className="text-xs leading-tight" style={{ color: 'white' }}>{roundCourse}</p>}
-                <p className="text-xs leading-tight" style={{ color: 'white' }}>{formattedDate}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  {roundCourse && `${roundCourse} · `}{formattedDate}
+                </p>
                 {(isAdmin || scorecardTeamId || scorecardGroupId) && (
-                  <div className="flex items-center gap-1.5 mt-1.5">
+                  <div className="flex items-center gap-1.5 mt-1">
                     {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
                     {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
                   </div>
                 )}
               </div>
-            </div>
-            <div className="flex flex-col items-stretch gap-1.5 flex-shrink-0 ml-3">
-              {(isMixedGroups ? scorecardGroupId : scorecardTeamId) ? (
-                <a href={isMixedGroups ? `/${orgSlug}/score/group/${scorecardGroupId}` : `/${orgSlug}/score/${scorecardTeamId}`}
-                  className="text-xs px-3 py-1.5 rounded-lg font-semibold text-center"
-                  style={{ background: gold, color: navy }}>
-                  {isComplete ? 'Edit Scores' : 'Enter Scores'}
-                </a>
-              ) : (
-                <button onClick={() => setShowPin(true)}
-                  className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                  style={{ background: gold, color: navy }}>
-                  Enter Pin
+              <div className="flex flex-col items-end gap-1.5 mt-0.5 flex-shrink-0">
+                {(isMixedGroups ? scorecardGroupId : scorecardTeamId) ? (
+                  <a href={isMixedGroups ? `/${orgSlug}/score/group/${scorecardGroupId}` : `/${orgSlug}/score/${scorecardTeamId}`}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                    style={{ background: gold, color: navy }}>
+                    {isComplete ? 'Edit Scores' : 'Enter Scores'}
+                  </a>
+                ) : (
+                  <button onClick={() => setShowPin(true)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                    style={{ background: gold, color: navy }}>
+                    Enter Pin
+                  </button>
+                )}
+                <button onClick={() => setShowOptions(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                  style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                  Options
                 </button>
-              )}
-              <button onClick={() => setShowOptions(true)}
-                className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white text-center"
-                style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
-                Options
-              </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="relative text-center">
+              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: gold }}>
+                Anything But Golf Group
+              </p>
+              <h1 className="text-2xl font-bold leading-tight">{roundName}</h1>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                {roundCourse && `${roundCourse} · `}{formattedDate}
+              </p>
+              {(isAdmin || scorecardTeamId || scorecardGroupId) && (
+                <div className="flex items-center justify-center gap-1.5 mt-1">
+                  {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
+                  {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                </div>
+              )}
+              <div className="absolute right-0 top-0 flex flex-col items-end gap-1.5">
+                {(isMixedGroups ? scorecardGroupId : scorecardTeamId) ? (
+                  <a href={isMixedGroups ? `/${orgSlug}/score/group/${scorecardGroupId}` : `/${orgSlug}/score/${scorecardTeamId}`}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                    style={{ background: gold, color: navy }}>
+                    {isComplete ? 'Edit Scores' : 'Enter Scores'}
+                  </a>
+                ) : (
+                  <button onClick={() => setShowPin(true)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                    style={{ background: gold, color: navy }}>
+                    Enter Pin
+                  </button>
+                )}
+                <button onClick={() => setShowOptions(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+                  style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
+                  Options
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </header>
-      <div ref={spacerRef} />
 
       <div className="max-w-lg mx-auto px-4 pt-3">
         <div className="flex items-center justify-between mb-2">
@@ -2424,7 +2322,7 @@ export default function LeaderboardClient({
                     <div className="flex items-center px-4 pt-3 pb-1.5">
                       <div className="flex-1 min-w-0">
                         <span className="text-sm font-bold text-white">{group.team.name}</span>
-                        <span className="ml-2 text-xs" style={{ color: 'white' }}>· Daytona {variantLabel}</span>
+                        <span className="ml-2 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>· Daytona {variantLabel}</span>
                       </div>
                       <a href={`/${orgSlug}/scorecards?teamId=${group.team.id}`}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 ml-2"
@@ -2581,12 +2479,12 @@ export default function LeaderboardClient({
                       <span className="text-sm font-bold text-white flex-1 flex items-center gap-1.5">
                         {group.name}
                         {group.hasDaytona && (
-                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'white' }}>
+                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
                             {group.daytona_variant?.startsWith('5man-flares') ? 'Flares' : 'Daytona'}
                           </span>
                         )}
                         {group.hasBanker && (
-                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'white' }}>
+                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
                             Banker
                           </span>
                         )}
@@ -2693,20 +2591,21 @@ export default function LeaderboardClient({
                   <span className="flex-1 min-w-0" />
                   <span
                     className="inline-flex justify-center flex-shrink-0"
-                    style={{ width: `${ballsCount * 2}rem`, color: 'white' }}>
+                    style={{ width: `${ballsCount * 2}rem`, color: 'rgba(255,255,255,0.45)' }}>
                     Front 9
                   </span>
                   <span className="flex-shrink-0" style={{ width: '0.75rem' }} />
                   <span
                     className="inline-flex justify-center flex-shrink-0"
-                    style={{ width: `${ballsCount * 2}rem`, color: 'white' }}>
+                    style={{ width: `${ballsCount * 2}rem`, color: 'rgba(255,255,255,0.45)' }}>
                     Back 9
                   </span>
                   <span className="flex-shrink-0" style={{ width: '2.75rem' }} />
+                  <span className="flex-shrink-0" style={{ width: '1.5rem' }} />
                 </div>
                 {/* Column labels row */}
                 <div className="flex items-center px-4 pb-2 pt-0.5 text-xs font-semibold uppercase"
-                  style={{ color: 'white' }}>
+                  style={{ color: 'rgba(255,255,255,0.6)' }}>
                   <span className="w-5 mr-2 flex-shrink-0">#</span>
                   <span className="flex-1 min-w-0">Team</span>
                   {Array.from({ length: ballsCount }, (_, i) => (
@@ -2717,10 +2616,11 @@ export default function LeaderboardClient({
                     <span key={`bh${i}`} className="inline-flex justify-center flex-shrink-0" style={{ width: scoreColW, color: gold }}>{i + 1}B</span>
                   ))}
                   <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
+                  <span className="flex-shrink-0" style={{ width: '1.5rem' }} />
                 </div>
               </>
             ) : (
-              <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ color: 'white' }}>
+              <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 <span className="w-5 mr-2 flex-shrink-0">#</span>
                 <span className="flex-1 min-w-0">Player</span>
                 {leaderboardView === 'individual' && (
@@ -2843,38 +2743,26 @@ export default function LeaderboardClient({
                   <div key={row.team.id} className="border-b border-gray-100 last:border-0">
                     <a
                       href={`/${orgSlug}/scorecard/${row.team.id}`}
-                      className="block hover:bg-gray-50 active:bg-gray-200 transition">
-                      {/* Main score line */}
-                      <div className="flex items-center px-4 py-3">
-                        <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
-                          {hasScores ? i + 1 : '–'}
+                      className="w-full flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-200 transition">
+                      <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>
+                        {hasScores ? i + 1 : '–'}
+                      </span>
+                      <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.team.name}</span>
+                      {Array.from({ length: ballsCount }, (_, bi) => (
+                        <span key={`f${bi}`} className="inline-flex justify-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
+                          <ScoreCell vp={row.frontSummary?.ballVsPar[bi] ?? null} />
                         </span>
-                        <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate mr-1">
-                          {row.team.name}
+                      ))}
+                      <span className="flex-shrink-0" style={{ width: '0.75rem' }} />
+                      {Array.from({ length: ballsCount }, (_, bi) => (
+                        <span key={`b${bi}`} className="inline-flex justify-center text-xs flex-shrink-0" style={{ width: scoreColW }}>
+                          <ScoreCell vp={row.backSummary?.ballVsPar[bi] ?? null} />
                         </span>
-                        {Array.from({ length: ballsCount }, (_, bi) => {
-                          const fResult = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Front 9')
-                          const fWon = !!(fResult?.played && !fResult.tied && fResult.winnerId === row.team.id)
-                          return (
-                            <span key={`f${bi}`} className="inline-flex justify-center items-center flex-shrink-0 rounded" style={{ width: scoreColW, background: fWon ? '#fef3c7' : 'transparent' }}>
-                              <ScoreCell vp={row.frontSummary?.ballVsPar[bi] ?? null} gold={fWon} />
-                            </span>
-                          )
-                        })}
-                        <span className="flex-shrink-0" style={{ width: '0.75rem' }} />
-                        {Array.from({ length: ballsCount }, (_, bi) => {
-                          const bResult = ballResults.find((r) => r.ball === bi + 1 && r.half === 'Back 9')
-                          const bWon = !!(bResult?.played && !bResult.tied && bResult.winnerId === row.team.id)
-                          return (
-                            <span key={`b${bi}`} className="inline-flex justify-center items-center flex-shrink-0 rounded" style={{ width: scoreColW, background: bWon ? '#fef3c7' : 'transparent' }}>
-                              <ScoreCell vp={row.backSummary?.ballVsPar[bi] ?? null} gold={bWon} />
-                            </span>
-                          )
-                        })}
-                        <span className="inline-flex justify-center flex-shrink-0 text-sm text-gray-500" style={{ width: '2.75rem' }}>
-                          {thruCount === 0 ? '–' : thruCount === 18 ? 'F' : thruCount}
-                        </span>
-                      </div>
+                      ))}
+                      <span className="inline-flex justify-center text-sm text-gray-500 flex-shrink-0" style={{ width: '2.75rem' }}>
+                        {thruCount === 0 ? '–' : thruCount === 18 ? 'F' : thruCount}
+                      </span>
+                      <span className="inline-flex justify-center text-gray-400 text-xs flex-shrink-0" style={{ width: '1.5rem' }}>›</span>
                     </a>
                   </div>
                 )
@@ -2886,102 +2774,12 @@ export default function LeaderboardClient({
         </div>
         )}
 
-        {leaderboardView === 'team' && !isDaytona && !isTraditional && rows.length > 0 && (
-          <div className="rounded-2xl overflow-hidden shadow-sm border border-gray-200 mt-4">
-            <div className="px-4 py-3" style={{ background: navy }}>
-              <span className="text-white font-bold text-sm uppercase tracking-wide">Rosters</span>
-            </div>
-            {[...rows].sort((a, b) => a.team.name.localeCompare(b.team.name)).map((row) => {
-              const rosterPlayers = players.filter((p) => p.team_id === row.team.id)
-              return (
-                <div key={row.team.id} className="flex items-start gap-3 px-4 py-2.5 border-b border-gray-100 last:border-0">
-                  <span className="font-semibold text-gray-900 text-sm flex-shrink-0 pt-px" style={{ minWidth: '5rem' }}>{row.team.name}</span>
-                  <span className="text-sm text-gray-500 flex flex-wrap gap-x-1 gap-y-0.5">
-                    {rosterPlayers.map((p, idx) => (
-                      <span key={p.id} className="flex items-center gap-1">
-                        {idx > 0 && <span className="text-gray-300 select-none">·</span>}
-                        <button
-                          className="hover:text-gray-900 hover:underline transition-colors"
-                          onClick={() => {
-                            const frontS = scores.filter((s) => s.player_id === p.id && s.hole_number <= 9)
-                            const backS = scores.filter((s) => s.player_id === p.id && s.hole_number >= 10)
-                            const fPar = holes.filter((h) => h.hole_number <= 9 && frontS.some((s) => s.hole_number === h.hole_number)).reduce((a, h) => a + h.par, 0)
-                            const bPar = holes.filter((h) => h.hole_number >= 10 && backS.some((s) => s.hole_number === h.hole_number)).reduce((a, h) => a + h.par, 0)
-                            const frontVP = frontS.length > 0 ? frontS.reduce((a, s) => a + s.strokes, 0) - fPar : null
-                            const backVP = backS.length > 0 ? backS.reduce((a, s) => a + s.strokes, 0) - bPar : null
-                            const totalVP = frontVP === null && backVP === null ? null : (frontVP ?? 0) + (backVP ?? 0)
-                            const thru = new Set(scores.filter((s) => s.player_id === p.id).map((s) => s.hole_number)).size
-                            setRosterPopup({ name: p.name, handicap: p.handicap ?? null, frontVP, backVP, totalVP, thru })
-                          }}
-                        >
-                          {p.name}
-                        </button>
-                      </span>
-                    ))}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
+        <p className="text-center text-xs text-gray-400 mt-3">
+          {(isDaytona || isTraditional) ? 'Tap a player for their scorecard' : 'Tap a team for their scorecard'}
+        </p>
         </>}
       </div>
 
-      {/* Roster player popup */}
-      {rosterPopup && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.45)' }}
-          onClick={() => setRosterPopup(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl mx-4 overflow-hidden"
-            style={{ width: '18rem' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="px-5 py-4" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <p className="text-white font-bold text-base leading-tight">{rosterPopup.name}</p>
-                  {rosterPopup.handicap !== null && (
-                    <span className="text-xs flex-shrink-0" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                      HCP {rosterPopup.handicap < 0 ? `+${Math.abs(rosterPopup.handicap)}` : rosterPopup.handicap}
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => setRosterPopup(null)}
-                  className="text-white opacity-60 hover:opacity-100 transition-opacity text-2xl leading-none font-light"
-                >×</button>
-              </div>
-            </div>
-            {/* Score table */}
-            <div className="px-5 pt-3 pb-4">
-              {/* Column headers */}
-              <div className="flex text-xs font-semibold uppercase mb-1.5" style={{ color: '#9ca3af' }}>
-                {(['Front', 'Back', 'Total', 'Thru'] as const).map((label) => (
-                  <span key={label} className="flex-1 text-center">{label}</span>
-                ))}
-              </div>
-              {/* Values row */}
-              <div className="flex">
-                {[rosterPopup.frontVP, rosterPopup.backVP, rosterPopup.totalVP].map((vp, i) => {
-                  const val = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : String(vp)
-                  const color = vp === null ? '#9ca3af' : vp < 0 ? '#dc2626' : '#111827'
-                  return (
-                    <span key={i} className="flex-1 text-center text-sm font-bold" style={{ color }}>{val}</span>
-                  )
-                })}
-                <span className="flex-1 text-center text-sm font-semibold text-gray-500">
-                  {rosterPopup.thru === 0 ? '–' : rosterPopup.thru === 18 ? 'F' : rosterPopup.thru}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

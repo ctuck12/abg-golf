@@ -5,11 +5,8 @@
   --foreground: #0f172a;
 }
 
-html {
-  background: #f8fafc;
-}
-
 body {
+  background: var(--background);
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
@@ -32,11 +29,6 @@ input[type=number]::-webkit-inner-spin-button {
 }
 input[type=number] {
   -moz-appearance: textfield;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
 }
 
 /* Prevent iOS auto-zoom on focus — triggered when font-size < 16px */
