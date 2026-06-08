@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 type Org = { id: string; name: string; slug: string; is_active: boolean }
@@ -41,9 +41,21 @@ export default function MasterLanding({ orgs }: { orgs: Org[] }) {
 
   const activeOrgs = orgs.filter((o) => o.is_active)
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
-      <header className="text-white pb-4 px-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white pb-4 px-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-sm mx-auto relative min-h-[72px]">
           <div
             className="absolute top-1/2 -translate-y-1/2 flex items-center gap-2.5"
@@ -59,6 +71,7 @@ export default function MasterLanding({ orgs }: { orgs: Org[] }) {
           </div>
         </div>
       </header>
+      <div ref={spacerRef} />
 
       <main className="flex-1 flex items-start justify-center px-4 pt-10">
         <div className="w-full max-w-sm space-y-4">

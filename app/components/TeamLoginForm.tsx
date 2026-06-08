@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useState, useEffect, useRef } from 'react'
 import { teamLogin } from '@/app/actions'
 
 type Team = { id: string; name: string }
@@ -17,9 +17,21 @@ export default function TeamLoginForm({ teams, round }: { teams: Team[]; round: 
     month: 'long', day: 'numeric', year: 'numeric',
   })
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
-      <header className="text-white pb-7 px-4 text-center shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1.75rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white pb-7 px-4 text-center shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1.75rem + env(safe-area-inset-top))' }}>
         <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
           Anything But Golf Group
         </p>
@@ -31,6 +43,7 @@ export default function TeamLoginForm({ teams, round }: { teams: Team[]; round: 
           Playing {ballLabels}
         </p>
       </header>
+      <div ref={spacerRef} />
 
       <main className="max-w-sm mx-auto px-4 pt-8">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">

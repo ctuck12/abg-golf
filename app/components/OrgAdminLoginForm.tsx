@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 const navy = '#0f172a'
@@ -38,14 +38,27 @@ export default function OrgAdminLoginForm({ orgSlug, orgName }: { orgSlug: strin
     }
   }
 
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
-      <header className="text-white pb-8 px-4 text-center shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white pb-8 px-4 text-center shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
         <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
           {orgName}
         </p>
         <h1 className="text-2xl font-bold">Admin Login</h1>
       </header>
+      <div ref={spacerRef} />
 
       <main className="flex-1 flex items-start justify-center px-4 pt-12">
         <div className="w-full max-w-sm">
