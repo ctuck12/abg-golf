@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   computeTeamBallSummary, computePlayerDaytonaPoints,
@@ -1014,6 +1014,18 @@ export default function LeaderboardClient({
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [showOptions, showPayouts, showAllScorecards, showPin, breakdownPlayerId])
+
+  const headerRef = useRef<HTMLElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const ro = new ResizeObserver(() => {
+      if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+    })
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
 
   const scoreColW = '2rem'
   const dtColW = '3rem'
@@ -2223,7 +2235,7 @@ export default function LeaderboardClient({
         )
       })()}
 
-      <header className="text-white pb-4 px-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white pb-4 px-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -2266,6 +2278,7 @@ export default function LeaderboardClient({
           </div>
         </div>
       </header>
+      <div ref={spacerRef} />
 
       <div className="max-w-lg mx-auto px-4 pt-3">
         <div className="flex items-center justify-between mb-2">

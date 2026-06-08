@@ -35,17 +35,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{
           __html: `if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js')`
         }} />
-        <script dangerouslySetInnerHTML={{ __html: `
-(function(){
-  var html=document.documentElement;
-  html.style.background='#0f172a';
-  function upd(){
-    var se=document.scrollingElement||html;
-    html.style.background=se.scrollTop<30?'#0f172a':'#f8fafc';
-  }
-  ['scroll','touchend'].forEach(function(e){window.addEventListener(e,upd,{passive:true});});
-})();
-        `}} />
       </body>
     </html>
   )
