@@ -1642,20 +1642,20 @@ export default function AdminDashboard({
             <div className="flex flex-col gap-2">
               {scorecardTeamId ? (
                 <a href={`/${orgSlug}/score/${scorecardTeamId}`}
-                  className="w-full text-center py-2.5 rounded-xl font-semibold text-sm"
-                  style={{ background: gold, color: navy }}>
+                  className="w-full text-center py-2.5 rounded-xl font-semibold text-sm text-white"
+                  style={{ background: navy }}>
                   {isComplete ? 'Edit Scores' : 'Enter Scores'}
                 </a>
               ) : scorecardGroupId ? (
                 <a href={`/${orgSlug}/score/group/${scorecardGroupId}`}
-                  className="w-full text-center py-2.5 rounded-xl font-semibold text-sm"
-                  style={{ background: gold, color: navy }}>
+                  className="w-full text-center py-2.5 rounded-xl font-semibold text-sm text-white"
+                  style={{ background: navy }}>
                   Enter Scores
                 </a>
               ) : (
                 <button type="button" onClick={() => { setShowOptions(false); setShowPinModal(true) }}
-                  className="w-full py-2.5 rounded-xl font-semibold text-sm"
-                  style={{ background: gold, color: navy }}>
+                  className="w-full py-2.5 rounded-xl font-semibold text-sm text-white"
+                  style={{ background: navy }}>
                   Enter Pin
                 </button>
               )}
