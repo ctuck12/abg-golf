@@ -1,6 +1,6 @@
 {
-  "name": "ABG Golf Group",
-  "short_name": "ABG Golf",
+  "name": "Golf Scoring",
+  "short_name": "Golf Scoring",
   "description": "Anything But Golf Group — live scoring",
   "start_url": "/",
   "display": "standalone",
