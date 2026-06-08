@@ -55,7 +55,7 @@ export default function OrgLoginGate({
             <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden">
               <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
             </div>
-            <div>
+            <div className="text-center">
               <p className="text-xs font-bold uppercase tracking-widest leading-tight" style={{ color: gold }}>{orgName ?? 'Group Login'}</p>
               <h1 className="text-2xl font-bold leading-tight">Login</h1>
             </div>
