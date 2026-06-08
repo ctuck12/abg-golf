@@ -563,6 +563,7 @@ export default function AdminDashboard({
   hammerMatchups?: HammerMatchup[]
 }) {
   const router = useRouter()
+  const [showOptions, setShowOptions] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
@@ -1273,10 +1274,10 @@ export default function AdminDashboard({
   }
 
   useEffect(() => {
-    const locked = showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame
+    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame])
+  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame])
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -1631,41 +1632,72 @@ export default function AdminDashboard({
       )}
 
       {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} playingGroups={mixedGroups === true ? livePlayingGroups : undefined} />}
+      {showOptions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowOptions(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-gray-900">Options</h2>
+              <button onClick={() => setShowOptions(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {scorecardTeamId ? (
+                <a href={`/${orgSlug}/score/${scorecardTeamId}`}
+                  className="w-full text-center py-2.5 rounded-xl font-semibold text-sm"
+                  style={{ background: gold, color: navy }}>
+                  {isComplete ? 'Edit Scores' : 'Enter Scores'}
+                </a>
+              ) : scorecardGroupId ? (
+                <a href={`/${orgSlug}/score/group/${scorecardGroupId}`}
+                  className="w-full text-center py-2.5 rounded-xl font-semibold text-sm"
+                  style={{ background: gold, color: navy }}>
+                  Enter Scores
+                </a>
+              ) : (
+                <button type="button" onClick={() => { setShowOptions(false); setShowPinModal(true) }}
+                  className="w-full py-2.5 rounded-xl font-semibold text-sm"
+                  style={{ background: gold, color: navy }}>
+                  Enter Pin
+                </button>
+              )}
+              {isMaster && (
+                <a href="/master/dashboard"
+                  className="w-full text-center py-2.5 rounded-xl font-semibold text-sm border"
+                  style={{ borderColor: '#f59e0b', color: '#f59e0b' }}>
+                  ← Master Admin
+                </a>
+              )}
+              <form action={adminLogout.bind(null, orgSlug, orgId)}>
+                <button type="submit" className="w-full py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-700">
+                  Sign Out
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Admin</p>
-            <h1 className="font-bold text-lg">{orgName}</h1>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
+              <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Admin Hub</p>
+              <h1 className="font-bold text-lg leading-tight">{orgName}</h1>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {scorecardTeamId ? (
-              <a href={`/${orgSlug}/score/${scorecardTeamId}`}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                style={{ background: gold, color: navy }}>
-                {isComplete ? 'Edit Scores' : 'Enter Scores'}
-              </a>
-            ) : scorecardGroupId ? (
-              <a href={`/${orgSlug}/score/group/${scorecardGroupId}`}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                style={{ background: gold, color: navy }}>
-                Enter Scores
-              </a>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowPinModal(true)}
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-                style={{ background: gold, color: navy }}>
-                Enter Pin
-              </button>
-            )}
-            {isMaster && (
-              <a href="/master/dashboard" className="text-xs px-3 py-1.5 rounded-lg font-semibold border" style={{ borderColor: '#f59e0b', color: '#fbbf24' }}>← Master Admin</a>
-            )}
-            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10 text-white">Leaderboard</a>
-            <form action={adminLogout.bind(null, orgSlug, orgId)}>
-              <button type="submit" className="text-xs px-3 py-1.5 rounded-lg border border-white/30 hover:bg-white/10">Sign out</button>
-            </form>
+          <div className="flex flex-col items-stretch gap-1.5 flex-shrink-0 ml-3">
+            <a href={`/${orgSlug}`}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold text-center"
+              style={{ background: gold, color: navy }}>
+              Leaderboard
+            </a>
+            <button onClick={() => setShowOptions(true)}
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-center"
+              style={{ background: navy, color: '#9ca3af', borderColor: '#4b5563' }}>
+              Options
+            </button>
           </div>
         </div>
       </header>
