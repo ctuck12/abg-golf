@@ -255,9 +255,14 @@ export default function MasterDashboard({
       {/* Header */}
       <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-widest font-bold" style={{ color: gold }}>Master Admin</p>
-            <h1 className="font-bold text-lg">Dashboard</h1>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
+              <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-widest font-bold" style={{ color: gold }}>Master Admin</p>
+              <h1 className="font-bold text-lg">Dashboard</h1>
+            </div>
           </div>
           <button
             onClick={signOut}
