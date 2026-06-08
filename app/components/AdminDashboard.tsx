@@ -24,6 +24,7 @@ import {
   addManualPlayerToGroup,
   removeManualPlayerFromGroup,
   updatePlayingGroupSettings,
+  setRoundExcludeMatchups,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -140,7 +141,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number; exclude_matchups?: boolean } | null
 type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
@@ -617,6 +618,9 @@ export default function AdminDashboard({
   })
   const [showActivateTooltip, setShowActivateTooltip] = useState(false)
   const [resetConfirmTeamId, setResetConfirmTeamId] = useState<string | null>(null)
+  const [roundExcludeMatchups, setRoundExcludeMatchupsState] = useState<boolean>(round?.exclude_matchups ?? false)
+  const [roundExcludeMatchupsSaving, setRoundExcludeMatchupsSaving] = useState(false)
+  const [roundExcludeMatchupsSaved, setRoundExcludeMatchupsSaved] = useState(false)
   const [showAddTeamSuccess, setShowAddTeamSuccess] = useState(false)
   const [newTeamDaytonaType, setNewTeamDaytonaType] = useState('')
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
@@ -1268,6 +1272,12 @@ export default function AdminDashboard({
     }
   }
 
+  useEffect(() => {
+    const locked = showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame
+    document.body.style.overflow = locked ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
 
@@ -1609,7 +1619,7 @@ export default function AdminDashboard({
       )}
 
       {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} playingGroups={mixedGroups === true ? livePlayingGroups : undefined} />}
-      <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
+      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Admin</p>
@@ -2233,6 +2243,35 @@ export default function AdminDashboard({
               </div>
             )}
 
+            {/* ── Matchup Results ── */}
+            {round && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-semibold text-gray-900 text-sm mb-3">Matchup Results</h3>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-600">Exclude from Payouts &amp; Settlements</span>
+                  <button type="button"
+                    disabled={roundExcludeMatchupsSaving}
+                    onClick={async () => {
+                      const newVal = !roundExcludeMatchups
+                      setRoundExcludeMatchupsState(newVal)
+                      setRoundExcludeMatchupsSaving(true)
+                      setRoundExcludeMatchupsSaved(false)
+                      await setRoundExcludeMatchups(round.id, newVal)
+                      setRoundExcludeMatchupsSaving(false)
+                      setRoundExcludeMatchupsSaved(true)
+                      setTimeout(() => setRoundExcludeMatchupsSaved(false), 3000)
+                    }}
+                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition disabled:opacity-40 ${roundExcludeMatchups ? 'bg-red-100 text-red-800 border-red-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                    {roundExcludeMatchupsSaving ? '…' : roundExcludeMatchups ? 'On' : 'Off'}
+                  </button>
+                  {roundExcludeMatchupsSaved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
+                </div>
+                {roundExcludeMatchups && (
+                  <p className="text-xs text-gray-400 mt-2">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
+                )}
+              </div>
+            )}
+
             {/* ── Mixed Groups (standard format only) ── */}
             {round && round.format === 'standard' && (
               <div className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
@@ -2500,6 +2539,7 @@ export default function AdminDashboard({
                           {groupFull && (
                             <p className="text-xs text-gray-400 italic">Group is full (5 players max)</p>
                           )}
+
 
                           {/* ── Side Game settings (only when group has players) ── */}
                           {assignedPlayers.length > 0 && (() => {

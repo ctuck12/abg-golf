@@ -178,10 +178,15 @@ export default function AllScorecardsView({
     color: highlight ? '#1e40af' : undefined,
     fontSize: '0.7rem',
     textAlign: 'center',
-    padding: '0.42rem 0.42rem',
+    padding: '0.45rem 0.45rem',
   })
   const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
   const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
+
+  useEffect(() => {
+    document.body.style.overflow = showOptions ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showOptions])
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
@@ -215,7 +220,7 @@ export default function AllScorecardsView({
           </div>
         </div>
       )}
-      <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
+      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>{isFlares ? '5-Man Flares' : is5Man ? '5-Man Daytona' : 'Daytona'}{dtPayoutValue > 0 ? ` – ${fmtAmt(dtPayoutValue)}/point` : ''}</p>

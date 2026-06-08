@@ -230,6 +230,12 @@ export default function HammerScoreEntry({
 
   const popupPlayer = playerPopup ? allPlayers.find((p) => p.id === playerPopup) : null
 
+  useEffect(() => {
+    const locked = showOptions || !!playerPopup
+    document.body.style.overflow = locked ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showOptions, playerPopup])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {/* Options modal */}
@@ -285,7 +291,7 @@ export default function HammerScoreEntry({
       )}
 
       {/* Header */}
-      <header className="text-white px-4 pt-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy }}>
+      <header className="text-white px-4 pb-3 sticky top-0 z-10 shadow-md" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div>

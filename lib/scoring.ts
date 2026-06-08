@@ -163,7 +163,7 @@ export function calculateDaytonaPayouts(
   while (wi < pos.length && li < neg.length) {
     const w = pos[wi], l = neg[li]
     const amount = Math.min(w.bal, -l.bal)
-    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    if (Math.round(amount) > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
     w.bal -= amount; l.bal += amount
     if (w.bal === 0) wi++; if (l.bal === 0) li++
   }
@@ -309,7 +309,7 @@ export function calculateFrontBackPayouts(
   while (wi < pos.length && li < neg.length) {
     const w = pos[wi], l = neg[li]
     const amount = Math.min(w.bal, -l.bal)
-    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    if (Math.round(amount) > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
     w.bal -= amount
     l.bal += amount
     if (w.bal === 0) wi++
@@ -429,7 +429,7 @@ export function calculatePoolPayouts(
   while (wi < pos.length && li < neg.length) {
     const w = pos[wi], l = neg[li]
     const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
-    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    if (Math.round(amount) > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
     w.bal -= amount
     l.bal += amount
     if (w.bal < 0.001) wi++
@@ -663,7 +663,7 @@ export function settleDaytonaPlayerPoints(
   while (wi < pos.length && li < neg.length) {
     const w = pos[wi], l = neg[li]
     const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
-    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    if (Math.round(amount) > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
     w.bal -= amount
     l.bal += amount
     if (Math.abs(w.bal) < 0.01) wi++
@@ -761,7 +761,7 @@ export function computeSkinsResults(
   while (wi < pos.length && li < neg.length) {
     const w = pos[wi], l = neg[li]
     const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
-    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    if (Math.round(amount) > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
     w.bal -= amount; l.bal += amount
     if (w.bal < 0.005) wi++; if (l.bal > -0.005) li++
   }

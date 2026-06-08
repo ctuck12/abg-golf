@@ -13,12 +13,15 @@ type Props = { strokes: number; par: number; size?: 'sm' | 'md' }
 //   Triple bogey+ (≥+3):   triple square
 export function ScoreNotation({ strokes, par, size = 'md' }: Props) {
   const diff = strokes - par
-  const dim    = size === 'sm' ? '1.25rem' : '1.5rem'
-  const font   = size === 'sm' ? '0.6875rem' : '0.8125rem'
-  const gap    = size === 'sm' ? '1.5px' : '2px'
-  const bw     = size === 'sm' ? '1.5px' : '2px'
+  const dim  = size === 'sm' ? '1.25rem' : '1.5rem'
+  const font = size === 'sm' ? '0.6875rem' : '0.8125rem'
+  const bw   = size === 'sm' ? 1.5 : 2  // px
 
-  const inner: React.CSSProperties = {
+  // All cases share the same fixed-size inline-flex element so text-align:center
+  // in table cells centers every score type identically. Outer rings are rendered
+  // via box-shadow (doesn't affect layout) with a matching margin so the rings
+  // stay within the cell's visual bounds.
+  const base: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     fontWeight: 'bold', width: dim, height: dim, fontSize: font,
     lineHeight: 1, flexShrink: 0,
@@ -26,49 +29,57 @@ export function ScoreNotation({ strokes, par, size = 'md' }: Props) {
 
   if (diff <= -2) {
     return (
-      <span style={{ display: 'inline-block', verticalAlign: 'middle', borderRadius: '50%', border: `${bw} solid #dc2626`, padding: gap }}>
-        <span style={{ ...inner, borderRadius: '50%', border: `${bw} solid #dc2626`, color: '#dc2626' }}>
-          {strokes}
-        </span>
+      <span style={{
+        ...base, borderRadius: '50%',
+        border: `${bw}px solid #dc2626`, color: '#dc2626',
+        boxShadow: `0 0 0 ${bw}px white, 0 0 0 ${bw * 2}px #dc2626`,
+      }}>
+        {strokes}
       </span>
     )
   }
   if (diff === -1) {
     return (
-      <span style={{ ...inner, borderRadius: '50%', border: `${bw} solid #dc2626`, color: '#dc2626' }}>
+      <span style={{ ...base, borderRadius: '50%', border: `${bw}px solid #dc2626`, color: '#dc2626' }}>
         {strokes}
       </span>
     )
   }
   if (diff === 1) {
     return (
-      <span style={{ ...inner, border: `${bw} solid #374151` }}>
+      <span style={{ ...base, border: `${bw}px solid #374151` }}>
         {strokes}
       </span>
     )
   }
   if (diff === 2) {
     return (
-      <span style={{ display: 'inline-block', verticalAlign: 'middle', border: `${bw} solid #374151`, padding: gap }}>
-        <span style={{ ...inner, border: `${bw} solid #374151` }}>
-          {strokes}
-        </span>
+      <span style={{
+        ...base,
+        border: `${bw}px solid #374151`,
+        boxShadow: `0 0 0 ${bw}px white, 0 0 0 ${bw * 2}px #374151`,
+      }}>
+        {strokes}
       </span>
     )
   }
   if (diff >= 3) {
+    // Shrink core by 4*bw so total visual (core + 4 shadow rings) matches double bogey (core + 2 shadow rings)
+    const tripleDim = `calc(${dim} - ${bw * 4}px)`
     return (
-      <span style={{ display: 'inline-block', verticalAlign: 'middle', border: `${bw} solid #374151`, padding: gap }}>
-        <span style={{ display: 'inline-block', verticalAlign: 'middle', border: `${bw} solid #374151`, padding: gap }}>
-          <span style={{ ...inner, border: `${bw} solid #374151` }}>
-            {strokes}
-          </span>
-        </span>
+      <span style={{
+        ...base,
+        width: tripleDim,
+        height: tripleDim,
+        border: `${bw}px solid #374151`,
+        boxShadow: `0 0 0 ${bw}px white, 0 0 0 ${bw * 2}px #374151, 0 0 0 ${bw * 3}px white, 0 0 0 ${bw * 4}px #374151`,
+      }}>
+        {strokes}
       </span>
     )
   }
 
-  return <span style={{ ...inner }}>{strokes}</span>
+  return <span style={{ ...base }}>{strokes}</span>
 }
 
 // Applies the same circle/square notation to a cumulative vs-par value.

@@ -595,7 +595,7 @@ function computeMatchupPayouts(
   let wi = 0, li = 0
   while (wi < pw.length && li < nw.length) {
     const amount = Math.round(Math.min(pw[wi].bal, -nw[li].bal) * 100) / 100
-    if (amount > 0) settlements.push({ fromId: nw[li].id, fromName: nw[li].name, toId: pw[wi].id, toName: pw[wi].name, amount })
+    if (Math.round(amount) > 0) settlements.push({ fromId: nw[li].id, fromName: nw[li].name, toId: pw[wi].id, toName: pw[wi].name, amount })
     pw[wi].bal = Math.round((pw[wi].bal - amount) * 100) / 100
     nw[li].bal = Math.round((nw[li].bal + amount) * 100) / 100
     if (pw[wi].bal <= 0.005) wi++
@@ -730,6 +730,8 @@ export default function MatchupClient({
 
   const [showScorecardFor, setShowScorecardFor] = useState<ScorecardTarget | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const searchWrapperRef = useRef<HTMLDivElement>(null)
+  const [fixedSearch, setFixedSearch] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
   const [showH2HForm, setShowH2HForm] = useState(false)
   const [showBBForm, setShowBBForm] = useState(false)
   const [showPayouts, setShowPayouts] = useState(false)
@@ -737,6 +739,17 @@ export default function MatchupClient({
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' } | null>(null)
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
   const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | null>(null)
+
+  function captureSearchPos() {
+    if (searchWrapperRef.current && !fixedSearch) {
+      const rect = searchWrapperRef.current.getBoundingClientRect()
+      setFixedSearch({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
+    }
+  }
+
+  useEffect(() => {
+    if (!searchQuery) setFixedSearch(null)
+  }, [searchQuery])
 
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
@@ -913,6 +926,13 @@ export default function MatchupClient({
         return false
       })
     : payouts.rows
+
+  useEffect(() => {
+    const locked = showOptions || !!confirmDelete || !!strokesPopover || !!pressPopoverInfo || showDuplicateAlert || !!showScorecardFor || showPinLogin
+    document.body.style.overflow = locked ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showOptions, confirmDelete, strokesPopover, pressPopoverInfo, showDuplicateAlert, showScorecardFor, showPinLogin])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
 
@@ -1087,9 +1107,9 @@ export default function MatchupClient({
       {showScorecardFor && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }}
           onClick={() => setShowScorecardFor(null)}>
-          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto"
+          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }}
             onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-4 sticky top-0" style={{ background: navy }}>
+            <div className="flex items-center justify-between px-4 py-4 sticky top-0" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
               <h3 className="font-bold text-white text-base">
                 {showScorecardFor.type === 'player' ? showScorecardFor.name
                   : showScorecardFor.type === 'h2h' ? `${showScorecardFor.p1Name} vs ${showScorecardFor.p2Name}`
@@ -1224,48 +1244,60 @@ export default function MatchupClient({
         </div>
       )}
 
-      <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
+      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>Matchups</p>
-            <h1 className="font-bold text-lg">{roundName}</h1>
-            {(isAdmin || effectiveScorerId) && (
-              <div className="flex items-center gap-1.5 mt-1">
-                {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
-                {effectiveScorerId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
-            <div className="flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              <span className={`w-2 h-2 rounded-full inline-block ${isComplete ? 'bg-red-500' : 'bg-green-400 animate-pulse'}`} />
-              {isComplete ? 'Complete' : 'Live'}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
+              <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
             </div>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-wide leading-tight" style={{ color: gold }}>Matchups</p>
+              <h1 className="font-bold text-lg leading-tight">{roundName}</h1>
+{(isAdmin || effectiveScorerId) && (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
+                  {effectiveScorerId && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-stretch gap-1.5 flex-shrink-0 ml-3">
+            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold text-center" style={{ background: gold, color: navy }}>Leaderboard</a>
             <button onClick={() => setShowOptions(true)}
-              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white text-center"
               style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
               Options
             </button>
-            <a href={`/${orgSlug}`} className="text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>
 
+      {/* Full-width opaque backdrop behind fixed search bar — covers from viewport top to search bar bottom so nothing bleeds through the gap */}
+      {fixedSearch && searchQuery && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: fixedSearch.top + fixedSearch.height, background: '#f8fafc', zIndex: 8 }} />
+      )}
+
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-5">
 
         {/* ── Search ── */}
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-          <input
-            type="text"
-            placeholder="Search by player name…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
-          )}
+        <div ref={searchWrapperRef} style={fixedSearch && searchQuery ? { height: fixedSearch.height } : undefined}>
+          <div
+            className="relative"
+            style={fixedSearch && searchQuery ? { position: 'fixed', top: fixedSearch.top, left: fixedSearch.left, width: fixedSearch.width, zIndex: 9 } : undefined}
+          >
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              type="text"
+              placeholder="Search by player name…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={captureSearchPos}
+              className="w-full bg-white border border-gray-200 rounded-xl pl-9 pr-4 py-1 text-xs sm:py-1.5 sm:text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            )}
+          </div>
         </div>
 
         {/* ── Head to Head ── */}
@@ -2412,7 +2444,8 @@ export default function MatchupClient({
               <span className="text-sm font-semibold text-gray-800">Matchup Results</span>
               <span className="text-gray-400 text-xs">{showPayouts ? '▲ Hide' : '▼ Show'}</span>
             </button>
-            {showPayouts && (
+            <div style={{ display: 'grid', gridTemplateRows: showPayouts ? '1fr' : '0fr', transition: 'grid-template-rows 0.22s ease' }}>
+              <div style={{ overflow: 'hidden' }}>
               <div className="border-t border-gray-100 space-y-3 p-3">
 
                 {/* Empty state when search has no payout matches */}
@@ -2528,7 +2561,8 @@ export default function MatchupClient({
                 })}
 
               </div>
-            )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -2542,7 +2576,8 @@ export default function MatchupClient({
               <span className="text-sm font-semibold text-gray-800">Net Positions &amp; Settlements</span>
               <span className="text-gray-400 text-xs">{showNetPositions ? '▲ Hide' : '▼ Show'}</span>
             </button>
-            {showNetPositions && (
+            <div style={{ display: 'grid', gridTemplateRows: showNetPositions ? '1fr' : '0fr', transition: 'grid-template-rows 0.22s ease' }}>
+              <div style={{ overflow: 'hidden' }}>
               <div className="border-t border-gray-100">
                 {/* Net Positions */}
                 <div className="px-4 pt-3 pb-2">
@@ -2583,7 +2618,8 @@ export default function MatchupClient({
                   )}
                 </div>
               </div>
-            )}
+              </div>
+            </div>
           </div>
         )}
 

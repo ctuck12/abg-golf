@@ -19,7 +19,7 @@ export default function TeamLoginForm({ teams, round }: { teams: Team[]; round: 
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
-      <header className="text-white py-7 px-4 text-center shadow-md" style={{ background: navy }}>
+      <header className="text-white pb-7 px-4 text-center shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1.75rem + env(safe-area-inset-top))' }}>
         <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: gold }}>
           Anything But Golf Group
         </p>

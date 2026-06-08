@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 const navy = '#0f172a'
@@ -232,10 +232,16 @@ export default function MasterDashboard({
 
   const orgMap = Object.fromEntries(orgs.map((o) => [o.id, o]))
 
+  useEffect(() => {
+    const locked = !!confirmOrgModal || !!confirmCourseModal || !!confirmRoundModal
+    document.body.style.overflow = locked ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [confirmOrgModal, confirmCourseModal, confirmRoundModal])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {/* Header */}
-      <header className="text-white px-4 py-4 shadow-md sticky top-0 z-10" style={{ background: navy }}>
+      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-widest font-bold" style={{ color: gold }}>Master Admin</p>

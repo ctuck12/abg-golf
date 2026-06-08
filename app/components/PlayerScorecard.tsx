@@ -52,7 +52,7 @@ export default function PlayerScorecard({
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   player: { id: string; name: string; handicap?: number | null }
   teamName: string
-  teamId: string
+  teamId: string | null
   holes: Hole[]
   scores: Score[]
   format?: string
@@ -215,7 +215,7 @@ export default function PlayerScorecard({
     color: highlight ? '#1e40af' : undefined,
     fontSize: '0.7rem',
     textAlign: 'center',
-    padding: '0.25rem 0.2rem',
+    padding: '0.3rem 0.25rem',
   })
   const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
   const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -256,31 +256,38 @@ export default function PlayerScorecard({
     </div>
   )
 
+  useEffect(() => {
+    document.body.style.overflow = showOptions ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showOptions])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {optionsPopup}
-      <header className="text-white px-4 py-4 shadow-md" style={{ background: navy }}>
-        <div className="max-w-4xl mx-auto flex items-start justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wide mb-0.5" style={{ color: gold }}>
-              Player Scorecard
-            </p>
-            <h1 className="font-bold text-xl">{player.name}{player.handicap != null && <span className="text-sm font-normal ml-2" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {player.handicap}</span>}</h1>
-
-            {(isAdmin || scorecardTeamId || scorecardGroupId) && (
-              <div className="flex items-center gap-1.5 mt-1">
-                {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
-                {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
-              </div>
-            )}
+      <header className="text-white px-4 pb-4 shadow-md sticky top-0 z-10" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
+              <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-wide leading-tight" style={{ color: gold }}>Player Scorecard</p>
+              <h1 className="font-bold text-lg leading-tight">{player.name}{player.handicap != null && <span className="text-sm font-normal ml-2" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {player.handicap}</span>}</h1>
+              {(isAdmin || scorecardTeamId || scorecardGroupId) && (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
+                  {(scorecardTeamId || scorecardGroupId) && <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 mt-1 flex-shrink-0">
+          <div className="flex flex-col items-stretch gap-1.5 flex-shrink-0 ml-3">
+            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold text-center" style={{ background: gold, color: navy }}>Leaderboard</a>
             <button onClick={() => setShowOptions(true)}
-              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white"
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium text-white text-center"
               style={{ borderColor: 'rgba(255,255,255,0.5)' }}>
               Options
             </button>
-            <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
           </div>
         </div>
       </header>

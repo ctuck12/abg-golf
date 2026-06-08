@@ -32,7 +32,7 @@ const tdSc = (highlight?: boolean): React.CSSProperties => ({
   background: highlight ? '#dbeafe' : 'white',
   fontWeight: highlight ? 700 : 400,
   color: highlight ? '#1e40af' : undefined,
-  fontSize: '0.7rem', textAlign: 'center', padding: '0.42rem 0.42rem',
+  fontSize: '0.7rem', textAlign: 'center', padding: '0.45rem 0.45rem',
 })
 const stickyFirst: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 1 }
 const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
@@ -212,19 +212,20 @@ export default function ScorecardBottomSheet({
     >
       <div
         className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto"
+        style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+        <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-10" style={{ background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
           <div className="flex items-center gap-2 min-w-0">
-            <h3 className="font-bold text-gray-900 text-base flex-shrink-0">{title}</h3>
+            <h3 className="font-bold text-white text-base flex-shrink-0">{title}</h3>
             {isDaytonaMode && dtPayoutValue > 0 && (
-              <span className="text-xs text-gray-400 flex-shrink-0">{isFlares ? '5-Man Flares' : is5Man ? '5-Man Daytona' : 'Daytona'} – {fmtAmt(dtPayoutValue)}/point</span>
+              <span className="text-xs flex-shrink-0" style={{ color: 'rgba(255,255,255,0.6)' }}>{isFlares ? '5-Man Flares' : is5Man ? '5-Man Daytona' : 'Daytona'} – {fmtAmt(dtPayoutValue)}/point</span>
             )}
             {isBankerMode && (
-              <span className="text-xs text-gray-400 flex-shrink-0">Banker – ${bankerMinBet} min. bet</span>
+              <span className="text-xs flex-shrink-0" style={{ color: 'rgba(255,255,255,0.6)' }}>Banker – ${bankerMinBet} min. bet</span>
             )}
           </div>
-          <button onClick={onClose} className="text-gray-400 text-xl font-bold leading-none ml-2">×</button>
+          <button onClick={onClose} className="text-xl font-bold leading-none ml-2" style={{ color: 'rgba(255,255,255,0.7)' }}>×</button>
         </div>
         <div className="px-4 py-4 space-y-3">
           {rankedPlayers.map((player, rank) => {

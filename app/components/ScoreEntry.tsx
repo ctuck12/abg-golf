@@ -379,6 +379,7 @@ export default function ScoreEntry({
   })
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [roundComplete, setRoundComplete] = useState(false)
+  const [roundCompleteChecked, setRoundCompleteChecked] = useState(false)
   const [showPayoutsModal, setShowPayoutsModal] = useState(false)
   const [playerPopup, setPlayerPopup] = useState<string | null>(null)
   const [popupShowScorecard, setPopupShowScorecard] = useState(false)
@@ -644,12 +645,15 @@ export default function ScoreEntry({
   }
 
   async function checkRoundComplete() {
-    if (roundPlayerIds.length === 0) return
-    const { count } = await supabase
-      .from('scores')
-      .select('*', { count: 'exact', head: true })
-      .in('player_id', roundPlayerIds)
-    setRoundComplete(count !== null && count >= roundPlayerIds.length * holes.length)
+    if (!roundId) { setRoundCompleteChecked(true); return }
+    try {
+      const res = await fetch(`/api/round-complete?roundId=${encodeURIComponent(roundId)}`)
+      if (res.ok) {
+        const json = await res.json() as { allDone: boolean }
+        setRoundComplete(json.allDone)
+      }
+    } catch { /* leave roundComplete false */ }
+    setRoundCompleteChecked(true)
   }
 
   const broadcastChannel = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -961,6 +965,12 @@ export default function ScoreEntry({
 
   const savedCount = savedHoles.size
 
+  useEffect(() => {
+    const locked = showOptions || showScorecards || showMatchupResultsModal
+    document.body.style.overflow = locked ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showOptions, showScorecards, showMatchupResultsModal])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc', opacity: scrollReady ? 1 : 0 }}>
       {showOptions && (
@@ -1084,30 +1094,35 @@ export default function ScoreEntry({
       )}
 
       {/* Header */}
-      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy }}>
+      <header ref={headerRef} className="text-white px-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Score Entry</p>
-              <h1 className="font-bold text-lg">
-                {team.name}
-                {daytonaVariant === '5man-flares' && isDaytonaSideGame && (
-                  <span className="ml-1.5 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>(Flares)</span>
-                )}
-              </h1>
-              <div className="flex items-center gap-1.5 mt-1">
-                {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
-                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
+                <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Score Entry</p>
+                <h1 className="font-bold text-lg leading-tight">
+                  {team.name}
+                  {daytonaVariant === '5man-flares' && isDaytonaSideGame && (
+                    <span className="ml-1.5 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>(Flares)</span>
+                  )}
+                </h1>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#16a34a' }}>Scorer</span>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col items-stretch gap-1.5 flex-shrink-0 ml-3">
+              <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold text-center" style={{ background: gold, color: navy }}>Leaderboard</a>
               <button
                 onClick={() => setShowScorecards(true)}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold border"
                 style={{ background: navy, color: '#9ca3af', borderColor: '#6b7280' }}>
                 Scorecards
               </button>
-              <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>
           {!isDaytonaMode && format !== 'traditional' && (
@@ -1394,7 +1409,7 @@ export default function ScoreEntry({
 
       {showPayoutsModal && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayoutsModal(false)}>
-          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" style={{ animation: 'slideUp 0.28s ease-out' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white">
               <h3 className="font-bold text-gray-900 text-base">{roundComplete ? 'Final Payouts' : 'Payouts'}</h3>
               <button onClick={() => setShowPayoutsModal(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
@@ -1748,18 +1763,18 @@ export default function ScoreEntry({
           </div>
         )}
         {isStarted && savedHoles.size === holes.length && holes.length > 0 && (
-          <div className="rounded-xl border-2 px-4 py-4 flex items-center gap-4" style={{ borderColor: gold, background: '#fffbeb' }}>
+          <div className="rounded-xl border-2 px-4 py-2 flex items-center gap-4" style={{ borderColor: gold, background: '#fffbeb' }}>
             <span className="text-4xl flex-shrink-0">⛳</span>
-            <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="flex-1 min-w-0 space-y-1">
               <p className="font-bold text-gray-900">All {holes.length} holes submitted!</p>
               {roundComplete ? (
-                <button onClick={openPayoutsModal} className="text-sm font-bold underline" style={{ color: '#92400e' }}>View Final Payouts →</button>
-              ) : (
+                <button onClick={openPayoutsModal} className="inline-block text-xs font-bold px-2.5 py-1 rounded-lg" style={{ background: '#f59e0b', color: 'white' }}>View Final Payouts</button>
+              ) : roundCompleteChecked ? (
                 <div className="flex items-center gap-2">
                   <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
                   <p className="text-sm text-gray-500">Waiting for other groups to finish…</p>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         )}

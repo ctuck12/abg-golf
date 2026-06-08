@@ -202,19 +202,14 @@ export default function PlayingGroupScoreEntry({
   }, [expandedHole])
 
   async function checkAllGroupsDone() {
-    const { data: groups } = await supabase.from('playing_groups').select('id').eq('round_id', roundId)
-    if (!groups?.length) { setAllGroupsDone(false); return }
-    const { data: links } = await supabase.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', groups.map(g => g.id))
-    if (!links?.length) { setAllGroupsDone(false); return }
-    const allPids = [...new Set(links.map(l => l.player_id))]
-    const { data: scoresData } = await supabase.from('scores').select('player_id, hole_number').in('player_id', allPids)
-    if (!scoresData) { setAllGroupsDone(false); return }
-    const done = groups.every(g => {
-      const gPids = links.filter(l => l.playing_group_id === g.id).map(l => l.player_id)
-      if (gPids.length === 0) return true // skip empty groups
-      return holes.every(h => gPids.every(pid => scoresData.some(s => s.player_id === pid && s.hole_number === h.hole_number)))
-    })
-    setAllGroupsDone(done)
+    try {
+      const res = await fetch(`/api/round-complete?roundId=${encodeURIComponent(roundId)}`)
+      if (!res.ok) { setAllGroupsDone(false); return }
+      const json = await res.json() as { allDone: boolean }
+      setAllGroupsDone(json.allDone)
+    } catch {
+      setAllGroupsDone(false)
+    }
   }
 
   useEffect(() => {
@@ -625,6 +620,12 @@ export default function PlayingGroupScoreEntry({
     )
   }
 
+  useEffect(() => {
+    const locked = showOptions || showScorecards || !!playerPopup
+    document.body.style.overflow = locked ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showOptions, showScorecards, playerPopup])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc', opacity: scrollReady ? 1 : 0 }}>
 
@@ -743,19 +744,25 @@ export default function PlayingGroupScoreEntry({
       )}
 
       {/* Header */}
-      <header ref={headerRef} className="text-white px-4 pt-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy }}>
+      <header ref={headerRef} className="text-white px-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Score Entry</p>
-              <h1 className="font-bold text-lg">{groupName}</h1>
-              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{roundCourse} · {formattedDate}</p>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
+                <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Score Entry</p>
+                <h1 className="font-bold text-lg leading-tight">{groupName}</h1>
+                <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.5)' }}>{roundCourse}</p>
+                <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.5)' }}>{formattedDate}</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col items-stretch gap-1.5 flex-shrink-0 ml-3">
+              <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold text-center" style={{ background: gold, color: navy }}>Leaderboard</a>
               <button onClick={() => setShowScorecards(true)} className="text-xs px-3 py-1.5 rounded-lg border font-medium" style={{ background: navy, borderColor: '#6b7280', color: '#9ca3af' }}>
                 Scorecards
               </button>
-              <a href={`/${orgSlug}`} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: gold, color: navy }}>Leaderboard</a>
             </div>
           </div>
           {/* Player scores — Daytona points or to-par (hidden in banker mode) */}
@@ -842,18 +849,18 @@ export default function PlayingGroupScoreEntry({
 
         {/* Completion box */}
         {savedHoles.size === holes.length && holes.length > 0 && (
-          <div className="rounded-xl border-2 px-4 py-4 flex items-center gap-4" style={{ borderColor: '#f59e0b', background: '#fffbeb' }}>
+          <div className="rounded-xl border-2 px-4 py-2 flex items-center gap-4" style={{ borderColor: '#f59e0b', background: '#fffbeb' }}>
             <span className="text-4xl flex-shrink-0">⛳</span>
-            <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="flex-1 min-w-0 space-y-1">
               <p className="font-bold text-gray-900">All {holes.length} holes submitted!</p>
-              {(allGroupsDone === null || allGroupsDone === false) && (
+              {allGroupsDone === false && (
                 <div className="flex items-center gap-2">
                   <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
                   <p className="text-sm text-gray-500">Waiting for other groups to finish…</p>
                 </div>
               )}
               {allGroupsDone === true && (
-                <a href={`/${orgSlug}?payouts=1`} className="text-sm font-bold text-amber-700 underline">View Final Payouts →</a>
+                <a href={`/${orgSlug}?payouts=1`} className="inline-block text-xs font-bold px-2.5 py-1 rounded-lg" style={{ background: '#f59e0b', color: 'white' }}>View Final Payouts</a>
               )}
             </div>
           </div>

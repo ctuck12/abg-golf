@@ -22,38 +22,67 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
   const { data: player } = await sb.from('players').select('id, name, team_id, handicap').eq('id', playerId).single()
   if (!player) redirect(`/${orgSlug}`)
 
-  const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant').eq('id', player.team_id).single()
-  if (!team) redirect(`/${orgSlug}`)
+  let teamId: string | null = null
+  let teamName = ''
+  let roundId = ''
+  let roundFormat = 'standard'
+  let teamDaytonaVariant: string | null = null
 
-  const { data: round } = await sb.from('rounds').select('id, is_started, format, daytona_variant, org_id').eq('id', team.round_id).single()
-  if (!round || !round.is_started || round.org_id !== orgId) redirect(`/${orgSlug}`)
+  if (player.team_id) {
+    const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant').eq('id', player.team_id).single()
+    if (!team) redirect(`/${orgSlug}`)
 
-  const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', round.id)
-  const scorecardTeamId = (allTeams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? (isAdmin ? team.id : null)
+    const { data: round } = await sb.from('rounds').select('id, is_started, format, daytona_variant, org_id').eq('id', team.round_id).single()
+    if (!round || !round.is_started || round.org_id !== orgId) redirect(`/${orgSlug}`)
+
+    teamId = team.id
+    teamName = team.name
+    roundId = round.id
+    roundFormat = round.format ?? 'standard'
+    teamDaytonaVariant = (team as { daytona_variant?: string | null }).daytona_variant ?? null
+  } else {
+    // Manually-added player with no team — find via playing_group_players
+    const { data: groupPlayer } = await sb.from('playing_group_players').select('playing_group_id').eq('player_id', playerId).single()
+    if (!groupPlayer) redirect(`/${orgSlug}`)
+
+    const { data: group } = await sb.from('playing_groups').select('id, name, round_id').eq('id', groupPlayer.playing_group_id).single()
+    if (!group) redirect(`/${orgSlug}`)
+
+    const { data: round } = await sb.from('rounds').select('id, is_started, format, org_id').eq('id', group.round_id).single()
+    if (!round || !round.is_started || round.org_id !== orgId) redirect(`/${orgSlug}`)
+
+    teamId = null
+    teamName = group.name
+    roundId = round.id
+    roundFormat = round.format ?? 'standard'
+  }
+
+  const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', roundId)
+  const scorecardTeamId = (allTeams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? (isAdmin && teamId ? teamId : null)
   const groupAuthCookie = cookieStore.getAll().find((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
   const scorecardGroupId = groupAuthCookie ? groupAuthCookie.name.replace('playing_group_auth_', '') : null
 
   const [{ data: holes }, { data: scores }, { data: holeStrokesRaw }] = await Promise.all([
-    sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
+    sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', roundId).order('hole_number'),
     sb.from('scores').select('hole_number, strokes').eq('player_id', playerId),
-    sb.from('hole_strokes').select('hole_number').eq('round_id', round.id).eq('player_id', playerId),
+    sb.from('hole_strokes').select('hole_number').eq('round_id', roundId).eq('player_id', playerId),
   ])
   const strokeHoles = (holeStrokesRaw ?? []).map((r: { hole_number: number }) => r.hole_number)
 
   let dtData: Parameters<typeof PlayerScorecard>[0]['dtData']
 
-  if ((round.format ?? 'standard') === 'daytona') {
-    const { data: teamPlayers } = await sb.from('players').select('id').eq('team_id', team.id)
+  if (roundFormat === 'daytona' && teamId) {
+    const { data: teamPlayers } = await sb.from('players').select('id').eq('team_id', teamId)
     const teamPlayerIds = (teamPlayers ?? []).map((p: { id: string }) => p.id)
     const [{ data: assignmentsData }, { data: allScoresData }, { data: holeValuesRaw }, { data: ballValuesRaw }] = await Promise.all([
       teamPlayerIds.length
-        ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id).in('player_id', teamPlayerIds)
+        ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId).in('player_id', teamPlayerIds)
         : Promise.resolve({ data: [] }),
       teamPlayerIds.length
         ? sb.from('scores').select('player_id, hole_number, strokes').in('player_id', teamPlayerIds)
         : Promise.resolve({ data: [] }),
-      sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', round.id).eq('team_id', team.id),
-      sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id),
+      sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', roundId).eq('team_id', teamId),
+      sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId),
     ])
     const pressedHoles: Record<number, number> = {}
     for (const hv of (holeValuesRaw ?? []) as { hole_number: number; value_per_point: number }[]) {
@@ -61,11 +90,11 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
     }
     const dtPayoutValue = (ballValuesRaw as { ball_number: number; value_dollars: number }[] | null)?.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
     dtData = {
-      roundId: round.id,
+      roundId,
       allPlayerIds: teamPlayerIds,
       assignments: (assignmentsData ?? []) as DaytonaHoleAssignment[],
       allRoundScores: allScoresData ?? [],
-      daytonaVariant: (team as { daytona_variant?: string | null }).daytona_variant ?? '4man',
+      daytonaVariant: teamDaytonaVariant ?? '4man',
       pressedHoles,
       dtPayoutValue,
     }
@@ -78,11 +107,11 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
       orgName={orgName}
       isMaster={isMaster}
       player={{ id: player.id, name: player.name, handicap: (player as { handicap?: number | null }).handicap ?? null }}
-      teamName={team.name}
-      teamId={team.id}
+      teamName={teamName}
+      teamId={teamId}
       holes={holes ?? []}
       scores={scores ?? []}
-      format={round.format ?? 'standard'}
+      format={roundFormat}
       dtData={dtData}
       isAdmin={isAdmin}
       strokeHoles={strokeHoles}
