@@ -1119,9 +1119,9 @@ export default function MatchupClient({
       {showScorecardFor && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }}
           onClick={() => setShowScorecardFor(null)}>
-          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }}
+          <div className="bg-white rounded-t-2xl max-h-[85vh] flex flex-col" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }}
             onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-4 sticky top-0" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+            <div className="flex items-center justify-between px-4 py-4 flex-shrink-0" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
               <h3 className="font-bold text-white text-base">
                 {showScorecardFor.type === 'player' ? showScorecardFor.name
                   : showScorecardFor.type === 'h2h' ? `${showScorecardFor.p1Name} vs ${showScorecardFor.p2Name}`
@@ -1131,7 +1131,7 @@ export default function MatchupClient({
               <button onClick={() => setShowScorecardFor(null)}
                 className="text-2xl font-bold leading-none" style={{ color: gold }}>×</button>
             </div>
-            <div className="px-4 py-4 overflow-x-auto">
+            <div className="px-4 py-4 overflow-x-auto overflow-y-auto flex-1">
               {showScorecardFor.type === 'player' ? (
                 <HorizontalScorecardTable
                   rows={[{ label: 'Score', scoreMap: scoreMap[showScorecardFor.id] ?? {} }]}

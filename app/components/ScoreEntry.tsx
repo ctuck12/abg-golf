@@ -1409,12 +1409,12 @@ export default function ScoreEntry({
 
       {showPayoutsModal && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayoutsModal(false)}>
-          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" style={{ animation: 'slideUp 0.28s ease-out' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 sticky top-0 bg-white">
+          <div className="bg-white rounded-t-2xl max-h-[85vh] flex flex-col" style={{ animation: 'slideUp 0.28s ease-out' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 flex-shrink-0 bg-white">
               <h3 className="font-bold text-gray-900 text-base">{roundComplete ? 'Final Payouts' : 'Payouts'}</h3>
               <button onClick={() => setShowPayoutsModal(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
             </div>
-            <div className="px-4 py-4 space-y-4">
+            <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
               {payoutsLoading || !payoutsData ? (
                 <p className="text-center text-gray-500 text-sm py-8">Loading payouts…</p>
               ) : (() => {

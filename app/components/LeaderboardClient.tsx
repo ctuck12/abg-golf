@@ -1101,12 +1101,12 @@ export default function LeaderboardClient({
 
       {showPayouts && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayouts(false)}>
-          <div className="bg-white rounded-t-2xl max-h-[85vh] overflow-y-auto" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-10" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+          <div className="bg-white rounded-t-2xl max-h-[85vh] flex flex-col" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 flex-shrink-0" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
               <h3 className="font-bold text-white text-base">Payouts</h3>
               <button onClick={() => setShowPayouts(false)} className="text-xl font-bold leading-none" style={{ color: 'rgba(255,255,255,0.7)' }}>×</button>
             </div>
-            <div className="px-4 py-4 space-y-4">
+            <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
               {/* ── Daytona Results (collapsible) ── */}
               {isDaytona && (
                 <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
@@ -1987,8 +1987,8 @@ export default function LeaderboardClient({
         const stickyFirstTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 2 }
         return (
           <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAllScorecards(false)}>
-            <div className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }} onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-10" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+            <div className="bg-white rounded-t-2xl max-h-[90vh] flex flex-col" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-4 flex-shrink-0" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
                 <div className="flex items-center gap-2 min-w-0">
                   <h3 className="font-bold text-white text-base flex-shrink-0">{activeTeam?.name ?? activePlayingGroup?.name ?? 'All Scorecards'}</h3>
                   {groupHasDaytona && groupBaseRate > 0 && (
@@ -2014,7 +2014,7 @@ export default function LeaderboardClient({
                   </button>
                 </div>
               )}
-              <div className="px-4 py-4 space-y-3">
+              <div className="px-4 py-4 space-y-3 overflow-y-auto flex-1">
                 {filteredRows.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No players.</p>}
                 {(groupHasDaytona && holePtsMaps.size > 0
                   ? [...filteredRows].sort((a, b) => {

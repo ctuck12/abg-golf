@@ -211,11 +211,11 @@ export default function ScorecardBottomSheet({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-t-2xl max-h-[90vh] flex flex-col"
         style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-4 sticky top-0 z-10" style={{ background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+        <div className="flex items-center justify-between px-4 py-4 flex-shrink-0" style={{ background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
           <div className="flex items-center gap-2 min-w-0">
             <h3 className="font-bold text-white text-base flex-shrink-0">{title}</h3>
             {isDaytonaMode && dtPayoutValue > 0 && (
@@ -227,7 +227,7 @@ export default function ScorecardBottomSheet({
           </div>
           <button onClick={onClose} className="text-xl font-bold leading-none ml-2" style={{ color: 'rgba(255,255,255,0.7)' }}>×</button>
         </div>
-        <div className="px-4 py-4 space-y-3">
+        <div className="px-4 py-4 space-y-3 overflow-y-auto flex-1">
           {rankedPlayers.map((player, rank) => {
             const scoreMap = Object.fromEntries(
               scores.filter((s) => s.player_id === player.id).map((s) => [s.hole_number, s.strokes])
