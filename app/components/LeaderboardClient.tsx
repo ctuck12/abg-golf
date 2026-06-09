@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import {
   computeTeamBallSummary, computePlayerDaytonaPoints,
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
@@ -457,12 +456,12 @@ export default function LeaderboardClient({
       .filter((g) => (g as { banker_side_game?: boolean | null }).banker_side_game)
       .map((g) => g.id)
     async function refetchScores() {
-      const { data } = await supabase
-        .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
-      if (data) { setScores(data); setLastUpdated(new Date()) }
+      if (playerIds.length > 0) {
+        const scoresData = await fetch('/api/scores?playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null)
+        if (scoresData) { setScores(scoresData); setLastUpdated(new Date()) }
+      }
       if ((isDaytona || isMixedGroups) && roundId) {
-        const { data: hvData } = await supabase
-          .from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId)
+        const hvData = await fetch('/api/daytona-hole-values?roundId=' + roundId).then((r) => r.json()).catch(() => null)
         if (hvData) {
           const newHoleValues: Record<string, Record<number, number>> = {}
           for (const hv of hvData as { team_id: string; hole_number: number; value_per_point: number }[]) {
@@ -473,21 +472,18 @@ export default function LeaderboardClient({
         }
       }
       if (isMixedGroups && roundId && bankerGidsForScores.length > 0) {
-        const [{ data: bHolesData }, { data: bBetsData }] = await Promise.all([
-          supabase.from('banker_holes').select('team_id, hole_number, banker_player_id').eq('round_id', roundId).in('team_id', bankerGidsForScores),
-          supabase.from('banker_bets').select('team_id, hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', roundId).in('team_id', bankerGidsForScores),
-        ])
-        if (bHolesData) {
+        const bankerData = await fetch('/api/banker-data?roundId=' + roundId + '&teamIds=' + bankerGidsForScores.join(',')).then((r) => r.json()).catch(() => null)
+        if (bankerData?.holes) {
           const newHoles: Record<string, Record<number, { bankerPlayerId: string | null }>> = {}
-          for (const bh of bHolesData as { team_id: string; hole_number: number; banker_player_id: string | null }[]) {
+          for (const bh of bankerData.holes as { team_id: string; hole_number: number; banker_player_id: string | null }[]) {
             if (!newHoles[bh.team_id]) newHoles[bh.team_id] = {}
             newHoles[bh.team_id][bh.hole_number] = { bankerPlayerId: bh.banker_player_id }
           }
           setLiveBankerHoles(newHoles)
         }
-        if (bBetsData) {
+        if (bankerData?.bets) {
           const newBets: Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>> = {}
-          for (const bb of bBetsData as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
+          for (const bb of bankerData.bets as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
             if (!newBets[bb.team_id]) newBets[bb.team_id] = {}
             if (!newBets[bb.team_id][bb.hole_number]) newBets[bb.team_id][bb.hole_number] = {}
             newBets[bb.team_id][bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled }
@@ -496,12 +492,6 @@ export default function LeaderboardClient({
         }
       }
     }
-    const ch1 = supabase.channel('leaderboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores)
-      .subscribe()
-    const ch2 = supabase.channel('score-updates')
-      .on('broadcast', { event: 'refresh' }, refetchScores)
-      .subscribe()
 
     const interval = setInterval(refetchScores, 3000)
 
@@ -511,8 +501,6 @@ export default function LeaderboardClient({
     document.addEventListener('visibilitychange', onVisibilityChange)
 
     return () => {
-      supabase.removeChannel(ch1)
-      supabase.removeChannel(ch2)
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
@@ -526,21 +514,18 @@ export default function LeaderboardClient({
     if (!isMixedGroups || !roundId || bankerGids.length === 0) return
 
     async function refetchBankerData() {
-      const [{ data: bHolesData }, { data: bBetsData }] = await Promise.all([
-        supabase.from('banker_holes').select('team_id, hole_number, banker_player_id').eq('round_id', roundId).in('team_id', bankerGids),
-        supabase.from('banker_bets').select('team_id, hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', roundId).in('team_id', bankerGids),
-      ])
-      if (bHolesData) {
+      const bankerData = await fetch('/api/banker-data?roundId=' + roundId + '&teamIds=' + bankerGids.join(',')).then((r) => r.json()).catch(() => null)
+      if (bankerData?.holes) {
         const newHoles: Record<string, Record<number, { bankerPlayerId: string | null }>> = {}
-        for (const bh of bHolesData as { team_id: string; hole_number: number; banker_player_id: string | null }[]) {
+        for (const bh of bankerData.holes as { team_id: string; hole_number: number; banker_player_id: string | null }[]) {
           if (!newHoles[bh.team_id]) newHoles[bh.team_id] = {}
           newHoles[bh.team_id][bh.hole_number] = { bankerPlayerId: bh.banker_player_id }
         }
         setLiveBankerHoles(newHoles)
       }
-      if (bBetsData) {
+      if (bankerData?.bets) {
         const newBets: Record<string, Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>> = {}
-        for (const bb of bBetsData as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
+        for (const bb of bankerData.bets as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]) {
           if (!newBets[bb.team_id]) newBets[bb.team_id] = {}
           if (!newBets[bb.team_id][bb.hole_number]) newBets[bb.team_id][bb.hole_number] = {}
           newBets[bb.team_id][bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled }
@@ -551,16 +536,11 @@ export default function LeaderboardClient({
 
     refetchBankerData()
     const bankerInterval = setInterval(refetchBankerData, 3000)
-    const ch = supabase.channel('banker-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'banker_holes' }, refetchBankerData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'banker_bets' }, refetchBankerData)
-      .subscribe()
     function onVisibilityChangeBanker() {
       if (document.visibilityState === 'visible') refetchBankerData()
     }
     document.addEventListener('visibilitychange', onVisibilityChangeBanker)
     return () => {
-      supabase.removeChannel(ch)
       clearInterval(bankerInterval)
       document.removeEventListener('visibilitychange', onVisibilityChangeBanker)
     }
@@ -585,11 +565,11 @@ export default function LeaderboardClient({
   useEffect(() => {
     if (!roundId) return
     const fetchAssignments = async () => {
-      const { data } = await supabase
-        .from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
-      if (data && data.length > 0) { setAssignments(data as DaytonaHoleAssignment[]); setLastUpdated(new Date()) }
-      const { data: hsData } = await supabase
-        .from('hole_strokes').select('hole_number, player_id').eq('round_id', roundId)
+      const [assignData, hsData] = await Promise.all([
+        fetch('/api/daytona-assignments?roundId=' + roundId).then((r) => r.json()).catch(() => null),
+        fetch('/api/hole-strokes?roundId=' + roundId).then((r) => r.json()).catch(() => null),
+      ])
+      if (assignData && assignData.length > 0) { setAssignments(assignData as DaytonaHoleAssignment[]); setLastUpdated(new Date()) }
       if (hsData) {
         const m: Record<number, string[]> = {}
         for (const hs of hsData as { hole_number: number; player_id: string }[]) {
@@ -600,10 +580,8 @@ export default function LeaderboardClient({
       }
     }
     fetchAssignments()
-    const channel = supabase.channel('leaderboard-assignments')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daytona_hole_assignments' }, fetchAssignments)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    const interval = setInterval(fetchAssignments, 5000)
+    return () => { clearInterval(interval) }
   }, [roundId])
 
   const frontHoles = holes.filter((h) => h.hole_number <= 9)

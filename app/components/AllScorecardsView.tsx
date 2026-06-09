@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
 import {
   computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
   type DaytonaHoleAssignment,
@@ -84,24 +83,16 @@ export default function AllScorecardsView({
   const isFlares = daytonaVariant === '5man-flares'
 
   useEffect(() => {
-    async function refetchScores() {
-      const { data } = await supabase
-        .from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds)
-      if (data) setScores(data)
+    async function refetchAll() {
+      if (allPlayerIds.length > 0) {
+        const scoresData = await fetch('/api/scores?playerIds=' + allPlayerIds.join(',')).then((r) => r.json()).catch(() => null)
+        if (scoresData) setScores(scoresData)
+      }
+      const assignData = await fetch('/api/daytona-assignments?roundId=' + roundId).then((r) => r.json()).catch(() => null)
+      if (assignData) setAssignments(assignData as DaytonaHoleAssignment[])
     }
-    const ch1 = supabase.channel('all-sc-scores')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores)
-      .subscribe()
-    const ch2 = supabase.channel('all-sc-assignments')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daytona_hole_assignments' }, async () => {
-        const { data } = await supabase
-          .from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
-        if (data) setAssignments(data as DaytonaHoleAssignment[])
-      }).subscribe()
-    const ch3 = supabase.channel('score-updates')
-      .on('broadcast', { event: 'refresh' }, refetchScores)
-      .subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3) }
+    const interval = setInterval(refetchAll, 5000)
+    return () => { clearInterval(interval) }
   }, [roundId, allPlayerIds])
 
   // Pre-compute per-hole points maps once

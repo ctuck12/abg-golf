@@ -34,7 +34,6 @@ import {
   type DaytonaHoleAssignment, type BallHalfResult, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
-import { supabase } from '@/lib/supabase'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -836,57 +835,34 @@ export default function AdminDashboard({
   useEffect(() => { setLiveHoleValues(initialHoleValues) }, [initialHoleValues])
 
 
-  // Real-time subscriptions — auto-recalculate settlements on any matchup or score change
+  // Polling — auto-recalculate settlements on any matchup or score change
   useEffect(() => {
     if (!round?.id) return
     const rid = round.id
     const playerIds = players.map((p) => p.id)
 
-    const ch1 = supabase.channel('admin-live-matchups')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matchups' }, async () => {
-        const { data } = await supabase.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', rid).order('created_at')
-        if (data) setLiveMatchups(data)
-      }).subscribe()
-
-    const ch2 = supabase.channel('admin-live-bestball')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'best_ball_matchups' }, async () => {
-        const { data } = await supabase.from('best_ball_matchups')
-          .select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet')
-          .eq('round_id', rid).order('created_at')
-        if (data) setLiveBestBallMatchups(data)
-      }).subscribe()
-
-    const ch3 = supabase.channel('admin-live-scores')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, async () => {
-        if (!playerIds.length) return
-        const { data } = await supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
-        if (data) setLiveScores(data)
-      }).subscribe()
-
-    const ch4 = supabase.channel('admin-score-updates')
-      .on('broadcast', { event: 'refresh' }, async () => {
-        if (!playerIds.length) return
-        const [scoresRes, hvRes] = await Promise.all([
-          supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds),
-          supabase.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', rid),
-        ])
-        if (scoresRes.data) setLiveScores(scoresRes.data)
-        if (hvRes.data) {
-          const map: Record<string, Record<number, number>> = {}
-          for (const hv of hvRes.data as { team_id: string; hole_number: number; value_per_point: number }[]) {
-            if (!map[hv.team_id]) map[hv.team_id] = {}
-            map[hv.team_id][hv.hole_number] = hv.value_per_point
-          }
-          setLiveHoleValues(map)
+    async function refetchAll() {
+      const [matchupsData, bbMatchupsData, scoresData, hvData] = await Promise.all([
+        fetch('/api/matchups?roundId=' + rid).then((r) => r.json()).catch(() => null),
+        fetch('/api/best-ball-matchups?roundId=' + rid).then((r) => r.json()).catch(() => null),
+        playerIds.length ? fetch('/api/scores?playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+        fetch('/api/daytona-hole-values?roundId=' + rid).then((r) => r.json()).catch(() => null),
+      ])
+      if (matchupsData) setLiveMatchups(matchupsData)
+      if (bbMatchupsData) setLiveBestBallMatchups(bbMatchupsData)
+      if (scoresData) setLiveScores(scoresData)
+      if (hvData) {
+        const map: Record<string, Record<number, number>> = {}
+        for (const hv of hvData as { team_id: string; hole_number: number; value_per_point: number }[]) {
+          if (!map[hv.team_id]) map[hv.team_id] = {}
+          map[hv.team_id][hv.hole_number] = hv.value_per_point
         }
-      }).subscribe()
-
-    return () => {
-      supabase.removeChannel(ch1)
-      supabase.removeChannel(ch2)
-      supabase.removeChannel(ch3)
-      supabase.removeChannel(ch4)
+        setLiveHoleValues(map)
+      }
     }
+
+    const interval = setInterval(refetchAll, 5000)
+    return () => { clearInterval(interval) }
   }, [round?.id])
 
   const [pars, setPars] = useState<Record<number, number>>(
