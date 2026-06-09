@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
 import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
-import { supabase } from '@/lib/supabase'
 import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
@@ -573,7 +572,7 @@ export default function ScoreEntry({
     setPinTeamId(''); setPinValue(''); setPinError(''); setShowPinValue(false)
     setShowEnterPinModal(true)
     if (pinTeams.length === 0) {
-      const { data } = await supabase.from('teams').select('id, name').eq('round_id', roundId).order('name')
+      const data = await fetch('/api/teams?roundId=' + roundId).then((r) => r.json()).catch(() => null)
       setPinTeams(data ?? [])
     }
   }
@@ -607,40 +606,27 @@ export default function ScoreEntry({
     setShowPayoutsModal(true)
     if (payoutsData) return
     setPayoutsLoading(true)
-    const { data: teams } = await supabase.from('teams').select('id, name, daytona_variant').eq('round_id', roundId)
-    const allTeamIds = (teams ?? []).map((t) => t.id)
-    const [{ data: allPlayers }, { data: allScores }, { data: ballValues }, { data: dtAssignments }, { data: matchupsData }, { data: bbMatchupsData }, { data: dtHoleValuesRaw }, { data: bankerHolesRaw }, { data: bankerBetsRaw }, { data: holeStrokesRaw }] = await Promise.all([
-      supabase.from('players').select('id, team_id, name, position').in('team_id', allTeamIds.length ? allTeamIds : ['']).order('position', { ascending: true }),
-      supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', roundPlayerIds.length ? roundPlayerIds : ['']),
-      supabase.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number'),
-      (isDaytona || isDaytonaSideGame)
-        ? supabase.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId)
-        : Promise.resolve({ data: [] }),
-      supabase.from('matchups').select('id, player1_id, player2_id, bet').eq('round_id', roundId),
-      supabase.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', roundId),
-      (isDaytona || isDaytonaSideGame) ? supabase.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId) : Promise.resolve({ data: [] }),
-      bankerSideGame && allTeamIds.length ? supabase.from('banker_holes').select('team_id, hole_number, banker_player_id, max_bet').eq('round_id', roundId).in('team_id', allTeamIds) : Promise.resolve({ data: [] }),
-      bankerSideGame && allTeamIds.length ? supabase.from('banker_bets').select('team_id, hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', roundId).in('team_id', allTeamIds) : Promise.resolve({ data: [] }),
-      bankerSideGame && roundPlayerIds.length ? supabase.from('hole_strokes').select('hole_number, player_id').eq('round_id', roundId).in('player_id', roundPlayerIds) : Promise.resolve({ data: [] }),
-    ])
-    const payoutsHoleValues: Record<string, Record<number, number>> = {}
-    for (const hv of (dtHoleValuesRaw ?? []) as { team_id: string; hole_number: number; value_per_point: number }[]) {
-      if (!payoutsHoleValues[hv.team_id]) payoutsHoleValues[hv.team_id] = {}
-      payoutsHoleValues[hv.team_id][hv.hole_number] = hv.value_per_point
+    const data: PayoutsData | null = await fetch(
+      '/api/payouts-data?roundId=' + encodeURIComponent(roundId) +
+      '&isDaytona=' + isDaytona +
+      '&isDaytonaSideGame=' + isDaytonaSideGame +
+      '&bankerSideGame=' + bankerSideGame
+    ).then((r) => r.json()).catch(() => null)
+    if (data) {
+      setPayoutsData({
+        teams: data.teams,
+        players: data.players,
+        scores: data.scores,
+        ballValues: data.ballValues,
+        assignments: data.assignments as DaytonaHoleAssignment[],
+        matchups: data.matchups as SavedMatchup[],
+        bestBallMatchups: data.bestBallMatchups as BestBallMatchup[],
+        holeValues: data.holeValues,
+        bankerHolesAll: data.bankerHolesAll,
+        bankerBetsAll: data.bankerBetsAll,
+        holeStrokesAll: data.holeStrokesAll,
+      })
     }
-    setPayoutsData({
-      teams: teams ?? [],
-      players: allPlayers ?? [],
-      scores: allScores ?? [],
-      ballValues: ballValues ?? [],
-      assignments: (dtAssignments ?? []) as DaytonaHoleAssignment[],
-      matchups: (matchupsData ?? []) as SavedMatchup[],
-      bestBallMatchups: (bbMatchupsData ?? []) as BestBallMatchup[],
-      holeValues: payoutsHoleValues,
-      bankerHolesAll: (bankerHolesRaw ?? []) as { team_id: string; hole_number: number; banker_player_id: string | null; max_bet: number }[],
-      bankerBetsAll: (bankerBetsRaw ?? []) as { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[],
-      holeStrokesAll: (holeStrokesRaw ?? []) as { hole_number: number; player_id: string }[],
-    })
     setPayoutsLoading(false)
   }
 
@@ -656,33 +642,33 @@ export default function ScoreEntry({
     setRoundCompleteChecked(true)
   }
 
-  const broadcastChannel = useRef<ReturnType<typeof supabase.channel> | null>(null)
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
 
     async function refetchAll() {
-      const [scoresRes, assignRes] = await Promise.all([
-        supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds),
+      const [scoresData, assignData] = await Promise.all([
+        playerIds.length ? fetch('/api/scores?playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
         isDaytonaMode && roundId && playerIds.length
-          ? supabase.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId).in('player_id', playerIds)
-          : Promise.resolve({ data: null }),
+          ? fetch('/api/daytona-assignments?roundId=' + roundId).then((r) => r.json()).catch(() => null)
+          : Promise.resolve(null),
       ])
-      if (scoresRes.data) {
-        setSavedScores(scoresRes.data)
+      if (scoresData) {
+        setSavedScores(scoresData)
         setSavedHoles(() => {
           const saved = new Set<number>()
           for (let h = 1; h <= 18; h++) {
-            if (players.every((p) => scoresRes.data!.some((s) => s.player_id === p.id && s.hole_number === h))) {
+            if (players.every((p) => scoresData.some((s: { player_id: string; hole_number: number }) => s.player_id === p.id && s.hole_number === h))) {
               saved.add(h)
             }
           }
           return saved
         })
       }
-      if (assignRes.data) {
+      if (assignData) {
+        const filtered = (assignData as { player_id: string; hole_number: number; side: string }[]).filter((a) => playerIds.includes(a.player_id))
         setAssignments(() => {
           const m: AssignmentMap = {}
-          for (const a of assignRes.data!) {
+          for (const a of filtered) {
             if (!m[a.hole_number]) m[a.hole_number] = {}
             m[a.hole_number][a.player_id] = a.side as DaytonaSide
           }
@@ -692,15 +678,10 @@ export default function ScoreEntry({
       checkRoundComplete()
     }
 
-    const broadcastCh = supabase.channel('score-updates').on('broadcast', { event: 'refresh' }, refetchAll).subscribe()
-    broadcastChannel.current = broadcastCh
-
-    const pgCh = supabase.channel(`se-scores-${team.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchAll).subscribe()
+    const interval = setInterval(refetchAll, 5000)
 
     return () => {
-      supabase.removeChannel(broadcastCh)
-      supabase.removeChannel(pgCh)
-      broadcastChannel.current = null
+      clearInterval(interval)
     }
   }, [players])
 
@@ -924,7 +905,6 @@ export default function ScoreEntry({
       } else {
         setTimeout(() => scrollHoleIntoView(holeNumber, 'smooth'), 100)
       }
-      broadcastChannel.current?.send({ type: 'broadcast', event: 'refresh', payload: {} })
       checkRoundComplete()
     }
   }

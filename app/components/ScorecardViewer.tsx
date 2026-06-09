@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
 import { computeHoleBallScores, computeHoleDaytonaWithSides, type DaytonaHoleAssignment } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 
@@ -86,17 +85,12 @@ export default function ScorecardViewer({
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
     async function refetch() {
-      const { data } = await supabase
-        .from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
+      if (!playerIds.length) return
+      const data = await fetch('/api/scores?playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null)
       if (data) setScores(data)
     }
-    const ch1 = supabase.channel('scorecard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetch)
-      .subscribe()
-    const ch2 = supabase.channel('scorecard-updates')
-      .on('broadcast', { event: 'refresh' }, refetch)
-      .subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
+    const interval = setInterval(refetch, 5000)
+    return () => { clearInterval(interval) }
   }, [players])
 
   // Pre-compute per-hole data (player scores + ball scores)

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
 import {
   saveMatchup, deleteMatchup, updateMatchupBet, updateMatchupPresses,
   saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet, updateBestBallPresses,
@@ -754,29 +753,18 @@ export default function MatchupClient({
   useEffect(() => {
     const playerIds = players.map((p) => p.id)
     if (!playerIds.length) return
-    async function refetchScores() {
-      const { data } = await supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', playerIds)
-      if (data) setScores(data)
+    async function refetchAll() {
+      const [scoresData, matchupsData, bbMatchupsData] = await Promise.all([
+        fetch('/api/scores?playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null),
+        fetch('/api/matchups?roundId=' + roundId).then((r) => r.json()).catch(() => null),
+        fetch('/api/best-ball-matchups?roundId=' + roundId).then((r) => r.json()).catch(() => null),
+      ])
+      if (scoresData) setScores(scoresData)
+      if (matchupsData) setMatchups(matchupsData)
+      if (bbMatchupsData) setBestBallMatchups(bbMatchupsData.map((m: SavedMatchup & { press?: PressEntry[] }) => ({ ...m, press: m.press ?? [] })))
     }
-    const ch1 = supabase.channel('matchup-scores')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores)
-      .subscribe()
-    const ch4 = supabase.channel('score-updates')
-      .on('broadcast', { event: 'refresh' }, refetchScores)
-      .subscribe()
-    const ch2 = supabase.channel('matchup-matchups')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matchups' }, async () => {
-        const { data } = await supabase.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', roundId).order('created_at')
-        if (data) setMatchups(data)
-      }).subscribe()
-    const ch3 = supabase.channel('matchup-bestball')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'best_ball_matchups' }, async () => {
-        const { data } = await supabase.from('best_ball_matchups')
-          .select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press')
-          .eq('round_id', roundId).order('created_at')
-        if (data) setBestBallMatchups(data.map((m) => ({ ...m, press: m.press ?? [] })))
-      }).subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(ch3); supabase.removeChannel(ch4) }
+    const interval = setInterval(refetchAll, 5000)
+    return () => { clearInterval(interval) }
   }, [players, roundId])
 
   const scoreMap = useMemo(() => {

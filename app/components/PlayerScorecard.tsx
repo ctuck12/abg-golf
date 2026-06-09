@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
 import { ScoreNotation } from './ScoreNotation'
 import { computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, type DaytonaHoleAssignment } from '@/lib/scoring'
 
@@ -86,36 +85,23 @@ export default function PlayerScorecard({
 
   useEffect(() => {
     async function refetchScores() {
-      const { data } = await supabase
-        .from('scores')
-        .select('hole_number, strokes')
-        .eq('player_id', player.id)
-      if (data) setScores(data)
+      const data = await fetch('/api/scores?playerIds=' + player.id).then((r) => r.json()).catch(() => null)
+      if (data) setScores(data.map((s: { player_id: string; hole_number: number; strokes: number }) => ({ hole_number: s.hole_number, strokes: s.strokes })))
     }
-    const ch1 = supabase.channel(`player-${player.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchScores)
-      .subscribe()
-    const ch2 = supabase.channel(`player-updates-${player.id}`)
-      .on('broadcast', { event: 'refresh' }, refetchScores)
-      .subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
+    const interval = setInterval(refetchScores, 5000)
+    return () => { clearInterval(interval) }
   }, [player.id])
 
   useEffect(() => {
     if (!isDaytona || !dtData) return
     const allPlayerIds = dtData.allPlayerIds
     async function refetchDaytona() {
-      const { data } = await supabase
-        .from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds)
+      if (!allPlayerIds.length) return
+      const data = await fetch('/api/scores?playerIds=' + allPlayerIds.join(',')).then((r) => r.json()).catch(() => null)
       if (data) setAllRoundScores(data)
     }
-    const ch1 = supabase.channel(`player-dt-${player.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, refetchDaytona)
-      .subscribe()
-    const ch2 = supabase.channel(`player-dt-updates-${player.id}`)
-      .on('broadcast', { event: 'refresh' }, refetchDaytona)
-      .subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
+    const interval = setInterval(refetchDaytona, 5000)
+    return () => { clearInterval(interval) }
   }, [isDaytona, dtData?.roundId])
 
   // Compute per-hole points for this player (Daytona only)
