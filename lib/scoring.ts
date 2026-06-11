@@ -420,20 +420,20 @@ export function calculatePoolPayouts(
   const potTotal = perPlayerContribution * totalPlayers
 
   // Minimize settlements using greedy matching of biggest winner vs biggest loser
-  const balances = teamPlayers.map((p) => ({ id: p.id, name: p.name, bal: playerNet[p.id] ?? 0 }))
-  const pos = balances.filter((b) => b.bal > 0.001).sort((a, b) => b.bal - a.bal)
-  const neg = balances.filter((b) => b.bal < -0.001).sort((a, b) => a.bal - b.bal)
+  const balances = teamPlayers.map((p) => ({ id: p.id, name: p.name, bal: Math.round(playerNet[p.id] ?? 0) }))
+  const pos = balances.filter((b) => b.bal > 0).sort((a, b) => b.bal - a.bal)
+  const neg = balances.filter((b) => b.bal < 0).sort((a, b) => a.bal - b.bal)
   const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
 
   let wi = 0, li = 0
   while (wi < pos.length && li < neg.length) {
     const w = pos[wi], l = neg[li]
-    const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
-    if (Math.round(amount) > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    const amount = Math.min(w.bal, -l.bal)
+    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
     w.bal -= amount
     l.bal += amount
-    if (w.bal < 0.001) wi++
-    if (l.bal > -0.001) li++
+    if (w.bal === 0) wi++
+    if (l.bal === 0) li++
   }
 
   return { results, playerNet, potTotal, perBallResult, perPlayerContribution, numDecidedResults, numPlayedResults, settlements }
