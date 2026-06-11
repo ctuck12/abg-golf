@@ -383,6 +383,7 @@ export default function LeaderboardClient({
   const [showDaytonaSideResults, setShowDaytonaSideResults] = useState(false)
   const [showDaytonaSideSettlements, setShowDaytonaSideSettlements] = useState(false)
   const [showBankerResults, setShowBankerResults] = useState(false)
+  const [showBankerSettlements, setShowBankerSettlements] = useState(false)
   const [showHammerResults, setShowHammerResults] = useState(false)
   const [showMatchupResults, setShowMatchupResults] = useState(false)
   const [showSkinsResults, setShowSkinsResults] = useState(false)
@@ -564,6 +565,7 @@ export default function LeaderboardClient({
       setShowDaytonaSettlements(false)
       setShowMatchupSettlements(false)
       setShowSkinsSettlements(false)
+      setShowBankerSettlements(false)
     }
   }, [showPayouts])
 
@@ -1536,7 +1538,20 @@ export default function LeaderboardClient({
                                 )
                               })}
                             </div>
-                            {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">{fmtSettle(s.amount)}</span></div>))}</div>)}
+                            {tSettlements.length > 0 && (
+                              <div className="border-t border-gray-100 px-4 py-3">
+                                <button onClick={() => setShowBankerSettlements((v) => !v)} className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                                  <span>Settlement</span>
+                                  <span className="text-gray-400 text-[10px]">{showBankerSettlements ? '▲' : '▼'}</span>
+                                </button>
+                                {showBankerSettlements && tSettlements.map((s, i) => (
+                                  <div key={i} className="flex items-center py-1 gap-2 text-sm">
+                                    <span className="flex-1 min-w-0 truncate"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span>
+                                    <span className="font-bold text-gray-900">{fmtSettle(s.amount)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             {tSettlements.length === 0 && groupPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">All even — no payments needed.</p>)}
                           </div>
                         )
