@@ -1793,7 +1793,7 @@ export default function LeaderboardClient({
                             <div key={label} className="flex items-center justify-between text-sm py-1 border-b border-gray-50 last:border-0">
                               <span className="text-gray-600">{label}</span>
                               <span className="font-semibold tabular-nums" style={{ color: val > 0 ? '#16a34a' : '#dc2626' }}>
-                                {fmtNetSigned(val)}
+                                {val === 0 ? 'Even' : `$${Math.round(Math.abs(val))}`}
                               </span>
                             </div>
                           )
@@ -1801,7 +1801,7 @@ export default function LeaderboardClient({
                         <div className="flex items-center justify-between text-sm font-bold pt-2 border-t border-gray-200">
                           <span className="text-gray-900">Total</span>
                           <span style={{ color: total > 0 ? '#16a34a' : total < 0 ? '#dc2626' : '#6b7280' }}>
-                            {fmtNetSigned(total)}
+                            {total === 0 ? 'Even' : `$${Math.round(Math.abs(total))}`}
                           </span>
                         </div>
                       </div>
