@@ -1116,7 +1116,7 @@ export default function MatchupClient({
                     <span className="flex items-baseline gap-1 flex-wrap">
                       <span>{showScorecardFor.p1Name}</span>
                       {showScorecardFor.p1Handicap != null && <span className="text-xs font-normal" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {Number(showScorecardFor.p1Handicap) % 1 === 0 ? showScorecardFor.p1Handicap : Number(showScorecardFor.p1Handicap).toFixed(1)}</span>}
-                      <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>vs</span>
+                      <span className="text-xs font-bold px-1" style={{ color: gold }}>vs</span>
                       <span>{showScorecardFor.p2Name}</span>
                       {showScorecardFor.p2Handicap != null && <span className="text-xs font-normal" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {Number(showScorecardFor.p2Handicap) % 1 === 0 ? showScorecardFor.p2Handicap : Number(showScorecardFor.p2Handicap).toFixed(1)}</span>}
                     </span>
