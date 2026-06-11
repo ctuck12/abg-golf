@@ -143,9 +143,9 @@ export default function AddToHomeScreen() {
         className="fixed inset-0 z-50 flex items-center justify-center px-6"
         style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', background: 'rgba(0,0,0,0.45)' }}
       >
-        <div className="bg-white rounded-3xl w-full max-w-sm p-8 text-center shadow-2xl border-2" style={{ borderColor: navy }}>
-          <img src="/abg-logo.jpg" alt="ABG" className="w-24 h-24 mx-auto mb-4 rounded-full object-cover" />
-          <div className="text-4xl mb-3">🎉</div>
+        <div className="bg-white rounded-3xl w-full max-w-sm px-8 pt-5 pb-8 text-center shadow-2xl border-2" style={{ borderColor: navy }}>
+          <img src="/abg-logo.jpg" alt="ABG" className="w-32 h-32 mx-auto mb-2 rounded-full object-cover" />
+          <div className="text-4xl mb-2">🎉</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re All Set!</h2>
           <p className="text-gray-500 text-sm leading-relaxed mb-6">
             Close your browser and open the <strong className="text-gray-800">ABG Golf</strong> app from your Home Screen for the full experience.
@@ -164,8 +164,8 @@ export default function AddToHomeScreen() {
       style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', background: 'rgba(0,0,0,0.45)' }}
     >
       <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border-2 overflow-hidden" style={{ borderColor: navy }}>
-        <div className="px-6 pt-7 pb-5 text-center">
-          <img src="/abg-logo.jpg" alt="ABG" className="w-20 h-20 mx-auto mb-4 rounded-full object-cover" />
+        <div className="px-6 pt-4 pb-4 text-center">
+          <img src="/abg-logo.jpg" alt="ABG" className="w-32 h-32 mx-auto mb-2 rounded-full object-cover" />
           <h2 className="text-xl font-bold text-gray-900 mb-1">Get the Best Experience</h2>
           <p className="text-gray-500 text-sm leading-relaxed">
             Add this app to your Home Screen for a full-screen experience with no browser bar.
