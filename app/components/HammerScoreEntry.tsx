@@ -120,7 +120,7 @@ export default function HammerScoreEntry({
         if (t1Best === t2Best) continue
         const winner = t1Best < t2Best ? 1 : 2
         const winnerBest = winner === 1 ? t1Best : t2Best
-        const mult = winnerBest < h.par ? 3 : 1
+        const mult = winnerBest <= h.par - 2 ? 3 : winnerBest === h.par - 1 ? 2 : 1
         const amount = hs.stake * mult
         if (winner === 1) { t1 += amount; t2 -= amount } else { t2 += amount; t1 -= amount }
       }

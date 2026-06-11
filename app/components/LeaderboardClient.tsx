@@ -1003,7 +1003,7 @@ export default function LeaderboardClient({
           if (t1Best === t2Best) continue
           const winner = t1Best < t2Best ? 1 : 2
           const winnerBest = winner === 1 ? t1Best : t2Best
-          const mult = winnerBest < hole.par ? 3 : 1
+          const mult = winnerBest <= hole.par - 2 ? 3 : winnerBest === hole.par - 1 ? 2 : 1
           const amount = hs.stake * mult
           if (winner === 1) { t1 += amount; t2 -= amount } else { t2 += amount; t1 -= amount }
         }
@@ -1582,7 +1582,7 @@ export default function LeaderboardClient({
                             if (t1Best === t2Best) { holeResults.push({ hNum: hole.hole_number, winner: null, folded: null, stake: hs.stake, mult: 1 }); continue }
                             const winner = t1Best < t2Best ? 1 : 2
                             const winnerBest = winner === 1 ? t1Best : t2Best
-                            const mult = winnerBest < hole.par ? 3 : 1
+                            const mult = winnerBest <= hole.par - 2 ? 3 : winnerBest === hole.par - 1 ? 2 : 1
                             const amount = hs.stake * mult
                             if (winner === 1) { t1Total += amount; t2Total -= amount } else { t2Total += amount; t1Total -= amount }
                             holeResults.push({ hNum: hole.hole_number, winner, folded: null, stake: hs.stake, mult })
