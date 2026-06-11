@@ -654,7 +654,7 @@ export function settleDaytonaPlayerPoints(
     net[p.id] = Math.round((pointTotals.get(p.id) ?? 0) * dollarPerPoint * 100) / 100
   }
 
-  const balances = players.map((p) => ({ id: p.id, name: p.name, bal: net[p.id] ?? 0 }))
+  const balances = players.map((p) => ({ id: p.id, name: p.name, bal: Math.round(net[p.id] ?? 0) }))
   const pos = balances.filter((b) => b.bal > 0).sort((a, b) => b.bal - a.bal)
   const neg = balances.filter((b) => b.bal < 0).sort((a, b) => a.bal - b.bal)
   const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
@@ -662,12 +662,12 @@ export function settleDaytonaPlayerPoints(
   let wi = 0, li = 0
   while (wi < pos.length && li < neg.length) {
     const w = pos[wi], l = neg[li]
-    const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
-    if (Math.round(amount) > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    const amount = Math.min(w.bal, -l.bal)
+    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
     w.bal -= amount
     l.bal += amount
-    if (Math.abs(w.bal) < 0.01) wi++
-    if (Math.abs(l.bal) < 0.01) li++
+    if (w.bal === 0) wi++
+    if (l.bal === 0) li++
   }
 
   return { net, settlements }
@@ -753,17 +753,17 @@ export function computeSkinsResults(
   }
 
   // Minimize settlements
-  const balances = participants.map((p) => ({ id: p.id, name: p.name, bal: Math.round((playerNet[p.id] ?? 0) * 100) / 100 }))
-  const pos = balances.filter((b) => b.bal > 0.005).sort((a, b) => b.bal - a.bal).map((b) => ({ ...b }))
-  const neg = balances.filter((b) => b.bal < -0.005).sort((a, b) => a.bal - b.bal).map((b) => ({ ...b }))
+  const balances = participants.map((p) => ({ id: p.id, name: p.name, bal: Math.round(playerNet[p.id] ?? 0) }))
+  const pos = balances.filter((b) => b.bal > 0).sort((a, b) => b.bal - a.bal).map((b) => ({ ...b }))
+  const neg = balances.filter((b) => b.bal < 0).sort((a, b) => a.bal - b.bal).map((b) => ({ ...b }))
   const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
   let wi = 0, li = 0
   while (wi < pos.length && li < neg.length) {
     const w = pos[wi], l = neg[li]
-    const amount = Math.round(Math.min(w.bal, -l.bal) * 100) / 100
-    if (Math.round(amount) > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
+    const amount = Math.min(w.bal, -l.bal)
+    if (amount > 0) settlements.push({ fromId: l.id, fromName: l.name, toId: w.id, toName: w.name, amount })
     w.bal -= amount; l.bal += amount
-    if (w.bal < 0.005) wi++; if (l.bal > -0.005) li++
+    if (w.bal === 0) wi++; if (l.bal === 0) li++
   }
 
   return { skins, playerNet, skinsWon, settlements }
