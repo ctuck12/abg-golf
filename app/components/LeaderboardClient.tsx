@@ -2229,8 +2229,8 @@ export default function LeaderboardClient({
               <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-widest leading-tight" style={{ color: gold }}>{orgName}</p>
                 <h1 className="text-lg font-bold leading-tight">{roundName}</h1>
-                {roundCourse && <p className="text-xs leading-tight" style={{ color: 'white' }}>{roundCourse}</p>}
-                <p className="text-xs leading-tight" style={{ color: 'white' }}>{formattedDate}</p>
+                {roundCourse && <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.5)' }}>{roundCourse}</p>}
+                <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.5)' }}>{formattedDate}</p>
                 {(isAdmin || scorecardTeamId || scorecardGroupId) && (
                   <div className="flex items-center gap-1.5 mt-1.5">
                     {isAdmin && <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full text-white" style={{ background: '#dc2626' }}>Admin</span>}
@@ -2565,12 +2565,12 @@ export default function LeaderboardClient({
                       <span className="text-sm font-bold text-white flex-1 flex items-center gap-1.5">
                         {group.name}
                         {group.hasDaytona && (
-                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'white' }}>
+                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'rgba(255,255,255,0.5)' }}>
                             {group.daytona_variant?.startsWith('5man-flares') ? 'Flares' : 'Daytona'}
                           </span>
                         )}
                         {group.hasBanker && (
-                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'white' }}>
+                          <span className="text-[10px] font-semibold tracking-wide" style={{ color: 'rgba(255,255,255,0.5)' }}>
                             Banker
                           </span>
                         )}
