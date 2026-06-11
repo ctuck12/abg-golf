@@ -21,7 +21,7 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 // Display helpers — keep all internal math at full precision; round only at render
 const fmtDollars = (v: number) => { const r = Math.round(Math.abs(v)); return r === 0 ? 'Even' : `$${r}` }
-const fmtNetSigned = (v: number) => { const r = Math.round(Math.abs(v)); return r === 0 ? 'Even' : v > 0 ? `+$${r}` : `-$${r}` }
+const fmtNetSigned = (v: number) => { const r = Math.round(Math.abs(v)); return r === 0 ? 'Even' : `$${r}` }
 const fmtSettle = (v: number) => `$${Math.round(Math.abs(v))}`
 
 function formatHoleRateBreakdown(holes: { hole_number: number }[], overrides: Record<number, number>, defaultRate: number): string {
