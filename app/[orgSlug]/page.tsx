@@ -78,6 +78,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const teamIds = teams.map((t) => t.id)
   const isDaytona = (round.format ?? 'standard') === 'daytona'
   const isTraditional = (round.format ?? 'standard') === 'traditional'
+  const isHammer = (round.format ?? 'standard') === 'hammer'
 
   const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }, { data: holeStrokesRaw }] = await Promise.all([
     sb.from('players').select('id, team_id, name, position, skins_participant, handicap').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
@@ -92,7 +93,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', round.id).order('ball_number'),
     isMixedGroups ? sb.from('playing_groups').select('id, name, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null; banker_side_game_min_bet?: number | null; auto_strokes?: boolean | null }[] }),
     isMixedGroups ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', (await sb.from('playing_groups').select('id').eq('round_id', round.id)).data?.map((g) => g.id) ?? []) : Promise.resolve({ data: [] as { playing_group_id: string; player_id: string }[] }),
-    (isMixedGroups || isDaytona) ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id) : Promise.resolve({ data: [] as { hole_number: number; player_id: string }[] }),
+    (isMixedGroups || isDaytona || isHammer) ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id) : Promise.resolve({ data: [] as { hole_number: number; player_id: string }[] }),
   ])
 
   const lbGroupPlayerMap: Record<string, string[]> = {}
@@ -129,6 +130,21 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   for (const hs of (holeStrokesRaw ?? []) as { hole_number: number; player_id: string }[]) {
     if (!lbHoleStrokeMap[hs.hole_number]) lbHoleStrokeMap[hs.hole_number] = []
     lbHoleStrokeMap[hs.hole_number].push(hs.player_id)
+  }
+
+  // Fetch hammer matchups and hole states
+  const { data: lbHammerMatchupsRaw } = isHammer
+    ? await sb.from('hammer_matchups').select('id, team1_id, team2_id, base_bet, auto_handicap').eq('round_id', round.id)
+    : { data: [] as { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }[] }
+  const lbHammerMatchups = lbHammerMatchupsRaw ?? []
+  const hammerMatchupIds = lbHammerMatchups.map((m) => m.id)
+  const { data: lbHammerHolesRaw } = hammerMatchupIds.length
+    ? await sb.from('hammer_holes').select('matchup_id, hole_number, stake, last_hammer_team, folded_team, pre_tee_used').in('matchup_id', hammerMatchupIds)
+    : { data: [] as { matchup_id: string; hole_number: number; stake: number; last_hammer_team: number | null; folded_team: number | null; pre_tee_used: boolean }[] }
+  const lbHammerHolesMap: Record<string, Record<number, { stake: number; lastHammerTeam: 1 | 2 | null; foldedTeam: 1 | 2 | null; preTeeUsed: boolean }>> = {}
+  for (const hh of (lbHammerHolesRaw ?? []) as { matchup_id: string; hole_number: number; stake: number; last_hammer_team: number | null; folded_team: number | null; pre_tee_used: boolean }[]) {
+    if (!lbHammerHolesMap[hh.matchup_id]) lbHammerHolesMap[hh.matchup_id] = {}
+    lbHammerHolesMap[hh.matchup_id][hh.hole_number] = { stake: hh.stake, lastHammerTeam: hh.last_hammer_team as 1 | 2 | null, foldedTeam: hh.folded_team as 1 | 2 | null, preTeeUsed: hh.pre_tee_used }
   }
 
   // Fetch non-team group players (org-roster players added directly to a playing group
@@ -198,6 +214,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       groupHoleStrokes={lbHoleStrokeMap}
       bankerHolesMap={lbBankerHoles}
       bankerBetsMap={lbBankerBets}
+      hammerMatchups={lbHammerMatchups}
+      hammerHolesMap={lbHammerHolesMap}
     />
   )
 }
