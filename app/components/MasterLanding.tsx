@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import AddToHomeScreen from './AddToHomeScreen'
 
 type Org = { id: string; name: string; slug: string; is_active: boolean }
 
@@ -55,6 +56,7 @@ export default function MasterLanding({ orgs }: { orgs: Org[] }) {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f8fafc' }}>
+      <AddToHomeScreen />
       <header ref={headerRef} className="text-white pb-4 px-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-sm mx-auto relative min-h-[72px]">
           <div

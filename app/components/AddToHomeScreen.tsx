@@ -143,7 +143,7 @@ export default function AddToHomeScreen() {
         className="fixed inset-0 z-50 flex items-center justify-center px-6"
         style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', background: 'rgba(0,0,0,0.45)' }}
       >
-        <div className="bg-white rounded-3xl w-full max-w-sm px-8 pt-5 pb-8 text-center shadow-2xl border-2" style={{ borderColor: navy }}>
+        <div className="bg-white rounded-3xl w-full max-w-sm px-8 pt-5 pb-8 text-center shadow-2xl" style={{ border: `5px solid ${navy}` }}>
           <img src="/abg-logo.jpg" alt="ABG" className="w-32 h-32 mx-auto mb-2 rounded-full object-cover" />
           <div className="text-4xl mb-2">🎉</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re All Set!</h2>
@@ -163,7 +163,7 @@ export default function AddToHomeScreen() {
       className="fixed inset-0 z-50 flex items-center justify-center px-6"
       style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', background: 'rgba(0,0,0,0.45)' }}
     >
-      <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border-2 overflow-hidden" style={{ borderColor: navy }}>
+      <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden" style={{ border: `5px solid ${navy}` }}>
         <div className="px-6 pt-4 pb-4 text-center">
           <img src="/abg-logo.jpg" alt="ABG" className="w-32 h-32 mx-auto mb-2 rounded-full object-cover" />
           <h2 className="text-xl font-bold text-gray-900 mb-1">Get the Best Experience</h2>
@@ -183,7 +183,7 @@ export default function AddToHomeScreen() {
             </button>
           </div>
         ) : steps.length > 0 ? (
-          <div className="mx-6 mb-2 rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: navy }}>
+          <div className="px-6 pb-2 space-y-3">
             {steps.map((step) => (
               <div key={step.num} className="flex items-start gap-3">
                 <NumberBadge n={step.num} />
