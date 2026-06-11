@@ -1176,11 +1176,11 @@ export default function LeaderboardClient({
                   {showBallResults && <div className="border-t border-gray-100">
                     <div className="px-4 pt-3 pb-3">
                       {(() => {
-                        const ballsByTeam: Record<string, { name: string; balls: number }> = {}
+                        const ballsByTeam: Record<string, { id: string; name: string; balls: number }> = {}
                         for (const r of ballResults) {
                           if (!r.played) continue
                           if (!r.tied && r.winnerId && r.winnerName) {
-                            if (!ballsByTeam[r.winnerId]) ballsByTeam[r.winnerId] = { name: r.winnerName, balls: 0 }
+                            if (!ballsByTeam[r.winnerId]) ballsByTeam[r.winnerId] = { id: r.winnerId, name: r.winnerName, balls: 0 }
                             ballsByTeam[r.winnerId].balls += 1
                           } else if (r.tied) {
                             const summaryMap = r.half === 'Front 9' ? frontSummaries : r.half === 'Back 9' ? backSummaries : (totalSummaries ?? new Map())
@@ -1188,7 +1188,7 @@ export default function LeaderboardClient({
                             for (const t of initialTeams) {
                               const total = summaryMap.get(t.id)?.ballTotals[bi] ?? null
                               if (total !== null && total === r.winnerTotal) {
-                                if (!ballsByTeam[t.id]) ballsByTeam[t.id] = { name: t.name, balls: 0 }
+                                if (!ballsByTeam[t.id]) ballsByTeam[t.id] = { id: t.id, name: t.name, balls: 0 }
                                 ballsByTeam[t.id].balls += 0.5
                               }
                             }
@@ -1214,14 +1214,20 @@ export default function LeaderboardClient({
                             <p className="text-xs text-gray-500 mb-3">{ballsCount * numSegments} Balls · ${perBallValue}/Ball · ${ballsCount * numSegments * perBallValue}/Player</p>
                             {/* Balls tally */}
                             {tallyEntries.length > 0 && (
-                              <div className="flex flex-nowrap gap-1.5 mb-3 overflow-x-auto">
-                                {tallyEntries.map((e) => (
-                                  <div key={e.name} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 flex-shrink-0">
-                                    <span className="text-xs font-bold whitespace-nowrap" style={{ color: navy }}>{e.name}</span>
-                                    <span className="text-xs font-bold" style={{ color: gold }}>{e.balls}</span>
-                                    <span className="text-[10px] text-gray-500 whitespace-nowrap">Ball{e.balls !== 1 ? 's' : ''}</span>
-                                  </div>
-                                ))}
+                              <div className="flex flex-col gap-1.5 mb-3">
+                                {tallyEntries.map((e) => {
+                                  const teamPlayerNames = players.filter((p) => p.team_id === e.id).map((p) => p.name)
+                                  return (
+                                    <div key={e.name} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
+                                      <span className="text-xs font-bold whitespace-nowrap" style={{ color: navy }}>{e.name}</span>
+                                      <span className="text-xs font-bold" style={{ color: gold }}>{e.balls}</span>
+                                      <span className="text-[10px] text-gray-500 whitespace-nowrap">Ball{e.balls !== 1 ? 's' : ''}</span>
+                                      {teamPlayerNames.length > 0 && (
+                                        <span className="text-[10px] text-gray-400 truncate">· {teamPlayerNames.join(', ')}</span>
+                                      )}
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )}
                             {/* Table header */}
