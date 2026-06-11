@@ -654,7 +654,7 @@ export function settleDaytonaPlayerPoints(
     net[p.id] = Math.round((pointTotals.get(p.id) ?? 0) * dollarPerPoint * 100) / 100
   }
 
-  const balances = players.map((p) => ({ id: p.id, name: p.name, bal: Math.round(net[p.id] ?? 0) }))
+  const balances = players.map((p) => { const v = net[p.id] ?? 0; return { id: p.id, name: p.name, bal: v < 0 ? -Math.round(-v) : Math.round(v) } })
   const pos = balances.filter((b) => b.bal > 0).sort((a, b) => b.bal - a.bal)
   const neg = balances.filter((b) => b.bal < 0).sort((a, b) => a.bal - b.bal)
   const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
@@ -753,7 +753,7 @@ export function computeSkinsResults(
   }
 
   // Minimize settlements
-  const balances = participants.map((p) => ({ id: p.id, name: p.name, bal: Math.round(playerNet[p.id] ?? 0) }))
+  const balances = participants.map((p) => { const v = playerNet[p.id] ?? 0; return { id: p.id, name: p.name, bal: v < 0 ? -Math.round(-v) : Math.round(v) } })
   const pos = balances.filter((b) => b.bal > 0).sort((a, b) => b.bal - a.bal).map((b) => ({ ...b }))
   const neg = balances.filter((b) => b.bal < 0).sort((a, b) => a.bal - b.bal).map((b) => ({ ...b }))
   const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []

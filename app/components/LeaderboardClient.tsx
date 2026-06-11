@@ -1128,7 +1128,7 @@ export default function LeaderboardClient({
                                           {seg.label}:{' '}
                                           <span style={{ color: sp > 0 ? '#16a34a' : sp < 0 ? '#dc2626' : '#6b7280' }}>{sp > 0 ? `+${sp}` : sp}pts</span>
                                           {' ('}
-                                          <span style={{ color: sd > 0 ? '#16a34a' : sd < 0 ? '#dc2626' : '#6b7280' }}>{sd > 0 ? `$${sd.toFixed(2)}` : sd < 0 ? `$${Math.abs(sd).toFixed(2)}` : '$0.00'}</span>
+                                          <span style={{ color: sd > 0 ? '#16a34a' : sd < 0 ? '#dc2626' : '#6b7280' }}>{sd > 0 ? `$${Math.round(sd)}` : sd < 0 ? `$${Math.round(Math.abs(sd))}` : '$0'}</span>
                                           {')'}
                                         </span>
                                       )})}
@@ -1428,7 +1428,7 @@ export default function LeaderboardClient({
                                           {seg.label}:{' '}
                                           <span style={{ color: sp > 0 ? '#16a34a' : sp < 0 ? '#dc2626' : '#6b7280' }}>{sp > 0 ? `+${sp}` : sp}pts</span>
                                           {' ('}
-                                          <span style={{ color: sd > 0 ? '#16a34a' : sd < 0 ? '#dc2626' : '#6b7280' }}>{sd > 0 ? `$${sd.toFixed(2)}` : sd < 0 ? `$${Math.abs(sd).toFixed(2)}` : '$0.00'}</span>
+                                          <span style={{ color: sd > 0 ? '#16a34a' : sd < 0 ? '#dc2626' : '#6b7280' }}>{sd > 0 ? `$${Math.round(sd)}` : sd < 0 ? `$${Math.round(Math.abs(sd))}` : '$0'}</span>
                                           {')'}
                                         </span>
                                       )})}
