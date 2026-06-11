@@ -319,7 +319,7 @@ export default function HammerScoreEntry({
             <div className="flex-1 text-center">
               <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{team1.name}</p>
               <p className="font-bold text-sm" style={{ color: runningTotals.team1 > 0 ? '#4ade80' : runningTotals.team1 < 0 ? '#f87171' : 'rgba(255,255,255,0.6)' }}>
-                {runningTotals.team1 > 0 ? `$${runningTotals.team1.toFixed(2)}` : runningTotals.team1 < 0 ? `$${Math.abs(runningTotals.team1).toFixed(2)}` : '$0'}
+                {runningTotals.team1 !== 0 ? `$${Math.round(Math.abs(runningTotals.team1))}` : '$0'}
               </p>
             </div>
             <div className="text-center self-center">
@@ -328,7 +328,7 @@ export default function HammerScoreEntry({
             <div className="flex-1 text-center">
               <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>{team2.name}</p>
               <p className="font-bold text-sm" style={{ color: runningTotals.team2 > 0 ? '#4ade80' : runningTotals.team2 < 0 ? '#f87171' : 'rgba(255,255,255,0.6)' }}>
-                {runningTotals.team2 > 0 ? `$${runningTotals.team2.toFixed(2)}` : runningTotals.team2 < 0 ? `$${Math.abs(runningTotals.team2).toFixed(2)}` : '$0'}
+                {runningTotals.team2 !== 0 ? `$${Math.round(Math.abs(runningTotals.team2))}` : '$0'}
               </p>
             </div>
           </div>
@@ -388,10 +388,11 @@ export default function HammerScoreEntry({
             if (t1Best === t2Best) return { winner: 0, amount: 0, label: 'Push' }
             const winner = t1Best < t2Best ? 1 : 2
             const winnerBest = winner === 1 ? t1Best : t2Best
-            const mult = winnerBest < hole.par ? 3 : 1
+            const mult = winnerBest <= hole.par - 2 ? 3 : winnerBest === hole.par - 1 ? 2 : 1
             const amount = hs.stake * mult
             const winnerName = winner === 1 ? team1.name : team2.name
-            return { winner, amount, label: `${winnerName} +$${amount}${mult === 3 ? ' 🐦' : ''}` }
+            const multLabel = mult === 3 ? ' 🦅' : mult === 2 ? ' 🐦' : ''
+            return { winner, amount, label: `${winnerName} +$${amount}${multLabel}` }
           })()
 
           return (
