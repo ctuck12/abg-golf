@@ -1110,9 +1110,17 @@ export default function MatchupClient({
           <div className="bg-white rounded-t-2xl max-h-[85vh] flex flex-col" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-4 flex-shrink-0" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
-              <h3 className="font-bold text-white text-base">
+              <h3 className="font-bold text-white text-base flex-1 min-w-0">
                 {showScorecardFor.type === 'player' ? showScorecardFor.name
-                  : showScorecardFor.type === 'h2h' ? `${showScorecardFor.p1Name} vs ${showScorecardFor.p2Name}`
+                  : showScorecardFor.type === 'h2h' ? (
+                    <span className="flex items-baseline gap-1 flex-wrap">
+                      <span>{showScorecardFor.p1Name}</span>
+                      {showScorecardFor.p1Handicap != null && <span className="text-xs font-normal" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {Number(showScorecardFor.p1Handicap) % 1 === 0 ? showScorecardFor.p1Handicap : Number(showScorecardFor.p1Handicap).toFixed(1)}</span>}
+                      <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>vs</span>
+                      <span>{showScorecardFor.p2Name}</span>
+                      {showScorecardFor.p2Handicap != null && <span className="text-xs font-normal" style={{ color: 'rgba(255,255,255,0.55)' }}>HCP {Number(showScorecardFor.p2Handicap) % 1 === 0 ? showScorecardFor.p2Handicap : Number(showScorecardFor.p2Handicap).toFixed(1)}</span>}
+                    </span>
+                  )
                   : showScorecardFor.type === 'bb-scorecards' ? `${showScorecardFor.t1Name} vs ${showScorecardFor.t2Name}`
                   : showScorecardFor.teamName}
               </h3>
@@ -1134,43 +1142,8 @@ export default function MatchupClient({
                   target.handicapSide === 'p1' ? hcpInfo : null,
                   target.handicapSide === 'p2' ? hcpInfo : null,
                 ]
-                const isOverall = target.betType === 'straight'
-                const fmtV = (n: number | null) => n === null ? '–' : n === 0 ? 'E' : n > 0 ? `+${n}` : String(n)
-                const fmtHcp = (h: number | null | undefined) => h == null ? null : h < 0 ? `+${Math.abs(h) % 1 === 0 ? Math.abs(h) : Math.abs(h).toFixed(1)}` : `${h % 1 === 0 ? h : Number(h).toFixed(1)}`
-                const vpColor = (n: number | null) => n === null ? 'rgba(255,255,255,0.55)' : n < 0 ? '#f87171' : n > 0 ? '#fbbf24' : 'rgba(255,255,255,0.8)'
-                const playerBars = [
-                  { id: target.p1Id, name: target.p1Name, handicap: target.p1Handicap },
-                  { id: target.p2Id, name: target.p2Name, handicap: target.p2Handicap },
-                ]
                 return (
                   <>
-                    <div className="space-y-1 mb-3">
-                      {playerBars.map(({ id, name, handicap }) => {
-                        const sm = scoreMap[id] ?? {}
-                        const fNine = holes.filter((h) => h.hole_number <= 9)
-                        const bNine = holes.filter((h) => h.hole_number > 9)
-                        const fScored = fNine.filter((h) => sm[h.hole_number] != null)
-                        const bScored = bNine.filter((h) => sm[h.hole_number] != null)
-                        const fVsp = fScored.length > 0 ? fScored.reduce((s, h) => s + sm[h.hole_number]! - h.par, 0) : null
-                        const bVsp = bScored.length > 0 ? bScored.reduce((s, h) => s + sm[h.hole_number]! - h.par, 0) : null
-                        const tVsp = fVsp !== null || bVsp !== null ? (fVsp ?? 0) + (bVsp ?? 0) : null
-                        return (
-                          <div key={id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: navy }}>
-                            <span className="flex-1 min-w-0 font-bold text-white text-sm truncate">{name}</span>
-                            {fmtHcp(handicap) && (
-                              <span className="text-[10px] font-semibold ml-1 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                                HCP {fmtHcp(handicap)}
-                              </span>
-                            )}
-                            <div className="flex items-center gap-4 text-[10px] font-semibold flex-shrink-0" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                              {!isOverall && <span>Front: <span style={{ color: vpColor(fVsp) }}>{fmtV(fVsp)}</span></span>}
-                              {!isOverall && <span>Back: <span style={{ color: vpColor(bVsp) }}>{fmtV(bVsp)}</span></span>}
-                              <span>Total: <span style={{ color: vpColor(tVsp) }}>{fmtV(tVsp)}</span></span>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
                   <HorizontalScorecardTable
                     rows={[
                       { label: target.p1Name, scoreMap: scoreMap[target.p1Id] ?? {} },
