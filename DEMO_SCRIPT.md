@@ -1,4 +1,38 @@
-# ABG Golf App — Demo Script (~90 seconds)
+# ABG Golf App — Demo Scripts
+
+---
+
+# 30-Second Version
+
+## [Landing → Leaderboard]
+> *Open the app, tap a group, log in*
+
+"Pick your group, enter the password, and you're straight into the live leaderboard — everyone's score relative to par, updating in real time."
+
+---
+
+## [Side Games → Settlements]
+> *Tap a side game chip, then Combined Settlements*
+
+"Skins, Banker, Daytona, Hammer — all tracked automatically. One tap on Combined Settlements shows exactly who owes who at the end of the round, no math required."
+
+---
+
+## [Admin Hub → Score Entry]
+> *Show Admin Hub, then the scorecard*
+
+"Admins set up the course, the round, and the side games. The scorekeeper enters scores hole by hole, and games like Hammer show a live running tab right in the header."
+
+---
+
+## [Wrap]
+
+"Mobile-first, installs like a native app, and keeps everyone honest. No spreadsheets — just golf."
+
+---
+---
+
+# Full Version (~90 seconds)
 
 ---
 
