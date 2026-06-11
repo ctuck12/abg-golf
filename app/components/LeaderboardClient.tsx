@@ -2710,7 +2710,8 @@ export default function LeaderboardClient({
                 {leaderboardView === 'individual' && (
                   <button
                     onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
-                    style={{ background: '#f59e0b', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.4)', fontSize: '10px', padding: '3px 9px', borderRadius: '999px', fontWeight: 700, flexShrink: 0, marginRight: '8px', textTransform: 'none', letterSpacing: 'normal' }}>
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                    style={{ background: gold, color: navy }}>
                     All Scorecards
                   </button>
                 )}
