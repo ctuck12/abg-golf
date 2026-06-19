@@ -3507,7 +3507,8 @@ export default function AdminDashboard({
                                       className="text-xs text-gray-500 hover:text-gray-700 px-2">Cancel</button>
                                   </form>
                                 ) : (
-                                  <div className="flex items-center gap-1.5 px-3 py-2">
+                                  <div className="flex flex-col px-3 py-2 gap-1">
+                                    <div className="flex items-center gap-1.5">
                                     <span className="text-xs font-semibold text-gray-400 w-4 text-right flex-shrink-0">{pi + 1}</span>
                                     <div className="flex flex-col gap-0.5 mr-1">
                                       <button type="button" disabled={pi === 0}
@@ -3517,9 +3518,9 @@ export default function AdminDashboard({
                                         onClick={() => handleMovePlayer(p.id, 'down')}
                                         className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none">▼</button>
                                     </div>
-                                    <span className="flex-1 text-sm text-gray-800 font-medium">{p.name}</span>
+                                    <span className="flex-1 min-w-0 text-sm text-gray-800 font-medium truncate">{p.name}</span>
                                     {editingHandicapId === p.id ? (
-                                      <div className="flex items-center gap-1">
+                                      <div className="flex items-center gap-1 flex-shrink-0">
                                         <input type="number" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
                                           autoFocus min="0" max="54" step="0.1" placeholder="HCP"
                                           className="w-14 border border-blue-300 rounded px-1.5 py-0.5 text-xs focus:outline-none"
@@ -3529,10 +3530,12 @@ export default function AdminDashboard({
                                       </div>
                                     ) : (
                                       <button type="button" onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? String(p.handicap) : '') }}
-                                        className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition w-16 text-center">
+                                        className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition w-16 text-center flex-shrink-0">
                                         {p.handicap != null ? (p.handicap < 0 ? `HCP +${Math.abs(p.handicap)}` : `HCP ${p.handicap}`) : 'HCP —'}
                                       </button>
                                     )}
+                                    </div>
+                                    <div className="flex items-center gap-2 pl-10">
                                     {skinsEnabled && (
                                       <button type="button"
                                         onClick={() => handleToggleSkinsParticipant(p.id, skinsOverrides[p.id] ?? p.skins_participant)}
@@ -3543,7 +3546,8 @@ export default function AdminDashboard({
                                     <button type="button" onClick={() => setRenamingPlayer(p.id)}
                                       className="text-xs text-blue-500 hover:text-blue-700">Rename</button>
                                     <button type="button" onClick={() => setConfirmRemovePlayerId(p.id)}
-                                      className="text-xs text-red-500 hover:text-red-700 ml-1">Remove</button>
+                                      className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -3561,23 +3565,25 @@ export default function AdminDashboard({
                                     Pick from Roster
                                   </button>
                                 )}
-                                <form action={addPlayerAction} className="flex flex-wrap gap-2 mt-1">
+                                <form action={addPlayerAction} className="flex flex-col gap-2 mt-1">
                                   <input type="hidden" name="teamId" value={team.id} />
-                                  {addPlayerState?.error && <p className="text-xs text-red-500 w-full">{addPlayerState.error}</p>}
+                                  {addPlayerState?.error && <p className="text-xs text-red-500">{addPlayerState.error}</p>}
                                   <input type="text" name="name" placeholder="Or enter name manually" required
-                                    className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                                  <input type="number" name="handicap" placeholder="HCP" min="0" max="54" step="0.1"
-                                    className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
-                                  {skinsEnabled && (
-                                    <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer self-center whitespace-nowrap">
-                                      <input type="checkbox" name="skins_participant" value="true"
-                                        className="w-3.5 h-3.5 accent-amber-500" />
-                                      In Skins
-                                    </label>
-                                  )}
-                                  <button type="submit" disabled={addPlayerPending}
-                                    className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60"
-                                    style={{ background: navy }}>Add</button>
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                  <div className="flex items-center gap-2">
+                                    <input type="number" name="handicap" placeholder="HCP" min="0" max="54" step="0.1"
+                                      className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                                    {skinsEnabled && (
+                                      <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer flex-1">
+                                        <input type="checkbox" name="skins_participant" value="true"
+                                          className="w-3.5 h-3.5 accent-amber-500" />
+                                        In Skins
+                                      </label>
+                                    )}
+                                    <button type="submit" disabled={addPlayerPending}
+                                      className="text-white px-4 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60 ml-auto"
+                                      style={{ background: navy }}>Add</button>
+                                  </div>
                                 </form>
                                 </>
                               )
