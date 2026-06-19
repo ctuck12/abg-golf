@@ -2329,8 +2329,8 @@ export default function ScoreEntry({
                               <span className="text-xs text-gray-500 flex-shrink-0">$/pt:</span>
                               <input
                                 type="number"
-                                min="0"
-                                step="0.25"
+                                min="0.1"
+                                step="0.01"
                                 value={pressValueStr[hole.hole_number] ?? ''}
                                 onChange={(e) => setPressValueStr((p) => ({ ...p, [hole.hole_number]: e.target.value }))}
                                 className="w-20 text-xs border border-gray-300 rounded px-2 py-1 text-center"
