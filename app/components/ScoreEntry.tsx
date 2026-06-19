@@ -414,7 +414,7 @@ export default function ScoreEntry({
       const bankerGetsStroke = bankerPlayerId && getBankerReceiveStrokes(holeNumber).length > 0
       return [...playerStrokeIds, ...(bankerGetsStroke ? [bankerPlayerId!] : [])]
     }
-    if (isDaytonaMode) return getDaytonaAutoStrokes(holeNumber)
+    if (isDaytonaMode) return autoHandicap ? getDaytonaAutoStrokes(holeNumber) : []
     return getAutoStrokes(holeNumber)
   }
 
@@ -500,7 +500,6 @@ export default function ScoreEntry({
   }
 
   function getDaytonaAutoStrokes(holeNumber: number): string[] {
-    if (!autoHandicap) return []
     const hole = holes.find((h) => h.hole_number === holeNumber)
     if (!hole?.stroke_index) return []
     const effHcp = (h: number) => Math.max(0, Math.trunc(h))
@@ -2360,7 +2359,7 @@ export default function ScoreEntry({
 
                   {/* ── Strokes panel ── */}
                   {(() => {
-                    const suggestedIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : (autoHandicap ? getAutoStrokes(hole.hole_number) : [])
+                    const suggestedIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : isDaytonaMode ? getDaytonaAutoStrokes(hole.hole_number) : (autoHandicap ? getAutoStrokes(hole.hole_number) : [])
                     const activeStrokeIds = effectiveStrokeIds(hole.hole_number)
                     const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null
                     const visiblePlayers = players.filter((p) => p.id !== bankerPlayerId && (suggestedIds.includes(p.id) || activeStrokeIds.includes(p.id)))

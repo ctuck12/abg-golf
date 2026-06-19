@@ -268,9 +268,19 @@ export async function toggleTeamAdmin(teamId: string, isAdmin: boolean) {
 
 export async function resetTeamScores(teamId: string) {
   const supabase = createServerClient()
-  const { data: players } = await supabase.from('players').select('id').eq('team_id', teamId)
-  if (players?.length) {
-    await supabase.from('scores').delete().in('player_id', players.map((p) => p.id))
+  const [{ data: players }, { data: teamRow }] = await Promise.all([
+    supabase.from('players').select('id').eq('team_id', teamId),
+    supabase.from('teams').select('round_id').eq('id', teamId).single(),
+  ])
+  const playerIds = (players ?? []).map((p) => p.id)
+  if (playerIds.length) {
+    const roundId = teamRow?.round_id
+    await Promise.all([
+      supabase.from('scores').delete().in('player_id', playerIds),
+      roundId
+        ? supabase.from('daytona_hole_assignments').delete().eq('round_id', roundId).in('player_id', playerIds)
+        : Promise.resolve(),
+    ])
   }
 }
 
