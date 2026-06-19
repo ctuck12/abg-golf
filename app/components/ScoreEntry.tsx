@@ -666,9 +666,11 @@ export default function ScoreEntry({
       }
       if (assignData) {
         const filtered = (assignData as { player_id: string; hole_number: number; side: string }[]).filter((a) => playerIds.includes(a.player_id))
-        setAssignments(() => {
-          const m: AssignmentMap = {}
+        setAssignments((prev) => {
+          const m: AssignmentMap = { ...prev }
           for (const a of filtered) {
+            // Never overwrite the currently open hole — user may have unsaved selections
+            if (a.hole_number === expandedHoleRef.current) continue
             if (!m[a.hole_number]) m[a.hole_number] = {}
             m[a.hole_number][a.player_id] = a.side as DaytonaSide
           }

@@ -1342,6 +1342,11 @@ export default function AdminDashboard({
                   setSkinsSaved(false)
                   setPayoutSaved(false)
                   setTeamsSaved(false)
+                  setMixedGroups(null)
+                  setMixedGroupsAnswered(false)
+                  setGroupCountSaved(false)
+                  setTargetGroupCount(0)
+                  setAutoHandicap(false)
                 }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
                 style={{ background: '#b91c1c' }}>
