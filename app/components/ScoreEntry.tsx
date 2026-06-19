@@ -937,8 +937,16 @@ export default function ScoreEntry({
       )
     : []
 
-  const dtSummary = isDaytonaMode ? computeDaytonaSidesSummary(holes, savedScores, flatAssignments) : null
-  const playerPointTotals = isDaytonaMode ? computePlayerDaytonaPoints(holes, savedScores, flatAssignments, daytonaVariant) : new Map<string, number>()
+  // Net scores for Daytona point calculations — apply handicap strokes so the flip rule fires correctly
+  const netSavedScores = isDaytonaMode
+    ? savedScores.map((s) => ({
+        ...s,
+        strokes: s.strokes - (effectiveStrokeIds(s.hole_number).includes(s.player_id) ? 1 : 0),
+      }))
+    : savedScores
+
+  const dtSummary = isDaytonaMode ? computeDaytonaSidesSummary(holes, netSavedScores, flatAssignments) : null
+  const playerPointTotals = isDaytonaMode ? computePlayerDaytonaPoints(holes, netSavedScores, flatAssignments, daytonaVariant) : new Map<string, number>()
 
   const frontBallTotals = !isDaytonaMode
     ? Array.from({ length: ballsCount }, (_, bi) =>
@@ -1828,7 +1836,7 @@ export default function ScoreEntry({
             const rightIds = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => p.id)
             if (is5Man) {
               if (leftIds.length < 2 || rightIds.length < 3) return new Map()
-              const netScores = savedScores.map((s) => ({ ...s, strokes: s.strokes - ((holeStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+              const netScores = savedScores.map((s) => ({ ...s, strokes: s.strokes - (effectiveStrokeIds(s.hole_number).includes(s.player_id) ? 1 : 0) }))
               return computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par)
             }
             const lScores = leftIds.map((id) => netSaved(id, hole.hole_number)).filter((s): s is number => s !== undefined)
@@ -1861,7 +1869,7 @@ export default function ScoreEntry({
             if (rightPlayers.length !== 3) return []
             return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
               const pScores = [rightPlayers[a], rightPlayers[b]]
-                .map((p) => strokes[p.id]?.[hole.hole_number] ?? hole.par)
+                .map((p) => netEdit(p.id, hole.hole_number, hole.par))
               return computeHoleDaytonaWithSides(editLeftScores, pScores, hole.par).rightDt
             })
           })()
