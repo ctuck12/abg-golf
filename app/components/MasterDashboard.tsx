@@ -55,7 +55,7 @@ export default function MasterDashboard({
       const res = await fetch(`/api/master/orgs/${selectedRosterOrgId}/roster/${editingRosterId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json()
       if (data.error) { setRosterError(data.error); setRosterPending(false); return }
-      setOrgRosters((prev) => ({ ...prev, [selectedRosterOrgId]: (prev[selectedRosterOrgId] ?? []).map((p) => p.id === editingRosterId ? { ...p, ...body, ghin_number: body.ghin_number || null, email: body.email || null } : p) }))
+      setOrgRosters((prev) => ({ ...prev, [selectedRosterOrgId]: (prev[selectedRosterOrgId] ?? []).map((p) => p.id === editingRosterId ? { ...p, ...body, ghin_number: body.ghin_number || null, email: body.email || null } : p).sort((a, b) => a.name.localeCompare(b.name)) }))
       setEditingRosterId(null)
     } else {
       const res = await fetch(`/api/master/orgs/${selectedRosterOrgId}/roster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })

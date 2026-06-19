@@ -1077,12 +1077,12 @@ export default function AdminDashboard({
     if (editingRosterId) {
       const res = await updateRosterPlayer(editingRosterId, rosterForm.name, rosterForm.ghin || null, hcp, rosterForm.email || null)
       if (res.error) { setRosterError(res.error); setRosterPending(false); return }
-      setLiveRoster((prev) => prev.map((p) => p.id === editingRosterId ? { ...p, name: rosterForm.name, ghin_number: rosterForm.ghin || null, handicap_index: hcp, email: rosterForm.email || null } : p))
+      setLiveRoster((prev) => prev.map((p) => p.id === editingRosterId ? { ...p, name: rosterForm.name, ghin_number: rosterForm.ghin || null, handicap_index: hcp, email: rosterForm.email || null } : p).sort((a, b) => a.name.localeCompare(b.name)))
       setEditingRosterId(null)
     } else {
       const res = await createRosterPlayer(orgId, rosterForm.name, rosterForm.ghin || null, hcp, rosterForm.email || null)
       if (res.error) { setRosterError(res.error); setRosterPending(false); return }
-      setLiveRoster((prev) => [...prev, { id: res.id!, name: rosterForm.name, ghin_number: rosterForm.ghin || null, handicap_index: hcp, email: rosterForm.email || null }])
+      setLiveRoster((prev) => [...prev, { id: res.id!, name: rosterForm.name, ghin_number: rosterForm.ghin || null, handicap_index: hcp, email: rosterForm.email || null }].sort((a, b) => a.name.localeCompare(b.name)))
       setShowAddRosterForm(false)
     }
     setRosterForm({ name: '', ghin: '', handicap: '', email: '' }); setRosterPending(false)
