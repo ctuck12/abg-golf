@@ -1527,8 +1527,7 @@ export default function ScoreEntry({
                               const tpIds = teamPlayers.map((p) => p.id)
                               const tAssign = payoutsData.assignments.filter((a) => tpIds.includes(a.player_id))
                               const tScoresRaw = payoutsData.scores.filter((s) => tpIds.includes(s.player_id))
-                              const tHoleStrokesAll = (payoutsData.holeStrokesAll ?? {}) as Record<number, string[]>
-                              const tScores = tScoresRaw.map((s) => ({ ...s, strokes: s.strokes - ((tHoleStrokesAll[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+                              const tScores = tScoresRaw.map((s) => ({ ...s, strokes: s.strokes - (payoutsData.holeStrokesAll.some((hs) => hs.hole_number === s.hole_number && hs.player_id === s.player_id) ? 1 : 0) }))
                               const tHoleVals = payoutsData.holeValues[t.id] ?? {}
                               const dtVariant = t.daytona_variant ?? daytonaVariant
                               const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, dtVariant)
