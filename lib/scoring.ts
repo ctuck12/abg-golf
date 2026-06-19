@@ -273,19 +273,19 @@ export function calculateFrontBackPayouts(
           total: summaries.get(t.id)?.ballTotals[bi] ?? null,
           vsPar: summaries.get(t.id)?.ballVsPar[bi] ?? null,
         }))
-        .filter((s): s is typeof s & { total: number } => s.total !== null)
+        .filter((s): s is typeof s & { total: number; vsPar: number } => s.total !== null && s.vsPar !== null)
 
       if (teamScores.length === 0) {
         results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: null, winnerVsPar: null, tied: false, played: false })
         continue
       }
 
-      const minTotal = Math.min(...teamScores.map((s) => s.total))
-      const winners = teamScores.filter((s) => s.total === minTotal)
+      const minVsPar = Math.min(...teamScores.map((s) => s.vsPar))
+      const winners = teamScores.filter((s) => s.vsPar === minVsPar)
       const tied = winners.length > 1
 
       if (tied) {
-        results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: minTotal, winnerVsPar: null, tied: true, played: true })
+        results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: minVsPar, winnerVsPar: null, tied: true, played: true })
       } else {
         const winner = winners[0]
         results.push({ ball: ballNum, half: halfName, winnerId: winner.id, winnerName: winner.name, winnerTotal: winner.total, winnerVsPar: winner.vsPar, tied: false, played: true })
@@ -368,7 +368,7 @@ export function calculatePoolPayouts(
           total: summaries.get(t.id)?.ballTotals[bi] ?? null,
           vsPar: summaries.get(t.id)?.ballVsPar[bi] ?? null,
         }))
-        .filter((s): s is typeof s & { total: number } => s.total !== null)
+        .filter((s): s is typeof s & { total: number; vsPar: number } => s.total !== null && s.vsPar !== null)
 
       if (teamScores.length === 0) {
         results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: null, winnerVsPar: null, tied: false, played: false })
@@ -381,12 +381,12 @@ export function calculatePoolPayouts(
         for (const p of teamPlayers) playerNet[p.id] -= perBallValue
       }
 
-      const minTotal = Math.min(...teamScores.map((s) => s.total))
-      const winners = teamScores.filter((s) => s.total === minTotal)
+      const minVsPar = Math.min(...teamScores.map((s) => s.vsPar))
+      const winners = teamScores.filter((s) => s.vsPar === minVsPar)
       const tied = winners.length > 1
 
       if (tied) {
-        results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: minTotal, winnerVsPar: null, tied: true, played: true })
+        results.push({ ball: ballNum, half: halfName, winnerId: null, winnerName: null, winnerTotal: minVsPar, winnerVsPar: null, tied: true, played: true })
         // Tied — pot splits equally between the tied teams' players
         if (perBallValue > 0 && totalPlayers > 0) {
           const resultPot = perBallValue * totalPlayers
