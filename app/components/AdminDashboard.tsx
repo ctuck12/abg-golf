@@ -2635,7 +2635,7 @@ export default function AdminDashboard({
                                         </div>
                                         <div className="flex items-center gap-2">
                                           <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
-                                          <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
+                                          <input type="number" min="0.1" step="0.01" placeholder="e.g. 0.25"
                                             value={sg.daytonaPayout} onChange={e => updateGroupSG(g.id, { daytonaPayout: e.target.value })}
                                             className="w-24 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
                                         </div>
@@ -3144,7 +3144,7 @@ export default function AdminDashboard({
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
-                                    <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
+                                    <input type="number" min="0.1" step="0.01" placeholder="e.g. 0.25"
                                       value={newTeamDaytonaPayout} onChange={(e) => setNewTeamDaytonaPayout(e.target.value)}
                                       onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
                                       className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
@@ -3310,7 +3310,7 @@ export default function AdminDashboard({
                                         </div>
                                         <div className="flex items-center gap-2">
                                           <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
-                                          <input type="number" min="0" step="0.25" placeholder="e.g. 0.25"
+                                          <input type="number" min="0.1" step="0.01" placeholder="e.g. 0.25"
                                             value={editDaytonaPayout} onChange={(e) => setEditDaytonaPayout(e.target.value)}
                                             onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
                                             className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
