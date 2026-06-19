@@ -1433,6 +1433,25 @@ export default function MatchupClient({
                     if (!mp1 || !mp2) return null
                     const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
                     const isFinal = stats.holesPlayed === holes.length && holes.length > 0
+                    // Individual scores for display — show each player's own total, not restricted to jointly-played holes
+                    const indScore = (pid: string, wantFront: boolean, wantBack: boolean) => {
+                      let s = 0, p = 0, c = 0
+                      for (const h of holes) {
+                        const isFrontHole = h.hole_number <= 9
+                        if (wantFront && !wantBack && !isFrontHole) continue
+                        if (wantBack && !wantFront && isFrontHole) continue
+                        const sc = scoreMap[pid]?.[h.hole_number]
+                        if (sc == null) continue
+                        s += sc; p += h.par; c++
+                      }
+                      return c > 0 ? s - p : null
+                    }
+                    const p1IndFront = indScore(m.player1_id, true, false)
+                    const p1IndBack = indScore(m.player1_id, false, true)
+                    const p1IndTotal = indScore(m.player1_id, true, true)
+                    const p2IndFront = indScore(m.player2_id, true, false)
+                    const p2IndBack = indScore(m.player2_id, false, true)
+                    const p2IndTotal = indScore(m.player2_id, true, true)
                     const leader = stats.p1Wins > stats.p2Wins ? mp1 : stats.p2Wins > stats.p1Wins ? mp2 : null
                     const isEditing = editingH2H === m.id
                     const p1First = mp1.name.split(' ')[0]
@@ -1740,8 +1759,8 @@ export default function MatchupClient({
                               </thead>
                               <tbody>
                                 {([
-                                  { player: mp1, front: stats.p1Front, back: stats.p1Back, total: stats.p1Total, wFront: p1WinsFront, wBack: p1WinsBack, wTotal: p1WinsTotal, mFront: stats.p1FrontWins - stats.p2FrontWins, mBack: stats.p1BackWins - stats.p2BackWins, mTotal: stats.p1Wins - stats.p2Wins },
-                                  { player: mp2, front: stats.p2Front, back: stats.p2Back, total: stats.p2Total, wFront: p2WinsFront, wBack: p2WinsBack, wTotal: p2WinsTotal, mFront: stats.p2FrontWins - stats.p1FrontWins, mBack: stats.p2BackWins - stats.p1BackWins, mTotal: stats.p2Wins - stats.p1Wins },
+                                  { player: mp1, front: p1IndFront, back: p1IndBack, total: p1IndTotal, wFront: p1WinsFront, wBack: p1WinsBack, wTotal: p1WinsTotal, mFront: stats.p1FrontWins - stats.p2FrontWins, mBack: stats.p1BackWins - stats.p2BackWins, mTotal: stats.p1Wins - stats.p2Wins },
+                                  { player: mp2, front: p2IndFront, back: p2IndBack, total: p2IndTotal, wFront: p2WinsFront, wBack: p2WinsBack, wTotal: p2WinsTotal, mFront: stats.p2FrontWins - stats.p1FrontWins, mBack: stats.p2BackWins - stats.p1BackWins, mTotal: stats.p2Wins - stats.p1Wins },
                                 ] as const).map(({ player, front, back, total, wFront, wBack, wTotal, mFront, mBack, mTotal }, rowIdx) => {
                                   const thru = Object.keys(scoreMap[player.id] ?? {}).length
                                   const isFirstRow = rowIdx === 0
