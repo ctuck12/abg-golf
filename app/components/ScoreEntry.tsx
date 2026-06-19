@@ -1165,11 +1165,11 @@ export default function ScoreEntry({
 
           {/* Banker running totals */}
           {isBanker && Object.keys(bankerRunningTotals).length > 0 && (
-            <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
+            <div className="mt-2 pt-2 border-t border-white/10 flex justify-between">
               {players.map((p) => {
                 const amt = bankerRunningTotals[p.id] ?? 0
                 return (
-                  <div key={p.id} className="flex items-center gap-1 text-xs">
+                  <div key={p.id} className="flex items-center gap-0.5 text-[10px]">
                     <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `$${Math.abs(amt).toFixed(2)}` : '$0'}
@@ -1182,11 +1182,11 @@ export default function ScoreEntry({
 
           {/* Player running point totals — Daytona / side game */}
           {isDaytonaMode && playerPointTotals.size > 0 && (
-            <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
+            <div className="mt-2 pt-2 border-t border-white/10 flex justify-between">
               {players.map((p) => {
                 const pts = playerPointTotals.get(p.id) ?? 0
                 return (
-                  <div key={p.id} className="flex items-center gap-1 text-xs">
+                  <div key={p.id} className="flex items-center gap-0.5 text-[10px]">
                     <button
                       onClick={() => { setPopupShowScorecard(false); setPlayerPopup((prev) => prev === p.id ? null : p.id) }}
                       className="font-medium underline-offset-2 hover:underline"
