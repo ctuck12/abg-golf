@@ -2515,7 +2515,7 @@ export default function LeaderboardClient({
         {/* Existing leaderboard content (Team tab or non-mixed) */}
         {(!isMixedGroups || mixedTab === 'team') && <>
         {/* Leaderboard view toggles + divider + action buttons — single no-wrap row */}
-        <div className="flex items-center gap-1.5 mb-3" style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        <div className="flex items-center gap-1 mb-3" style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {(isDaytona
             ? [{ view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }]
             : isTraditional
@@ -2532,7 +2532,7 @@ export default function LeaderboardClient({
               {label}
             </button>
           ))}
-          <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 16px' }} />
+          <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 4px' }} />
           <a href={`/${orgSlug}/matchup`} className="font-semibold px-2.5 py-1 rounded-full"
             style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
             Matchups
@@ -3034,11 +3034,12 @@ export default function LeaderboardClient({
             {[...rows].sort((a, b) => a.team.name.localeCompare(b.team.name)).map((row) => {
               const rosterPlayers = players.filter((p) => p.team_id === row.team.id)
               return (
-                <div key={row.team.id} className="flex items-start gap-3 px-4 py-2.5 border-b border-gray-100 last:border-0">
-                  <span className="font-semibold text-gray-900 text-sm flex-shrink-0 pt-px" style={{ minWidth: '5rem' }}>{row.team.name}</span>
-                  <span className="text-sm text-gray-500 flex flex-wrap gap-x-1 gap-y-0.5">
+                <div key={row.team.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 last:border-0">
+                  <span className="font-semibold text-gray-900 text-sm flex-shrink-0" style={{ minWidth: '5rem' }}>{row.team.name}</span>
+                  <div className="flex-1 min-w-0 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                  <span className="text-sm text-gray-500 flex gap-x-1" style={{ flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                     {rosterPlayers.map((p, idx) => (
-                      <span key={p.id} className="flex items-center gap-1">
+                      <span key={p.id} className="flex items-center gap-1" style={{ flexShrink: 0 }}>
                         {idx > 0 && <span className="text-gray-300 select-none">·</span>}
                         <button
                           className="hover:text-gray-900 hover:underline transition-colors"
@@ -3059,6 +3060,7 @@ export default function LeaderboardClient({
                       </span>
                     ))}
                   </span>
+                  </div>
                 </div>
               )
             })}
