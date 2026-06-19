@@ -618,12 +618,13 @@ export default function LeaderboardClient({
     const tpIds = teamPlayers.map((p) => p.id)
     const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
     const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+      .map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
     const variant = team.daytona_variant ?? daytonaVariant
     const groupPointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, variant)
     const groupRows = teamPlayers.map((p) => ({
       player: p,
       points: groupPointsMap.get(p.id) ?? 0,
-      thru: tScores.filter((s) => s.player_id === p.id).length,
+      thru: scores.filter((s) => s.player_id === p.id && tpIds.includes(s.player_id)).length,
     })).sort((a, b) => {
       const aHas = a.thru > 0; const bHas = b.thru > 0
       if (!aHas && !bHas) return a.player.name.localeCompare(b.player.name)
@@ -703,6 +704,7 @@ export default function LeaderboardClient({
             const tpIds = rows.map((r) => r.player.id)
             const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
             const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+              .map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
             pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
           }
           return { team, rows, hasDaytona, pointsMap }
@@ -848,6 +850,7 @@ export default function LeaderboardClient({
               const tpIds = rows.map((r) => r.player.id)
               const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
               const tScores = scores.filter((s) => tpIds.includes(s.player_id))
+                .map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
               pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
             }
             return { id: team.id, name: team.name, daytona_variant: team.daytona_variant ?? null, rows, hasDaytona, hasBanker: false, pointsMap, bankerTotals: {} as Record<string, number> }
