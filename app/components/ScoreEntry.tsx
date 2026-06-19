@@ -414,6 +414,7 @@ export default function ScoreEntry({
       const bankerGetsStroke = bankerPlayerId && getBankerReceiveStrokes(holeNumber).length > 0
       return [...playerStrokeIds, ...(bankerGetsStroke ? [bankerPlayerId!] : [])]
     }
+    if (isDaytonaMode) return getDaytonaAutoStrokes(holeNumber)
     return getAutoStrokes(holeNumber)
   }
 
@@ -496,6 +497,18 @@ export default function ScoreEntry({
       newBets[p.id] = { ...pb, bankerDoubled: !currentlyDoubled }
     }
     await handleSaveBankerBets(holeNumber, newBets)
+  }
+
+  function getDaytonaAutoStrokes(holeNumber: number): string[] {
+    if (!autoHandicap) return []
+    const hole = holes.find((h) => h.hole_number === holeNumber)
+    if (!hole?.stroke_index) return []
+    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    return players.filter((p) => {
+      const hcp = allRoundPlayerHandicaps[p.id] ?? null
+      if (hcp == null) return false
+      return hole.stroke_index! <= effHcp(hcp)
+    }).map((p) => p.id)
   }
 
   function getAutoStrokes(holeNumber: number): string[] {
