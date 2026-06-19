@@ -433,12 +433,12 @@ export default function ScoreEntry({
     if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
     const effIds = effectiveStrokeIds(holeNumber)
     const pNet = playerGross - (effIds.includes(playerId) ? 1 : 0)
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const rawHcp = (h: number) => Math.trunc(h)
     const bHcpRaw = allRoundPlayerHandicaps[bankerId] ?? null
     const pHcpRaw = allRoundPlayerHandicaps[playerId] ?? null
     const si = strokeIndex ?? 999
-    const bHcp = bHcpRaw != null ? effHcp(bHcpRaw) : null
-    const pHcp = pHcpRaw != null ? effHcp(pHcpRaw) : null
+    const bHcp = bHcpRaw != null ? rawHcp(bHcpRaw) : null
+    const pHcp = pHcpRaw != null ? rawHcp(pHcpRaw) : null
     const bankerInStrokes = effIds.includes(bankerId)
     const bankerStroke = bankerInStrokes && bHcp != null && pHcp != null && bHcp > pHcp && si <= bHcp - pHcp ? 1 : 0
     return { bankerNet: bankerGross - bankerStroke, playerNet: pNet }
@@ -534,13 +534,13 @@ export default function ScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = allRoundPlayerHandicaps[bankerPlayerId] ?? null
     if (bankerHcpRaw == null) return []
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
-    const bankerHcp = effHcp(bankerHcpRaw)
+    const rawHcp = (h: number) => Math.trunc(h)
+    const bankerHcp = rawHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const diff = effHcp(hcp) - bankerHcp
+      const diff = rawHcp(hcp) - bankerHcp
       return diff > 0 && hole.stroke_index! <= diff
     }).map((p) => p.id)
   }
@@ -552,13 +552,13 @@ export default function ScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = allRoundPlayerHandicaps[bankerPlayerId] ?? null
     if (bankerHcpRaw == null) return []
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
-    const bankerHcp = effHcp(bankerHcpRaw)
+    const rawHcp = (h: number) => Math.trunc(h)
+    const bankerHcp = rawHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const diff = bankerHcp - effHcp(hcp)
+      const diff = bankerHcp - rawHcp(hcp)
       return diff > 0 && hole.stroke_index! <= diff
     }).map((p) => p.id)
   }
