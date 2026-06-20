@@ -234,13 +234,17 @@ export default function ScorecardViewer({
             const v = score - par
             return v < 0 ? '#dc2626' : '#374151'
           }
-          const ballChips = (scores: (number | null)[], par: number) =>
+          const ballChips = (scores: (number | null)[], pars: number[]) =>
             Array.from({ length: ballsCount }, (_, bi) => (
               <span key={bi} className="inline-flex items-center rounded-full py-1" style={{ background: 'rgba(15,23,42,0.06)', width: '4.5rem' }}>
                 <span className="font-bold text-[11px] leading-none" style={{ color: '#92400e', width: '50%', textAlign: 'right', paddingRight: '2px' }}>{BALL_LABELS[bi]}:</span>
-                <span className="font-bold text-[11px] leading-none" style={{ color: vspColor(scores[bi], par), width: '50%', textAlign: 'left', paddingLeft: fmtVsp(scores[bi], par) === 'E' ? '10px' : '4px' }}>{fmtVsp(scores[bi], par)}</span>
+                <span className="font-bold text-[11px] leading-none" style={{ color: vspColor(scores[bi], pars[bi]), width: '50%', textAlign: 'left', paddingLeft: fmtVsp(scores[bi], pars[bi]) === 'E' ? '10px' : '4px' }}>{fmtVsp(scores[bi], pars[bi])}</span>
               </span>
             ))
+          const ballPars = (data: typeof holeData) =>
+            Array.from({ length: ballsCount }, (_, bi) =>
+              data.filter((d) => d.ballScores[bi] !== null).reduce((s, d) => s + d.hole.par, 0)
+            )
           const frontScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(frontData, (d) => d.ballScores[bi]))
           const backScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(backData, (d) => d.ballScores[bi]))
           const totalScores = Array.from({ length: ballsCount }, (_, bi) => sumScored(holeData, (d) => d.ballScores[bi]))
@@ -250,19 +254,19 @@ export default function ScorecardViewer({
                 {frontData.length > 0 && (
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: navy, minWidth: '3rem', textAlign: 'right' }}>Front</span>
-                    {ballChips(frontScores, frontPar)}
+                    {ballChips(frontScores, ballPars(frontData))}
                   </div>
                 )}
                 {backData.length > 0 && (
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: navy, minWidth: '3rem', textAlign: 'right' }}>Back</span>
-                    {ballChips(backScores, backPar)}
+                    {ballChips(backScores, ballPars(backData))}
                   </div>
                 )}
                 {includeTotal && (
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: navy, minWidth: '3rem', textAlign: 'right' }}>Total</span>
-                    {ballChips(totalScores, totalPar)}
+                    {ballChips(totalScores, ballPars(holeData))}
                   </div>
                 )}
               </div>
