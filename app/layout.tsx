@@ -33,7 +33,37 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         </div>
         <script dangerouslySetInnerHTML={{
-          __html: `if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js')`
+          __html: `
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+  // When a NEW service worker takes control (= update, not first install),
+  // reload the page so users always run the latest code without having to
+  // manually close the PWA. We defer to the next foreground cycle so we
+  // never interrupt someone who is actively entering scores.
+  var hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!hadController) { hadController = true; return; } // first install, skip
+    function reloadOnVisible() {
+      if (document.visibilityState === 'visible') {
+        document.removeEventListener('visibilitychange', reloadOnVisible);
+        window.location.reload();
+      }
+    }
+    if (document.visibilityState === 'hidden') {
+      // Already in background — reload as soon as they open the app
+      document.addEventListener('visibilitychange', reloadOnVisible);
+    } else {
+      // Visible right now — wait for them to background first, then reload on refocus
+      document.addEventListener('visibilitychange', function waitForHide() {
+        if (document.visibilityState === 'hidden') {
+          document.removeEventListener('visibilitychange', waitForHide);
+          document.addEventListener('visibilitychange', reloadOnVisible);
+        }
+      });
+    }
+  });
+}
+          `
         }} />
       </body>
     </html>
