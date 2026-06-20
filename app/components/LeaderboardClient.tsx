@@ -362,7 +362,16 @@ export default function LeaderboardClient({
   hammerHolesMap?: Record<string, Record<number, HammerHoleState>>
 }) {
   const [mixedTab, setMixedTab] = useState<'team' | 'group' | 'individual'>('team')
-  const [scores, setScores] = useState<Score[]>(initialScores)
+  const scoresKey = roundId ? `lb_scores_${roundId}` : null
+  const [scores, setScores] = useState<Score[]>(() => {
+    if (scoresKey && typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem(scoresKey)
+        if (cached) return JSON.parse(cached) as Score[]
+      } catch { /* ignore */ }
+    }
+    return initialScores
+  })
   const [assignments, setAssignments] = useState<DaytonaHoleAssignment[]>(initialAssignments)
   const [liveHoleStrokes, setLiveHoleStrokes] = useState<Record<number, string[]>>(groupHoleStrokes)
   const [liveHoleValues, setLiveHoleValues] = useState<Record<string, Record<number, number>>>(initialHoleValues)
@@ -464,7 +473,11 @@ export default function LeaderboardClient({
     async function refetchScores() {
       if (playerIds.length > 0) {
         const scoresData = await fetch('/api/scores?playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null)
-        if (scoresData) { setScores(scoresData); setLastUpdated(new Date()) }
+        if (scoresData) {
+          setScores(scoresData)
+          setLastUpdated(new Date())
+          if (scoresKey) { try { sessionStorage.setItem(scoresKey, JSON.stringify(scoresData)) } catch { /* ignore */ } }
+        }
       }
       if ((isDaytona || isMixedGroups) && roundId) {
         const hvData = await fetch('/api/daytona-hole-values?roundId=' + roundId).then((r) => r.json()).catch(() => null)
