@@ -624,7 +624,16 @@ export default function MatchupClient({
   playingGroups?: { id: string; name: string }[]
   scorecardGroupId?: string | null
 }) {
-  const [scores, setScores] = useState(initialScores)
+  const scoresKey = `lb_scores_${roundId}`
+  const [scores, setScores] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem(scoresKey)
+        if (cached) return JSON.parse(cached) as typeof initialScores
+      } catch { /* ignore */ }
+    }
+    return initialScores
+  })
   const [matchups, setMatchups] = useState(initialMatchups)
   const [bestBallMatchups, setBestBallMatchups] = useState(initialBestBallMatchups)
   const [showOptions, setShowOptions] = useState(false)
@@ -759,12 +768,20 @@ export default function MatchupClient({
         fetch('/api/matchups?roundId=' + roundId).then((r) => r.json()).catch(() => null),
         fetch('/api/best-ball-matchups?roundId=' + roundId).then((r) => r.json()).catch(() => null),
       ])
-      if (scoresData) setScores(scoresData)
+      if (scoresData) {
+        setScores(scoresData)
+        try { sessionStorage.setItem(scoresKey, JSON.stringify(scoresData)) } catch { /* ignore */ }
+      }
       if (matchupsData) setMatchups(matchupsData)
       if (bbMatchupsData) setBestBallMatchups(bbMatchupsData.map((m: SavedMatchup & { press?: PressEntry[] }) => ({ ...m, press: m.press ?? [] })))
     }
+    refetchAll()
     const interval = setInterval(refetchAll, 5000)
-    return () => { clearInterval(interval) }
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') refetchAll()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisibilityChange) }
   }, [players, roundId])
 
   const scoreMap = useMemo(() => {
