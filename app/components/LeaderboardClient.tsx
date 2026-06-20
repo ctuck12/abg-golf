@@ -499,6 +499,7 @@ export default function LeaderboardClient({
       }
     }
 
+    refetchScores()
     const interval = setInterval(refetchScores, 3000)
 
     function onVisibilityChange() {
