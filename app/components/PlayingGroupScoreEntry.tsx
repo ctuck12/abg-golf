@@ -299,7 +299,7 @@ export default function PlayingGroupScoreEntry({
     const minHcp = groupHcps.length ? Math.min(...groupHcps) : 0
     return players.filter((p) => {
       if (p.handicap == null) return false
-      const relStrokes = Math.max(0, Math.round(p.handicap - minHcp))
+      const relStrokes = Math.max(0, Math.floor(p.handicap - minHcp))
       return relStrokes > 0 && hole.stroke_index! <= relStrokes
     }).map((p) => p.id)
   }

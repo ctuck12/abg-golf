@@ -510,7 +510,7 @@ export default function ScoreEntry({
     return players.filter((p) => {
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const relStrokes = Math.max(0, Math.round(hcp - minHcp))
+      const relStrokes = Math.max(0, Math.floor(hcp - minHcp))
       return relStrokes > 0 && hole.stroke_index! <= relStrokes
     }).map((p) => p.id)
   }
