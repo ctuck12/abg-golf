@@ -785,7 +785,7 @@ export default function PlayingGroupScoreEntry({
               }
             }
             return (
-              <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-white/10 mt-1">
+              <div className="flex flex-nowrap gap-2 pt-1 border-t border-white/10 mt-1 overflow-x-auto" style={{ scrollbarWidth: 'none', justifyContent: 'space-evenly' }}>
                 {players.map((p) => {
                   let display: string
                   let color: string
@@ -800,7 +800,7 @@ export default function PlayingGroupScoreEntry({
                     color = toParColor(toPar)
                   }
                   return (
-                    <span key={p.id} className="flex items-center gap-1 text-xs">
+                    <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ fontSize: 'clamp(0.7rem, 3.5vw, 1rem)' }}>
                       <span style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
                       <span className="font-bold" style={{ color }}>{display}</span>
                     </span>
