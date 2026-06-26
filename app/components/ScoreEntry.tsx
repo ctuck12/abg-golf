@@ -303,7 +303,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores,
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds,
 }: {
   orgSlug: string
   orgId: string
@@ -333,6 +333,7 @@ export default function ScoreEntry({
   initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
   sideGameGroupScores?: { player_id: string; hole_number: number; strokes: number }[]
+  sideGameGroupPlayerIds?: string[]
 }) {
   const isDaytona = format === 'daytona'
   const isDaytonaMode = isDaytona || !!isDaytonaSideGame
@@ -502,11 +503,15 @@ export default function ScoreEntry({
   function getDaytonaAutoStrokes(holeNumber: number): string[] {
     const hole = holes.find((h) => h.hole_number === holeNumber)
     if (!hole?.stroke_index) return []
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    // Compute min handicap from the whole playing group (all group players for side game, team players for pure Daytona)
+    const groupIds = isDaytonaSideGame && sideGameGroupPlayerIds?.length ? sideGameGroupPlayerIds : players.map((p) => p.id)
+    const groupHcps = groupIds.map((id) => allRoundPlayerHandicaps[id]).filter((h): h is number => h != null)
+    const minHcp = groupHcps.length ? Math.min(...groupHcps) : 0
     return players.filter((p) => {
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      return hole.stroke_index! <= effHcp(hcp)
+      const relStrokes = Math.max(0, Math.round(hcp - minHcp))
+      return relStrokes > 0 && hole.stroke_index! <= relStrokes
     }).map((p) => p.id)
   }
 
