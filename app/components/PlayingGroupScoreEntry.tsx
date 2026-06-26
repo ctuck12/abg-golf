@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
@@ -74,6 +74,34 @@ export default function PlayingGroupScoreEntry({
     }
     return s
   })
+  const scoreBarRef = useRef<HTMLDivElement>(null)
+  const [scoreBarFs, setScoreBarFs] = useState(12)
+
+  const namesKey = players.map((p) => p.name.split(' ')[0]).join('|')
+  useLayoutEffect(() => {
+    const el = scoreBarRef.current
+    if (!el) return
+    const measure = () => {
+      const cw = el.offsetWidth
+      if (!cw) return
+      // Binary-search the largest font size (px) where all items fit in one row
+      let lo = 8, hi = 26
+      for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2
+        el.style.fontSize = `${mid}px`
+        if (el.scrollWidth <= cw) lo = mid; else hi = mid
+      }
+      el.style.fontSize = ''
+      setScoreBarFs((prev) => {
+        const next = Math.round(lo * 10) / 10
+        return Math.abs(prev - next) < 0.2 ? prev : next
+      })
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [namesKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [savedScores, setSavedScores] = useState<Score[]>(initialScores)
   const [allScores, setAllScores] = useState<Score[]>(initialAllScores)
   const [savedHoles, setSavedHoles] = useState<Set<number>>(() => {
@@ -785,7 +813,11 @@ export default function PlayingGroupScoreEntry({
               }
             }
             return (
-              <div className="flex flex-nowrap pt-1 border-t border-white/10 mt-1">
+              <div
+                ref={scoreBarRef}
+                className="flex flex-nowrap pt-1 border-t border-white/10 mt-1 overflow-x-hidden"
+                style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}
+              >
                 {players.map((p) => {
                   let display: string
                   let color: string
@@ -800,10 +832,10 @@ export default function PlayingGroupScoreEntry({
                     color = toParColor(toPar)
                   }
                   return (
-                    <div key={p.id} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', fontSize: 'clamp(0.65rem, 3vw, 1.1rem)', overflow: 'hidden' }}>
-                      <span style={{ color: 'rgba(255,255,255,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name.split(' ')[0]}</span>
-                      <span style={{ color, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>{display}</span>
-                    </div>
+                    <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
+                      <span style={{ color, fontWeight: 'bold' }}>{display}</span>
+                    </span>
                   )
                 })}
               </div>
