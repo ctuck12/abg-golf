@@ -2528,8 +2528,8 @@ export default function LeaderboardClient({
 
         {/* Existing leaderboard content (Team tab or non-mixed) */}
         {(!isMixedGroups || mixedTab === 'team') && <>
-        {/* Leaderboard view toggles + divider + action buttons — single no-wrap row */}
-        <div className="flex items-center gap-1 mb-3" style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        {/* Leaderboard view toggles */}
+        <div className="flex items-center gap-1 mb-1.5 flex-wrap">
           {(isDaytona
             ? [{ view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }]
             : isTraditional
@@ -2542,25 +2542,27 @@ export default function LeaderboardClient({
               key={view}
               onClick={() => { const v = view as 'group' | 'team' | 'individual'; setLeaderboardView(v); sessionStorage.setItem('leaderboardView', v) }}
               className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition"
-              style={{ ...(leaderboardView === view ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }), flexShrink: 0 }}>
+              style={{ ...(leaderboardView === view ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }) }}>
               {label}
             </button>
           ))}
-          <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 4px' }} />
+        </div>
+        {/* Action buttons */}
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <a href={`/${orgSlug}/matchup`} className="font-semibold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
+            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: '11px' }}>
             Matchups
           </a>
           <button
             onClick={() => setShowPayouts(true)}
             className="font-semibold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
+            style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: '11px' }}>
             Payouts
           </button>
           {isDaytona && initialTeams.length === 1 && (
             <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
               className="font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', flexShrink: 0, fontSize: '11px' }}>
+              style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: '11px' }}>
               All Scorecards
             </a>
           )}
