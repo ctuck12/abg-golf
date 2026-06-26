@@ -131,8 +131,16 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       defaultDtPayoutValue={defaultDtPayoutValue}
       autoHandicap={isDaytonaSideGame ? teamAutoStrokes : teamBankerSideGame ? teamAutoStrokes : (round.auto_handicap ?? false)}
       allRoundPlayerHandicaps={(() => {
-        // For side games, use team-only handicaps so strokes are relative to best player on the team
-        if (isDaytonaSideGame || teamBankerSideGame) {
+        if (isDaytonaSideGame) {
+          // For Daytona side game: include all playing group players so stroke suggestions
+          // are relative to the lowest handicap in the entire group (not just this team)
+          const groupHcps: Record<string, number | null> = {}
+          for (const id of sideGameGroupPlayerIds) {
+            groupHcps[id] = allRoundPlayerHandicaps[id] ?? null
+          }
+          return groupHcps
+        }
+        if (teamBankerSideGame) {
           const teamHcps: Record<string, number | null> = {}
           for (const p of (players ?? []) as { id: string; handicap?: number | null }[]) {
             teamHcps[p.id] = p.handicap ?? null
@@ -147,6 +155,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}
       sideGameGroupScores={isDaytonaSideGame && sideGameGroupScores.length > 0 ? sideGameGroupScores : undefined}
+      sideGameGroupPlayerIds={isDaytonaSideGame && sideGameGroupPlayerIds.length > 0 ? sideGameGroupPlayerIds : undefined}
     />
   )
 }
