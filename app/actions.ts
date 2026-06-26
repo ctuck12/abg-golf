@@ -545,6 +545,13 @@ export async function updateRoundAutoHandicap(roundId: string, autoHandicap: boo
   return { success: true }
 }
 
+export async function updateRoundName(roundId: string, name: string) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('rounds').update({ name: name.trim() }).eq('id', roundId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function saveBankerHole(roundId: string, teamId: string, holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
   const supabase = createServerClient()
   const { error } = await supabase.from('banker_holes').upsert(
