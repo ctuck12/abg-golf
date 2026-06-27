@@ -741,14 +741,40 @@ export default function LeaderboardClient({
           const rows = traditionalPlayerRows.filter((r) => r.player.team_id === team.id)
           const hasDaytona = !!team.daytona_variant
           let pointsMap: Map<string, number> | null = null
+          const holePtsByHoleTraditional = new Map<number, Map<string, number>>()
           if (hasDaytona) {
             const tpIds = rows.map((r) => r.player.id)
             const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
             const tScores = scores.filter((s) => tpIds.includes(s.player_id))
               .map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
             pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
+            const tVariant = team.daytona_variant!.split('|')[0]
+            const tIs5Man = tVariant.startsWith('5man')
+            for (const hole of holes) {
+              const ha = tAssign.filter((a) => a.hole_number === hole.hole_number)
+              if (!ha.length) continue
+              const lIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
+              const rIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
+              if (tIs5Man) {
+                if (lIds.length < 2 || rIds.length < 3) continue
+                holePtsByHoleTraditional.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(lIds, rIds, tScores, hole.hole_number, hole.par))
+              } else {
+                if (lIds.length < 2 || rIds.length < 2) continue
+                const lSc = lIds.map((id) => tScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+                const rSc = rIds.map((id) => tScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+                if (lSc.length < 2 || rSc.length < 2) continue
+                const { leftDt, rightDt } = computeHoleDaytonaWithSides(lSc, rSc, hole.par)
+                if (leftDt === null || rightDt === null) continue
+                const diff = Math.abs(leftDt - rightDt)
+                const lWins = leftDt < rightDt, rWins = rightDt < leftDt
+                const hp = new Map<string, number>()
+                for (const id of lIds) hp.set(id, lWins ? diff : rWins ? -diff : 0)
+                for (const id of rIds) hp.set(id, rWins ? diff : lWins ? -diff : 0)
+                holePtsByHoleTraditional.set(hole.hole_number, hp)
+              }
+            }
           }
-          return { team, rows, hasDaytona, pointsMap }
+          return { team, rows, hasDaytona, pointsMap, holePtsByHole: holePtsByHoleTraditional }
         })
         .filter((g) => g.rows.length > 0)
         .sort((a, b) => a.team.name.localeCompare(b.team.name, undefined, { numeric: true, sensitivity: 'base' }))
@@ -2059,7 +2085,10 @@ export default function LeaderboardClient({
         const activeGroupInStandardRows = allScorecardsGroupId
           ? standardGroupRows.find((g) => g.id === allScorecardsGroupId)
           : null
-        const holePtsMaps: Map<number, Map<string, number>> = activeGroupInDtRows?.holePtsByHole ?? activeGroupInStandardRows?.holePtsByHole ?? (() => {
+        const activeGroupInTraditionalRows = allScorecardsGroupId
+          ? traditionalGroupRows.find((g) => g.team.id === allScorecardsGroupId)
+          : null
+        const holePtsMaps: Map<number, Map<string, number>> = activeGroupInDtRows?.holePtsByHole ?? activeGroupInStandardRows?.holePtsByHole ?? activeGroupInTraditionalRows?.holePtsByHole ?? (() => {
           // Fallback for team-based Daytona (no playing group) — recompute from scratch
           const m = new Map<number, Map<string, number>>()
           if (!groupHasDaytona) return m
