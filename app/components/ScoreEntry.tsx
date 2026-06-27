@@ -1104,7 +1104,8 @@ export default function ScoreEntry({
           onClose={() => setShowScorecards(false)}
           isDaytonaMode={isDaytonaMode}
           assignments={assignments}
-          holeStrokes={holeStrokes}
+          holeStrokes={Object.fromEntries(holes.map((h) => [h.hole_number, effectiveStrokeIds(h.hole_number)]))}
+
           holeValues={holeValues}
           dtPayoutValue={defaultDtPayoutValue}
           is5Man={is5Man}
