@@ -737,16 +737,22 @@ export default function ScoreEntry({
     const doMeasure = () => {
       const cw = el.offsetWidth
       if (!cw) { rafId = requestAnimationFrame(doMeasure); return }
-      // Use flex-start so scrollWidth = total item widths (no space-evenly masking).
-      // Reserve (n+1)*8px so space-evenly distributes equal gaps at edges AND between
-      // items — each slot guaranteed ≥ 8px regardless of player count.
       el.style.justifyContent = 'flex-start'
-      const threshold = cw - (el.children.length + 1) * 8
+      const numItems = el.children.length
+      if (!numItems) { el.style.justifyContent = ''; return }
+      // Reserve (numItems+1)*8px so space-evenly has equal gaps at edges too.
+      // Use getBoundingClientRect per child — iOS Safari flex scrollWidth is broken
+      // and always returns offsetWidth regardless of actual content overflow.
+      const threshold = cw - (numItems + 1) * 8
       let lo = 8, hi = 26
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
         el.style.fontSize = `${mid}px`
-        if (el.scrollWidth <= threshold) lo = mid; else hi = mid
+        let totalChildWidth = 0
+        for (let j = 0; j < el.children.length; j++) {
+          totalChildWidth += el.children[j].getBoundingClientRect().width
+        }
+        if (totalChildWidth <= threshold) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
