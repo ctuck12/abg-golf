@@ -829,7 +829,7 @@ export default function PlayingGroupScoreEntry({
               <div
                 ref={scoreBarRef}
                 className="flex flex-nowrap pt-1 border-t border-white/10 mt-1"
-                style={{ justifyContent: 'space-evenly', gap: '8px', fontSize: `${scoreBarFs}px` }}
+                style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}
               >
                 {players.map((p) => {
                   let display: string
