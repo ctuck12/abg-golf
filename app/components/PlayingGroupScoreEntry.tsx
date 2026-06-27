@@ -306,6 +306,16 @@ export default function PlayingGroupScoreEntry({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Backfill: persist auto-handicap strokes to DB for all already-saved holes on mount
+  useEffect(() => {
+    if (!autoStrokes || !roundId || savedHoles.size === 0) return
+    const pIds = players.map((p) => p.id)
+    savedHoles.forEach((hn) => {
+      saveHoleStrokes(roundId, hn, effectiveStrokeIds(hn), pIds)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const formattedDate = roundDate
     ? new Date(roundDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : ''
@@ -527,6 +537,9 @@ export default function PlayingGroupScoreEntry({
       isDaytonaMode && pressEntries.length > 0
         ? saveDaytonaHoleValues(roundId, groupId, pressEntries)
         : Promise.resolve(null),
+      autoStrokes && roundId
+        ? saveHoleStrokes(roundId, holeNumber, effectiveStrokeIds(holeNumber), players.map((p) => p.id))
+        : Promise.resolve(),
     ])
 
     setPendingHoles((prev) => { const s = new Set(prev); s.delete(holeNumber); return s })
@@ -738,7 +751,7 @@ export default function PlayingGroupScoreEntry({
           onClose={() => setShowScorecards(false)}
           isDaytonaMode={isDaytonaMode}
           assignments={assignments}
-          holeStrokes={holeStrokes}
+          holeStrokes={Object.fromEntries(holes.map((h) => [h.hole_number, effectiveStrokeIds(h.hole_number)]))}
           holeValues={holeValues}
           dtPayoutValue={defaultDtPayoutValue ?? 0}
           is5Man={is5Man}
