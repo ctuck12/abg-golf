@@ -1188,7 +1188,7 @@ export default function ScoreEntry({
 
           {/* Player score to par — Traditional (no side game) */}
           {format === 'traditional' && !isDaytonaSideGame && (
-            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
+            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', gap: '8px', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const pScores = savedScores.filter((s) => s.player_id === p.id)
                 const pStrokes = pScores.reduce((sum, s) => sum + s.strokes, 0)
@@ -1209,7 +1209,7 @@ export default function ScoreEntry({
 
           {/* Banker running totals */}
           {isBanker && Object.keys(bankerRunningTotals).length > 0 && (
-            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
+            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', gap: '8px', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const amt = bankerRunningTotals[p.id] ?? 0
                 return (
@@ -1226,7 +1226,7 @@ export default function ScoreEntry({
 
           {/* Player running point totals — Daytona / side game */}
           {isDaytonaMode && playerPointTotals.size > 0 && (
-            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
+            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', gap: '8px', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const pts = playerPointTotals.get(p.id) ?? 0
                 return (
