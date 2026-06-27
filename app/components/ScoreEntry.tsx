@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, Fragment, useMemo } from 'react'
 import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import {
   computeHoleBallScores, computeTeamBallSummary,
@@ -726,6 +726,37 @@ export default function ScoreEntry({
     e.currentTarget.focus({ preventScroll: true })
   }
 
+  // Auto-size the player score bar in the fixed header
+  const scoreBarRef = useRef<HTMLDivElement>(null)
+  const [scoreBarFs, setScoreBarFs] = useState(12)
+  const namesKey = players.map((p) => p.name.split(' ')[0]).join('|')
+  useLayoutEffect(() => {
+    const el = scoreBarRef.current
+    if (!el) return
+    let rafId: number | undefined
+    const doMeasure = () => {
+      const cw = el.offsetWidth
+      if (!cw) { rafId = requestAnimationFrame(doMeasure); return }
+      el.style.justifyContent = 'flex-start'
+      let lo = 8, hi = 26
+      for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2
+        el.style.fontSize = `${mid}px`
+        if (el.scrollWidth <= cw) lo = mid; else hi = mid
+      }
+      el.style.fontSize = ''
+      el.style.justifyContent = ''
+      setScoreBarFs((prev) => {
+        const next = Math.round(lo * 10) / 10
+        return Math.abs(prev - next) < 0.2 ? prev : next
+      })
+    }
+    doMeasure()
+    const ro = new ResizeObserver(doMeasure)
+    ro.observe(el)
+    return () => { if (rafId !== undefined) cancelAnimationFrame(rafId); ro.disconnect() }
+  }, [namesKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keep spacer height in sync with header height (position:fixed needs explicit spacer)
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -1157,7 +1188,7 @@ export default function ScoreEntry({
 
           {/* Player score to par — Traditional (no side game) */}
           {format === 'traditional' && !isDaytonaSideGame && (
-            <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-4 gap-y-1">
+            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const pScores = savedScores.filter((s) => s.player_id === p.id)
                 const pStrokes = pScores.reduce((sum, s) => sum + s.strokes, 0)
@@ -1165,12 +1196,12 @@ export default function ScoreEntry({
                 const vspar = pScores.length > 0 ? pStrokes - pPar : null
                 const vsparStr = vspar === null ? '–' : vspar === 0 ? 'E' : vspar > 0 ? `+${vspar}` : String(vspar)
                 return (
-                  <div key={p.id} className="flex items-center gap-1 text-xs">
-                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
+                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0].slice(0, 3)}</span>
                     <span className="font-bold" style={{ color: vspar === null ? 'rgba(255,255,255,0.35)' : vspar < 0 ? '#4ade80' : vspar > 0 ? '#f87171' : 'rgba(255,255,255,0.55)' }}>
                       {vsparStr}
                     </span>
-                  </div>
+                  </span>
                 )
               })}
             </div>
@@ -1178,16 +1209,16 @@ export default function ScoreEntry({
 
           {/* Banker running totals */}
           {isBanker && Object.keys(bankerRunningTotals).length > 0 && (
-            <div className="mt-2 pt-2 border-t border-white/10 flex justify-between">
+            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const amt = bankerRunningTotals[p.id] ?? 0
                 return (
-                  <div key={p.id} className="flex items-center gap-0.5 text-[10px]">
-                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
+                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0].slice(0, 3)}</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `$${Math.abs(amt).toFixed(2)}` : '$0'}
                     </span>
-                  </div>
+                  </span>
                 )
               })}
             </div>
@@ -1195,21 +1226,21 @@ export default function ScoreEntry({
 
           {/* Player running point totals — Daytona / side game */}
           {isDaytonaMode && playerPointTotals.size > 0 && (
-            <div className="mt-2 pt-2 border-t border-white/10 flex justify-between">
+            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const pts = playerPointTotals.get(p.id) ?? 0
                 return (
-                  <div key={p.id} className="flex items-center gap-0.5 text-[10px]">
+                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
                     <button
                       onClick={() => { setPopupShowScorecard(false); setPlayerPopup((prev) => prev === p.id ? null : p.id) }}
-                      className="font-medium underline-offset-2 hover:underline"
+                      className="font-medium underline-offset-2 hover:underline flex-shrink-0 whitespace-nowrap"
                       style={{ color: 'rgba(255,255,255,0.55)' }}>
-                      {p.name.split(' ')[0]}:
+                      {p.name.split(' ')[0].slice(0, 3)}
                     </button>
                     <span className="font-bold" style={{ color: pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {pts > 0 ? `+${pts}` : pts}
                     </span>
-                  </div>
+                  </span>
                 )
               })}
             </div>
