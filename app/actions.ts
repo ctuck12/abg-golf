@@ -763,9 +763,10 @@ export async function saveDaytonaAssignments(
       .in('player_id', playerIds)
   }
   if (assignments.length > 0) {
-    await supabase.from('daytona_hole_assignments').insert(
+    const { error } = await supabase.from('daytona_hole_assignments').insert(
       assignments.map((a) => ({ round_id: roundId, hole_number: holeNumber, player_id: a.playerId, side: a.side }))
     )
+    if (error) return { success: false, error: error.message }
   }
   return { success: true }
 }

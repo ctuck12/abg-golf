@@ -306,6 +306,7 @@ export default function PlayingGroupScoreEntry({
       }
     }
 
+    refetchAll()
     const interval = setInterval(refetchAll, 5000)
     return () => { clearInterval(interval) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -505,6 +506,28 @@ export default function PlayingGroupScoreEntry({
       }
       return holeNumber
     })
+    // If this is a saved hole with no assignments in local state, fetch from DB immediately
+    if (isDaytonaMode && savedHoles.has(holeNumber) && (!assignments[holeNumber] || Object.keys(assignments[holeNumber]).length === 0)) {
+      const pIds = players.map((p) => p.id)
+      fetch('/api/daytona-assignments?roundId=' + roundId + '&playerIds=' + pIds.join(','))
+        .then((r) => r.json())
+        .then((data: { player_id: string; hole_number: number; side: string }[]) => {
+          if (!data || data.length === 0) return
+          setAssignments((prev) => {
+            const next = { ...prev }
+            const byHole: Record<number, Record<string, 'left' | 'right'>> = {}
+            for (const a of data) {
+              if (!byHole[a.hole_number]) byHole[a.hole_number] = {}
+              byHole[a.hole_number][a.player_id] = a.side as 'left' | 'right'
+            }
+            for (const [hnStr, holeAssign] of Object.entries(byHole)) {
+              next[Number(hnStr)] = holeAssign
+            }
+            return next
+          })
+        })
+        .catch(() => {})
+    }
   }
 
   async function saveHole(holeNumber: number, pressActive = false, pressValue = '') {
@@ -540,7 +563,7 @@ export default function PlayingGroupScoreEntry({
       for (const hn of affectedHoles) pressEntries.push({ holeNumber: hn, valuePerPoint: pressVal })
     }
 
-    const [res, , pressRes] = await Promise.all([
+    const [res, assignRes, pressRes] = await Promise.all([
       submitGroupHoleScores(groupId, holeNumber, playerScores),
       isDaytonaMode
         ? saveDaytonaAssignments(
@@ -548,7 +571,7 @@ export default function PlayingGroupScoreEntry({
             holeNumber,
             Object.entries(holeAssignments).map(([playerId, side]) => ({ playerId, side }))
           )
-        : Promise.resolve(),
+        : Promise.resolve(null),
       isDaytonaMode && pressEntries.length > 0
         ? saveDaytonaHoleValues(roundId, groupId, pressEntries)
         : Promise.resolve(null),
@@ -559,6 +582,9 @@ export default function PlayingGroupScoreEntry({
 
     setPendingHoles((prev) => { const s = new Set(prev); s.delete(holeNumber); return s })
     if (res.error) { setErrors((prev) => ({ ...prev, [holeNumber]: res.error! })); return }
+    if (assignRes && typeof assignRes === 'object' && 'error' in assignRes && assignRes.error) {
+      setErrors((prev) => ({ ...prev, [holeNumber]: `Assignment save failed: ${assignRes.error}` })); return
+    }
     if (pressRes && typeof pressRes === 'object' && 'error' in pressRes && pressRes.error) {
       setErrors((prev) => ({ ...prev, [holeNumber]: `Press save failed: ${pressRes.error}` })); return
     }
