@@ -1197,7 +1197,7 @@ export default function ScoreEntry({
                 const vsparStr = vspar === null ? '–' : vspar === 0 ? 'E' : vspar > 0 ? `+${vspar}` : String(vspar)
                 return (
                   <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
-                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0].slice(0, 3)}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}</span>
                     <span className="font-bold" style={{ color: vspar === null ? 'rgba(255,255,255,0.35)' : vspar < 0 ? '#4ade80' : vspar > 0 ? '#f87171' : 'rgba(255,255,255,0.55)' }}>
                       {vsparStr}
                     </span>
@@ -1214,7 +1214,7 @@ export default function ScoreEntry({
                 const amt = bankerRunningTotals[p.id] ?? 0
                 return (
                   <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
-                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0].slice(0, 3)}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `$${Math.abs(amt).toFixed(2)}` : '$0'}
                     </span>
@@ -1235,7 +1235,7 @@ export default function ScoreEntry({
                       onClick={() => { setPopupShowScorecard(false); setPlayerPopup((prev) => prev === p.id ? null : p.id) }}
                       className="font-medium underline-offset-2 hover:underline flex-shrink-0 whitespace-nowrap"
                       style={{ color: 'rgba(255,255,255,0.55)' }}>
-                      {p.name.split(' ')[0].slice(0, 3)}
+                      {p.name.split(' ')[0]}
                     </button>
                     <span className="font-bold" style={{ color: pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {pts > 0 ? `+${pts}` : pts}
