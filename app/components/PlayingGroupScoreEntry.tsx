@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
@@ -74,34 +74,23 @@ export default function PlayingGroupScoreEntry({
     }
     return s
   })
-  const [scoreBarFs, setScoreBarFs] = useState(12)
-  const _sbRo = useRef<ResizeObserver | null>(null)
-  const _sbRaf = useRef<number | undefined>(undefined)
-  const scoreBarRef = useCallback((el: HTMLDivElement | null) => {
-    if (_sbRo.current) { _sbRo.current.disconnect(); _sbRo.current = null }
-    if (_sbRaf.current !== undefined) { cancelAnimationFrame(_sbRaf.current); _sbRaf.current = undefined }
-    if (!el) return
-    const run = () => {
-      const cw = el.getBoundingClientRect().width
-      if (!cw) { _sbRaf.current = requestAnimationFrame(run); return }
-      el.style.justifyContent = 'flex-start'
-      if (!el.children.length) { el.style.justifyContent = ''; return }
-      let lo = 8, hi = 18
-      for (let i = 0; i < 24; i++) {
-        const mid = (lo + hi) / 2
-        el.style.fontSize = `${mid}px`
-        let total = 0
-        for (let j = 0; j < el.children.length; j++) total += el.children[j].getBoundingClientRect().width
-        if (total <= cw * 0.93) lo = mid; else hi = mid
-      }
-      el.style.fontSize = ''
-      el.style.justifyContent = ''
-      setScoreBarFs(prev => { const next = Math.round(lo * 10) / 10; return Math.abs(prev - next) < 0.2 ? prev : next })
-    }
-    run()
-    _sbRo.current = new ResizeObserver(run)
-    _sbRo.current.observe(el)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [_vpw, _setVpw] = useState(390)
+  useEffect(() => {
+    _setVpw(window.innerWidth)
+    const h = () => _setVpw(window.innerWidth)
+    window.addEventListener('resize', h)
+    return () => window.removeEventListener('resize', h)
+  }, [])
+  // Pure character-count font size — no DOM measurement, works on first render.
+  const scoreBarFs = useMemo(() => {
+    const cw = (_vpw - 32) * 0.92
+    const n = players.length
+    if (!n) return 12
+    const totalChars = players.reduce((sum, p) => sum + p.name.split(' ')[0].length + 4, 0) // +4 = avg score chars
+    const overhead = n * 16 // 12px padding + 4px gap per player
+    const fs = (cw - overhead) / (totalChars * 0.52)
+    return Math.max(10, Math.min(18, Math.round(fs * 10) / 10))
+  }, [_vpw, players])
 
   const [savedScores, setSavedScores] = useState<Score[]>(initialScores)
   const [allScores, setAllScores] = useState<Score[]>(initialAllScores)
@@ -815,7 +804,6 @@ export default function PlayingGroupScoreEntry({
             }
             return (
               <div
-                ref={scoreBarRef}
                 className="flex flex-nowrap pt-1 border-t border-white/10 mt-1"
                 style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}
               >
