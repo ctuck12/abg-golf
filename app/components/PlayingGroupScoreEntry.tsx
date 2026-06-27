@@ -102,7 +102,7 @@ export default function PlayingGroupScoreEntry({
         for (let j = 0; j < el.children.length; j++) {
           totalChildWidth += el.children[j].getBoundingClientRect().width
         }
-        if (totalChildWidth <= cw) lo = mid; else hi = mid
+        if (totalChildWidth <= cw - 12) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
