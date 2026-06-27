@@ -7,8 +7,10 @@ import type { DaytonaHoleAssignment } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
-export default async function OrgPlayerPage({ params }: { params: Promise<{ orgSlug: string; playerId: string }> }) {
+export default async function OrgPlayerPage({ params, searchParams }: { params: Promise<{ orgSlug: string; playerId: string }>; searchParams: Promise<{ simple?: string }> }) {
   const { orgSlug, playerId } = await params
+  const { simple } = await searchParams
+  const simpleView = simple === '1'
   const auth = await getOrgAuth(orgSlug)
   if (!auth.ok) redirect(`/${orgSlug}`)
 
@@ -71,7 +73,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
 
   let dtData: Parameters<typeof PlayerScorecard>[0]['dtData']
 
-  if (roundFormat === 'daytona' && teamId) {
+  if (roundFormat === 'daytona' && teamId && !simpleView) {
     const { data: teamPlayers } = await sb.from('players').select('id, handicap').eq('team_id', teamId)
     const teamPlayersTyped = (teamPlayers ?? []) as { id: string; handicap?: number | null }[]
     const teamPlayerIds = teamPlayersTyped.map((p) => p.id)
@@ -127,7 +129,7 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
       teamId={teamId}
       holes={holes ?? []}
       scores={scores ?? []}
-      format={roundFormat}
+      format={simpleView ? 'standard' : roundFormat}
       dtData={dtData}
       isAdmin={isAdmin}
       strokeHoles={strokeHoles}

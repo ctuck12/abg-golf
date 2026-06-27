@@ -3062,7 +3062,7 @@ export default function LeaderboardClient({
                 const vpColor = vp !== null && vp < 0 ? '#dc2626' : '#111827'
                 const vpStr = vp === null ? '–' : vp === 0 ? 'E' : vp > 0 ? `+${vp}` : `${vp}`
                 return (
-                  <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}`}
+                  <a key={row.player.id} href={`/${orgSlug}/player/${row.player.id}?simple=1`}
                     className="flex items-center px-4 py-3 hover:bg-gray-50 active:bg-gray-200 transition border-b border-gray-100 last:border-0">
                     <span className="w-5 mr-2 text-sm font-bold flex-shrink-0" style={{ color: '#9ca3af' }}>{row.holesPlayed > 0 ? i + 1 : '–'}</span>
                     <span className="flex-1 min-w-0 font-semibold text-gray-900 text-sm truncate">{row.player.name}</span>
