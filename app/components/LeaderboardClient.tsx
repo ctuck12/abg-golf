@@ -631,8 +631,26 @@ export default function LeaderboardClient({
     const teamPlayers = players.filter((p) => p.team_id === team.id)
     const tpIds = teamPlayers.map((p) => p.id)
     const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
+    const teamHcps = teamPlayers.map((p) => p.handicap).filter((h): h is number => h != null)
+    const teamMinHcp = teamHcps.length ? Math.min(...teamHcps) : null
+    // Prefer DB hole_strokes; fall back to handicap calculation when DB has no entry for a hole
+    const effectiveDtStrokeIds = (holeNumber: number, strokeIndex: number | null | undefined): string[] => {
+      const dbStrokes = liveHoleStrokes[holeNumber]
+      if (dbStrokes !== undefined) return dbStrokes
+      if (teamMinHcp === null || !strokeIndex) return []
+      return teamPlayers.filter((p) => {
+        const hcp = p.handicap ?? null
+        if (hcp == null) return false
+        const rel = Math.max(0, Math.floor(hcp - teamMinHcp))
+        return rel > 0 && strokeIndex <= rel
+      }).map((p) => p.id)
+    }
     const tScores = scores.filter((s) => tpIds.includes(s.player_id))
-      .map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+      .map((s) => {
+        const holeData = holes.find((h) => h.hole_number === s.hole_number)
+        const strokeIds = effectiveDtStrokeIds(s.hole_number, holeData?.stroke_index)
+        return { ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0) }
+      })
     const variant = team.daytona_variant ?? daytonaVariant
     const groupPointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, variant)
     // Build per-hole points map (mirrors computePlayerDaytonaPoints internally) so
@@ -745,8 +763,26 @@ export default function LeaderboardClient({
           if (hasDaytona) {
             const tpIds = rows.map((r) => r.player.id)
             const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
+            const tradTeamPlayers = rows.map((r) => r.player)
+            const tradTeamHcps = tradTeamPlayers.map((p) => p.handicap).filter((h): h is number => h != null)
+            const tradTeamMinHcp = tradTeamHcps.length ? Math.min(...tradTeamHcps) : null
+            const effectiveTradStrokeIds = (holeNumber: number, strokeIndex: number | null | undefined): string[] => {
+              const dbStrokes = liveHoleStrokes[holeNumber]
+              if (dbStrokes !== undefined) return dbStrokes
+              if (tradTeamMinHcp === null || !strokeIndex) return []
+              return tradTeamPlayers.filter((p) => {
+                const hcp = p.handicap ?? null
+                if (hcp == null) return false
+                const rel = Math.max(0, Math.floor(hcp - tradTeamMinHcp))
+                return rel > 0 && strokeIndex <= rel
+              }).map((p) => p.id)
+            }
             const tScores = scores.filter((s) => tpIds.includes(s.player_id))
-              .map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+              .map((s) => {
+                const holeData = holes.find((h) => h.hole_number === s.hole_number)
+                const strokeIds = effectiveTradStrokeIds(s.hole_number, holeData?.stroke_index)
+                return { ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0) }
+              })
             pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
             const tVariant = team.daytona_variant!.split('|')[0]
             const tIs5Man = tVariant.startsWith('5man')
