@@ -81,10 +81,16 @@ export default function PlayingGroupScoreEntry({
   useLayoutEffect(() => {
     const el = scoreBarRef.current
     if (!el) return
-    const measure = () => {
+    let rafId: number | undefined
+    const doMeasure = () => {
       const cw = el.offsetWidth
-      if (!cw) return
-      // Binary-search the largest font size (px) where all items fit in one row
+      if (!cw) {
+        rafId = requestAnimationFrame(doMeasure)
+        return
+      }
+      // Use flex-start temporarily so scrollWidth accurately reflects total item width
+      // (justify-content: space-evenly distributes space and masks true overflow)
+      el.style.justifyContent = 'flex-start'
       let lo = 8, hi = 26
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
@@ -92,14 +98,19 @@ export default function PlayingGroupScoreEntry({
         if (el.scrollWidth <= cw) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
+      el.style.justifyContent = ''
       setScoreBarFs((prev) => {
         const next = Math.round(lo * 10) / 10
         return Math.abs(prev - next) < 0.2 ? prev : next
       })
     }
-    measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
+    doMeasure()
+    const ro = new ResizeObserver(doMeasure)
+    ro.observe(el)
+    return () => {
+      if (rafId !== undefined) cancelAnimationFrame(rafId)
+      ro.disconnect()
+    }
   }, [namesKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [savedScores, setSavedScores] = useState<Score[]>(initialScores)
@@ -815,7 +826,7 @@ export default function PlayingGroupScoreEntry({
             return (
               <div
                 ref={scoreBarRef}
-                className="flex flex-nowrap pt-1 border-t border-white/10 mt-1 overflow-x-hidden"
+                className="flex flex-nowrap pt-1 border-t border-white/10 mt-1"
                 style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}
               >
                 {players.map((p) => {
