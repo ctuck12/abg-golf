@@ -764,8 +764,11 @@ export default function LeaderboardClient({
               const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
               for (const id of [...leftIds, ...rightIds]) assignedIds.add(id)
               const liveStrokes = liveHoleStrokes[hole.hole_number]
-              const strokeIds = liveStrokes !== undefined
-                ? liveStrokes
+              // Filter to this group's players only — another group's saved strokes must not
+              // suppress the auto-strokes fallback for this group
+              const groupManualStrokes = liveStrokes?.filter((id) => pids.includes(id))
+              const strokeIds = (groupManualStrokes && groupManualStrokes.length > 0)
+                ? groupManualStrokes
                 : (pgHasAutoStrokes && hole.stroke_index && isFinite(pgMinHcp)
                     ? groupPlayers.filter((p) => {
                         const hcp = p.handicap ?? null
@@ -2028,8 +2031,11 @@ export default function LeaderboardClient({
             const leftIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
             const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
             const liveStrokes = liveHoleStrokes[hole.hole_number]
-            const strokeIds = liveStrokes !== undefined
-              ? liveStrokes
+            // Filter to this group's players — another group's saved strokes must not
+            // suppress the auto-strokes fallback for this group
+            const groupManualStrokesAll = liveStrokes?.filter((id) => groupPlayerIds.has(id))
+            const strokeIds = (groupManualStrokesAll && groupManualStrokesAll.length > 0)
+              ? groupManualStrokesAll
               : (groupHasAutoStrokes && hole.stroke_index && isFinite(groupMinHcp)
                   ? groupPlayersArr.filter((p) => {
                       const hcp = p.handicap ?? null

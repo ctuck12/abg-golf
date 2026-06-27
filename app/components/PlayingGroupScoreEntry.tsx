@@ -1293,16 +1293,23 @@ export default function PlayingGroupScoreEntry({
                           <button
                             type="button"
                             onClick={() => {
-                              setAssignments((prev) => {
-                                const hm = { ...(prev[hole.hole_number] ?? {}) }
-                                hm[player.id] = isAssigned ? (side === 'left' ? 'right' : 'left') : displaySide
-                                const newLeft = Object.values(hm).filter(s => s === 'left').length
-                                if (newLeft === 2) { for (const p of players) { if (!(p.id in hm)) hm[p.id] = 'right' } }
-                                const newRight = Object.values(hm).filter(s => s === 'right').length
-                                const rightTarget = is5Man ? 3 : 2
-                                if (newRight === rightTarget) { for (const p of players) { if (!(p.id in hm)) hm[p.id] = 'left' } }
-                                return { ...prev, [hole.hole_number]: hm }
-                              })
+                              // Compute new assignment map synchronously so we can both update state and save to DB
+                              const hm: Record<string, 'left' | 'right'> = { ...(assignments[hole.hole_number] ?? {}) }
+                              hm[player.id] = isAssigned ? (side === 'left' ? 'right' : 'left') : displaySide
+                              const newLeft = Object.values(hm).filter(s => s === 'left').length
+                              if (newLeft === 2) { for (const p of players) { if (!(p.id in hm)) hm[p.id] = 'right' } }
+                              const newRight = Object.values(hm).filter(s => s === 'right').length
+                              const rightTarget = is5Man ? 3 : 2
+                              if (newRight === rightTarget) { for (const p of players) { if (!(p.id in hm)) hm[p.id] = 'left' } }
+                              setAssignments((a) => ({ ...a, [hole.hole_number]: hm }))
+                              // Persist assignments to DB as soon as all players are assigned — don't wait for Save Hole
+                              if (players.every((p) => p.id in hm)) {
+                                saveDaytonaAssignments(
+                                  roundId,
+                                  hole.hole_number,
+                                  Object.entries(hm).map(([pid, s]) => ({ playerId: pid, side: s }))
+                                ).catch(() => {})
+                              }
                             }}
                             className="flex-shrink-0 text-xs font-bold px-2 rounded-lg border transition flex items-center justify-center"
                             style={{
