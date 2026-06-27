@@ -72,9 +72,10 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
   let dtData: Parameters<typeof PlayerScorecard>[0]['dtData']
 
   if (roundFormat === 'daytona' && teamId) {
-    const { data: teamPlayers } = await sb.from('players').select('id').eq('team_id', teamId)
-    const teamPlayerIds = (teamPlayers ?? []).map((p: { id: string }) => p.id)
-    const [{ data: assignmentsData }, { data: allScoresData }, { data: holeValuesRaw }, { data: ballValuesRaw }] = await Promise.all([
+    const { data: teamPlayers } = await sb.from('players').select('id, handicap').eq('team_id', teamId)
+    const teamPlayersTyped = (teamPlayers ?? []) as { id: string; handicap?: number | null }[]
+    const teamPlayerIds = teamPlayersTyped.map((p) => p.id)
+    const [{ data: assignmentsData }, { data: allScoresData }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: allTeamHoleStrokesData }] = await Promise.all([
       teamPlayerIds.length
         ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId).in('player_id', teamPlayerIds)
         : Promise.resolve({ data: [] }),
@@ -83,12 +84,24 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
         : Promise.resolve({ data: [] }),
       sb.from('daytona_hole_values').select('hole_number, value_per_point').eq('round_id', roundId).eq('team_id', teamId),
       sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId),
+      teamPlayerIds.length
+        ? sb.from('hole_strokes').select('player_id, hole_number').eq('round_id', roundId).in('player_id', teamPlayerIds)
+        : Promise.resolve({ data: [] }),
     ])
     const pressedHoles: Record<number, number> = {}
     for (const hv of (holeValuesRaw ?? []) as { hole_number: number; value_per_point: number }[]) {
       pressedHoles[hv.hole_number] = hv.value_per_point
     }
     const dtPayoutValue = (ballValuesRaw as { ball_number: number; value_dollars: number }[] | null)?.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
+    const playerHandicaps: Record<string, number | null> = {}
+    for (const tp of teamPlayersTyped) playerHandicaps[tp.id] = tp.handicap ?? null
+    const hcpVals = Object.values(playerHandicaps).filter((h): h is number => h != null)
+    const minTeamHcp: number | null = hcpVals.length ? Math.min(...hcpVals) : null
+    const holeStrokeMap: Record<number, string[]> = {}
+    for (const r of (allTeamHoleStrokesData ?? []) as { player_id: string; hole_number: number }[]) {
+      if (!holeStrokeMap[r.hole_number]) holeStrokeMap[r.hole_number] = []
+      holeStrokeMap[r.hole_number].push(r.player_id)
+    }
     dtData = {
       roundId,
       allPlayerIds: teamPlayerIds,
@@ -97,6 +110,9 @@ export default async function OrgPlayerPage({ params }: { params: Promise<{ orgS
       daytonaVariant: teamDaytonaVariant ?? '4man',
       pressedHoles,
       dtPayoutValue,
+      playerHandicaps,
+      minTeamHcp,
+      holeStrokeMap,
     }
   }
 
