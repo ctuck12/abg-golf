@@ -88,16 +88,12 @@ export default function PlayingGroupScoreEntry({
         rafId = requestAnimationFrame(doMeasure)
         return
       }
-      // Use flex-start so scrollWidth = total item widths (no space-evenly masking).
-      // Reserve (n+1)*8px for space-evenly to distribute equally at edges AND between
-      // items, guaranteeing each slot ≥ 8px gap regardless of player count.
+      // Use flex-start so items pack left; getBoundingClientRect per child because
+      // iOS Safari flex scrollWidth is broken. Each player span carries 6px padding
+      // each side so padding is included in the measured width — guarantees ≥12px
+      // visual buffer between adjacent names without a separate threshold offset.
       el.style.justifyContent = 'flex-start'
-      const numItems = el.children.length
-      if (!numItems) { el.style.justifyContent = ''; return }
-      // Reserve (numItems+1)*8px so space-evenly has equal gaps at edges too.
-      // Use getBoundingClientRect per child — iOS Safari flex scrollWidth is broken
-      // and always returns offsetWidth regardless of actual content overflow.
-      const threshold = cw - (numItems + 1) * 8
+      if (!el.children.length) { el.style.justifyContent = ''; return }
       let lo = 8, hi = 26
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
@@ -106,7 +102,7 @@ export default function PlayingGroupScoreEntry({
         for (let j = 0; j < el.children.length; j++) {
           totalChildWidth += el.children[j].getBoundingClientRect().width
         }
-        if (totalChildWidth <= threshold) lo = mid; else hi = mid
+        if (totalChildWidth <= cw) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
@@ -854,7 +850,7 @@ export default function PlayingGroupScoreEntry({
                     color = toParColor(toPar)
                   }
                   return (
-                    <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                    <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 6px' }}>
                       <span style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
                       <span style={{ color, fontWeight: 'bold' }}>{display}</span>
                     </span>
