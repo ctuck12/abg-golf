@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, Fragment, useMemo } from 'react'
+import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
 import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import {
   computeHoleBallScores, computeTeamBallSummary,
@@ -726,41 +726,53 @@ export default function ScoreEntry({
     e.currentTarget.focus({ preventScroll: true })
   }
 
-  // Auto-size the player score bar.
-  // Uses a callback ref so measurement fires every time the element mounts —
-  // this handles conditional bars (e.g. Daytona only renders after scores exist)
-  // where useLayoutEffect([namesKey]) would miss the first mount.
-  const [scoreBarFs, setScoreBarFs] = useState(12)
-  const _sbRo = useRef<ResizeObserver | null>(null)
-  const _sbRaf = useRef<number | undefined>(undefined)
-  const scoreBarRef = useCallback((el: HTMLDivElement | null) => {
-    if (_sbRo.current) { _sbRo.current.disconnect(); _sbRo.current = null }
-    if (_sbRaf.current !== undefined) { cancelAnimationFrame(_sbRaf.current); _sbRaf.current = undefined }
-    if (!el) return
-    const run = () => {
-      const cw = el.getBoundingClientRect().width
-      if (!cw) { _sbRaf.current = requestAnimationFrame(run); return }
-      el.style.justifyContent = 'flex-start'
-      if (!el.children.length) { el.style.justifyContent = ''; return }
-      // Binary search: largest font (≤18px) where all items fit in 93% of container.
-      // 93% margin prevents subpixel overflow; getBoundingClientRect is consistent
-      // across container + children (no offsetWidth integer rounding mismatch).
-      let lo = 8, hi = 18
-      for (let i = 0; i < 24; i++) {
-        const mid = (lo + hi) / 2
-        el.style.fontSize = `${mid}px`
-        let total = 0
-        for (let j = 0; j < el.children.length; j++) total += el.children[j].getBoundingClientRect().width
-        if (total <= cw * 0.93) lo = mid; else hi = mid
+  // Auto-size the player score bar — pure character-count calculation, no DOM
+  // measurement. Each character occupies ~0.52× the font size in pixels for the
+  // system sans-serif. We subtract per-player padding (6px each side = 12px) and
+  // the 4px CSS gap between name and score, then solve for the largest fontSize
+  // where all text fits in 92% of the container, capped at 18px.
+  const [_vpw, _setVpw] = useState(390)
+  useEffect(() => {
+    _setVpw(window.innerWidth)
+    const handler = () => _setVpw(window.innerWidth)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
+  const scoreBarFs = useMemo(() => {
+    const cw = (_vpw - 32) * 0.92 // header px-4 on both sides, 8% edge margin
+    const n = players.length
+    if (!n) return 12
+    // Build display strings for whichever bar is active
+    let totalChars = 0
+    if (format === 'traditional' && !isDaytonaSideGame) {
+      for (const p of players) {
+        const ps = savedScores.filter(s => s.player_id === p.id)
+        const strokes = ps.reduce((a, s) => a + s.strokes, 0)
+        const par = holes.filter(h => ps.some(s => s.hole_number === h.hole_number)).reduce((a, h) => a + h.par, 0)
+        const v = ps.length > 0 ? strokes - par : null
+        const scoreStr = v === null ? '–' : v === 0 ? 'E' : v > 0 ? `+${v}` : String(v)
+        totalChars += p.name.split(' ')[0].length + scoreStr.length
       }
-      el.style.fontSize = ''
-      el.style.justifyContent = ''
-      setScoreBarFs(prev => { const next = Math.round(lo * 10) / 10; return Math.abs(prev - next) < 0.2 ? prev : next })
+    } else if (isBanker && Object.keys(bankerRunningTotals).length > 0) {
+      for (const p of players) {
+        const amt = bankerRunningTotals[p.id] ?? 0
+        const scoreStr = amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : '$0'
+        totalChars += p.name.split(' ')[0].length + scoreStr.length
+      }
+    } else if (isDaytonaMode) {
+      for (const p of players) {
+        const pts = playerPointTotals.get(p.id) ?? 0
+        const scoreStr = pts > 0 ? `+${pts}` : String(pts)
+        totalChars += p.name.split(' ')[0].length + scoreStr.length
+      }
+    } else {
+      return 12
     }
-    run()
-    _sbRo.current = new ResizeObserver(run)
-    _sbRo.current.observe(el)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    const overhead = n * (12 + 4) // 12px padding + 4px gap per player
+    const fs = (cw - overhead) / (totalChars * 0.52)
+    return Math.max(10, Math.min(18, Math.round(fs * 10) / 10))
+  }, [_vpw, players, format, isDaytonaSideGame, isBanker, isDaytonaMode, savedScores, holes, bankerRunningTotals, playerPointTotals])
 
   // Keep spacer height in sync with header height (position:fixed needs explicit spacer)
   const headerRef = useRef<HTMLElement>(null)
@@ -1193,7 +1205,7 @@ export default function ScoreEntry({
 
           {/* Player score to par — Traditional (no side game) */}
           {format === 'traditional' && !isDaytonaSideGame && (
-            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
+            <div className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const pScores = savedScores.filter((s) => s.player_id === p.id)
                 const pStrokes = pScores.reduce((sum, s) => sum + s.strokes, 0)
@@ -1214,7 +1226,7 @@ export default function ScoreEntry({
 
           {/* Banker running totals */}
           {isBanker && Object.keys(bankerRunningTotals).length > 0 && (
-            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
+            <div className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const amt = bankerRunningTotals[p.id] ?? 0
                 return (
@@ -1231,7 +1243,7 @@ export default function ScoreEntry({
 
           {/* Player running point totals — Daytona / side game */}
           {isDaytonaMode && playerPointTotals.size > 0 && (
-            <div ref={scoreBarRef} className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
+            <div className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
                 const pts = playerPointTotals.get(p.id) ?? 0
                 return (
