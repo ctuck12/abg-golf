@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
@@ -74,50 +74,34 @@ export default function PlayingGroupScoreEntry({
     }
     return s
   })
-  const scoreBarRef = useRef<HTMLDivElement>(null)
   const [scoreBarFs, setScoreBarFs] = useState(12)
-
-  const namesKey = players.map((p) => p.name.split(' ')[0]).join('|')
-  useLayoutEffect(() => {
-    const el = scoreBarRef.current
+  const _sbRo = useRef<ResizeObserver | null>(null)
+  const _sbRaf = useRef<number | undefined>(undefined)
+  const scoreBarRef = useCallback((el: HTMLDivElement | null) => {
+    if (_sbRo.current) { _sbRo.current.disconnect(); _sbRo.current = null }
+    if (_sbRaf.current !== undefined) { cancelAnimationFrame(_sbRaf.current); _sbRaf.current = undefined }
     if (!el) return
-    let rafId: number | undefined
-    const doMeasure = () => {
+    const run = () => {
       const cw = el.getBoundingClientRect().width
-      if (!cw) {
-        rafId = requestAnimationFrame(doMeasure)
-        return
-      }
-      // Use flex-start so items pack left; getBoundingClientRect for both container
-      // and children for consistent sub-pixel measurement. 93% threshold + 18px cap
-      // ensure items never overflow on iOS Safari regardless of rounding.
+      if (!cw) { _sbRaf.current = requestAnimationFrame(run); return }
       el.style.justifyContent = 'flex-start'
       if (!el.children.length) { el.style.justifyContent = ''; return }
       let lo = 8, hi = 18
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
         el.style.fontSize = `${mid}px`
-        let totalChildWidth = 0
-        for (let j = 0; j < el.children.length; j++) {
-          totalChildWidth += el.children[j].getBoundingClientRect().width
-        }
-        if (totalChildWidth <= cw * 0.93) lo = mid; else hi = mid
+        let total = 0
+        for (let j = 0; j < el.children.length; j++) total += el.children[j].getBoundingClientRect().width
+        if (total <= cw * 0.93) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
-      setScoreBarFs((prev) => {
-        const next = Math.round(lo * 10) / 10
-        return Math.abs(prev - next) < 0.2 ? prev : next
-      })
+      setScoreBarFs(prev => { const next = Math.round(lo * 10) / 10; return Math.abs(prev - next) < 0.2 ? prev : next })
     }
-    doMeasure()
-    const ro = new ResizeObserver(doMeasure)
-    ro.observe(el)
-    return () => {
-      if (rafId !== undefined) cancelAnimationFrame(rafId)
-      ro.disconnect()
-    }
-  }, [namesKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    run()
+    _sbRo.current = new ResizeObserver(run)
+    _sbRo.current.observe(el)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [savedScores, setSavedScores] = useState<Score[]>(initialScores)
   const [allScores, setAllScores] = useState<Score[]>(initialAllScores)
