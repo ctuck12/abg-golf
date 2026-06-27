@@ -892,6 +892,9 @@ export default function ScoreEntry({
       isDaytonaMode && roundId && pressEntries.length > 0
         ? saveDaytonaHoleValues(roundId, team.id, pressEntries)
         : Promise.resolve(null),
+      autoHandicap && roundId
+        ? saveHoleStrokes(roundId, holeNumber, effectiveStrokeIds(holeNumber), players.map((p) => p.id))
+        : Promise.resolve(),
     ])
 
     setPendingHoles((p) => { const n = new Set(p); n.delete(holeNumber); return n })
