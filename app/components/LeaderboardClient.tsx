@@ -2004,13 +2004,27 @@ export default function LeaderboardClient({
         const gIs5Man = groupVariant?.startsWith('5man') ?? false
         const gIsFlares = groupVariant?.startsWith('5man-flares') ?? false
         const groupPlayerIds = new Set(groupRows.map((r) => r.player.id))
+        const groupHasAutoStrokes = !!activePlayingGroup?.auto_strokes
+        const groupPlayersArr = [...groupPlayerIds].map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p)
+        const groupHcpsArr = groupPlayersArr.map((p) => p.handicap).filter((h): h is number => h != null)
+        const groupMinHcp = groupHcpsArr.length ? Math.min(...groupHcpsArr) : Infinity
         const holePtsMaps = new Map<number, Map<string, number>>()
         if (groupHasDaytona) {
           for (const hole of holes) {
             const ha = assignments.filter((a) => a.hole_number === hole.hole_number && groupPlayerIds.has(a.player_id))
             const leftIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
             const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
-            const strokeIds = liveHoleStrokes[hole.hole_number] ?? []
+            const liveStrokes = liveHoleStrokes[hole.hole_number]
+            const strokeIds = liveStrokes !== undefined
+              ? liveStrokes
+              : (groupHasAutoStrokes && hole.stroke_index && isFinite(groupMinHcp)
+                  ? groupPlayersArr.filter((p) => {
+                      const hcp = p.handicap ?? null
+                      if (hcp == null) return false
+                      const rel = Math.max(0, Math.floor(hcp - groupMinHcp))
+                      return rel > 0 && hole.stroke_index! <= rel
+                    }).map((p) => p.id)
+                  : [])
             const netScoresForHole = scores.map((s) => ({
               ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0),
             }))
