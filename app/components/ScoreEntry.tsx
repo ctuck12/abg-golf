@@ -737,12 +737,16 @@ export default function ScoreEntry({
     const doMeasure = () => {
       const cw = el.offsetWidth
       if (!cw) { rafId = requestAnimationFrame(doMeasure); return }
+      // Use flex-start so scrollWidth = total item widths (no space-evenly masking).
+      // Reserve (n+1)*8px so space-evenly distributes equal gaps at edges AND between
+      // items — each slot guaranteed ≥ 8px regardless of player count.
       el.style.justifyContent = 'flex-start'
+      const threshold = cw - (el.children.length + 1) * 8
       let lo = 8, hi = 26
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
         el.style.fontSize = `${mid}px`
-        if (el.scrollWidth <= cw) lo = mid; else hi = mid
+        if (el.scrollWidth <= threshold) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
