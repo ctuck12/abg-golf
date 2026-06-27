@@ -83,18 +83,17 @@ export default function PlayingGroupScoreEntry({
     if (!el) return
     let rafId: number | undefined
     const doMeasure = () => {
-      const cw = el.offsetWidth
+      const cw = el.getBoundingClientRect().width
       if (!cw) {
         rafId = requestAnimationFrame(doMeasure)
         return
       }
-      // Use flex-start so items pack left; getBoundingClientRect per child because
-      // iOS Safari flex scrollWidth is broken. Each player span carries 6px padding
-      // each side so padding is included in the measured width — guarantees ≥12px
-      // visual buffer between adjacent names without a separate threshold offset.
+      // Use flex-start so items pack left; getBoundingClientRect for both container
+      // and children for consistent sub-pixel measurement. 93% threshold + 18px cap
+      // ensure items never overflow on iOS Safari regardless of rounding.
       el.style.justifyContent = 'flex-start'
       if (!el.children.length) { el.style.justifyContent = ''; return }
-      let lo = 8, hi = 26
+      let lo = 8, hi = 18
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
         el.style.fontSize = `${mid}px`
@@ -102,7 +101,7 @@ export default function PlayingGroupScoreEntry({
         for (let j = 0; j < el.children.length; j++) {
           totalChildWidth += el.children[j].getBoundingClientRect().width
         }
-        if (totalChildWidth <= cw - 12) lo = mid; else hi = mid
+        if (totalChildWidth <= cw * 0.93) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
