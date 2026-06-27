@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, Fragment, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, Fragment, useMemo } from 'react'
 import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import {
   computeHoleBallScores, computeTeamBallSummary,
@@ -726,46 +726,41 @@ export default function ScoreEntry({
     e.currentTarget.focus({ preventScroll: true })
   }
 
-  // Auto-size the player score bar in the fixed header
-  const scoreBarRef = useRef<HTMLDivElement>(null)
+  // Auto-size the player score bar.
+  // Uses a callback ref so measurement fires every time the element mounts —
+  // this handles conditional bars (e.g. Daytona only renders after scores exist)
+  // where useLayoutEffect([namesKey]) would miss the first mount.
   const [scoreBarFs, setScoreBarFs] = useState(12)
-  const namesKey = players.map((p) => p.name.split(' ')[0]).join('|')
-  useLayoutEffect(() => {
-    const el = scoreBarRef.current
+  const _sbRo = useRef<ResizeObserver | null>(null)
+  const _sbRaf = useRef<number | undefined>(undefined)
+  const scoreBarRef = useCallback((el: HTMLDivElement | null) => {
+    if (_sbRo.current) { _sbRo.current.disconnect(); _sbRo.current = null }
+    if (_sbRaf.current !== undefined) { cancelAnimationFrame(_sbRaf.current); _sbRaf.current = undefined }
     if (!el) return
-    let rafId: number | undefined
-    const doMeasure = () => {
-      // Use getBoundingClientRect for the container too — consistent with child
-      // measurements and avoids integer-pixel rounding mismatches from offsetWidth.
+    const run = () => {
       const cw = el.getBoundingClientRect().width
-      if (!cw) { rafId = requestAnimationFrame(doMeasure); return }
+      if (!cw) { _sbRaf.current = requestAnimationFrame(run); return }
       el.style.justifyContent = 'flex-start'
       if (!el.children.length) { el.style.justifyContent = ''; return }
-      // Cap at 18px; use 93% of container width as threshold so space-evenly
-      // always has real room at the edges and small rounding differences can't
-      // cause the rightmost player to overflow.
+      // Binary search: largest font (≤18px) where all items fit in 93% of container.
+      // 93% margin prevents subpixel overflow; getBoundingClientRect is consistent
+      // across container + children (no offsetWidth integer rounding mismatch).
       let lo = 8, hi = 18
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
         el.style.fontSize = `${mid}px`
-        let totalChildWidth = 0
-        for (let j = 0; j < el.children.length; j++) {
-          totalChildWidth += el.children[j].getBoundingClientRect().width
-        }
-        if (totalChildWidth <= cw * 0.93) lo = mid; else hi = mid
+        let total = 0
+        for (let j = 0; j < el.children.length; j++) total += el.children[j].getBoundingClientRect().width
+        if (total <= cw * 0.93) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
-      setScoreBarFs((prev) => {
-        const next = Math.round(lo * 10) / 10
-        return Math.abs(prev - next) < 0.2 ? prev : next
-      })
+      setScoreBarFs(prev => { const next = Math.round(lo * 10) / 10; return Math.abs(prev - next) < 0.2 ? prev : next })
     }
-    doMeasure()
-    const ro = new ResizeObserver(doMeasure)
-    ro.observe(el)
-    return () => { if (rafId !== undefined) cancelAnimationFrame(rafId); ro.disconnect() }
-  }, [namesKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    run()
+    _sbRo.current = new ResizeObserver(run)
+    _sbRo.current.observe(el)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep spacer height in sync with header height (position:fixed needs explicit spacer)
   const headerRef = useRef<HTMLElement>(null)
