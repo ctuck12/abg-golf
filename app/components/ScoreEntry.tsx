@@ -739,41 +739,6 @@ export default function ScoreEntry({
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  const scoreBarFs = useMemo(() => {
-    const cw = (_vpw - 32) * 0.92 // header px-4 on both sides, 8% edge margin
-    const n = players.length
-    if (!n) return 12
-    // Build display strings for whichever bar is active
-    let totalChars = 0
-    if (format === 'traditional' && !isDaytonaSideGame) {
-      for (const p of players) {
-        const ps = savedScores.filter(s => s.player_id === p.id)
-        const strokes = ps.reduce((a, s) => a + s.strokes, 0)
-        const par = holes.filter(h => ps.some(s => s.hole_number === h.hole_number)).reduce((a, h) => a + h.par, 0)
-        const v = ps.length > 0 ? strokes - par : null
-        const scoreStr = v === null ? '–' : v === 0 ? 'E' : v > 0 ? `+${v}` : String(v)
-        totalChars += p.name.split(' ')[0].length + scoreStr.length
-      }
-    } else if (isBanker && Object.keys(bankerRunningTotals).length > 0) {
-      for (const p of players) {
-        const amt = bankerRunningTotals[p.id] ?? 0
-        const scoreStr = amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : '$0'
-        totalChars += p.name.split(' ')[0].length + scoreStr.length
-      }
-    } else if (isDaytonaMode) {
-      for (const p of players) {
-        const pts = playerPointTotals.get(p.id) ?? 0
-        const scoreStr = pts > 0 ? `+${pts}` : String(pts)
-        totalChars += p.name.split(' ')[0].length + scoreStr.length
-      }
-    } else {
-      return 12
-    }
-    const overhead = n * (12 + 4) // 12px padding + 4px gap per player
-    const fs = (cw - overhead) / (totalChars * 0.52)
-    return Math.max(10, Math.min(18, Math.round(fs * 10) / 10))
-  }, [_vpw, players, format, isDaytonaSideGame, isBanker, isDaytonaMode, savedScores, holes, bankerRunningTotals, playerPointTotals])
-
   // Keep spacer height in sync with header height (position:fixed needs explicit spacer)
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -1000,6 +965,40 @@ export default function ScoreEntry({
 
   const dtSummary = isDaytonaMode ? computeDaytonaSidesSummary(holes, netSavedScores, flatAssignments) : null
   const playerPointTotals = isDaytonaMode ? computePlayerDaytonaPoints(holes, netSavedScores, flatAssignments, daytonaVariant) : new Map<string, number>()
+
+  const scoreBarFs = useMemo(() => {
+    const cw = (_vpw - 32) * 0.92
+    const n = players.length
+    if (!n) return 12
+    let totalChars = 0
+    if (format === 'traditional' && !isDaytonaSideGame) {
+      for (const p of players) {
+        const ps = savedScores.filter(s => s.player_id === p.id)
+        const strokesSum = ps.reduce((a, s) => a + s.strokes, 0)
+        const par = holes.filter(h => ps.some(s => s.hole_number === h.hole_number)).reduce((a, h) => a + h.par, 0)
+        const v = ps.length > 0 ? strokesSum - par : null
+        const scoreStr = v === null ? '–' : v === 0 ? 'E' : v > 0 ? `+${v}` : String(v)
+        totalChars += p.name.split(' ')[0].length + scoreStr.length
+      }
+    } else if (isBanker && Object.keys(bankerRunningTotals).length > 0) {
+      for (const p of players) {
+        const amt = bankerRunningTotals[p.id] ?? 0
+        const scoreStr = amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `-$${Math.abs(amt).toFixed(2)}` : '$0'
+        totalChars += p.name.split(' ')[0].length + scoreStr.length
+      }
+    } else if (isDaytonaMode) {
+      for (const p of players) {
+        const pts = playerPointTotals.get(p.id) ?? 0
+        const scoreStr = pts > 0 ? `+${pts}` : String(pts)
+        totalChars += p.name.split(' ')[0].length + scoreStr.length
+      }
+    } else {
+      return 12
+    }
+    const overhead = n * (12 + 4)
+    const fs = (cw - overhead) / (totalChars * 0.52)
+    return Math.max(10, Math.min(18, Math.round(fs * 10) / 10))
+  }, [_vpw, players, format, isDaytonaSideGame, isBanker, isDaytonaMode, savedScores, holes, bankerRunningTotals, playerPointTotals])
 
   const frontBallTotals = !isDaytonaMode
     ? Array.from({ length: ballsCount }, (_, bi) =>
