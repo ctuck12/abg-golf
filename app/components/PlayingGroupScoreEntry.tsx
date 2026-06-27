@@ -256,9 +256,10 @@ export default function PlayingGroupScoreEntry({
     if (!playerIds.length) return
 
     async function refetchAll() {
-      const [scoresData, strokesData] = await Promise.all([
+      const [scoresData, strokesData, assignData] = await Promise.all([
         fetch('/api/scores?playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null),
         fetch('/api/hole-strokes?roundId=' + roundId + '&playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null),
+        isDaytonaMode ? fetch('/api/daytona-assignments?roundId=' + roundId + '&playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
       ])
       if (scoresData) {
         setSavedScores(scoresData)
@@ -275,6 +276,20 @@ export default function PlayingGroupScoreEntry({
         const map: Record<number, string[]> = {}
         for (const hs of strokesData as { hole_number: number; player_id: string }[]) { if (!map[hs.hole_number]) map[hs.hole_number] = []; map[hs.hole_number].push(hs.player_id) }
         setHoleStrokes(map)
+      }
+      if (assignData && (assignData as { player_id: string; hole_number: number; side: string }[]).length > 0) {
+        setAssignments((prev) => {
+          const next = { ...prev }
+          const byHole: Record<number, Record<string, 'left' | 'right'>> = {}
+          for (const a of assignData as { player_id: string; hole_number: number; side: string }[]) {
+            if (!byHole[a.hole_number]) byHole[a.hole_number] = {}
+            byHole[a.hole_number][a.player_id] = a.side as 'left' | 'right'
+          }
+          for (const [hnStr, holeAssign] of Object.entries(byHole)) {
+            next[Number(hnStr)] = holeAssign
+          }
+          return next
+        })
       }
       if (isBanker) {
         const bankerData = await fetch('/api/banker-data?roundId=' + roundId + '&teamIds=' + groupId).then((r) => r.json()).catch(() => null)
