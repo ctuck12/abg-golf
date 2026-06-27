@@ -844,7 +844,7 @@ export default function PlayingGroupScoreEntry({
                   }
                   return (
                     <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
-                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0].slice(0, 3)}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
                       <span style={{ color, fontWeight: 'bold' }}>{display}</span>
                     </span>
                   )
