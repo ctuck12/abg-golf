@@ -739,6 +739,17 @@ export default function ScoreEntry({
     return () => window.removeEventListener('resize', handler)
   }, [])
 
+  // On mount: backfill hole_strokes for all already-saved holes when autoHandicap is on.
+  // saveHole() now persists strokes going forward, but holes saved before that fix need
+  // this one-time write so the leaderboard (which reads hole_strokes) gets correct data.
+  useEffect(() => {
+    if (!autoHandicap || !roundId || savedHoles.size === 0) return
+    const pIds = players.map((p) => p.id)
+    savedHoles.forEach((hn) => {
+      saveHoleStrokes(roundId, hn, effectiveStrokeIds(hn), pIds)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keep spacer height in sync with header height (position:fixed needs explicit spacer)
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
