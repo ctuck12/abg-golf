@@ -95,7 +95,44 @@ export default function AllScorecardsView({
     return () => { clearInterval(interval) }
   }, [roundId, allPlayerIds])
 
-  // Pre-compute per-hole points maps once
+  // Build per-team min handicap for fallback stroke computation
+  const teamMinHcpMap = new Map<string, number>()
+  for (const p of initialPlayers) {
+    if (p.teamId == null || p.handicap == null) continue
+    const cur = teamMinHcpMap.get(p.teamId) ?? Infinity
+    if (p.handicap < cur) teamMinHcpMap.set(p.teamId, p.handicap)
+  }
+
+  // Flip initialHoleStrokes (player→holes) into holeToPlayerIds (hole→players)
+  const holeToPlayerIds: Record<number, string[]> = {}
+  for (const [pid, holeNums] of Object.entries(initialHoleStrokes)) {
+    for (const hn of holeNums) {
+      if (!holeToPlayerIds[hn]) holeToPlayerIds[hn] = []
+      holeToPlayerIds[hn].push(pid)
+    }
+  }
+
+  // Returns true if this player gets a stroke on this hole.
+  // Prefers DB hole_strokes data; falls back to Math.floor(hcp - minHcp) formula.
+  const playerGetsStroke = (player: PlayerInfo, holeNumber: number, strokeIndex: number | null | undefined): boolean => {
+    const dbHoleData = holeToPlayerIds[holeNumber]
+    if (dbHoleData !== undefined) return dbHoleData.includes(player.id)
+    if (player.handicap == null || player.teamId == null || !strokeIndex) return false
+    const minHcp = teamMinHcpMap.get(player.teamId) ?? null
+    if (minHcp === null) return false
+    const rel = Math.max(0, Math.floor(player.handicap - minHcp))
+    return rel > 0 && strokeIndex <= rel
+  }
+
+  // Apply net scores before computing Daytona points
+  const netScores = scores.map((s) => {
+    const player = initialPlayers.find((p) => p.id === s.player_id)
+    if (!player) return s
+    const holeData = holes.find((h) => h.hole_number === s.hole_number)
+    return { ...s, strokes: s.strokes - (playerGetsStroke(player, s.hole_number, holeData?.stroke_index) ? 1 : 0) }
+  })
+
+  // Pre-compute per-hole points maps using net scores
   const holePtsMaps = new Map<number, Map<string, number>>()
   for (const hole of holes) {
     const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
@@ -103,12 +140,12 @@ export default function AllScorecardsView({
     const rightIds = holeAssignments.filter((a) => a.side === 'right').map((a) => a.player_id)
     if (is5Man) {
       if (leftIds.length >= 2 && rightIds.length >= 3) {
-        holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, scores, hole.hole_number, hole.par))
+        holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par))
       }
     } else {
       if (leftIds.length >= 2 && rightIds.length >= 2) {
-        const leftSc = leftIds.map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-        const rightSc = rightIds.map((id) => scores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+        const leftSc = leftIds.map((id) => netScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+        const rightSc = rightIds.map((id) => netScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
         if (leftSc.length >= 2 && rightSc.length >= 2) {
           const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftSc, rightSc, hole.par)
           if (leftDt !== null && rightDt !== null) {
