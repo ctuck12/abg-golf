@@ -747,6 +747,7 @@ export default function LeaderboardClient({
           })
           const hasDaytona = !!pg.daytona_variant
           let pointsMap: Map<string, number> | null = null
+          const holePtsByHole = new Map<number, Map<string, number>>()
           if (hasDaytona) {
             const tAssign = assignments.filter((a) => pids.includes(a.player_id))
             const tScores = scores.filter((s) => pids.includes(s.player_id))
@@ -784,6 +785,7 @@ export default function LeaderboardClient({
               if (is5ManGroup) {
                 if (leftIds.length < 2 || rightIds.length < 3) continue
                 const holePts = computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par)
+                holePtsByHole.set(hole.hole_number, holePts)
                 for (const [id, pts] of holePts) ptsMap.set(id, (ptsMap.get(id) ?? 0) + pts)
               } else {
                 if (leftIds.length < 2 || rightIds.length < 2) continue
@@ -794,8 +796,10 @@ export default function LeaderboardClient({
                 if (leftDt === null || rightDt === null) continue
                 const diff = Math.abs(leftDt - rightDt)
                 const leftPts = leftDt < rightDt ? diff : leftDt > rightDt ? -diff : 0
-                for (const id of leftIds) ptsMap.set(id, (ptsMap.get(id) ?? 0) + leftPts)
-                for (const id of rightIds) ptsMap.set(id, (ptsMap.get(id) ?? 0) - leftPts)
+                const holePtsMap4 = new Map<string, number>()
+                for (const id of leftIds) { holePtsMap4.set(id, leftPts); ptsMap.set(id, (ptsMap.get(id) ?? 0) + leftPts) }
+                for (const id of rightIds) { holePtsMap4.set(id, -leftPts); ptsMap.set(id, (ptsMap.get(id) ?? 0) - leftPts) }
+                holePtsByHole.set(hole.hole_number, holePtsMap4)
               }
             }
             for (const id of assignedIds) { if (!ptsMap.has(id)) ptsMap.set(id, 0) }
@@ -869,7 +873,7 @@ export default function LeaderboardClient({
               }
             }
           }
-          return { id: pg.id, name: pg.name, daytona_variant: pg.daytona_variant ?? null, rows, hasDaytona, hasBanker, pointsMap, bankerTotals }
+          return { id: pg.id, name: pg.name, daytona_variant: pg.daytona_variant ?? null, rows, hasDaytona, hasBanker, pointsMap, holePtsByHole, bankerTotals }
         }).filter((g) => g.rows.length > 0)
       : initialTeams
           .map((team) => {
@@ -883,7 +887,7 @@ export default function LeaderboardClient({
                 .map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
               pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
             }
-            return { id: team.id, name: team.name, daytona_variant: team.daytona_variant ?? null, rows, hasDaytona, hasBanker: false, pointsMap, bankerTotals: {} as Record<string, number> }
+            return { id: team.id, name: team.name, daytona_variant: team.daytona_variant ?? null, rows, hasDaytona, hasBanker: false, pointsMap, holePtsByHole: new Map<number, Map<string, number>>(), bankerTotals: {} as Record<string, number> }
           })
           .filter((g) => g.rows.length > 0)
           .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
@@ -2020,53 +2024,57 @@ export default function LeaderboardClient({
         const gIs5Man = groupVariant?.startsWith('5man') ?? false
         const gIsFlares = groupVariant?.startsWith('5man-flares') ?? false
         const groupPlayerIds = new Set(groupRows.map((r) => r.player.id))
-        const groupHasAutoStrokes = !!activePlayingGroup?.auto_strokes
-        const groupPlayersArr = [...groupPlayerIds].map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p)
-        const groupHcpsArr = groupPlayersArr.map((p) => p.handicap).filter((h): h is number => h != null)
-        const groupMinHcp = groupHcpsArr.length ? Math.min(...groupHcpsArr) : Infinity
-        const holePtsMaps = new Map<number, Map<string, number>>()
-        if (groupHasDaytona) {
+        // Use per-hole points from standardGroupRows (same computation as leaderboard) when available.
+        // This guarantees All Scorecards matches the leaderboard exactly.
+        const activeGroupInStandardRows = allScorecardsGroupId
+          ? standardGroupRows.find((g) => g.id === allScorecardsGroupId)
+          : null
+        const holePtsMaps: Map<number, Map<string, number>> = activeGroupInStandardRows?.holePtsByHole ?? (() => {
+          // Fallback for team-based Daytona (no playing group) — recompute from scratch
+          const m = new Map<number, Map<string, number>>()
+          if (!groupHasDaytona) return m
+          const groupPlayersArrFb = [...groupPlayerIds].map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p)
+          const groupHcpsArrFb = groupPlayersArrFb.map((p) => p.handicap).filter((h): h is number => h != null)
+          const groupMinHcpFb = groupHcpsArrFb.length ? Math.min(...groupHcpsArrFb) : Infinity
+          const groupHasAutoStrokesFb = !!activePlayingGroup?.auto_strokes
           for (const hole of holes) {
             const ha = assignments.filter((a) => a.hole_number === hole.hole_number && groupPlayerIds.has(a.player_id))
             const leftIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
             const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
             const liveStrokes = liveHoleStrokes[hole.hole_number]
-            // Filter to this group's players — another group's saved strokes must not
-            // suppress the auto-strokes fallback for this group
-            const groupManualStrokesAll = liveStrokes?.filter((id) => groupPlayerIds.has(id))
-            const strokeIds = (groupManualStrokesAll && groupManualStrokesAll.length > 0)
-              ? groupManualStrokesAll
-              : (groupHasAutoStrokes && hole.stroke_index && isFinite(groupMinHcp)
-                  ? groupPlayersArr.filter((p) => {
+            const groupManualStrokesFb = liveStrokes?.filter((id) => groupPlayerIds.has(id))
+            const strokeIds = (groupManualStrokesFb && groupManualStrokesFb.length > 0)
+              ? groupManualStrokesFb
+              : (groupHasAutoStrokesFb && hole.stroke_index && isFinite(groupMinHcpFb)
+                  ? groupPlayersArrFb.filter((p) => {
                       const hcp = p.handicap ?? null
                       if (hcp == null) return false
-                      const rel = Math.max(0, Math.floor(hcp - groupMinHcp))
+                      const rel = Math.max(0, Math.floor(hcp - groupMinHcpFb))
                       return rel > 0 && hole.stroke_index! <= rel
                     }).map((p) => p.id)
                   : [])
-            const netScoresForHole = scores.map((s) => ({
-              ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0),
-            }))
+            const netScoresFb = scores.map((s) => ({ ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0) }))
             if (gIs5Man) {
               if (leftIds.length >= 2 && rightIds.length >= 3)
-                holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScoresForHole, hole.hole_number, hole.par))
+                m.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScoresFb, hole.hole_number, hole.par))
             } else if (leftIds.length >= 2 && rightIds.length >= 2) {
-              const leftSc = leftIds.map((id) => netScoresForHole.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-              const rightSc = rightIds.map((id) => netScoresForHole.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+              const leftSc = leftIds.map((id) => netScoresFb.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+              const rightSc = rightIds.map((id) => netScoresFb.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
               if (leftSc.length >= 2 && rightSc.length >= 2) {
                 const { leftDt, rightDt } = computeHoleDaytonaWithSides(leftSc, rightSc, hole.par)
                 if (leftDt !== null && rightDt !== null) {
                   const diff = Math.abs(leftDt - rightDt)
                   const lWins = leftDt < rightDt, rWins = rightDt < leftDt
-                  const m = new Map<string, number>()
-                  for (const id of leftIds) m.set(id, lWins ? diff : rWins ? -diff : 0)
-                  for (const id of rightIds) m.set(id, rWins ? diff : lWins ? -diff : 0)
-                  holePtsMaps.set(hole.hole_number, m)
+                  const hm = new Map<string, number>()
+                  for (const id of leftIds) hm.set(id, lWins ? diff : rWins ? -diff : 0)
+                  for (const id of rightIds) hm.set(id, rWins ? diff : lWins ? -diff : 0)
+                  m.set(hole.hole_number, hm)
                 }
               }
             }
           }
-        }
+          return m
+        })()
         const teamHoleVals = allScorecardsGroupId ? (liveHoleValues[allScorecardsGroupId] ?? {}) : {}
         const groupHasBanker = !!(activePlayingGroup as { banker_side_game?: boolean | null } | null)?.banker_side_game
         const groupBankerMinBet = (activePlayingGroup as { banker_side_game_min_bet?: number | null } | null)?.banker_side_game_min_bet ?? 2
