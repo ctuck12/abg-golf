@@ -1295,10 +1295,10 @@ export default function ScoreEntry({
             const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
             if (is5Man) {
               if (leftIds.length >= 2 && rightIds.length >= 3)
-                holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, savedScores, hole.hole_number, hole.par))
+                holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netSavedScores, hole.hole_number, hole.par))
             } else if (leftIds.length >= 2 && rightIds.length >= 2) {
-              const lSc = leftIds.map((id) => savedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-              const rSc = rightIds.map((id) => savedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+              const lSc = leftIds.map((id) => netSavedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
+              const rSc = rightIds.map((id) => netSavedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
               if (lSc.length >= 2 && rSc.length >= 2) {
                 const { leftDt, rightDt } = computeHoleDaytonaWithSides(lSc, rSc, hole.par)
                 if (leftDt !== null && rightDt !== null) {
