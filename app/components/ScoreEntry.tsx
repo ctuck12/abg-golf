@@ -738,12 +738,11 @@ export default function ScoreEntry({
       const cw = el.offsetWidth
       if (!cw) { rafId = requestAnimationFrame(doMeasure); return }
       el.style.justifyContent = 'flex-start'
-      const numItems = el.children.length
-      if (!numItems) { el.style.justifyContent = ''; return }
-      // Reserve (numItems+1)*8px so space-evenly has equal gaps at edges too.
-      // Use getBoundingClientRect per child — iOS Safari flex scrollWidth is broken
-      // and always returns offsetWidth regardless of actual content overflow.
-      const threshold = cw - (numItems + 1) * 8
+      if (!el.children.length) { el.style.justifyContent = ''; return }
+      // Each player span has 6px padding each side (12px total) — that padding is
+      // included in getBoundingClientRect width so the binary search naturally
+      // reserves spacing. iOS Safari flex scrollWidth is broken; use per-child
+      // getBoundingClientRect instead.
       let lo = 8, hi = 26
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
@@ -752,7 +751,7 @@ export default function ScoreEntry({
         for (let j = 0; j < el.children.length; j++) {
           totalChildWidth += el.children[j].getBoundingClientRect().width
         }
-        if (totalChildWidth <= threshold) lo = mid; else hi = mid
+        if (totalChildWidth <= cw) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
@@ -1206,7 +1205,7 @@ export default function ScoreEntry({
                 const vspar = pScores.length > 0 ? pStrokes - pPar : null
                 const vsparStr = vspar === null ? '–' : vspar === 0 ? 'E' : vspar > 0 ? `+${vspar}` : String(vspar)
                 return (
-                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 6px' }}>
                     <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}</span>
                     <span className="font-bold" style={{ color: vspar === null ? 'rgba(255,255,255,0.35)' : vspar < 0 ? '#4ade80' : vspar > 0 ? '#f87171' : 'rgba(255,255,255,0.55)' }}>
                       {vsparStr}
@@ -1223,7 +1222,7 @@ export default function ScoreEntry({
               {players.map((p) => {
                 const amt = bankerRunningTotals[p.id] ?? 0
                 return (
-                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 6px' }}>
                     <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {amt > 0 ? `$${amt.toFixed(2)}` : amt < 0 ? `$${Math.abs(amt).toFixed(2)}` : '$0'}
@@ -1240,7 +1239,7 @@ export default function ScoreEntry({
               {players.map((p) => {
                 const pts = playerPointTotals.get(p.id) ?? 0
                 return (
-                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                  <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 6px' }}>
                     <button
                       onClick={() => { setPopupShowScorecard(false); setPlayerPopup((prev) => prev === p.id ? null : p.id) }}
                       className="font-medium underline-offset-2 hover:underline flex-shrink-0 whitespace-nowrap"
