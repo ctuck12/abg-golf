@@ -735,15 +735,16 @@ export default function ScoreEntry({
     if (!el) return
     let rafId: number | undefined
     const doMeasure = () => {
-      const cw = el.offsetWidth
+      // Use getBoundingClientRect for the container too — consistent with child
+      // measurements and avoids integer-pixel rounding mismatches from offsetWidth.
+      const cw = el.getBoundingClientRect().width
       if (!cw) { rafId = requestAnimationFrame(doMeasure); return }
       el.style.justifyContent = 'flex-start'
       if (!el.children.length) { el.style.justifyContent = ''; return }
-      // Each player span has 6px padding each side (12px total) — that padding is
-      // included in getBoundingClientRect width so the binary search naturally
-      // reserves spacing. iOS Safari flex scrollWidth is broken; use per-child
-      // getBoundingClientRect instead.
-      let lo = 8, hi = 26
+      // Cap at 18px; use 93% of container width as threshold so space-evenly
+      // always has real room at the edges and small rounding differences can't
+      // cause the rightmost player to overflow.
+      let lo = 8, hi = 18
       for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2
         el.style.fontSize = `${mid}px`
@@ -751,7 +752,7 @@ export default function ScoreEntry({
         for (let j = 0; j < el.children.length; j++) {
           totalChildWidth += el.children[j].getBoundingClientRect().width
         }
-        if (totalChildWidth <= cw - 12) lo = mid; else hi = mid
+        if (totalChildWidth <= cw * 0.93) lo = mid; else hi = mid
       }
       el.style.fontSize = ''
       el.style.justifyContent = ''
