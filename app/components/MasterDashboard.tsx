@@ -89,8 +89,8 @@ export default function MasterDashboard({
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
   const [courseName, setCourseName] = useState('')
   const [courseSlug, setCourseSlug] = useState('')
-  const [coursePars, setCoursePars] = useState<string>(Array(18).fill('4').join(','))
-  const [courseStrokeIndexes, setCourseStrokeIndexes] = useState<string>('')
+  const [coursePars, setCoursePars] = useState<string[]>(Array(18).fill('4'))
+  const [courseStrokeIndexes, setCourseStrokeIndexes] = useState<string[]>(Array(18).fill(''))
   const [courseError, setCourseError] = useState('')
   const [coursePending, setCoursePending] = useState(false)
 
@@ -168,16 +168,17 @@ export default function MasterDashboard({
 
   function openNewCourse() {
     setEditingCourse(null)
-    setCourseName(''); setCourseSlug(''); setCoursePars(Array(18).fill('4').join(',')); setCourseStrokeIndexes(''); setCourseError('')
+    setCourseName(''); setCourseSlug(''); setCoursePars(Array(18).fill('4')); setCourseStrokeIndexes(Array(18).fill('')); setCourseError('')
     setShowCourseForm(true)
   }
   function openEditCourse(c: Course) {
     setEditingCourse(c)
     setCourseName(c.name); setCourseSlug(c.slug)
-    setCoursePars(Array.isArray(c.pars) ? c.pars.join(',') : String(c.pars))
+    const parsArr = Array.isArray(c.pars) ? c.pars.map(String) : String(c.pars).split(',').map((s: string) => s.trim())
+    setCoursePars(parsArr.length === 18 ? parsArr : Array(18).fill('4'))
     const siRaw = c.stroke_indexes
     const siArr = Array.isArray(siRaw) ? siRaw : (siRaw ? (() => { try { return JSON.parse(String(siRaw)) } catch { return null } })() : null)
-    setCourseStrokeIndexes(Array.isArray(siArr) ? siArr.join(',') : '')
+    setCourseStrokeIndexes(Array.isArray(siArr) ? siArr.map(String) : Array(18).fill(''))
     setCourseError(''); setShowCourseForm(true)
   }
 
@@ -185,12 +186,13 @@ export default function MasterDashboard({
     e.preventDefault()
     setCourseError(''); setCoursePending(true)
     try {
-      const pars = coursePars.split(',').map((p) => parseInt(p.trim())).filter((p) => !isNaN(p))
-      if (pars.length !== 18) { setCourseError('Enter exactly 18 par values separated by commas.'); setCoursePending(false); return }
+      const pars = coursePars.map((p) => parseInt(p))
+      if (pars.length !== 18 || pars.some(isNaN)) { setCourseError('All 18 par values are required.'); setCoursePending(false); return }
       let stroke_indexes: number[] | undefined
-      if (courseStrokeIndexes.trim()) {
-        const si = courseStrokeIndexes.split(',').map((p) => parseInt(p.trim())).filter((p) => !isNaN(p))
-        if (si.length !== 18) { setCourseError('Enter exactly 18 stroke index values, or leave blank.'); setCoursePending(false); return }
+      const anyHdcp = courseStrokeIndexes.some((v) => v.trim() !== '')
+      if (anyHdcp) {
+        const si = courseStrokeIndexes.map((p) => parseInt(p))
+        if (si.some(isNaN)) { setCourseError('Enter all 18 handicap index values, or leave all blank.'); setCoursePending(false); return }
         stroke_indexes = si
       }
       const url = editingCourse ? `/api/master/courses/${editingCourse.id}` : '/api/master/courses'
@@ -426,14 +428,60 @@ export default function MasterDashboard({
                     <input value={courseSlug} onChange={(e) => setCourseSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} required placeholder="e.g. acc-south" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" disabled={!!editingCourse} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Pars (18 values, comma-separated)</label>
-                    <input value={coursePars} onChange={(e) => setCoursePars(e.target.value)} required placeholder="4,4,5,3,4,4,4,3,5,4,3,4,4,5,4,3,4,5" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
-                    <p className="text-xs text-gray-400 mt-0.5">Total par: {coursePars.split(',').map((p) => parseInt(p.trim()) || 0).reduce((a, b) => a + b, 0)}</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Stroke Indexes (18 values, comma-separated) <span className="text-gray-400 font-normal">— optional</span></label>
-                    <input value={courseStrokeIndexes} onChange={(e) => setCourseStrokeIndexes(e.target.value)} placeholder="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
-                    <p className="text-xs text-gray-400 mt-0.5">Rank each hole 1 (hardest) to 18 (easiest) — used for handicap stroke allocation</p>
+                    <label className="block text-xs font-medium text-gray-600 mb-2">Hole Data</label>
+                    <div className="overflow-x-auto -mx-1 pb-1">
+                      <table className="text-center text-xs border-collapse" style={{ minWidth: 480 }}>
+                        <thead>
+                          <tr>
+                            <td className="text-left pr-2 py-1 font-semibold text-gray-500 text-[11px] w-10"></td>
+                            {[1,2,3,4,5,6,7,8,9].map(h => <td key={h} className="w-8 py-1 font-semibold text-gray-500 text-[11px]">{h}</td>)}
+                            <td className="px-1 py-1 font-semibold text-gray-500 text-[11px]">Out</td>
+                            {[10,11,12,13,14,15,16,17,18].map(h => <td key={h} className="w-8 py-1 font-semibold text-gray-500 text-[11px]">{h}</td>)}
+                            <td className="px-1 py-1 font-semibold text-gray-500 text-[11px]">In</td>
+                            <td className="px-1 py-1 font-semibold text-gray-500 text-[11px]">Tot</td>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="text-left pr-2 py-1 font-semibold text-gray-700 text-[11px]">Par</td>
+                            {[0,1,2,3,4,5,6,7,8].map(i => (
+                              <td key={i} className="px-0.5 py-0.5">
+                                <input type="number" min="3" max="6" value={coursePars[i]} onChange={e => { const a = [...coursePars]; a[i] = e.target.value; setCoursePars(a) }}
+                                  className="w-8 text-center border border-gray-300 rounded py-1 text-xs focus:outline-none focus:border-blue-400" />
+                              </td>
+                            ))}
+                            <td className="px-1 py-1 font-semibold text-gray-800 text-xs">{coursePars.slice(0,9).reduce((s,v) => s+(parseInt(v)||0), 0)}</td>
+                            {[9,10,11,12,13,14,15,16,17].map(i => (
+                              <td key={i} className="px-0.5 py-0.5">
+                                <input type="number" min="3" max="6" value={coursePars[i]} onChange={e => { const a = [...coursePars]; a[i] = e.target.value; setCoursePars(a) }}
+                                  className="w-8 text-center border border-gray-300 rounded py-1 text-xs focus:outline-none focus:border-blue-400" />
+                              </td>
+                            ))}
+                            <td className="px-1 py-1 font-semibold text-gray-800 text-xs">{coursePars.slice(9,18).reduce((s,v) => s+(parseInt(v)||0), 0)}</td>
+                            <td className="px-1 py-1 font-bold text-gray-900 text-xs">{coursePars.reduce((s,v) => s+(parseInt(v)||0), 0)}</td>
+                          </tr>
+                          <tr>
+                            <td className="text-left pr-2 py-1 text-gray-600 text-[11px]">Hdcp <span className="text-gray-400 text-[10px]">opt</span></td>
+                            {[0,1,2,3,4,5,6,7,8].map(i => (
+                              <td key={i} className="px-0.5 py-0.5">
+                                <input type="number" min="1" max="18" value={courseStrokeIndexes[i]} onChange={e => { const a = [...courseStrokeIndexes]; a[i] = e.target.value; setCourseStrokeIndexes(a) }}
+                                  className="w-8 text-center border border-gray-300 rounded py-1 text-xs focus:outline-none focus:border-blue-400" />
+                              </td>
+                            ))}
+                            <td></td>
+                            {[9,10,11,12,13,14,15,16,17].map(i => (
+                              <td key={i} className="px-0.5 py-0.5">
+                                <input type="number" min="1" max="18" value={courseStrokeIndexes[i]} onChange={e => { const a = [...courseStrokeIndexes]; a[i] = e.target.value; setCourseStrokeIndexes(a) }}
+                                  className="w-8 text-center border border-gray-300 rounded py-1 text-xs focus:outline-none focus:border-blue-400" />
+                              </td>
+                            ))}
+                            <td></td>
+                            <td></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Hdcp = handicap index, 1 (hardest) → 18 (easiest) — leave blank to skip</p>
                   </div>
                   <div className="flex gap-2">
                     <button type="submit" disabled={coursePending} className="flex-1 text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60" style={{ background: navy }}>
