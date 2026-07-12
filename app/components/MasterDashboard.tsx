@@ -174,7 +174,8 @@ export default function MasterDashboard({
   function openEditCourse(c: Course) {
     setEditingCourse(c)
     setCourseName(c.name); setCourseSlug(c.slug)
-    const parsArr = Array.isArray(c.pars) ? c.pars.map(String) : String(c.pars).split(',').map((s: string) => s.trim())
+    const parsRaw = Array.isArray(c.pars) ? c.pars : (() => { try { return JSON.parse(String(c.pars)) } catch { return null } })()
+    const parsArr = Array.isArray(parsRaw) ? parsRaw.map(String) : Array(18).fill('4')
     setCoursePars(parsArr.length === 18 ? parsArr : Array(18).fill('4'))
     const siRaw = c.stroke_indexes
     const siArr = Array.isArray(siRaw) ? siRaw : (siRaw ? (() => { try { return JSON.parse(String(siRaw)) } catch { return null } })() : null)
