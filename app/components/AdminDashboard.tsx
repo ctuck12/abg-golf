@@ -892,9 +892,10 @@ export default function AdminDashboard({
   const isDaytona = round?.format === 'daytona'
   const isTraditional = round?.format === 'traditional'
   const isStandard = round?.format === 'standard'
+  const isBanker = round?.format === 'banker'
   const roundHoleCount = holes.length  // 9 or 18
   const roundStartHole = holes.length > 0 ? holes[0].hole_number : 1
-  const is9HoleRound = (isDaytona || isTraditional) && roundHoleCount === 9
+  const is9HoleRound = (isDaytona || isTraditional || isBanker) && roundHoleCount === 9
   const roundIncludeTotal = round?.include_total ?? false
   const numSegments = roundIncludeTotal ? 3 : 2          // Front + Back [+ Total]
   const isComplete = teamPlayers.length > 0 && holes.length > 0 && teamPlayers.every((p) => liveScores.filter((s) => s.player_id === p.id).length === holes.length)
@@ -1942,11 +1943,43 @@ export default function AdminDashboard({
                     </div>
                   )}
                   {selectedFormat === 'banker' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Minimum Bet ($)</label>
-                      <input type="number" name="banker_min_bet" value={bankerMinBetInput} onChange={(e) => setBankerMinBetInput(e.target.value)}
-                        min="0.5" step="0.5" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
-                      <p className="text-xs text-gray-400 mt-0.5">Minimum bet each player must put up against the banker</p>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Minimum Bet ($)</label>
+                        <input type="number" name="banker_min_bet" value={bankerMinBetInput} onChange={(e) => setBankerMinBetInput(e.target.value)}
+                          min="0.5" step="0.5" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                        <p className="text-xs text-gray-400 mt-0.5">Minimum bet each player must put up against the banker</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Holes</label>
+                        <div className="flex gap-2">
+                          {(['18', '9'] as const).map((hc) => (
+                            <button key={hc} type="button" onClick={() => setSelectedHoleCount(hc)}
+                              className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 transition ${
+                                selectedHoleCount === hc ? 'border-gray-700 bg-gray-100 text-gray-800' : 'border-gray-200 bg-white text-gray-500'
+                              }`}>
+                              {hc === '18' ? '18 Holes' : '9 Holes'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {selectedHoleCount === '9' && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">Starting Hole</label>
+                          <div className="flex gap-2">
+                            {([['1', 'Hole 1 (Front 9)'], ['10', 'Hole 10 (Back 9)']] as const).map(([val, label]) => (
+                              <button key={val} type="button" onClick={() => setSelectedStartHole(val)}
+                                className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 transition ${
+                                  selectedStartHole === val ? 'border-gray-700 bg-gray-100 text-gray-800' : 'border-gray-200 bg-white text-gray-500'
+                                }`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <input type="hidden" name="holeCount" value={selectedHoleCount} />
+                      <input type="hidden" name="startHole" value={selectedStartHole} />
                     </div>
                   )}
                   {selectedFormat === 'standard' && (

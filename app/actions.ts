@@ -103,7 +103,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
     const isHammer = format === 'hammer'
     const ballsCount = (format === 'daytona' || format === 'traditional' || isBanker || isHammer) ? 1 : (parseInt(formData.get('ballsCount') as string) || 3)
     const includeTotal = (format !== 'daytona' && format !== 'traditional' && !isBanker) && formData.get('include_total') === 'true'
-    const isNineHoleFormat = format === 'daytona' || format === 'traditional'
+    const isNineHoleFormat = format === 'daytona' || format === 'traditional' || isBanker
     const bankerMinBet = isBanker ? (parseFloat(formData.get('banker_min_bet') as string) || 2) : null
     const holeCount = isNineHoleFormat ? (parseInt(formData.get('holeCount') as string) || 18) : 18
     const startHole = (holeCount === 9) ? (parseInt(formData.get('startHole') as string) || 1) : 1
