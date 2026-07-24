@@ -700,6 +700,8 @@ export default function AdminDashboard({
 
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
+  // Re-sync when a different round loads (e.g. a new Daytona/Banker round created with auto handicap on)
+  useEffect(() => { setAutoHandicap(round?.auto_handicap ?? false) }, [round?.id])  // eslint-disable-line react-hooks/exhaustive-deps
   const [mixedGroups, setMixedGroups] = useState<boolean | null>(() => {
     const ls = getSetupLS(round?.id)
     const answered = ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true)
@@ -2903,7 +2905,7 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = () => updateGroupSG(g.id, { daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: false })
+                                          const doIt = () => updateGroupSG(g.id, { daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: !sg.daytonaEnabled })
                                           if (sg.daytonaEnabled && round?.is_started) {
                                             const captured = sg
                                             setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: async () => {
@@ -2958,7 +2960,7 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = () => updateGroupSG(g.id, { bankerEnabled: !sg.bankerEnabled, autoStrokes: false })
+                                          const doIt = () => updateGroupSG(g.id, { bankerEnabled: !sg.bankerEnabled, autoStrokes: !sg.bankerEnabled })
                                           if (sg.bankerEnabled && round?.is_started) {
                                             const captured = sg
                                             setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: async () => {
@@ -3441,7 +3443,7 @@ export default function AdminDashboard({
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                 <button type="button"
-                                  onClick={() => { setNewTeamDaytonaEnabled(v => !v); setNewTeamDaytonaType(''); setNewTeamSubVariant(''); setNewTeamDaytonaBack9(''); setNewTeamAutoStrokes(false) }}
+                                  onClick={() => { setNewTeamDaytonaEnabled(v => !v); setNewTeamDaytonaType(''); setNewTeamSubVariant(''); setNewTeamDaytonaBack9(''); setNewTeamAutoStrokes(!newTeamDaytonaEnabled) }}
                                   className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                   {newTeamDaytonaEnabled ? 'On' : 'Off'}
                                 </button>
@@ -3496,7 +3498,7 @@ export default function AdminDashboard({
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
                                 <button type="button"
-                                  onClick={() => { setNewTeamBankerEnabled(v => !v); setNewTeamAutoStrokes(false) }}
+                                  onClick={() => { setNewTeamBankerEnabled(v => !v); setNewTeamAutoStrokes(!newTeamBankerEnabled) }}
                                   className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                   {newTeamBankerEnabled ? 'On' : 'Off'}
                                 </button>
@@ -3649,7 +3651,7 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = async () => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditDaytonaBack9(''); setEditAutoStrokes(false) }
+                                          const doIt = async () => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditDaytonaBack9(''); setEditAutoStrokes(!editDaytonaEnabled) }
                                           if (editDaytonaEnabled && round?.is_started) {
                                             setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: doIt })
                                           } else { doIt() }
@@ -3709,7 +3711,7 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = async () => { setEditBankerEnabled(v => !v); setEditAutoStrokes(false) }
+                                          const doIt = async () => { setEditBankerEnabled(v => !v); setEditAutoStrokes(!editBankerEnabled) }
                                           if (editBankerEnabled && round?.is_started) {
                                             setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: doIt })
                                           } else { doIt() }

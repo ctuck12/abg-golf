@@ -1355,8 +1355,8 @@ export default function PlayingGroupScoreEntry({
                     return null
                   })()}
 
-                  {/* ── Handicap Strokes ── */}
-                  {(() => {
+                  {/* ── Handicap Strokes — only relevant for Daytona/Banker side games ── */}
+                  {(isDaytonaMode || isBanker) && (() => {
                     const autoIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : getAutoStrokes(hole.hole_number)
                     const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null
                     const visiblePlayers = players.filter((p) => p.id !== bankerPlayerId && (autoIds.includes(p.id) || holeStrokeIds.includes(p.id)))

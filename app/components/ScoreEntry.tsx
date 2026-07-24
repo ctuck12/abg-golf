@@ -2442,8 +2442,8 @@ export default function ScoreEntry({
                     )
                   })()}
 
-                  {/* ── Strokes panel ── */}
-                  {(() => {
+                  {/* ── Strokes panel — only relevant for Daytona/Banker scoring ── */}
+                  {(isDaytonaMode || isBanker) && (() => {
                     const suggestedIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : isDaytonaMode ? getDaytonaAutoStrokes(hole.hole_number) : []
                     const activeStrokeIds = effectiveStrokeIds(hole.hole_number)
                     const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null

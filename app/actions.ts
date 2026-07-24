@@ -133,7 +133,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
     const { data: round, error } = await supabase
       .from('rounds')
-      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}) })
+      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}), ...((format === 'daytona' || isBanker) ? { auto_handicap: true } : {}) })
       .select().single()
 
     if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
