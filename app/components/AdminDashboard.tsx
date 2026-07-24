@@ -676,9 +676,13 @@ export default function AdminDashboard({
 
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
-  const [mixedGroups, setMixedGroups] = useState<boolean | null>(
-    round?.mixed_groups ?? null
-  )
+  const [mixedGroups, setMixedGroups] = useState<boolean | null>(() => {
+    const ls = getSetupLS(round?.id)
+    const answered = ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true)
+    if (!answered) return null
+    return round?.mixed_groups ?? null
+  })
+  const [mixedGroupsPending, setMixedGroupsPending] = useState(false)
   const [mixedGroupsAnswered, setMixedGroupsAnswered] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
     return ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true)
@@ -874,9 +878,11 @@ export default function AdminDashboard({
   const [ballVals, setBallVals] = useState<Record<number, number>>(
     Object.fromEntries(ballValues.map((bv) => [bv.ball_number, bv.value_dollars]))
   )
-  const [skinsEnabled, setSkinsEnabled] = useState<boolean | null>(
-    round?.skins_enabled ?? null
-  )
+  const [skinsEnabled, setSkinsEnabled] = useState<boolean | null>(() => {
+    const ls = getSetupLS(round?.id)
+    if (!(ls.skinsSaved ?? false)) return null
+    return round?.skins_enabled ?? null
+  })
   const [skinsAmount, setSkinsAmount] = useState(round?.skins_amount ?? 0)
 
   // Live state — kept in sync with server props and updated by real-time subscriptions
@@ -1115,20 +1121,25 @@ export default function AdminDashboard({
     setLiveHammerMatchups((prev) => prev.filter((m) => m.id !== id))
   }
 
-  async function handleToggleMixedGroups(value: boolean) {
-    if (!round) return
+  function handleToggleMixedGroups(value: boolean) {
     setMixedGroups(value)
+  }
+
+  async function saveMixedGroupsChoice() {
+    if (!round || mixedGroups === null) return
+    setMixedGroupsPending(true)
     setMixedGroupsAnswered(true)
     setSetupLS(round.id, 'mixedGroupsAnswered', true)
-    if (value) {
+    if (mixedGroups) {
       setLivePlayingGroups([])
       setLiveGroupPlayers([])
       setTargetGroupCount(0)
       setGroupCountSaved(false)
       setSetupLS(round.id, 'groupCountSaved', false)
     }
-    await toggleMixedGroups(round.id, value)
+    await toggleMixedGroups(round.id, mixedGroups)
     router.refresh()
+    setMixedGroupsPending(false)
   }
   async function handleCreateGroup() {
     if (!round || !newGroupName.trim() || !newGroupPin.trim()) return
@@ -2246,7 +2257,7 @@ export default function AdminDashboard({
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none disabled:opacity-40 disabled:bg-gray-50" />
                     <p className="text-xs text-gray-400 mt-1">Each other participant owes this amount to the skin winner per hole won.</p>
                   </div>
-                  <button type="submit" disabled={skinsPending || (roundIsSettingUp && skinsEnabled === null)}
+                  <button type="submit" disabled={skinsPending || skinsEnabled === null}
                     className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
                     style={{ background: navy }}>
                     {skinsPending ? 'Saving…' : 'Save Skins Settings'}
@@ -2382,7 +2393,7 @@ export default function AdminDashboard({
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => { if (mixedGroups !== true) handleToggleMixedGroups(true) }}
+                      onClick={() => handleToggleMixedGroups(true)}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
                         mixedGroups === true
                           ? 'border-green-500 bg-green-50 text-green-700'
@@ -2392,7 +2403,7 @@ export default function AdminDashboard({
                     </button>
                     <button
                       type="button"
-                      onClick={() => { if (mixedGroups !== false) handleToggleMixedGroups(false) }}
+                      onClick={() => handleToggleMixedGroups(false)}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
                         mixedGroups === false
                           ? 'border-gray-700 bg-gray-100 text-gray-800'
@@ -2403,8 +2414,16 @@ export default function AdminDashboard({
                   </div>
                   <p className="text-xs text-gray-400 mt-1.5">Each playing group gets its own scorekeeper PIN, separate from ball-game teams.</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={saveMixedGroupsChoice}
+                  disabled={mixedGroupsPending || mixedGroups === null}
+                  className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
+                  style={{ background: navy }}>
+                  {mixedGroupsPending ? 'Saving…' : 'Save Mixed Groups'}
+                </button>
 
-                {mixedGroups && (
+                {mixedGroups && mixedGroupsAnswered && (
                   <div className="space-y-3 border-t border-gray-100 pt-3">
                     {/* Step 1: set number of groups */}
                     <div>
