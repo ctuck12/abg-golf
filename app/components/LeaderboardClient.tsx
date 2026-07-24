@@ -364,6 +364,14 @@ export default function LeaderboardClient({
   hammerHolesMap?: Record<string, Record<number, HammerHoleState>>
 }) {
   const [mixedTab, setMixedTab] = useState<'team' | 'group' | 'individual'>('team')
+  // Viewport width for auto-sizing roster name lists (mirrors ScoreEntry's score bar)
+  const [_vpw, _setVpw] = useState(390)
+  useEffect(() => {
+    _setVpw(window.innerWidth)
+    const handler = () => _setVpw(window.innerWidth)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
   const scoresKey = roundId ? `lb_scores_${roundId}` : null
   const [scores, setScores] = useState<Score[]>(() => {
     if (scoresKey && typeof window !== 'undefined') {
@@ -3219,11 +3227,22 @@ export default function LeaderboardClient({
             </div>
             {[...rows].sort((a, b) => a.team.name.localeCompare(b.team.name)).map((row) => {
               const rosterPlayers = players.filter((p) => p.team_id === row.team.id)
+              // Auto-size the name list so it fits between the team name and the
+              // Scorecard button (shrink font, never the row). Estimate widths:
+              // card = min(viewport, 512) − page padding; row eats px-4 + two gap-3
+              // gaps + team-name column + button. ~0.55px per char per font px.
+              const rosterCardW = Math.min(_vpw, 512) - 32
+              const rosterTeamW = Math.max(80, row.team.name.length * 8.5)
+              const rosterAvailW = rosterCardW - 32 - 24 - rosterTeamW - 76 - 8
+              const rosterChars = rosterPlayers.reduce((a, p) => a + p.name.length, 0) + Math.max(0, rosterPlayers.length - 1) * 3
+              const rosterFs = rosterChars > 0
+                ? Math.max(9, Math.min(14, Math.floor((rosterAvailW / (rosterChars * 0.55)) * 2) / 2))
+                : 14
               return (
                 <div key={row.team.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 last:border-0">
                   <span className="font-semibold text-gray-900 text-sm flex-shrink-0" style={{ minWidth: '5rem' }}>{row.team.name}</span>
                   <div className="flex-1 min-w-0 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                  <span className="text-sm text-gray-500 flex gap-x-1" style={{ flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+                  <span className="text-gray-500 flex gap-x-1" style={{ flexWrap: 'nowrap', whiteSpace: 'nowrap', fontSize: `${rosterFs}px`, lineHeight: '1.25rem' }}>
                     {rosterPlayers.map((p, idx) => (
                       <span key={p.id} className="flex items-center gap-1" style={{ flexShrink: 0 }}>
                         {idx > 0 && <span className="text-gray-300 select-none">·</span>}
