@@ -611,6 +611,13 @@ export default function AdminDashboard({
     const ls = getSetupLS(round?.id)
     return ls.skinsSaved ?? false
   })
+  const [roundSaved, setRoundSaved] = useState<boolean>(() => {
+    const ls = getSetupLS(round?.id)
+    return ls.roundSaved ?? (
+      (ls.payoutSaved ?? false) || ballValues.length > 0 || teams.length > 0 ||
+      (round?.is_started ?? false) || round?.format === 'traditional'
+    )
+  })
   const [payoutSaved, setPayoutSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
     return ls.payoutSaved ?? (ballValues.length > 0 || round?.format === 'traditional')
@@ -811,6 +818,10 @@ export default function AdminDashboard({
     )
     // Restore setup wizard progress from localStorage for the current round
     const ls = getSetupLS(round?.id)
+    setRoundSaved(ls.roundSaved ?? (
+      (ls.payoutSaved ?? false) || ballValues.length > 0 || teams.length > 0 ||
+      (round?.is_started ?? false) || round?.format === 'traditional'
+    ))
     setPayoutSaved(ls.payoutSaved ?? (ballValues.length > 0 || round?.format === 'traditional'))
     setSkinsSaved(ls.skinsSaved ?? false)
     setTeamsSaved(ls.teamsSaved ?? false)
@@ -1243,7 +1254,7 @@ export default function AdminDashboard({
   // Mixed groups is "done" when: not standard, OR chose No, OR chose Yes + Set clicked + all groups created
   const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupCountSaved && targetGroupCount > 0 && livePlayingGroups.length === targetGroupCount)
   // Step 1 — Payout: unlocks immediately after round creation
-  const payoutSectionEnabled = live || setupBase
+  const payoutSectionEnabled = live || (setupBase && roundSaved)
   // Step 2 — Skins: unlocks after payout saved
   const skinsSectionEnabled = live || (setupBase && effectivePayoutSaved)
   // Step 3 — Mixed Groups (standard only): unlocks after skins saved
@@ -2143,6 +2154,8 @@ export default function AdminDashboard({
                             setCreateError(data.error)
                             setCreatePending(false)
                           } else {
+                            const savedRoundId = data.roundId ?? round?.id
+                            if (savedRoundId) setSetupLS(savedRoundId, 'roundSaved', true)
                             window.location.href = `/${orgSlug}/admin/dashboard`
                           }
                         } catch (e) {
