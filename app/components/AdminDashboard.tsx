@@ -360,6 +360,7 @@ function computeAdminMatchupPayouts(
   for (const p of players) net[p.id] = 0
   const rows: MatchupPayoutRow[] = []
   const involvedIds = new Set<string>()
+  const lastHoleNumber = holes.length > 0 ? Math.max(...holes.map((h) => h.hole_number)) : 18
 
   for (const m of matchups) {
     const mp1 = players.find((p) => p.id === m.player1_id)
@@ -374,7 +375,7 @@ function computeAdminMatchupPayouts(
     }
     const stats = computeH2HStats(m.player1_id, m.player2_id, scoreMap, holes)
     const hole9 = scoreMap[m.player1_id]?.[9] != null && scoreMap[m.player2_id]?.[9] != null
-    const hole18 = scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null
+    const hole18 = scoreMap[m.player1_id]?.[lastHoleNumber] != null && scoreMap[m.player2_id]?.[lastHoleNumber] != null
     const p1 = m.player1_id, p2 = m.player2_id
     // Stroke handicap adjustments (stroke play only)
     const hf = scoringType === 'stroke' ? (parseFloat(handicapFront) || 0) : 0
@@ -472,7 +473,7 @@ function computeAdminMatchupPayouts(
     const t1Ids = [m.team1_player1_id, m.team1_player2_id]
     const t2Ids = [m.team2_player1_id, m.team2_player2_id]
     const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
-    const hole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
+    const hole18 = t1Ids.some((id) => scoreMap[id]?.[lastHoleNumber] != null) && t2Ids.some((id) => scoreMap[id]?.[lastHoleNumber] != null)
     // Stroke handicap adjustments (stroke play only)
     const bbHf = scoringType === 'stroke' ? (parseFloat(handicapFront) || 0) : 0
     const bbHb = scoringType === 'stroke' ? (parseFloat(handicapBack) || 0) : 0

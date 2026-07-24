@@ -363,6 +363,7 @@ function computeMatchupPayouts(
   for (const p of players) net[p.id] = 0
   const rows: PayoutRow[] = []
   const involvedIds = new Set<string>()
+  const lastHoleNumber = holes.length > 0 ? Math.max(...holes.map((h) => h.hole_number)) : 18
 
   // ── Head to Head ─────────────────────────────────────────────────
   for (const m of matchups) {
@@ -382,7 +383,7 @@ function computeMatchupPayouts(
 
     const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
     const hole9 = scoreMap[m.player1_id]?.[9] != null && scoreMap[m.player2_id]?.[9] != null
-    const hole18 = scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null
+    const holeLastPlayed = scoreMap[m.player1_id]?.[lastHoleNumber] != null && scoreMap[m.player2_id]?.[lastHoleNumber] != null
     const p1 = m.player1_id, p2 = m.player2_id
 
     // Stroke handicap adjustments (stroke play only — match play handles strokes per-hole differently)
@@ -419,11 +420,11 @@ function computeMatchupPayouts(
       const { winnerLabel: fWL, tied: fT } = resolveH2H(fSett, strokeLeader(adjP1Front, adjP2Front), stats.p1FrontWins - stats.p2FrontWins, fBetAmt)
       segments.push({ name: 'Front', settled: fSett, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: false })
 
-      const bSett = hole18 && stats.p1Back !== null && stats.p2Back !== null
+      const bSett = (scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null) && stats.p1Back !== null && stats.p2Back !== null
       const { winnerLabel: bWL, tied: bT } = resolveH2H(bSett, strokeLeader(adjP1Back, adjP2Back), stats.p1BackWins - stats.p2BackWins, bBetAmt)
       segments.push({ name: 'Back', settled: bSett, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: false })
     }
-    const tSett = hole18 && stats.p1Total !== null && stats.p2Total !== null
+    const tSett = holeLastPlayed && stats.p1Total !== null && stats.p2Total !== null
     const { winnerLabel: tWL, tied: tT } = resolveH2H(tSett, strokeLeader(adjP1Total, adjP2Total), stats.p1Wins - stats.p2Wins, tBetAmt)
     segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: false })
 
@@ -499,8 +500,9 @@ function computeMatchupPayouts(
     const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id]
     const t2Ids = [m.team2_player1_id, m.team2_player2_id]
-    const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
-    const hole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
+    const bbHole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
+    const bbHole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
+    const bbHoleLastPlayed = t1Ids.some((id) => scoreMap[id]?.[lastHoleNumber] != null) && t2Ids.some((id) => scoreMap[id]?.[lastHoleNumber] != null)
 
     // Stroke handicap adjustments (stroke play only)
     const bbHf = scoringType === 'stroke' ? (parseFloat(handicapFront) || 0) : 0
@@ -540,15 +542,15 @@ function computeMatchupPayouts(
 
     const segments: PayoutSegment[] = []
     if (betType === 'nassau') {
-      const fSett = hole9 && stats.t1Front !== null && stats.t2Front !== null
+      const fSett = bbHole9 && stats.t1Front !== null && stats.t2Front !== null
       const { winnerLabel: fWL, tied: fT } = resolveBB(fSett, strokeLeaderBB(adjT1Front, adjT2Front), stats.t1FrontWins - stats.t2FrontWins, fBetAmt)
       segments.push({ name: 'Front', settled: fSett, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: true })
 
-      const bSett = hole18 && stats.t1Back !== null && stats.t2Back !== null
+      const bSett = bbHole18 && stats.t1Back !== null && stats.t2Back !== null
       const { winnerLabel: bWL, tied: bT } = resolveBB(bSett, strokeLeaderBB(adjT1Back, adjT2Back), stats.t1BackWins - stats.t2BackWins, bBetAmt)
       segments.push({ name: 'Back', settled: bSett, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: true })
     }
-    const tSett = hole18 && stats.t1Total !== null && stats.t2Total !== null
+    const tSett = bbHoleLastPlayed && stats.t1Total !== null && stats.t2Total !== null
     const { winnerLabel: tWL, tied: tT } = resolveBB(tSett, strokeLeaderBB(adjT1Total, adjT2Total), stats.t1Wins - stats.t2Wins, tBetAmt)
     segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: true })
 
@@ -908,6 +910,16 @@ export default function MatchupClient({
   const searchLower = searchQuery.toLowerCase().trim()
   const bbSelected = [bbT1P1, bbT1P2, bbT2P1, bbT2P2].filter(Boolean)
   const isComplete = holes.length > 0 && players.every((p) => Object.keys(scoreMap[p.id] ?? {}).length >= holes.length)
+  const is9HoleRound = holes.length === 9
+  const lastHoleNumber = holes.length > 0 ? Math.max(...holes.map((h) => h.hole_number)) : 18
+
+  // When form opens for a 9-hole round, force Overall (straight) bet type
+  useEffect(() => {
+    if (showH2HForm && is9HoleRound) setNewBetType('straight')
+  }, [showH2HForm, is9HoleRound])
+  useEffect(() => {
+    if (showBBForm && is9HoleRound) setBbBetType('straight')
+  }, [showBBForm, is9HoleRound])
 
   const payouts = useMemo(
     () => computeMatchupPayouts(matchups, bestBallMatchups, players, scoreMap, holes),
@@ -1342,7 +1354,7 @@ export default function MatchupClient({
                       <select value={newBetType} onChange={(e) => { setNewBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setNewSweepEnabled(false); setNewSweepAmount('') } }}
                         className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                         <option value="" disabled>Select…</option>
-                        <option value="nassau">Nassau</option>
+                        {!is9HoleRound && <option value="nassau">Nassau</option>}
                         <option value="straight">Overall</option>
                       </select>
                     </div>
@@ -1474,7 +1486,7 @@ export default function MatchupClient({
                     const p1First = mp1.name.split(' ')[0]
                     const p2First = mp2.name.split(' ')[0]
                     const h2hHole9 = (scoreMap[m.player1_id]?.[9] != null) && (scoreMap[m.player2_id]?.[9] != null)
-                    const h2hHole18 = (scoreMap[m.player1_id]?.[18] != null) && (scoreMap[m.player2_id]?.[18] != null)
+                    const h2hHole18 = (scoreMap[m.player1_id]?.[lastHoleNumber] != null) && (scoreMap[m.player2_id]?.[lastHoleNumber] != null)
                     const { scoringType: h2hScoringType, betType: h2hBetType, handicapSide: h2hHcpSide, handicapFront: h2hHcpFront, handicapBack: h2hHcpBack, handicapTotal: h2hHcpTotal } = parseBet(m.bet)
                     const isMatchPlay = h2hScoringType === 'match'
                     const isOverallBet = h2hBetType === 'straight'
@@ -1926,7 +1938,7 @@ export default function MatchupClient({
                       <select value={bbBetType} onChange={(e) => { setBbBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setBbSweepEnabled(false); setBbSweepAmount('') } }}
                         className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                         <option value="" disabled>Select…</option>
-                        <option value="nassau">Nassau</option>
+                        {!is9HoleRound && <option value="nassau">Nassau</option>}
                         <option value="straight">Overall</option>
                       </select>
                     </div>
@@ -2041,7 +2053,7 @@ export default function MatchupClient({
                     const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
                     const isEditingBB = editingBB === m.id
                     const bbHole9 = (scoreMap[m.team1_player1_id]?.[9] != null || scoreMap[m.team1_player2_id]?.[9] != null) && (scoreMap[m.team2_player1_id]?.[9] != null || scoreMap[m.team2_player2_id]?.[9] != null)
-                    const bbHole18 = (scoreMap[m.team1_player1_id]?.[18] != null || scoreMap[m.team1_player2_id]?.[18] != null) && (scoreMap[m.team2_player1_id]?.[18] != null || scoreMap[m.team2_player2_id]?.[18] != null)
+                    const bbHole18 = (scoreMap[m.team1_player1_id]?.[lastHoleNumber] != null || scoreMap[m.team1_player2_id]?.[lastHoleNumber] != null) && (scoreMap[m.team2_player1_id]?.[lastHoleNumber] != null || scoreMap[m.team2_player2_id]?.[lastHoleNumber] != null)
                     const { scoringType: bbScoringTypeParsed, betType: bbBetTypeParsed, handicapSide: bbListHcpSide, handicapFront: bbListHcpFront, handicapBack: bbListHcpBack, handicapTotal: bbListHcpTotal } = parseBet(m.bet)
                     const isBBMatchPlay = bbScoringTypeParsed === 'match'
                     const isBBOverallBet = bbBetTypeParsed === 'straight'
