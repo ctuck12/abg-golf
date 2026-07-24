@@ -620,9 +620,8 @@ export default function AdminDashboard({
     // A round existing in the DB means "Start New Round" was already submitted.
     // localStorage is the primary source; fall back to any evidence a round is set up.
     return ls.roundSaved ?? (
-      !!round ||
       (ls.payoutSaved ?? false) || ballValues.length > 0 || teams.length > 0 ||
-      (round?.is_started ?? false) || round?.format === 'traditional'
+      (round?.is_started ?? false) || round?.format === 'traditional' || round != null
     )
   })
   const [payoutSaved, setPayoutSaved] = useState<boolean>(() => {
@@ -826,9 +825,8 @@ export default function AdminDashboard({
     // Restore setup wizard progress from localStorage for the current round
     const ls = getSetupLS(round?.id)
     setRoundSaved(ls.roundSaved ?? (
-      !!round ||
       (ls.payoutSaved ?? false) || ballValues.length > 0 || teams.length > 0 ||
-      (round?.is_started ?? false) || round?.format === 'traditional'
+      (round?.is_started ?? false) || round?.format === 'traditional' || round != null
     ))
     setPayoutSaved(ls.payoutSaved ?? (ballValues.length > 0 || round?.format === 'traditional'))
     setSkinsSaved(ls.skinsSaved ?? false)
