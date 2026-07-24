@@ -3247,6 +3247,11 @@ export default function LeaderboardClient({
                     ))}
                   </span>
                   </div>
+                  <a href={`/${orgSlug}/scorecard/${row.team.id}`}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                    style={{ background: gold, color: navy }}>
+                    Scorecard
+                  </a>
                 </div>
               )
             })}
