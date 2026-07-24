@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const { data: teams } = await supabase
     .from('teams')
-    .select('id, name, daytona_variant')
+    .select('id, name, daytona_variant, daytona_variant_back9')
     .eq('round_id', roundId)
 
   const allTeamIds = (teams ?? []).map((t: { id: string }) => t.id)

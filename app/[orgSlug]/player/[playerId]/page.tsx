@@ -29,9 +29,10 @@ export default async function OrgPlayerPage({ params, searchParams }: { params: 
   let roundId = ''
   let roundFormat = 'standard'
   let teamDaytonaVariant: string | null = null
+  let teamDaytonaVariantBack9: string | null = null
 
   if (player.team_id) {
-    const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant').eq('id', player.team_id).single()
+    const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant, daytona_variant_back9').eq('id', player.team_id).single()
     if (!team) redirect(`/${orgSlug}`)
 
     const { data: round } = await sb.from('rounds').select('id, is_started, format, daytona_variant, org_id').eq('id', team.round_id).single()
@@ -42,6 +43,7 @@ export default async function OrgPlayerPage({ params, searchParams }: { params: 
     roundId = round.id
     roundFormat = round.format ?? 'standard'
     teamDaytonaVariant = (team as { daytona_variant?: string | null }).daytona_variant ?? null
+    teamDaytonaVariantBack9 = (team as { daytona_variant_back9?: string | null }).daytona_variant_back9 ?? null
   } else {
     // Manually-added player with no team — find via playing_group_players
     const { data: groupPlayer } = await sb.from('playing_group_players').select('playing_group_id').eq('player_id', playerId).single()
@@ -110,6 +112,7 @@ export default async function OrgPlayerPage({ params, searchParams }: { params: 
       assignments: (assignmentsData ?? []) as DaytonaHoleAssignment[],
       allRoundScores: allScoresData ?? [],
       daytonaVariant: teamDaytonaVariant ?? '4man',
+      daytonaVariantBack9: teamDaytonaVariantBack9,
       pressedHoles,
       dtPayoutValue,
       playerHandicaps,

@@ -61,6 +61,7 @@ export default function PlayerScorecard({
     assignments: DaytonaHoleAssignment[]
     allRoundScores: RoundScore[]
     daytonaVariant?: string
+    daytonaVariantBack9?: string | null
     pressedHoles?: Record<number, number>
     dtPayoutValue?: number
     playerHandicaps?: Record<string, number | null>
@@ -109,7 +110,8 @@ export default function PlayerScorecard({
 
   // Compute per-hole points for this player (Daytona only)
   const daytonaVariant = dtData?.daytonaVariant ?? '4man'
-  const is5Man = daytonaVariant === '5man-normal' || daytonaVariant === '5man-flares'
+  const daytonaVariantBack9 = dtData?.daytonaVariantBack9 ?? null
+  const is5ManAt = (holeNumber: number) => ((daytonaVariantBack9 && holeNumber > 9) ? daytonaVariantBack9 : daytonaVariant).startsWith('5man')
 
   // Resolve net scores: prefer DB hole_strokes, fall back to handicap when DB is empty
   const dtPlayerHandicaps = dtData?.playerHandicaps ?? {}
@@ -139,7 +141,7 @@ export default function PlayerScorecard({
       const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
       const leftIds = holeAssignments.filter((a) => a.side === 'left').map((a) => a.player_id)
       const rightIds = holeAssignments.filter((a) => a.side === 'right').map((a) => a.player_id)
-      if (is5Man) {
+      if (is5ManAt(hole.hole_number)) {
         if (leftIds.length < 2 || rightIds.length < 3) continue
         const holePoints = computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netAllRoundScores, hole.hole_number, hole.par)
         const pts = holePoints.get(player.id)
@@ -427,7 +429,7 @@ export default function PlayerScorecard({
                 const pressedHoles = dtData?.pressedHoles ?? {}
                 const dtPayoutValue = dtData?.dtPayoutValue ?? 0
                 const hasPress = Object.keys(pressedHoles).length > 0
-                const isFlares = daytonaVariant === '5man-flares'
+                const isFlaresAt = (n: number) => ((daytonaVariantBack9 && n > 9) ? daytonaVariantBack9 : daytonaVariant) === '5man-flares'
                 const sortedRates = [...new Set(Object.values(pressedHoles))].sort((a, b) => a - b)
                 const pressColor = (val: number) => PRESS_COLORS[sortedRates.indexOf(val) % PRESS_COLORS.length]
                 return (
@@ -452,8 +454,8 @@ export default function PlayerScorecard({
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null
                         const par = holes.find((h) => h.hole_number === n)?.par ?? 4
-                        const leftChar = isFlares ? (par === 3 ? 'C' : 'O') : 'L'
-                        const rightChar = isFlares ? (par === 3 ? 'F' : 'I') : 'R'
+                        const leftChar = isFlaresAt(n) ? (par === 3 ? 'C' : 'O') : 'L'
+                        const rightChar = isFlaresAt(n) ? (par === 3 ? 'F' : 'I') : 'R'
                         return (
                           <td key={n} style={tdScore()}>
                             {side != null
@@ -467,8 +469,8 @@ export default function PlayerScorecard({
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null
                         const par = holes.find((h) => h.hole_number === n)?.par ?? 4
-                        const leftChar = isFlares ? (par === 3 ? 'C' : 'O') : 'L'
-                        const rightChar = isFlares ? (par === 3 ? 'F' : 'I') : 'R'
+                        const leftChar = isFlaresAt(n) ? (par === 3 ? 'C' : 'O') : 'L'
+                        const rightChar = isFlaresAt(n) ? (par === 3 ? 'F' : 'I') : 'R'
                         return (
                           <td key={n} style={tdScore()}>
                             {side != null

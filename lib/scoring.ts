@@ -641,6 +641,47 @@ export function computePlayerDaytonaDollars(
   return dollarTotals
 }
 
+// Like computePlayerDaytonaPoints, but supports a different variant on the back nine.
+export function computePlayerDaytonaPointsSplit(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  assignments: DaytonaHoleAssignment[],
+  variant: string = '4man',
+  back9Variant: string | null | undefined
+): Map<string, number> {
+  if (!back9Variant || back9Variant === variant) {
+    return computePlayerDaytonaPoints(holes, scores, assignments, variant)
+  }
+  const front = computePlayerDaytonaPoints(holes.filter((h) => h.hole_number <= 9), scores, assignments, variant)
+  const back = computePlayerDaytonaPoints(holes.filter((h) => h.hole_number > 9), scores, assignments, back9Variant)
+  const merged = new Map(front)
+  for (const [id, pts] of back) merged.set(id, (merged.get(id) ?? 0) + pts)
+  return merged
+}
+
+// Like computePlayerDaytonaDollars, but supports a different variant on the back nine.
+// If back9Variant is null/empty or identical, behavior is unchanged.
+export function computePlayerDaytonaDollarsSplit(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  assignments: DaytonaHoleAssignment[],
+  variant: string = '4man',
+  back9Variant: string | null | undefined,
+  defaultDollarPerPoint: number,
+  holeValueOverrides: Record<number, number> = {}
+): Map<string, number> {
+  if (!back9Variant || back9Variant === variant) {
+    return computePlayerDaytonaDollars(holes, scores, assignments, variant, defaultDollarPerPoint, holeValueOverrides)
+  }
+  const front = computePlayerDaytonaDollars(holes.filter((h) => h.hole_number <= 9), scores, assignments, variant, defaultDollarPerPoint, holeValueOverrides)
+  const back = computePlayerDaytonaDollars(holes.filter((h) => h.hole_number > 9), scores, assignments, back9Variant, defaultDollarPerPoint, holeValueOverrides)
+  const merged = new Map(front)
+  for (const [id, amt] of back) {
+    merged.set(id, Math.round(((merged.get(id) ?? 0) + amt) * 100) / 100)
+  }
+  return merged
+}
+
 export function settleDaytonaPlayerPoints(
   players: { id: string; name: string }[],
   pointTotals: Map<string, number>,

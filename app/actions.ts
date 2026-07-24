@@ -196,6 +196,7 @@ export async function addTeam(_prev: unknown, formData: FormData) {
   if (!/^\d{4}$/.test(pin)) return { error: 'PIN must be exactly 4 digits.' }
 
   const daytonaVariant = (formData.get('daytona_variant') as string) || null
+  const daytonaVariantBack9 = (formData.get('daytona_variant_back9') as string) || null
   const bankerSideGame = formData.get('banker_side_game') === 'true'
   const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
   const autoStrokes = formData.get('auto_strokes') === 'true'
@@ -204,7 +205,7 @@ export async function addTeam(_prev: unknown, formData: FormData) {
   const hammerFormat = (formData.get('hammer_format') as string) || 'stroke'
 
   const supabase = createServerClient()
-  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null })
+  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null })
   if (error) return { error: error.code === '23505' ? 'A team with that name already exists.' : error.message }
   return { success: true }
 }
@@ -225,6 +226,7 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
   const pin = (formData.get('pin') as string)?.trim()
   const daytonaVariant = (formData.get('daytona_variant') as string) || null
+  const daytonaVariantBack9 = (formData.get('daytona_variant_back9') as string) || null
 
   if (!teamId || !name) return { error: 'Group name required.' }
   if (pin && !/^\d{4}$/.test(pin)) return { error: 'PIN must be exactly 4 digits.' }
@@ -237,7 +239,7 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
   const hammerFormat = (formData.get('hammer_format') as string) || 'stroke'
 
   const supabase = createServerClient()
-  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null }
+  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null }
   if (pin) updates.pin = pin
 
   const { error } = await supabase.from('teams').update(updates).eq('id', teamId)
@@ -640,16 +642,24 @@ export async function movePlayer(playerId: string, direction: 'up' | 'down') {
 
 // ── Matchups ──────────────────────────────────────────────────────────────────
 
-export async function saveMatchup(roundId: string, player1Id: string, player2Id: string, bet: string) {
+export async function saveMatchup(roundId: string, player1Id: string, player2Id: string, bet: string, holeRange: string = 'all') {
   const sb = createServerClient()
   const { data, error } = await sb.from('matchups').insert({
     round_id: roundId,
     player1_id: player1Id,
     player2_id: player2Id,
     bet: bet.trim(),
+    hole_range: holeRange,
   }).select('id').single()
   if (error) return { error: error.message }
   return { id: data.id }
+}
+
+export async function updateMatchupHoleRange(id: string, holeRange: string) {
+  const sb = createServerClient()
+  const { error } = await sb.from('matchups').update({ hole_range: holeRange }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
 }
 
 export async function deleteMatchup(id: string) {
@@ -684,7 +694,8 @@ export async function saveBestBallMatchup(
   roundId: string,
   team1Player1Id: string, team1Player2Id: string,
   team2Player1Id: string, team2Player2Id: string,
-  bet: string
+  bet: string,
+  holeRange: string = 'all'
 ) {
   const sb = createServerClient()
   const { data, error } = await sb.from('best_ball_matchups').insert({
@@ -694,9 +705,17 @@ export async function saveBestBallMatchup(
     team2_player1_id: team2Player1Id,
     team2_player2_id: team2Player2Id,
     bet: bet.trim(),
+    hole_range: holeRange,
   }).select('id').single()
   if (error) return { error: error.message }
   return { id: data.id }
+}
+
+export async function updateBestBallHoleRange(id: string, holeRange: string) {
+  const sb = createServerClient()
+  const { error } = await sb.from('best_ball_matchups').update({ hole_range: holeRange }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
 }
 
 export async function deleteBestBallMatchup(id: string) {

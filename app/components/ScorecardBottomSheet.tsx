@@ -82,6 +82,7 @@ export default function ScorecardBottomSheet({
   dtPayoutValue = 0,
   is5Man = false,
   isFlares = false,
+  variantBack9 = null,
   isBankerMode = false,
   bankerHoles = {},
   bankerBets = {},
@@ -99,11 +100,15 @@ export default function ScorecardBottomSheet({
   dtPayoutValue?: number
   is5Man?: boolean
   isFlares?: boolean
+  variantBack9?: string | null
   isBankerMode?: boolean
   bankerHoles?: Record<number, { bankerPlayerId: string | null }>
   bankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
   bankerMinBet?: number
 }) {
+  const is5ManAt = (holeNumber: number) => variantBack9 && holeNumber > 9 ? variantBack9.startsWith('5man') : is5Man
+  const isFlaresAt = (holeNumber: number) => variantBack9 && holeNumber > 9 ? variantBack9 === '5man-flares' : isFlares
+
   const [hcpVisible, setHcpVisible] = useState<Set<string>>(new Set())
   const toggleHcp = (id: string) => setHcpVisible((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
 
@@ -124,7 +129,7 @@ export default function ScorecardBottomSheet({
       const netScores = scores.map((s) => ({
         ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) && s.hole_number === hole.hole_number ? 1 : 0),
       }))
-      if (is5Man) {
+      if (is5ManAt(hole.hole_number)) {
         if (leftIds.length >= 2 && rightIds.length >= 3)
           holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par))
       } else {
@@ -421,8 +426,8 @@ export default function ScorecardBottomSheet({
                           <td style={{ ...tdSc(), textAlign: 'left', paddingLeft: '0.6rem', fontWeight: 700, color: '#374151', ...stickyFirst }}>TEAM</td>
                           {frontNine.map((h) => {
                             const side = assignments[h.hole_number]?.[player.id] ?? null
-                            const leftChar = isFlares ? (h.par === 3 ? 'C' : 'O') : 'L'
-                            const rightChar = isFlares ? (h.par === 3 ? 'F' : 'I') : 'R'
+                            const leftChar = isFlaresAt(h.hole_number) ? (h.par === 3 ? 'C' : 'O') : 'L'
+                            const rightChar = isFlaresAt(h.hole_number) ? (h.par === 3 ? 'F' : 'I') : 'R'
                             return (
                               <td key={h.hole_number} style={tdSc()}>
                                 {side != null
@@ -434,8 +439,8 @@ export default function ScorecardBottomSheet({
                           <td style={tdSc(true)} />
                           {backNine.map((h) => {
                             const side = assignments[h.hole_number]?.[player.id] ?? null
-                            const leftChar = isFlares ? (h.par === 3 ? 'C' : 'O') : 'L'
-                            const rightChar = isFlares ? (h.par === 3 ? 'F' : 'I') : 'R'
+                            const leftChar = isFlaresAt(h.hole_number) ? (h.par === 3 ? 'C' : 'O') : 'L'
+                            const rightChar = isFlaresAt(h.hole_number) ? (h.par === 3 ? 'F' : 'I') : 'R'
                             return (
                               <td key={h.hole_number} style={tdSc()}>
                                 {side != null

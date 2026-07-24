@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import {
-  saveMatchup, deleteMatchup, updateMatchupBet, updateMatchupPresses,
-  saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet, updateBestBallPresses,
+  saveMatchup, deleteMatchup, updateMatchupBet, updateMatchupPresses, updateMatchupHoleRange,
+  saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet, updateBestBallPresses, updateBestBallHoleRange,
 } from '@/app/actions'
 import { ScoreNotation } from './ScoreNotation'
 import PinLoginModal from './PinLoginModal'
@@ -12,13 +12,15 @@ type Player = { id: string; name: string; teamName: string; handicap?: number | 
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
-type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; press: PressEntry[] }
+type HoleRange = 'all' | 'front9' | 'back9'
+type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; press: PressEntry[]; hole_range?: string }
 type BestBallMatchup = {
   id: string
   team1_player1_id: string; team1_player2_id: string
   team2_player1_id: string; team2_player2_id: string
   bet: string
   press: PressEntry[]
+  hole_range?: string
 }
 type ScorecardTarget =
   | { type: 'player'; id: string; name: string }
@@ -381,9 +383,15 @@ function computeMatchupPayouts(
       continue
     }
 
-    const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
+    const matchupHoles = m.hole_range === 'front9'
+      ? holes.filter(h => h.hole_number <= 9)
+      : m.hole_range === 'back9'
+      ? holes.filter(h => h.hole_number > 9)
+      : holes
+    const matchupLastHole = matchupHoles.length > 0 ? Math.max(...matchupHoles.map(h => h.hole_number)) : lastHoleNumber
+    const stats = computeStats(m.player1_id, m.player2_id, scoreMap, matchupHoles)
     const hole9 = scoreMap[m.player1_id]?.[9] != null && scoreMap[m.player2_id]?.[9] != null
-    const holeLastPlayed = scoreMap[m.player1_id]?.[lastHoleNumber] != null && scoreMap[m.player2_id]?.[lastHoleNumber] != null
+    const holeLastPlayed = scoreMap[m.player1_id]?.[matchupLastHole] != null && scoreMap[m.player2_id]?.[matchupLastHole] != null
     const p1 = m.player1_id, p2 = m.player2_id
 
     // Stroke handicap adjustments (stroke play only — match play handles strokes per-hole differently)
@@ -459,7 +467,7 @@ function computeMatchupPayouts(
     }
     // ── Press bets ──────────────────────────────────────────────────────────
     for (const press of (m.press ?? [])) {
-      const pressHoles = holes.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
+      const pressHoles = matchupHoles.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
       if (pressHoles.length === 0) continue
       let p1Sum = 0, p2Sum = 0, parSum = 0, played = 0
       for (const h of pressHoles) {
@@ -497,12 +505,18 @@ function computeMatchupPayouts(
       continue
     }
 
-    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
+    const bbMatchupHoles = m.hole_range === 'front9'
+      ? holes.filter(h => h.hole_number <= 9)
+      : m.hole_range === 'back9'
+      ? holes.filter(h => h.hole_number > 9)
+      : holes
+    const bbMatchupLastHole = bbMatchupHoles.length > 0 ? Math.max(...bbMatchupHoles.map(h => h.hole_number)) : lastHoleNumber
+    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, bbMatchupHoles)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id]
     const t2Ids = [m.team2_player1_id, m.team2_player2_id]
     const bbHole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
     const bbHole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
-    const bbHoleLastPlayed = t1Ids.some((id) => scoreMap[id]?.[lastHoleNumber] != null) && t2Ids.some((id) => scoreMap[id]?.[lastHoleNumber] != null)
+    const bbHoleLastPlayed = t1Ids.some((id) => scoreMap[id]?.[bbMatchupLastHole] != null) && t2Ids.some((id) => scoreMap[id]?.[bbMatchupLastHole] != null)
 
     // Stroke handicap adjustments (stroke play only)
     const bbHf = scoringType === 'stroke' ? (parseFloat(handicapFront) || 0) : 0
@@ -583,6 +597,24 @@ function computeMatchupPayouts(
           }
         }
       }
+    }
+    // BB press bets
+    for (const press of (m.press ?? [])) {
+      const pressHoles = bbMatchupHoles.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
+      if (pressHoles.length === 0) continue
+      let t1Sum = 0, t2Sum = 0, parSum = 0, played = 0
+      for (const h of pressHoles) {
+        const t1Arr = ([scoreMap[t1Ids[0]]?.[h.hole_number] ?? null, scoreMap[t1Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        const t2Arr = ([scoreMap[t2Ids[0]]?.[h.hole_number] ?? null, scoreMap[t2Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        if (t1Arr.length === 0 || t2Arr.length === 0) continue
+        t1Sum += Math.min(...t1Arr); t2Sum += Math.min(...t2Arr); parSum += h.par; played++
+      }
+      if (played !== pressHoles.length || played === 0) continue
+      const strokes = press.strokes ?? 0
+      const adjT1 = (t1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
+      const adjT2 = (t2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
+      if (adjT1 < adjT2) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t2Ids) net[id] = (net[id] ?? 0) - press.amount }
+      else if (adjT2 < adjT1) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t1Ids) net[id] = (net[id] ?? 0) - press.amount }
     }
     rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: formatBet(m.bet), segments, nassauResult })
   }
@@ -671,10 +703,12 @@ export default function MatchupClient({
   const [newStrokesFront, setNewStrokesFront] = useState('')
   const [newStrokesBack, setNewStrokesBack] = useState('')
   const [newStrokesTotal, setNewStrokesTotal] = useState('')
+  const [newHoleRange, setNewHoleRange] = useState<HoleRange>('all')
   const [savingH2H, setSavingH2H] = useState(false)
 
   const editH2HRef = useRef<HTMLDivElement>(null)
   const [editingH2H, setEditingH2H] = useState<string | null>(null)
+  const [editH2HHoleRange, setEditH2HHoleRange] = useState<HoleRange>('all')
   const [editH2HBetType, setEditH2HBetType] = useState<BetType | ''>('')
   const [editH2HBetAmount, setEditH2HBetAmount] = useState('')
   const [editH2HScoringType, setEditH2HScoringType] = useState<ScoringType>('stroke')
@@ -705,6 +739,7 @@ export default function MatchupClient({
   const [bbT1P2, setBbT1P2] = useState('')
   const [bbT2P1, setBbT2P1] = useState('')
   const [bbT2P2, setBbT2P2] = useState('')
+  const [bbHoleRange, setBbHoleRange] = useState<HoleRange>('all')
   const [bbBetType, setBbBetType] = useState<BetType | ''>('')
   const [bbBetAmount, setBbBetAmount] = useState('')
   const [bbFrontAmount, setBbFrontAmount] = useState('')
@@ -722,6 +757,7 @@ export default function MatchupClient({
 
   const editBBRef = useRef<HTMLDivElement>(null)
   const [editingBB, setEditingBB] = useState<string | null>(null)
+  const [editBBHoleRange, setEditBBHoleRange] = useState<HoleRange>('all')
   const [editBBBetType, setEditBBBetType] = useState<BetType | ''>('')
   const [editBBBetAmount, setEditBBBetAmount] = useState('')
   const [editBBScoringType, setEditBBScoringType] = useState<ScoringType>('stroke')
@@ -813,12 +849,13 @@ export default function MatchupClient({
       newScoringType === 'stroke' && newStrokesEnabled ? newStrokesBack : '',
       newScoringType === 'stroke' && newStrokesEnabled ? newStrokesTotal : '',
     )
-    const result = await saveMatchup(roundId, newP1, newP2, bet)
+    const result = await saveMatchup(roundId, newP1, newP2, bet, newHoleRange)
     if (!result.error && result.id) {
-      setMatchups((prev) => [...prev, { id: result.id!, player1_id: newP1, player2_id: newP2, bet, press: [] }])
+      setMatchups((prev) => [...prev, { id: result.id!, player1_id: newP1, player2_id: newP2, bet, press: [], hole_range: newHoleRange }])
       setNewP1(''); setNewP2(''); setNewBetAmount(''); setNewFrontAmount(''); setNewBackAmount(''); setNewTotalAmount('')
       setNewSweepAmount(''); setNewSweepEnabled(false)
       setNewStrokesEnabled(false); setNewStrokesFront(''); setNewStrokesBack(''); setNewStrokesTotal('')
+      setNewHoleRange('all')
       setShowH2HForm(false)
     }
     setSavingH2H(false)
@@ -842,10 +879,11 @@ export default function MatchupClient({
       editH2HScoringType === 'stroke' && editH2HStrokesEnabled ? editH2HStrokesTotal : '',
     )
     const savedPresses = editH2HPresses
-    setMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet, press: savedPresses } : m))
+    const savedHoleRange = editH2HHoleRange
+    setMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet, press: savedPresses, hole_range: savedHoleRange } : m))
     setEditingH2H(null)
     setPressEnabled(false)
-    await Promise.all([updateMatchupBet(id, bet), updateMatchupPresses(id, savedPresses)])
+    await Promise.all([updateMatchupBet(id, bet), updateMatchupPresses(id, savedPresses), updateMatchupHoleRange(id, savedHoleRange)])
   }
 
   async function handleCreateBB() {
@@ -869,16 +907,17 @@ export default function MatchupClient({
       bbScoringType === 'stroke' && bbStrokesEnabled ? bbStrokesBack : '',
       bbScoringType === 'stroke' && bbStrokesEnabled ? bbStrokesTotal : '',
     )
-    const result = await saveBestBallMatchup(roundId, bbT1P1, bbT1P2, bbT2P1, bbT2P2, bet)
+    const result = await saveBestBallMatchup(roundId, bbT1P1, bbT1P2, bbT2P1, bbT2P2, bet, bbHoleRange)
     if (!result.error && result.id) {
       setBestBallMatchups((prev) => [...prev, {
         id: result.id!, team1_player1_id: bbT1P1, team1_player2_id: bbT1P2,
-        team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet, press: [],
+        team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet, press: [], hole_range: bbHoleRange,
       }])
       setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetAmount('')
       setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount('')
       setBbSweepAmount(''); setBbSweepEnabled(false)
       setBbStrokesEnabled(false); setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal('')
+      setBbHoleRange('all')
       setShowBBForm(false)
     }
     setSavingBB(false)
@@ -901,10 +940,11 @@ export default function MatchupClient({
       editBBScoringType === 'stroke' && editBBStrokesEnabled ? editBBStrokesTotal : '',
     )
     const savedBBPresses = editBBPresses
-    setBestBallMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet, press: savedBBPresses } : m))
+    const savedBBHoleRange = editBBHoleRange
+    setBestBallMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet, press: savedBBPresses, hole_range: savedBBHoleRange } : m))
     setEditingBB(null)
     setBBPressEnabled(false)
-    await Promise.all([updateBestBallBet(id, bet), updateBestBallPresses(id, savedBBPresses)])
+    await Promise.all([updateBestBallBet(id, bet), updateBestBallPresses(id, savedBBPresses), updateBestBallHoleRange(id, savedBBHoleRange)])
   }
 
   const searchLower = searchQuery.toLowerCase().trim()
@@ -920,6 +960,19 @@ export default function MatchupClient({
   useEffect(() => {
     if (showBBForm && is9HoleRound) setBbBetType('straight')
   }, [showBBForm, is9HoleRound])
+  // Nassau not available for front9/back9 matchups — reset if user selects a range
+  useEffect(() => {
+    if (newHoleRange !== 'all' && newBetType === 'nassau') setNewBetType('straight')
+  }, [newHoleRange, newBetType])
+  useEffect(() => {
+    if (bbHoleRange !== 'all' && bbBetType === 'nassau') setBbBetType('straight')
+  }, [bbHoleRange, bbBetType])
+  useEffect(() => {
+    if (editH2HHoleRange !== 'all' && editH2HBetType === 'nassau') setEditH2HBetType('straight')
+  }, [editH2HHoleRange, editH2HBetType])
+  useEffect(() => {
+    if (editBBHoleRange !== 'all' && editBBBetType === 'nassau') setEditBBBetType('straight')
+  }, [editBBHoleRange, editBBBetType])
 
   const payouts = useMemo(
     () => computeMatchupPayouts(matchups, bestBallMatchups, players, scoreMap, holes),
@@ -1347,6 +1400,19 @@ export default function MatchupClient({
                     </select>
                   </div>
 
+                  {/* Hole Range — only on 18-hole rounds */}
+                  {!is9HoleRound && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Holes</label>
+                      <select value={newHoleRange} onChange={(e) => setNewHoleRange(e.target.value as HoleRange)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                        <option value="all">Full Round</option>
+                        <option value="front9">Front 9 Only</option>
+                        <option value="back9">Back 9 Only</option>
+                      </select>
+                    </div>
+                  )}
+
                   {/* Bet Type + Amount + Sweep — all on one row */}
                   <div className="flex items-end gap-2">
                     <div className="flex-1 min-w-0">
@@ -1354,7 +1420,7 @@ export default function MatchupClient({
                       <select value={newBetType} onChange={(e) => { setNewBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setNewSweepEnabled(false); setNewSweepAmount('') } }}
                         className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                         <option value="" disabled>Select…</option>
-                        {!is9HoleRound && <option value="nassau">Nassau</option>}
+                        {!is9HoleRound && newHoleRange === 'all' && <option value="nassau">Nassau</option>}
                         <option value="straight">Overall</option>
                       </select>
                     </div>
@@ -1427,7 +1493,7 @@ export default function MatchupClient({
 
                   {/* Save / Cancel */}
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-                    <button onClick={() => { setShowH2HForm(false); setNewP1(''); setNewP2(''); setNewBetType(''); setNewBetAmount(''); setNewFrontAmount(''); setNewBackAmount(''); setNewTotalAmount(''); setNewSweepEnabled(false); setNewSweepAmount(''); setNewStrokesEnabled(false); setNewStrokesFront(''); setNewStrokesBack(''); setNewStrokesTotal('') }}
+                    <button onClick={() => { setShowH2HForm(false); setNewP1(''); setNewP2(''); setNewBetType(''); setNewBetAmount(''); setNewFrontAmount(''); setNewBackAmount(''); setNewTotalAmount(''); setNewSweepEnabled(false); setNewSweepAmount(''); setNewStrokesEnabled(false); setNewStrokesFront(''); setNewStrokesBack(''); setNewStrokesTotal(''); setNewHoleRange('all') }}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">Cancel</button>
                     <button onClick={handleCreateH2H}
                       disabled={!newP1 || !newP2 || newP1 === newP2 || !newBetType || !newBetAmount.trim() || savingH2H}
@@ -1460,12 +1526,18 @@ export default function MatchupClient({
                     const mp1 = players.find((p) => p.id === m.player1_id)
                     const mp2 = players.find((p) => p.id === m.player2_id)
                     if (!mp1 || !mp2) return null
-                    const stats = computeStats(m.player1_id, m.player2_id, scoreMap, holes)
-                    const isFinal = stats.holesPlayed === holes.length && holes.length > 0
+                    const cardMatchupHoles = m.hole_range === 'front9'
+                      ? holes.filter(h => h.hole_number <= 9)
+                      : m.hole_range === 'back9'
+                      ? holes.filter(h => h.hole_number > 9)
+                      : holes
+                    const cardMatchupLastHole = cardMatchupHoles.length > 0 ? Math.max(...cardMatchupHoles.map(h => h.hole_number)) : lastHoleNumber
+                    const stats = computeStats(m.player1_id, m.player2_id, scoreMap, cardMatchupHoles)
+                    const isFinal = stats.holesPlayed === cardMatchupHoles.length && cardMatchupHoles.length > 0
                     // Individual scores for display — show each player's own total, not restricted to jointly-played holes
                     const indScore = (pid: string, wantFront: boolean, wantBack: boolean) => {
                       let s = 0, p = 0, c = 0
-                      for (const h of holes) {
+                      for (const h of cardMatchupHoles) {
                         const isFrontHole = h.hole_number <= 9
                         if (wantFront && !wantBack && !isFrontHole) continue
                         if (wantBack && !wantFront && isFrontHole) continue
@@ -1486,7 +1558,8 @@ export default function MatchupClient({
                     const p1First = mp1.name.split(' ')[0]
                     const p2First = mp2.name.split(' ')[0]
                     const h2hHole9 = (scoreMap[m.player1_id]?.[9] != null) && (scoreMap[m.player2_id]?.[9] != null)
-                    const h2hHole18 = (scoreMap[m.player1_id]?.[lastHoleNumber] != null) && (scoreMap[m.player2_id]?.[lastHoleNumber] != null)
+                    const h2hHole18 = (scoreMap[m.player1_id]?.[18] != null) && (scoreMap[m.player2_id]?.[18] != null)
+                    const h2hHoleLastSettlement = (scoreMap[m.player1_id]?.[cardMatchupLastHole] != null) && (scoreMap[m.player2_id]?.[cardMatchupLastHole] != null)
                     const { scoringType: h2hScoringType, betType: h2hBetType, handicapSide: h2hHcpSide, handicapFront: h2hHcpFront, handicapBack: h2hHcpBack, handicapTotal: h2hHcpTotal } = parseBet(m.bet)
                     const isMatchPlay = h2hScoringType === 'match'
                     const isOverallBet = h2hBetType === 'straight'
@@ -1507,7 +1580,7 @@ export default function MatchupClient({
                     const p1WinsTotal = listAdjP1Total !== null && listAdjP2Total !== null && listAdjP1Total < listAdjP2Total
                     const p2WinsTotal = listAdjP1Total !== null && listAdjP2Total !== null && listAdjP2Total < listAdjP1Total
                     // Press results (one per press entry)
-                    const pressResults = (m.press ?? []).map(pr => computePressResult(m.player1_id, m.player2_id, scoreMap, holes, pr))
+                    const pressResults = (m.press ?? []).map(pr => computePressResult(m.player1_id, m.player2_id, scoreMap, cardMatchupHoles, pr))
 
                     return (
                       <div key={m.id}>
@@ -1519,7 +1592,7 @@ export default function MatchupClient({
                                 {m.bet
                                   ? <span className="font-medium whitespace-nowrap" style={{ color: gold, fontSize: 'clamp(9px, 2.3vw, 11px)' }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300 text-[11px]">No bet</span>}
-                                <button onClick={() => { setEditingH2H(m.id); const p = parseBet(m.bet); setEditH2HBetType(p.betType); setEditH2HBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditH2HScoringType(p.scoringType); setEditH2HSweepAmount(p.sweepAmount); setEditH2HSweepEnabled(!!p.sweepAmount); setEditH2HStrokesEnabled(!!p.handicapSide); setEditH2HStrokesSide((p.handicapSide as 'p1' | 'p2') || 'p1'); setEditH2HStrokesFront(p.handicapFront); setEditH2HStrokesBack(p.handicapBack); setEditH2HStrokesTotal(p.handicapTotal); setEditH2HFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditH2HBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditH2HTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditH2HPresses(m.press ?? []); setPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editH2HRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
+                                <button onClick={() => { setEditingH2H(m.id); const p = parseBet(m.bet); setEditH2HBetType(p.betType); setEditH2HBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditH2HScoringType(p.scoringType); setEditH2HSweepAmount(p.sweepAmount); setEditH2HSweepEnabled(!!p.sweepAmount); setEditH2HStrokesEnabled(!!p.handicapSide); setEditH2HStrokesSide((p.handicapSide as 'p1' | 'p2') || 'p1'); setEditH2HStrokesFront(p.handicapFront); setEditH2HStrokesBack(p.handicapBack); setEditH2HStrokesTotal(p.handicapTotal); setEditH2HFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditH2HBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditH2HTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditH2HPresses(m.press ?? []); setEditH2HHoleRange((m.hole_range ?? 'all') as HoleRange); setPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editH2HRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
@@ -1535,12 +1608,25 @@ export default function MatchupClient({
                           {/* Edit form — shown below the controls row when editing */}
                           {isEditing && (
                             <div ref={editH2HRef} className="space-y-3 mb-3 bg-gray-50 rounded-xl p-3 border border-gray-200 [&_input]:text-base [&_select]:text-base">
-                              {/* Bet type label (static) */}
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium text-gray-500">Bet:</span>
-                                <span className="text-xs font-semibold text-gray-800">
-                                  {editH2HBetType === 'nassau' ? 'Nassau' : editH2HBetType === 'straight' ? 'Overall' : 'No bet'}
-                                </span>
+                              {/* Bet type label (static) + Hole range editor */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-medium text-gray-500">Bet:</span>
+                                  <span className="text-xs font-semibold text-gray-800">
+                                    {editH2HBetType === 'nassau' ? 'Nassau' : editH2HBetType === 'straight' ? 'Overall' : 'No bet'}
+                                  </span>
+                                </div>
+                                {!is9HoleRound && (
+                                  <div className="flex items-center gap-1.5 ml-auto">
+                                    <span className="text-xs font-medium text-gray-500">Holes:</span>
+                                    <select value={editH2HHoleRange} onChange={(e) => setEditH2HHoleRange(e.target.value as HoleRange)}
+                                      className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none">
+                                      <option value="all">Full Round</option>
+                                      <option value="front9">Front 9</option>
+                                      <option value="back9">Back 9</option>
+                                    </select>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Amount inputs */}
@@ -1835,8 +1921,8 @@ export default function MatchupClient({
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           {isMatchPlay ? mpCol(mTotal, total !== null) : <VsParDisplay n={total} />}
                                           {isMatchPlay
-                                            ? (h2hHole18 && mTotal > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
-                                            : (h2hHole18 && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
+                                            ? (h2hHoleLastSettlement && mTotal > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            : (h2hHoleLastSettlement && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
@@ -1931,6 +2017,19 @@ export default function MatchupClient({
                     </select>
                   </div>
 
+                  {/* Hole Range — only on 18-hole rounds */}
+                  {!is9HoleRound && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Holes</label>
+                      <select value={bbHoleRange} onChange={(e) => setBbHoleRange(e.target.value as HoleRange)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                        <option value="all">Full Round</option>
+                        <option value="front9">Front 9 Only</option>
+                        <option value="back9">Back 9 Only</option>
+                      </select>
+                    </div>
+                  )}
+
                   {/* Bet Type + Amount + Sweep — all on one row */}
                   <div className="flex items-end gap-2">
                     <div className="flex-1 min-w-0">
@@ -1938,7 +2037,7 @@ export default function MatchupClient({
                       <select value={bbBetType} onChange={(e) => { setBbBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setBbSweepEnabled(false); setBbSweepAmount('') } }}
                         className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                         <option value="" disabled>Select…</option>
-                        {!is9HoleRound && <option value="nassau">Nassau</option>}
+                        {!is9HoleRound && bbHoleRange === 'all' && <option value="nassau">Nassau</option>}
                         <option value="straight">Overall</option>
                       </select>
                     </div>
@@ -2011,7 +2110,7 @@ export default function MatchupClient({
 
                   {/* Save / Cancel */}
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-                    <button onClick={() => { setShowBBForm(false); setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetType(''); setBbBetAmount(''); setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount(''); setBbSweepEnabled(false); setBbSweepAmount(''); setBbStrokesEnabled(false); setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal('') }}
+                    <button onClick={() => { setShowBBForm(false); setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetType(''); setBbBetAmount(''); setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount(''); setBbSweepEnabled(false); setBbSweepAmount(''); setBbStrokesEnabled(false); setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal(''); setBbHoleRange('all') }}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">Cancel</button>
                     <button onClick={handleCreateBB}
                       disabled={!bbT1P1 || !bbT1P2 || !bbT2P1 || !bbT2P2 || new Set([bbT1P1, bbT1P2, bbT2P1, bbT2P2]).size !== 4 || !bbBetType || !bbBetAmount.trim() || savingBB}
@@ -2046,14 +2145,21 @@ export default function MatchupClient({
                     const t2p1 = players.find((p) => p.id === m.team2_player1_id)
                     const t2p2 = players.find((p) => p.id === m.team2_player2_id)
                     if (!t1p1 || !t1p2 || !t2p1 || !t2p2) return null
-                    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
-                    const isFinal = stats.holesPlayed === holes.length && holes.length > 0
+                    const bbCardMatchupHoles = m.hole_range === 'front9'
+                      ? holes.filter(h => h.hole_number <= 9)
+                      : m.hole_range === 'back9'
+                      ? holes.filter(h => h.hole_number > 9)
+                      : holes
+                    const bbCardLastHole = bbCardMatchupHoles.length > 0 ? Math.max(...bbCardMatchupHoles.map(h => h.hole_number)) : lastHoleNumber
+                    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, bbCardMatchupHoles)
+                    const isFinal = stats.holesPlayed === bbCardMatchupHoles.length && bbCardMatchupHoles.length > 0
                     const leader = stats.t1Wins > stats.t2Wins ? 'team1' : stats.t2Wins > stats.t1Wins ? 'team2' : null
                     const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
                     const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
                     const isEditingBB = editingBB === m.id
                     const bbHole9 = (scoreMap[m.team1_player1_id]?.[9] != null || scoreMap[m.team1_player2_id]?.[9] != null) && (scoreMap[m.team2_player1_id]?.[9] != null || scoreMap[m.team2_player2_id]?.[9] != null)
-                    const bbHole18 = (scoreMap[m.team1_player1_id]?.[lastHoleNumber] != null || scoreMap[m.team1_player2_id]?.[lastHoleNumber] != null) && (scoreMap[m.team2_player1_id]?.[lastHoleNumber] != null || scoreMap[m.team2_player2_id]?.[lastHoleNumber] != null)
+                    const bbHole18 = (scoreMap[m.team1_player1_id]?.[18] != null || scoreMap[m.team1_player2_id]?.[18] != null) && (scoreMap[m.team2_player1_id]?.[18] != null || scoreMap[m.team2_player2_id]?.[18] != null)
+                    const bbHoleLastSettlement = (scoreMap[m.team1_player1_id]?.[bbCardLastHole] != null || scoreMap[m.team1_player2_id]?.[bbCardLastHole] != null) && (scoreMap[m.team2_player1_id]?.[bbCardLastHole] != null || scoreMap[m.team2_player2_id]?.[bbCardLastHole] != null)
                     const { scoringType: bbScoringTypeParsed, betType: bbBetTypeParsed, handicapSide: bbListHcpSide, handicapFront: bbListHcpFront, handicapBack: bbListHcpBack, handicapTotal: bbListHcpTotal } = parseBet(m.bet)
                     const isBBMatchPlay = bbScoringTypeParsed === 'match'
                     const isBBOverallBet = bbBetTypeParsed === 'straight'
@@ -2073,7 +2179,7 @@ export default function MatchupClient({
                     const t2WinsBack = bbListAdjT1Back !== null && bbListAdjT2Back !== null && bbListAdjT2Back < bbListAdjT1Back
                     const t1WinsTotal = bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT1Total < bbListAdjT2Total
                     const t2WinsTotal = bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT2Total < bbListAdjT1Total
-                    const bbPressResults = (m.press ?? []).map(pr => computeBBPressResult(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes, pr))
+                    const bbPressResults = (m.press ?? []).map(pr => computeBBPressResult(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, bbCardMatchupHoles, pr))
 
                     return (
                       <div key={m.id}>
@@ -2085,7 +2191,7 @@ export default function MatchupClient({
                                 {m.bet
                                   ? <span className="font-medium whitespace-nowrap" style={{ color: gold, fontSize: 'clamp(9px, 2.3vw, 11px)' }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300 text-[11px]">No bet</span>}
-                                <button onClick={() => { setEditingBB(m.id); const p = parseBet(m.bet); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditBBPresses(m.press ?? []); setBBPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
+                                <button onClick={() => { setEditingBB(m.id); setEditBBHoleRange((m.hole_range ?? 'all') as HoleRange); const p = parseBet(m.bet); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditBBPresses(m.press ?? []); setBBPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
@@ -2114,12 +2220,25 @@ export default function MatchupClient({
                           {/* Edit form — shown below the controls row when editing */}
                           {isEditingBB && (
                             <div ref={editBBRef} className="space-y-3 mb-3 bg-gray-50 rounded-xl p-3 border border-gray-200 [&_input]:text-base [&_select]:text-base">
-                              {/* Bet type label (static) */}
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium text-gray-500">Bet:</span>
-                                <span className="text-xs font-semibold text-gray-800">
-                                  {editBBBetType === 'nassau' ? 'Nassau' : editBBBetType === 'straight' ? 'Overall' : 'No bet'}
-                                </span>
+                              {/* Bet type label (static) + Hole range editor */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-medium text-gray-500">Bet:</span>
+                                  <span className="text-xs font-semibold text-gray-800">
+                                    {editBBBetType === 'nassau' ? 'Nassau' : editBBBetType === 'straight' ? 'Overall' : 'No bet'}
+                                  </span>
+                                </div>
+                                {!is9HoleRound && (
+                                  <div className="flex items-center gap-1.5 ml-auto">
+                                    <span className="text-xs font-medium text-gray-500">Holes:</span>
+                                    <select value={editBBHoleRange} onChange={(e) => setEditBBHoleRange(e.target.value as HoleRange)}
+                                      className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none">
+                                      <option value="all">Full Round</option>
+                                      <option value="front9">Front 9</option>
+                                      <option value="back9">Back 9</option>
+                                    </select>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Amount inputs */}
@@ -2370,7 +2489,7 @@ export default function MatchupClient({
                                   { tName: t1Name, front: stats.t1Front, back: stats.t1Back, total: stats.t1Total, p1Id: m.team1_player1_id, p2Id: m.team1_player2_id, color: '#2563eb', wFront: t1WinsFront, wBack: t1WinsBack, wTotal: t1WinsTotal, mFront: stats.t1FrontWins - stats.t2FrontWins, mBack: stats.t1BackWins - stats.t2BackWins, mTotal: stats.t1Wins - stats.t2Wins },
                                   { tName: t2Name, front: stats.t2Front, back: stats.t2Back, total: stats.t2Total, p1Id: m.team2_player1_id, p2Id: m.team2_player2_id, color: '#92400e', wFront: t2WinsFront, wBack: t2WinsBack, wTotal: t2WinsTotal, mFront: stats.t2FrontWins - stats.t1FrontWins, mBack: stats.t2BackWins - stats.t1BackWins, mTotal: stats.t2Wins - stats.t1Wins },
                                 ] as const).map(({ tName, front, back, total, p1Id, p2Id, color, wFront, wBack, wTotal, mFront, mBack, mTotal }, rowIdx) => {
-                                  const thru = holes.filter((h) =>
+                                  const thru = bbCardMatchupHoles.filter((h) =>
                                     (scoreMap[p1Id]?.[h.hole_number] != null) ||
                                     (scoreMap[p2Id]?.[h.hole_number] != null)
                                   ).length
@@ -2421,8 +2540,8 @@ export default function MatchupClient({
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           {isBBMatchPlay ? mpCol(mTotal, total !== null) : <VsParDisplay n={total} />}
                                           {isBBMatchPlay
-                                            ? (bbHole18 && mTotal > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
-                                            : (bbHole18 && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
+                                            ? (bbHoleLastSettlement && mTotal > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            : (bbHoleLastSettlement && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>

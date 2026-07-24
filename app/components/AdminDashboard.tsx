@@ -29,8 +29,8 @@ import {
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
-  computeDaytonaSidesSummary, computePlayerDaytonaPoints, settleDaytonaPlayerPoints,
-  computePlayerDaytonaDollars,
+  computeDaytonaSidesSummary, settleDaytonaPlayerPoints,
+  computePlayerDaytonaDollarsSplit,
   computeSkinsResults,
   type DaytonaHoleAssignment, type BallHalfResult, type SkinResult,
 } from '@/lib/scoring'
@@ -146,7 +146,7 @@ type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: s
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
-type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null }
+type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; daytona_variant_back9?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null }
 type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -584,6 +584,7 @@ export default function AdminDashboard({
   const [editDaytonaType, setEditDaytonaType] = useState('')
   const [editDaytonaSubVariant, setEditDaytonaSubVariant] = useState('')
   const [editDaytonaPayout, setEditDaytonaPayout] = useState('')
+  const [editDaytonaBack9, setEditDaytonaBack9] = useState('')
   const [selectedCourse, setSelectedCourse] = useState('')
   const [selectedFormat, setSelectedFormat] = useState('')
   const [showNewRoundForm, setShowNewRoundForm] = useState(!round)
@@ -646,6 +647,7 @@ export default function AdminDashboard({
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
   const [newTeamDaytonaEnabled, setNewTeamDaytonaEnabled] = useState(false)
   const [newTeamDaytonaPayout, setNewTeamDaytonaPayout] = useState('')
+  const [newTeamDaytonaBack9, setNewTeamDaytonaBack9] = useState('')
   const [newTeamBankerEnabled, setNewTeamBankerEnabled] = useState(false)
   const [newTeamBankerMinBet, setNewTeamBankerMinBet] = useState('2')
   const [newTeamAutoStrokes, setNewTeamAutoStrokes] = useState(false)
@@ -1001,7 +1003,7 @@ export default function AdminDashboard({
       const tAssign = dtAssignments.filter((a) => tpIds.includes(a.player_id))
       const tScores = liveScores.filter((s) => tpIds.includes(s.player_id))
       const tHoleVals = liveHoleValues[team.id] ?? {}
-      const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, team.daytona_variant ?? round?.daytona_variant ?? '4man', dtPayoutValue, tHoleVals)
+      const dollarTotals = computePlayerDaytonaDollarsSplit(holes, tScores, tAssign, team.daytona_variant ?? round?.daytona_variant ?? '4man', team.daytona_variant_back9, dtPayoutValue, tHoleVals)
       const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
       for (const [id, amt] of Object.entries(pNet)) allNet[id] = (allNet[id] ?? 0) + amt
     }
@@ -1351,8 +1353,9 @@ export default function AdminDashboard({
     const count = players.filter(p => p.team_id === team.id).length
     if (isDaytona) {
       const teamVariant = team.daytona_variant ?? '4man'
-      const required = teamVariant.startsWith('5man') ? 5 : 4
-      return count === required
+      const frontReq = teamVariant.startsWith('5man') ? 5 : 4
+      const backReq = team.daytona_variant_back9 ? (team.daytona_variant_back9.startsWith('5man') ? 5 : 4) : frontReq
+      return count >= Math.min(frontReq, backReq) && count <= Math.max(frontReq, backReq)
     }
     if (isTraditional) return count >= 2 && count <= 5
     return count >= (round?.balls_count ?? 3) && count <= 5
@@ -3396,25 +3399,38 @@ export default function AdminDashboard({
                       {addTeamState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{addTeamState.error}</p>}
                       {showAddTeamSuccess && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">{(isDaytona || isTraditional) ? 'Group' : 'Team'} added!</p>}
                       {isDaytona && (
-                        <div className="flex gap-2">
-                          <select value={newTeamDaytonaType} onChange={(e) => { setNewTeamDaytonaType(e.target.value); setNewTeamSubVariant('') }} required
-                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                            <option value="" disabled>Daytona Type…</option>
-                            <option value="4">4-Man</option>
-                            <option value="5">5-Man</option>
-                          </select>
-                          {newTeamDaytonaType === '5' && (
-                            <select value={newTeamSubVariant} onChange={(e) => setNewTeamSubVariant(e.target.value)} required
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <select value={newTeamDaytonaType} onChange={(e) => { setNewTeamDaytonaType(e.target.value); setNewTeamSubVariant('') }} required
                               className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-                              <option value="" disabled>Variant…</option>
-                              <option value="normal">Normal</option>
-                              <option value="flares">Flares</option>
+                              <option value="" disabled>Daytona Type…</option>
+                              <option value="4">4-Man</option>
+                              <option value="5">5-Man</option>
                             </select>
-                          )}
-                          <input type="hidden" name="daytona_variant" value={
-                            newTeamDaytonaType === '4' ? '4man' :
-                            newTeamDaytonaType === '5' ? `5man-${newTeamSubVariant || 'normal'}` : ''
-                          } />
+                            {newTeamDaytonaType === '5' && (
+                              <select value={newTeamSubVariant} onChange={(e) => setNewTeamSubVariant(e.target.value)} required
+                                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                <option value="" disabled>Variant…</option>
+                                <option value="normal">Normal</option>
+                                <option value="flares">Flares</option>
+                              </select>
+                            )}
+                            <input type="hidden" name="daytona_variant" value={
+                              newTeamDaytonaType === '4' ? '4man' :
+                              newTeamDaytonaType === '5' ? `5man-${newTeamSubVariant || 'normal'}` : ''
+                            } />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-500 whitespace-nowrap">Back 9</label>
+                            <select value={newTeamDaytonaBack9} onChange={(e) => setNewTeamDaytonaBack9(e.target.value)}
+                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                              <option value="">Same as front</option>
+                              <option value="4man">4-Man</option>
+                              <option value="5man-normal">5-Man Normal</option>
+                              <option value="5man-flares">5-Man Flares</option>
+                            </select>
+                            <input type="hidden" name="daytona_variant_back9" value={newTeamDaytonaBack9} />
+                          </div>
                         </div>
                       )}
                       {(isTraditional || isStandard) && !mixedGroups && (
@@ -3425,7 +3441,7 @@ export default function AdminDashboard({
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                 <button type="button"
-                                  onClick={() => { setNewTeamDaytonaEnabled(v => !v); setNewTeamDaytonaType(''); setNewTeamSubVariant(''); setNewTeamAutoStrokes(false) }}
+                                  onClick={() => { setNewTeamDaytonaEnabled(v => !v); setNewTeamDaytonaType(''); setNewTeamSubVariant(''); setNewTeamDaytonaBack9(''); setNewTeamAutoStrokes(false) }}
                                   className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                   {newTeamDaytonaEnabled ? 'On' : 'Off'}
                                 </button>
@@ -3455,10 +3471,21 @@ export default function AdminDashboard({
                                       onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
                                       className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                                   </div>
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-xs text-gray-500 whitespace-nowrap">Back 9</label>
+                                    <select value={newTeamDaytonaBack9} onChange={(e) => setNewTeamDaytonaBack9(e.target.value)}
+                                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                                      <option value="">Same as front</option>
+                                      <option value="4man">4-Man</option>
+                                      <option value="5man-normal">5-Man Normal</option>
+                                      <option value="5man-flares">5-Man Flares</option>
+                                    </select>
+                                  </div>
                                   <input type="hidden" name="daytona_variant" value={
                                     newTeamDaytonaType === '4' ? `4man|${newTeamDaytonaPayout || '0'}` :
                                     newTeamDaytonaType === '5' ? `5man-${newTeamSubVariant || 'normal'}|${newTeamDaytonaPayout || '0'}` : ''
                                   } />
+                                  <input type="hidden" name="daytona_variant_back9" value={newTeamDaytonaBack9} />
                                 </div>
                               )}
                             </>
@@ -3578,6 +3605,41 @@ export default function AdminDashboard({
                                   className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
                               )}
                             </div>
+                            {isDaytona && (
+                              <div className="space-y-2">
+                                <div className="flex gap-2">
+                                  <select value={editDaytonaType} onChange={(e) => { setEditDaytonaType(e.target.value); setEditDaytonaSubVariant('') }}
+                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                    <option value="" disabled>Daytona Type…</option>
+                                    <option value="4">4-Man</option>
+                                    <option value="5">5-Man</option>
+                                  </select>
+                                  {editDaytonaType === '5' && (
+                                    <select value={editDaytonaSubVariant} onChange={(e) => setEditDaytonaSubVariant(e.target.value)}
+                                      className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                      <option value="" disabled>Variant…</option>
+                                      <option value="normal">Normal</option>
+                                      <option value="flares">Flares</option>
+                                    </select>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs text-gray-500 whitespace-nowrap">Back 9</label>
+                                  <select value={editDaytonaBack9} onChange={(e) => setEditDaytonaBack9(e.target.value)}
+                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                    <option value="">Same as front</option>
+                                    <option value="4man">4-Man</option>
+                                    <option value="5man-normal">5-Man Normal</option>
+                                    <option value="5man-flares">5-Man Flares</option>
+                                  </select>
+                                </div>
+                                <input type="hidden" name="daytona_variant" value={
+                                  editDaytonaType === '4' ? '4man' :
+                                  editDaytonaType === '5' ? `5man-${editDaytonaSubVariant || 'normal'}` : ''
+                                } />
+                                <input type="hidden" name="daytona_variant_back9" value={editDaytonaBack9} />
+                              </div>
+                            )}
                             {!isDaytona && !mixedGroups && (
                               <div className="space-y-2">
                                 {/* Daytona Side Game — hidden when Banker is On */}
@@ -3587,7 +3649,7 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = async () => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditAutoStrokes(false) }
+                                          const doIt = async () => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditDaytonaBack9(''); setEditAutoStrokes(false) }
                                           if (editDaytonaEnabled && round?.is_started) {
                                             setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: doIt })
                                           } else { doIt() }
@@ -3621,6 +3683,16 @@ export default function AdminDashboard({
                                             onFocus={(e) => { if (e.target.value === '0') e.target.value = '' }}
                                             className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
                                         </div>
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-xs text-gray-500 whitespace-nowrap">Back 9</label>
+                                          <select value={editDaytonaBack9} onChange={(e) => setEditDaytonaBack9(e.target.value)}
+                                            className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+                                            <option value="">Same as front</option>
+                                            <option value="4man">4-Man</option>
+                                            <option value="5man-normal">5-Man Normal</option>
+                                            <option value="5man-flares">5-Man Flares</option>
+                                          </select>
+                                        </div>
                                       </div>
                                     )}
                                   </>
@@ -3629,6 +3701,7 @@ export default function AdminDashboard({
                                   editDaytonaEnabled && editDaytonaType === '4' ? `4man|${editDaytonaPayout || '0'}` :
                                   editDaytonaEnabled && editDaytonaType === '5' ? `5man-${editDaytonaSubVariant || 'normal'}|${editDaytonaPayout || '0'}` : ''
                                 } />
+                                <input type="hidden" name="daytona_variant_back9" value={editDaytonaEnabled ? editDaytonaBack9 : ''} />
                                 {/* Banker Side Game — hidden when Daytona is On */}
                                 {!editDaytonaEnabled && (
                                   <>
@@ -3726,6 +3799,10 @@ export default function AdminDashboard({
                                   const label = v === '5man-flares' ? 'Daytona 5-Man Flares' : v === '5man-normal' ? 'Daytona 5-Man Normal' : 'Daytona 4-Man'
                                   return <> · <span className="font-medium text-gray-700">{label}{p && p !== '0' ? ` · $${p}/pt` : ''}</span></>
                                 })()}
+                                {team.daytona_variant_back9 && (() => {
+                                  const label = team.daytona_variant_back9 === '5man-flares' ? '5-Man Flares' : team.daytona_variant_back9 === '5man-normal' ? '5-Man Normal' : '4-Man'
+                                  return <> · <span className="font-medium text-gray-700">Back 9: {label}</span></>
+                                })()}
                                 {team.banker_side_game && <> · <span className="font-medium text-blue-700">Banker · ${team.banker_side_game_min_bet ?? 2} min.</span></>}
                                 {team.hammer_side_game && <> · <span className="font-medium text-orange-700">Hammer · {team.hammer_format === 'match' ? 'Match' : 'Stroke'} · ${team.hammer_base_bet ?? 1}/hole</span></>}
                                 {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
@@ -3734,9 +3811,11 @@ export default function AdminDashboard({
                                 {(() => {
                                   if (isTraditional) {
                                     if (team.daytona_variant) {
-                                      const required = team.daytona_variant.split('|')[0].startsWith('5man') ? 5 : 4
-                                      const ok = teamPlayers.length === required
-                                      const over = teamPlayers.length > required
+                                      const frontReq = team.daytona_variant.split('|')[0].startsWith('5man') ? 5 : 4
+                                      const backReq = team.daytona_variant_back9 ? (team.daytona_variant_back9.startsWith('5man') ? 5 : 4) : frontReq
+                                      const minReq = Math.min(frontReq, backReq), maxReq = Math.max(frontReq, backReq)
+                                      const ok = teamPlayers.length >= minReq && teamPlayers.length <= maxReq
+                                      const over = teamPlayers.length > maxReq
                                       return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                     }
                                     const ok = teamPlayers.length >= 2 && teamPlayers.length <= 5
@@ -3745,9 +3824,11 @@ export default function AdminDashboard({
                                   }
                                   if (isDaytona) {
                                     const teamVariant = (team.daytona_variant ?? '4man').split('|')[0]
-                                    const required = teamVariant.startsWith('5man') ? 5 : 4
-                                    const ok = teamPlayers.length === required
-                                    const over = teamPlayers.length > required
+                                    const frontReq = teamVariant.startsWith('5man') ? 5 : 4
+                                    const backReq = team.daytona_variant_back9 ? (team.daytona_variant_back9.startsWith('5man') ? 5 : 4) : frontReq
+                                    const minReq = Math.min(frontReq, backReq), maxReq = Math.max(frontReq, backReq)
+                                    const ok = teamPlayers.length >= minReq && teamPlayers.length <= maxReq
+                                    const over = teamPlayers.length > maxReq
                                     return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                   }
                                   const required = round?.balls_count ?? 3
@@ -3759,7 +3840,7 @@ export default function AdminDashboard({
                             </div>
                             <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 flex-shrink-0">
                               <button onClick={() => {
-                                const v = team.daytona_variant ?? ''
+                                const v = team.daytona_variant ?? (isDaytona ? (round?.daytona_variant ?? '') : '')
                                 const [variant, payout] = v.includes('|') ? v.split('|') : [v, '']
                                 setEditingTeamId(team.id)
                                 setEditName(team.name)
@@ -3768,6 +3849,7 @@ export default function AdminDashboard({
                                 setEditDaytonaType(variant.startsWith('5man') ? '5' : variant === '4man' ? '4' : '')
                                 setEditDaytonaSubVariant(variant === '5man-flares' ? 'flares' : variant === '5man-normal' ? 'normal' : '')
                                 setEditDaytonaPayout(payout || '')
+                                setEditDaytonaBack9(team.daytona_variant_back9 ?? '')
                                 setEditBankerEnabled(!!team.banker_side_game)
                                 setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
                                 setEditAutoStrokes(!!team.auto_strokes)
@@ -3860,7 +3942,7 @@ export default function AdminDashboard({
                             ))}
                             {(() => {
                               const maxPlayers = (isDaytona || (isTraditional && team.daytona_variant))
-                                ? (team.daytona_variant ?? '4man').split('|')[0].startsWith('5man') ? 5 : 4
+                                ? ((team.daytona_variant ?? '4man').split('|')[0].startsWith('5man') || team.daytona_variant_back9?.startsWith('5man')) ? 5 : 4
                                 : 5
                               if (teamPlayers.length >= maxPlayers) return null
                               return (

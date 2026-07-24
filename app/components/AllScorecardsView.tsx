@@ -51,7 +51,7 @@ function ptsColor(pts: number | null): string {
 
 export default function AllScorecardsView({
   orgSlug, orgId, orgName, isMaster = false,
-  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {}, dtPayoutValue = 0, initialHoleStrokes = {},
+  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, daytonaVariantBack9 = null, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {}, dtPayoutValue = 0, initialHoleStrokes = {},
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   roundId: string
@@ -61,6 +61,7 @@ export default function AllScorecardsView({
   initialScores: Score[]
   initialAssignments: DaytonaHoleAssignment[]
   daytonaVariant: string
+  daytonaVariantBack9?: string | null
   isAdmin?: boolean
   scorecardTeamId?: string | null
   teamHoleValues?: Record<string, Record<number, number>>
@@ -81,6 +82,9 @@ export default function AllScorecardsView({
   }
   const is5Man = daytonaVariant.startsWith('5man')
   const isFlares = daytonaVariant === '5man-flares'
+  const variantAt = (holeNumber: number) => (daytonaVariantBack9 && holeNumber > 9) ? daytonaVariantBack9 : daytonaVariant
+  const is5ManAt = (holeNumber: number) => variantAt(holeNumber).startsWith('5man')
+  const isFlaresAt = (holeNumber: number) => variantAt(holeNumber) === '5man-flares'
 
   useEffect(() => {
     async function refetchAll() {
@@ -138,7 +142,7 @@ export default function AllScorecardsView({
     const holeAssignments = assignments.filter((a) => a.hole_number === hole.hole_number)
     const leftIds = holeAssignments.filter((a) => a.side === 'left').map((a) => a.player_id)
     const rightIds = holeAssignments.filter((a) => a.side === 'right').map((a) => a.player_id)
-    if (is5Man) {
+    if (is5ManAt(hole.hole_number)) {
       if (leftIds.length >= 2 && rightIds.length >= 3) {
         holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par))
       }
@@ -461,8 +465,8 @@ export default function AllScorecardsView({
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null
                         const par = holes.find((h) => h.hole_number === n)?.par ?? 4
-                        const leftChar = isFlares ? (par === 3 ? 'C' : 'O') : 'L'
-                        const rightChar = isFlares ? (par === 3 ? 'F' : 'I') : 'R'
+                        const leftChar = isFlaresAt(n) ? (par === 3 ? 'C' : 'O') : 'L'
+                        const rightChar = isFlaresAt(n) ? (par === 3 ? 'F' : 'I') : 'R'
                         return (
                           <td key={n} style={tdCell()}>
                             {side != null
@@ -476,8 +480,8 @@ export default function AllScorecardsView({
                         const a = assignments.find((a) => a.player_id === player.id && a.hole_number === n)
                         const side = a?.side ?? null
                         const par = holes.find((h) => h.hole_number === n)?.par ?? 4
-                        const leftChar = isFlares ? (par === 3 ? 'C' : 'O') : 'L'
-                        const rightChar = isFlares ? (par === 3 ? 'F' : 'I') : 'R'
+                        const leftChar = isFlaresAt(n) ? (par === 3 ? 'C' : 'O') : 'L'
+                        const rightChar = isFlaresAt(n) ? (par === 3 ? 'F' : 'I') : 'R'
                         return (
                           <td key={n} style={tdCell()}>
                             {side != null

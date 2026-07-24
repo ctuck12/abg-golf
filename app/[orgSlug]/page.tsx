@@ -42,7 +42,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   if (isAdmin && !hasGroupSession && !round?.is_started) redirect(`/${orgSlug}/admin/dashboard`)
 
   const { data: teamsRaw } = round
-    ? await sb.from('teams').select('id, name, daytona_variant').eq('round_id', round.id).order('name')
+    ? await sb.from('teams').select('id, name, daytona_variant, daytona_variant_back9').eq('round_id', round.id).order('name')
     : { data: [] }
   const teams = teamsRaw ?? []
 

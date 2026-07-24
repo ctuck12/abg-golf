@@ -2,15 +2,16 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  computeTeamBallSummary, computePlayerDaytonaPoints,
+  computeTeamBallSummary,
+  computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
-  computePlayerDaytonaDollars, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
+  computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
   type DaytonaHoleAssignment, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 import { ScoreNotation } from './ScoreNotation'
 
-type Team = { id: string; name: string; daytona_variant?: string | null; exclude_matchups?: boolean | null }
+type Team = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null; exclude_matchups?: boolean | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -43,6 +44,7 @@ function buildSegmentBreakdown(
   scores: { player_id: string; hole_number: number; strokes: number }[],
   assignments: DaytonaHoleAssignment[],
   variant: string,
+  back9Variant: string | null | undefined,
   overrides: Record<number, number>,
   defaultRate: number
 ): SegBreak[] {
@@ -60,7 +62,7 @@ function buildSegmentBreakdown(
   return segs.map(seg => ({
     label: seg.start === seg.end ? `H${seg.start}` : `H${seg.start}–${seg.end}`,
     rate: seg.rate,
-    ptsByPlayer: computePlayerDaytonaPoints(seg.holeObjs, scores, assignments, variant),
+    ptsByPlayer: computePlayerDaytonaPointsSplit(seg.holeObjs, scores, assignments, variant, back9Variant),
   }))
 }
 
@@ -652,16 +654,17 @@ export default function LeaderboardClient({
         return { ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0) }
       })
     const variant = team.daytona_variant ?? daytonaVariant
-    const groupPointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, variant)
+    const back9 = team.daytona_variant_back9 ?? null
+    const groupPointsMap = computePlayerDaytonaPointsSplit(holes, tScores, tAssign, variant, back9)
     // Build per-hole points map (mirrors computePlayerDaytonaPoints internally) so
     // All Scorecards can display per-hole PTS using the exact same netted scores.
     const holePtsByHole = new Map<number, Map<string, number>>()
-    const dtIs5Man = variant.startsWith('5man')
     for (const hole of holes) {
       const ha = tAssign.filter((a) => a.hole_number === hole.hole_number)
       if (!ha.length) continue
       const lIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
       const rIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
+      const dtIs5Man = (back9 && hole.hole_number > 9 ? back9 : variant).startsWith('5man')
       if (dtIs5Man) {
         if (lIds.length < 2 || rIds.length < 3) continue
         holePtsByHole.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(lIds, rIds, tScores, hole.hole_number, hole.par))
@@ -690,7 +693,7 @@ export default function LeaderboardClient({
       if (!aHas) return 1; if (!bHas) return -1
       return b.points - a.points
     })
-    return { team, variant, rows: groupRows, holePtsByHole }
+    return { team, variant, back9, rows: groupRows, holePtsByHole }
   }) : []
 
   const traditionalPlayerRows = isTraditional ? players.map((p) => {
@@ -783,14 +786,15 @@ export default function LeaderboardClient({
                 const strokeIds = effectiveTradStrokeIds(s.hole_number, holeData?.stroke_index)
                 return { ...s, strokes: s.strokes - (strokeIds.includes(s.player_id) ? 1 : 0) }
               })
-            pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
             const tVariant = team.daytona_variant!.split('|')[0]
-            const tIs5Man = tVariant.startsWith('5man')
+            const tBack9 = team.daytona_variant_back9 ?? null
+            pointsMap = computePlayerDaytonaPointsSplit(holes, tScores, tAssign, tVariant, tBack9)
             for (const hole of holes) {
               const ha = tAssign.filter((a) => a.hole_number === hole.hole_number)
               if (!ha.length) continue
               const lIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
               const rIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
+              const tIs5Man = (tBack9 && hole.hole_number > 9 ? tBack9 : tVariant).startsWith('5man')
               if (tIs5Man) {
                 if (lIds.length < 2 || rIds.length < 3) continue
                 holePtsByHoleTraditional.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(lIds, rIds, tScores, hole.hole_number, hole.par))
@@ -962,7 +966,7 @@ export default function LeaderboardClient({
               }
             }
           }
-          return { id: pg.id, name: pg.name, daytona_variant: pg.daytona_variant ?? null, rows, hasDaytona, hasBanker, pointsMap, holePtsByHole, bankerTotals }
+          return { id: pg.id, name: pg.name, daytona_variant: pg.daytona_variant ?? null, daytona_variant_back9: null as string | null, rows, hasDaytona, hasBanker, pointsMap, holePtsByHole, bankerTotals }
         }).filter((g) => g.rows.length > 0)
       : initialTeams
           .map((team) => {
@@ -974,9 +978,9 @@ export default function LeaderboardClient({
               const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
               const tScores = scores.filter((s) => tpIds.includes(s.player_id))
                 .map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
-              pointsMap = computePlayerDaytonaPoints(holes, tScores, tAssign, team.daytona_variant!.split('|')[0])
+              pointsMap = computePlayerDaytonaPointsSplit(holes, tScores, tAssign, team.daytona_variant!.split('|')[0], team.daytona_variant_back9)
             }
-            return { id: team.id, name: team.name, daytona_variant: team.daytona_variant ?? null, rows, hasDaytona, hasBanker: false, pointsMap, holePtsByHole: new Map<number, Map<string, number>>(), bankerTotals: {} as Record<string, number> }
+            return { id: team.id, name: team.name, daytona_variant: team.daytona_variant ?? null, daytona_variant_back9: team.daytona_variant_back9 ?? null, rows, hasDaytona, hasBanker: false, pointsMap, holePtsByHole: new Map<number, Map<string, number>>(), bankerTotals: {} as Record<string, number> }
           })
           .filter((g) => g.rows.length > 0)
           .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
@@ -1053,7 +1057,7 @@ export default function LeaderboardClient({
       const tScores = scores.filter((s) => tpIds.includes(s.player_id))
       const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
       const tHoleVals = liveHoleValues[group.team.id] ?? {}
-      const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, group.variant, dtPayoutValue, tHoleVals)
+      const dollarTotals = computePlayerDaytonaDollarsSplit(holes, netTScores, tAssign, group.variant, group.back9, dtPayoutValue, tHoleVals)
       const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
       for (const [id, amt] of Object.entries(pNet)) {
         combinedNet[id] = (combinedNet[id] ?? 0) + amt
@@ -1074,7 +1078,7 @@ export default function LeaderboardClient({
     const tScores = scores.filter((s) => pids.includes(s.player_id))
     const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
     const tHoleVals = liveHoleValues[group.id] ?? {}
-    const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, variant, groupPayoutValue, tHoleVals)
+    const dollarTotals = computePlayerDaytonaDollarsSplit(holes, netTScores, tAssign, variant, group.daytona_variant_back9, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
     for (const [id, amt] of Object.entries(pNet)) {
       combinedNet[id] = (combinedNet[id] ?? 0) + amt
@@ -1093,7 +1097,7 @@ export default function LeaderboardClient({
     const tScores = scores.filter((s) => pids.includes(s.player_id))
     const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
     const tHoleVals = liveHoleValues[group.team.id] ?? {}
-    const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, variant, groupPayoutValue, tHoleVals)
+    const dollarTotals = computePlayerDaytonaDollarsSplit(holes, netTScores, tAssign, variant, group.team.daytona_variant_back9, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
     for (const [id, amt] of Object.entries(pNet)) {
       combinedNet[id] = (combinedNet[id] ?? 0) + amt
@@ -1266,11 +1270,13 @@ export default function LeaderboardClient({
                         const tScores = scores.filter((s) => tpIds.includes(s.player_id))
                         const netTScores2 = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
                         const tHoleVals2 = liveHoleValues[group.team.id] ?? {}
-                        const pointTotals = computePlayerDaytonaPoints(holes, netTScores2, tAssign, group.variant)
-                        const dollarTotals2 = computePlayerDaytonaDollars(holes, netTScores2, tAssign, group.variant, dtPayoutValue, tHoleVals2)
+                        const pointTotals = computePlayerDaytonaPointsSplit(holes, netTScores2, tAssign, group.variant, group.back9)
+                        const dollarTotals2 = computePlayerDaytonaDollarsSplit(holes, netTScores2, tAssign, group.variant, group.back9, dtPayoutValue, tHoleVals2)
                         const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, dollarTotals2, 1)
-                        const variantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares' : group.variant?.startsWith('5man') ? '5-Man Normal' : '4-Man'
-                        const segments = buildSegmentBreakdown(holes, netTScores2, tAssign, group.variant, tHoleVals2, dtPayoutValue)
+                        const frontVariantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares' : group.variant?.startsWith('5man') ? '5-Man Normal' : '4-Man'
+                        const back9VariantLabel = group.back9 ? (group.back9 === '5man-flares' ? '5-Man Flares' : group.back9 === '5man-normal' ? '5-Man Normal' : '4-Man') : null
+                        const variantLabel = back9VariantLabel && back9VariantLabel !== frontVariantLabel ? `${frontVariantLabel} / Back 9: ${back9VariantLabel}` : frontVariantLabel
+                        const segments = buildSegmentBreakdown(holes, netTScores2, tAssign, group.variant, group.back9, tHoleVals2, dtPayoutValue)
                         return (
                           <div key={group.team.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
                             <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
@@ -1563,7 +1569,7 @@ export default function LeaderboardClient({
                   </button>
                   {showDaytonaSideResults && (
                     <div className="border-t border-gray-100">
-                      {[...standardGroupRows.filter((g) => g.hasDaytona), ...traditionalGroupRows.filter((g) => g.hasDaytona).map((g) => ({ id: g.team.id, name: g.team.name, daytona_variant: g.team.daytona_variant, rows: g.rows, hasDaytona: true, hasBanker: false, pointsMap: g.pointsMap, bankerTotals: {} as Record<string, number> }))].map((group, ti) => {
+                      {[...standardGroupRows.filter((g) => g.hasDaytona), ...traditionalGroupRows.filter((g) => g.hasDaytona).map((g) => ({ id: g.team.id, name: g.team.name, daytona_variant: g.team.daytona_variant, daytona_variant_back9: g.team.daytona_variant_back9 ?? null, rows: g.rows, hasDaytona: true, hasBanker: false, pointsMap: g.pointsMap, bankerTotals: {} as Record<string, number> }))].map((group, ti) => {
                         const rawVariant = group.daytona_variant!
                         const variant = rawVariant.split('|')[0]
                         const payoutStr = rawVariant.includes('|') ? rawVariant.split('|')[1] : null
@@ -1575,9 +1581,9 @@ export default function LeaderboardClient({
                         const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
                         const tHoleVals = liveHoleValues[group.id] ?? {}
                         const pointTotals = group.pointsMap ?? new Map<string, number>()
-                        const dollarTotals = computePlayerDaytonaDollars(holes, netTScores, tAssign, variant, groupPayoutValue, tHoleVals)
+                        const dollarTotals = computePlayerDaytonaDollarsSplit(holes, netTScores, tAssign, variant, group.daytona_variant_back9, groupPayoutValue, tHoleVals)
                         const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
-                        const segments = buildSegmentBreakdown(holes, netTScores, tAssign, variant, tHoleVals, groupPayoutValue)
+                        const segments = buildSegmentBreakdown(holes, netTScores, tAssign, variant, group.daytona_variant_back9, tHoleVals, groupPayoutValue)
                         return (
                           <div key={group.id} className={ti > 0 ? 'border-t-2 border-gray-200' : ''}>
                             <div className="px-4 py-2 bg-gray-50 flex items-center gap-2">
@@ -2733,8 +2739,10 @@ export default function LeaderboardClient({
         {isDaytona && leaderboardView === 'group' && dtGroupRows.length > 1 ? (
           <div className="space-y-4">
             {dtGroupRows.map((group) => {
-              const variantLabel = group.variant?.startsWith('5man-flares') ? '5-Man Flares'
+              const frontLbl = group.variant?.startsWith('5man-flares') ? '5-Man Flares'
                 : group.variant?.startsWith('5man') ? '5-Man Normal' : '4-Man'
+              const backLbl = group.back9 ? (group.back9 === '5man-flares' ? '5-Man Flares' : group.back9 === '5man-normal' ? '5-Man Normal' : '4-Man') : null
+              const variantLabel = backLbl && backLbl !== frontLbl ? `${frontLbl} / Back 9: ${backLbl}` : frontLbl
               return (
                 <div key={group.team.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                   <div style={{ background: navy }}>

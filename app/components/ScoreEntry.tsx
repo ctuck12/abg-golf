@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
 import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import {
   computeHoleBallScores, computeTeamBallSummary,
-  computeHoleDaytonaWithSides, computeDaytonaSidesSummary, computePlayerDaytonaPoints,
-  computeHoleDaytonaPointsFiveMan, computePlayerDaytonaDollars,
+  computeHoleDaytonaWithSides, computeDaytonaSidesSummary,
+  computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
+  computeHoleDaytonaPointsFiveMan,
   calculatePoolPayouts, settleDaytonaPlayerPoints,
   type DaytonaHoleAssignment, type DaytonaSide,
 } from '@/lib/scoring'
@@ -17,7 +18,7 @@ type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type Team = { id: string; name: string }
 type AssignmentMap = Record<number, Record<string, DaytonaSide>>
-type AllTeam = { id: string; name: string; daytona_variant?: string | null }
+type AllTeam = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null }
 type AllPlayer = { id: string; team_id: string; name: string; position: number | null }
 type BallValue = { ball_number: number; value_dollars: number }
 type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string }
@@ -58,6 +59,7 @@ function buildSegmentBreakdown(
   scores: { player_id: string; hole_number: number; strokes: number }[],
   assignments: DaytonaHoleAssignment[],
   variant: string,
+  back9Variant: string | null | undefined,
   overrides: Record<number, number>,
   defaultRate: number
 ): SegBreak[] {
@@ -75,7 +77,7 @@ function buildSegmentBreakdown(
   return segs.map(seg => ({
     label: seg.start === seg.end ? `H${seg.start}` : `H${seg.start}–${seg.end}`,
     rate: seg.rate,
-    ptsByPlayer: computePlayerDaytonaPoints(seg.holeObjs, scores, assignments, variant),
+    ptsByPlayer: computePlayerDaytonaPointsSplit(seg.holeObjs, scores, assignments, variant, back9Variant),
   }))
 }
 
@@ -303,7 +305,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds,
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', daytonaVariantBack9 = null, isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds,
 }: {
   orgSlug: string
   orgId: string
@@ -316,6 +318,7 @@ export default function ScoreEntry({
   ballsCount: number
   format?: string
   daytonaVariant?: string
+  daytonaVariantBack9?: string | null
   isAdmin: boolean
   isStarted?: boolean
   roundId?: string
@@ -339,6 +342,9 @@ export default function ScoreEntry({
   const isDaytonaMode = isDaytona || !!isDaytonaSideGame
   const isFlares = daytonaVariant === '5man-flares'
   const is5Man = isDaytonaMode && (daytonaVariant === '5man-normal' || daytonaVariant === '5man-flares')
+  const variantForHole = (holeNumber: number) => (daytonaVariantBack9 && holeNumber > 9) ? daytonaVariantBack9 : daytonaVariant
+  const is5ManForHole = (holeNumber: number) => isDaytonaMode && variantForHole(holeNumber).startsWith('5man')
+  const isFlaresForHole = (holeNumber: number) => variantForHole(holeNumber) === '5man-flares'
   const leftLabel = isFlares ? 'Out' : 'Left'
   const rightLabel = isFlares ? 'In' : 'Right'
 
@@ -978,7 +984,7 @@ export default function ScoreEntry({
     : savedScores
 
   const dtSummary = isDaytonaMode ? computeDaytonaSidesSummary(holes, netSavedScores, flatAssignments) : null
-  const playerPointTotals = isDaytonaMode ? computePlayerDaytonaPoints(holes, netSavedScores, flatAssignments, daytonaVariant) : new Map<string, number>()
+  const playerPointTotals = isDaytonaMode ? computePlayerDaytonaPointsSplit(holes, netSavedScores, flatAssignments, daytonaVariant, daytonaVariantBack9) : new Map<string, number>()
 
   const scoreBarFs = useMemo(() => {
     const cw = (_vpw - 32) * 0.92
@@ -1110,6 +1116,7 @@ export default function ScoreEntry({
           dtPayoutValue={defaultDtPayoutValue}
           is5Man={is5Man}
           isFlares={isFlares}
+          variantBack9={daytonaVariantBack9}
           isBankerMode={isBanker}
           bankerHoles={bankerHoles}
           bankerBets={bankerBets}
@@ -1308,7 +1315,7 @@ export default function ScoreEntry({
             const ha = flatAssignments.filter((a) => a.hole_number === hole.hole_number)
             const leftIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
             const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
-            if (is5Man) {
+            if (is5ManForHole(hole.hole_number)) {
               if (leftIds.length >= 2 && rightIds.length >= 3)
                 holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netSavedScores, hole.hole_number, hole.par))
             } else if (leftIds.length >= 2 && rightIds.length >= 2) {
@@ -1350,7 +1357,6 @@ export default function ScoreEntry({
           background: hi ? '#dbeafe' : 'white', fontWeight: hi ? 700 : 400,
           color: hi ? '#1e40af' : undefined, fontSize: '0.65rem', textAlign: 'center', padding: '0.2rem 0.15rem',
         })
-        const isFlares = daytonaVariant === '5man-flares'
         const frontPar = frontHoles.reduce((s, h) => s + h.par, 0)
         const backPar = backHoles.reduce((s, h) => s + h.par, 0)
         const totalPar = holes.reduce((s, h) => s + h.par, 0)
@@ -1440,15 +1446,15 @@ export default function ScoreEntry({
                           <td style={{ ...tdC(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
                           {frontHoles.map((h) => {
                             const side = assignments[h.hole_number]?.[p.id] ?? null
-                            const lC = isFlares ? (h.par === 3 ? 'C' : 'O') : 'L'
-                            const rC = isFlares ? (h.par === 3 ? 'F' : 'I') : 'R'
+                            const lC = isFlaresForHole(h.hole_number) ? (h.par === 3 ? 'C' : 'O') : 'L'
+                            const rC = isFlaresForHole(h.hole_number) ? (h.par === 3 ? 'F' : 'I') : 'R'
                             return <td key={h.hole_number} style={tdC()}>{side ? <span style={{ fontWeight: 700, fontSize: '0.65rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? lC : rC}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                           })}
                           <td style={tdC(true)} />
                           {backHoles.map((h) => {
                             const side = assignments[h.hole_number]?.[p.id] ?? null
-                            const lC = isFlares ? (h.par === 3 ? 'C' : 'O') : 'L'
-                            const rC = isFlares ? (h.par === 3 ? 'F' : 'I') : 'R'
+                            const lC = isFlaresForHole(h.hole_number) ? (h.par === 3 ? 'C' : 'O') : 'L'
+                            const rC = isFlaresForHole(h.hole_number) ? (h.par === 3 ? 'F' : 'I') : 'R'
                             return <td key={h.hole_number} style={tdC()}>{side ? <span style={{ fontWeight: 700, fontSize: '0.65rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? lC : rC}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
                           })}
                           <td style={tdC(true)} /><td style={tdC()} />
@@ -1530,7 +1536,7 @@ export default function ScoreEntry({
                     const tAssign = payoutsData.assignments.filter((a) => tpIds.includes(a.player_id))
                     const tScores = payoutsData.scores.filter((s) => tpIds.includes(s.player_id))
                     const tHoleVals = payoutsData.holeValues[t.id] ?? {}
-                    const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant, dtPayoutValue, tHoleVals)
+                    const dollarTotals = computePlayerDaytonaDollarsSplit(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant, t.daytona_variant_back9 ?? (t.id === team.id ? daytonaVariantBack9 : null), dtPayoutValue, tHoleVals)
                     const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
                     for (const [id, amt] of Object.entries(pNet)) daytonaNetByPlayer[id] = (daytonaNetByPlayer[id] ?? 0) + amt
                   }
@@ -1597,10 +1603,11 @@ export default function ScoreEntry({
                               const tScores = tScoresRaw.map((s) => ({ ...s, strokes: s.strokes - (payoutsData.holeStrokesAll.some((hs) => hs.hole_number === s.hole_number && hs.player_id === s.player_id) ? 1 : 0) }))
                               const tHoleVals = payoutsData.holeValues[t.id] ?? {}
                               const dtVariant = t.daytona_variant ?? daytonaVariant
-                              const pointTotals = computePlayerDaytonaPoints(holes, tScores, tAssign, dtVariant)
-                              const dollarTotals = computePlayerDaytonaDollars(holes, tScores, tAssign, dtVariant, dtPayoutValue, tHoleVals)
+                              const dtVariantBack9 = t.daytona_variant_back9 ?? (t.id === team.id ? daytonaVariantBack9 : null)
+                              const pointTotals = computePlayerDaytonaPointsSplit(holes, tScores, tAssign, dtVariant, dtVariantBack9)
+                              const dollarTotals = computePlayerDaytonaDollarsSplit(holes, tScores, tAssign, dtVariant, dtVariantBack9, dtPayoutValue, tHoleVals)
                               const { net: playerNet, settlements: playerSettlements } = settleDaytonaPlayerPoints(teamPlayers, dollarTotals, 1)
-                              const segments = buildSegmentBreakdown(holes, tScores, tAssign, dtVariant, tHoleVals, dtPayoutValue)
+                              const segments = buildSegmentBreakdown(holes, tScores, tAssign, dtVariant, dtVariantBack9, tHoleVals, dtPayoutValue)
                               return (
                                 <div key={t.id} className={ti > 0 ? 'border-t border-gray-100' : ''}>
                                   <div className="px-4 py-2.5"><p className="font-semibold text-gray-900 text-sm">{t.name}</p><p className="text-xs text-gray-400">{formatHoleRateBreakdown(holes, tHoleVals, dtPayoutValue)}</p></div>
@@ -1855,8 +1862,10 @@ export default function ScoreEntry({
           const isExpanded = isStarted && expandedHole === hole.hole_number
           const isLocked = !isStarted || (!isSaved && currentHole !== null && hole.hole_number > currentHole)
           const error = errors[hole.hole_number]
-          const holeLeftLabel = isFlares && hole.par === 3 ? 'Close' : leftLabel
-          const holeRightLabel = isFlares && hole.par === 3 ? 'Far' : rightLabel
+          const holeIs5Man = is5ManForHole(hole.hole_number)
+          const holeIsFlares = isFlaresForHole(hole.hole_number)
+          const holeLeftLabel = holeIsFlares ? (hole.par === 3 ? 'Close' : 'Out') : 'Left'
+          const holeRightLabel = holeIsFlares ? (hole.par === 3 ? 'Far' : 'In') : 'Right'
 
           const savedHolePlayerScores = players.map((p) => {
             const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
@@ -1883,14 +1892,14 @@ export default function ScoreEntry({
 
           // For 5-man: compute DT for each of the 3 right-side pairs (and corresponding left scores)
           const savedRightPairDts: (number | null)[] = (() => {
-            if (!is5Man || allHoleRightIds.length !== 3) return []
+            if (!holeIs5Man || allHoleRightIds.length !== 3) return []
             return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
               const pScores = [allHoleRightIds[a], allHoleRightIds[b]].map(netGroup).filter((s): s is number => s !== undefined)
               return computeHoleDaytonaWithSides(savedLeftScores, pScores, hole.par).rightDt
             })
           })()
           const savedLeftPairDts: (number | null)[] = (() => {
-            if (!is5Man || allHoleRightIds.length !== 3) return []
+            if (!holeIs5Man || allHoleRightIds.length !== 3) return []
             return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
               const pScores = [allHoleRightIds[a], allHoleRightIds[b]].map(netGroup).filter((s): s is number => s !== undefined)
               return computeHoleDaytonaWithSides(savedLeftScores, pScores, hole.par).leftDt
@@ -1902,7 +1911,7 @@ export default function ScoreEntry({
             if (!isDaytonaMode || !isSaved) return new Map()
             const leftIds = players.filter((p) => holeAssignments[p.id] === 'left').map((p) => p.id)
             const rightIds = players.filter((p) => holeAssignments[p.id] === 'right').map((p) => p.id)
-            if (is5Man) {
+            if (holeIs5Man) {
               if (leftIds.length < 2 || rightIds.length < 3) return new Map()
               const netScores = savedScores.map((s) => ({ ...s, strokes: s.strokes - (effectiveStrokeIds(s.hole_number).includes(s.player_id) ? 1 : 0) }))
               return computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netScores, hole.hole_number, hole.par)
@@ -1932,7 +1941,7 @@ export default function ScoreEntry({
             : { leftDt: null, rightDt: null }
 
           const liveRightPairDts: (number | null)[] = (() => {
-            if (!is5Man) return []
+            if (!holeIs5Man) return []
             const rightPlayers = players.filter((p) => holeAssignments[p.id] === 'right')
             if (rightPlayers.length !== 3) return []
             return ([[0,1],[0,2],[1,2]] as [number,number][]).map(([a, b]) => {
@@ -1984,7 +1993,7 @@ export default function ScoreEntry({
                   <div className="flex items-center gap-3 mr-2">
                     {isDaytonaMode ? (
                       <>
-                        {is5Man && savedLeftPairDts.length === 3 ? (
+                        {holeIs5Man && savedLeftPairDts.length === 3 ? (
                           <div className="text-center mr-3">
                             <p className="text-xs" style={{ color: '#2563eb' }}>{holeLeftLabel}</p>
                             <p className="font-bold text-sm text-gray-900">
@@ -1997,7 +2006,7 @@ export default function ScoreEntry({
                             <p className="font-bold text-sm text-gray-900">{leftDt ?? '–'}</p>
                           </div>
                         )}
-                        {is5Man && savedRightPairDts.length === 3 ? (
+                        {holeIs5Man && savedRightPairDts.length === 3 ? (
                           <div className="text-center">
                             <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
                             <p className="font-bold text-sm text-gray-900">
@@ -2010,7 +2019,7 @@ export default function ScoreEntry({
                               <p className="text-xs" style={{ color: '#92400e' }}>{holeRightLabel}</p>
                               <p className="font-bold text-sm text-gray-900">{rightDt ?? '–'}</p>
                             </div>
-                            {is5Man && leftDt != null && rightDt != null && leftDt !== rightDt && (
+                            {holeIs5Man && leftDt != null && rightDt != null && leftDt !== rightDt && (
                               <div className="text-center">
                                 <p className="text-xs text-gray-400">Pts</p>
                                 <p className="font-bold text-sm" style={{ color: leftDt < rightDt ? '#16a34a' : '#dc2626' }}>
@@ -2252,7 +2261,7 @@ export default function ScoreEntry({
                                 // Once the right-side target is reached (3 for 5-man variants, 2 for 4-man),
                                 // auto-assign all remaining unassigned to 'left'
                                 const newRightCount = Object.values(holeMap).filter(s => s === 'right').length
-                                const rightTarget = is5Man ? 3 : 2
+                                const rightTarget = holeIs5Man ? 3 : 2
                                 if (newRightCount === rightTarget) {
                                   for (const p of players) {
                                     if (!(p.id in holeMap)) holeMap[p.id] = 'left'
@@ -2329,10 +2338,10 @@ export default function ScoreEntry({
                     return (
                       <>
                         {!allAssigned && (
-                          <p className="text-xs text-red-500 mt-1">{isFlares && hole.par === 3 ? "Select 2 Closest Players" : isFlares ? "Select 2 Outside Players" : "Select 2 Left Players"}</p>
+                          <p className="text-xs text-red-500 mt-1">{holeIsFlares && hole.par === 3 ? "Select 2 Closest Players" : holeIsFlares ? "Select 2 Outside Players" : "Select 2 Left Players"}</p>
                         )}
                         {allAssigned && leftCount !== 2 && (
-                          <p className="text-xs text-red-500 mt-1">{isFlares && hole.par === 3 ? "Need exactly 2 Close & 3 Far" : isFlares ? "Need exactly 2 Out & 3 In" : is5Man ? "Need exactly 2 Left & 3 Right" : "Need exactly 2 Left & 2 Right"}</p>
+                          <p className="text-xs text-red-500 mt-1">{holeIsFlares && hole.par === 3 ? "Need exactly 2 Close & 3 Far" : holeIsFlares ? "Need exactly 2 Out & 3 In" : holeIs5Man ? "Need exactly 2 Left & 3 Right" : "Need exactly 2 Left & 2 Right"}</p>
                         )}
                       </>
                     )

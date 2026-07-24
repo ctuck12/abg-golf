@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { getOrgAuth } from '@/lib/org-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import AllScorecardsView from '@/app/components/AllScorecardsView'
-import { computePlayerDaytonaPoints, type DaytonaHoleAssignment } from '@/lib/scoring'
+import { computePlayerDaytonaPointsSplit, type DaytonaHoleAssignment } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +29,7 @@ export default async function OrgAllScorecardsPage({
   const { data: round } = await sb.from('rounds').select('id, format, daytona_variant').eq('is_active', true).eq('org_id', orgId).single()
   if (!round || round.format !== 'daytona') redirect(`/${orgSlug}`)
 
-  const { data: allTeams } = await sb.from('teams').select('id, name, daytona_variant').eq('round_id', round.id)
+  const { data: allTeams } = await sb.from('teams').select('id, name, daytona_variant, daytona_variant_back9').eq('round_id', round.id)
   const teams = teamId ? (allTeams ?? []).filter((t: { id: string }) => t.id === teamId) : (allTeams ?? [])
   const teamIds = teams.map((t: { id: string }) => t.id)
 
@@ -58,7 +58,8 @@ export default async function OrgAllScorecardsPage({
   }
 
   const daytonaVariant = (teams[0] as { daytona_variant?: string | null } | undefined)?.daytona_variant ?? round.daytona_variant ?? '4man'
-  const pointsMap = computePlayerDaytonaPoints(holes ?? [], scores ?? [], (assignments ?? []) as DaytonaHoleAssignment[], daytonaVariant)
+  const daytonaVariantBack9 = (teams[0] as { daytona_variant_back9?: string | null } | undefined)?.daytona_variant_back9 ?? null
+  const pointsMap = computePlayerDaytonaPointsSplit(holes ?? [], scores ?? [], (assignments ?? []) as DaytonaHoleAssignment[], daytonaVariant, daytonaVariantBack9)
   const teamNameMap = Object.fromEntries(teams.map((t: { id: string; name: string }) => [t.id, t.name]))
 
   const rankedPlayers = (players ?? [])
@@ -89,6 +90,7 @@ export default async function OrgAllScorecardsPage({
       initialScores={scores ?? []}
       initialAssignments={(assignments ?? []) as DaytonaHoleAssignment[]}
       daytonaVariant={daytonaVariant}
+      daytonaVariantBack9={daytonaVariantBack9}
       isAdmin={isAdmin}
       scorecardTeamId={scorecardTeamId}
       teamHoleValues={teamHoleValues}
