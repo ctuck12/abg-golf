@@ -626,7 +626,10 @@ export default function AdminDashboard({
   })
   const [payoutSaved, setPayoutSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
-    return ls.payoutSaved ?? (ballValues.length > 0 || round?.format === 'traditional')
+    // $0 ball values are created automatically on round creation — don't count those as "saved".
+    // Only treat payout as saved when a non-zero value was deliberately set, or LS confirms it.
+    const hasRealBallValue = ballValues.some(bv => bv.value_dollars > 0)
+    return ls.payoutSaved ?? (hasRealBallValue || round?.format === 'traditional')
   })
   const [teamsSaved, setTeamsSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
@@ -828,7 +831,8 @@ export default function AdminDashboard({
       (ls.payoutSaved ?? false) || ballValues.length > 0 || teams.length > 0 ||
       (round?.is_started ?? false) || round?.format === 'traditional' || round != null
     ))
-    setPayoutSaved(ls.payoutSaved ?? (ballValues.length > 0 || round?.format === 'traditional'))
+    const hasRealBallValue = ballValues.some(bv => bv.value_dollars > 0)
+    setPayoutSaved(ls.payoutSaved ?? (hasRealBallValue || round?.format === 'traditional'))
     setSkinsSaved(ls.skinsSaved ?? false)
     setTeamsSaved(ls.teamsSaved ?? false)
     setGroupCountSaved(ls.groupCountSaved ?? !!(round?.playing_group_count && round.playing_group_count > 0))
@@ -2388,9 +2392,9 @@ export default function AdminDashboard({
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Value Per Point ($)</label>
                       <input type="number" name="ball_1" min="0" step="0.25"
-                        value={ballVals[1] ?? 0.25}
+                        value={!payoutSaved && (ballVals[1] ?? 0) === 0 ? '' : (ballVals[1] ?? 0.25)}
+                        placeholder="e.g. 0.25"
                         onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
-                        onFocus={(e) => { if ((ballVals[1] ?? 0) === 0) e.target.value = '' }}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                       <p className="text-xs text-gray-400 mt-1">Each point = this dollar amount. Points are the DT score difference per hole per player.</p>
                     </div>
@@ -2398,9 +2402,9 @@ export default function AdminDashboard({
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Value Per Ball ($)</label>
                       <input type="number" name="ball_1" min="0" step="1"
-                        value={ballVals[1] ?? 5}
+                        value={!payoutSaved && (ballVals[1] ?? 0) === 0 ? '' : (ballVals[1] ?? 5)}
+                        placeholder="e.g. 5"
                         onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
-                        onFocus={(e) => { if ((ballVals[1] ?? 0) === 0) e.target.value = '' }}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                       <p className="text-xs text-gray-400 mt-1">Dollar amount each ball result is worth per player. Winning team splits the pot. Ties wash.</p>
                     </div>
