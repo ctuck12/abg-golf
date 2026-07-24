@@ -617,7 +617,10 @@ export default function AdminDashboard({
   })
   const [roundSaved, setRoundSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
+    // A round existing in the DB means "Start New Round" was already submitted.
+    // localStorage is the primary source; fall back to any evidence a round is set up.
     return ls.roundSaved ?? (
+      !!round ||
       (ls.payoutSaved ?? false) || ballValues.length > 0 || teams.length > 0 ||
       (round?.is_started ?? false) || round?.format === 'traditional'
     )
@@ -823,6 +826,7 @@ export default function AdminDashboard({
     // Restore setup wizard progress from localStorage for the current round
     const ls = getSetupLS(round?.id)
     setRoundSaved(ls.roundSaved ?? (
+      !!round ||
       (ls.payoutSaved ?? false) || ballValues.length > 0 || teams.length > 0 ||
       (round?.is_started ?? false) || round?.format === 'traditional'
     ))
@@ -1322,14 +1326,17 @@ export default function AdminDashboard({
   const effectivePayoutSaved = payoutSaved || isTraditional   // Traditional has no payout step
   // Mixed groups is "done" when: not standard, OR chose No, OR chose Yes + Set clicked + all groups created
   const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupCountSaved && targetGroupCount > 0 && livePlayingGroups.length === targetGroupCount)
-  // Step 1 — Payout: unlocks immediately after round creation
-  const payoutSectionEnabled = live || (setupBase && roundSaved)
+  // If the new-round form is open over an existing round, lock all downstream sections
+  // (they belong to the old round; settings don't apply until the new round is saved)
+  const creatingNewRound = showNewRoundForm && !!round && !editingRoundSettings
+  // Step 1 — Payout: unlocks once a round exists (round saved = round was created)
+  const payoutSectionEnabled = !creatingNewRound && (live || (setupBase && roundSaved))
   // Step 2 — Skins: unlocks after payout saved
-  const skinsSectionEnabled = live || (setupBase && effectivePayoutSaved)
+  const skinsSectionEnabled = !creatingNewRound && (live || (setupBase && effectivePayoutSaved))
   // Step 3 — Mixed Groups (standard only): unlocks after skins saved
-  const mixedGroupsSectionEnabled = live || (setupBase && skinsSaved)
+  const mixedGroupsSectionEnabled = !creatingNewRound && (live || (setupBase && skinsSaved))
   // Step 4 — Teams: unlocks after payout + skins + mixed groups all saved
-  const teamsAddEnabled = live || (setupBase && skinsSaved && effectivePayoutSaved && mixedGroupsSaved)
+  const teamsAddEnabled = !creatingNewRound && (live || (setupBase && skinsSaved && effectivePayoutSaved && mixedGroupsSaved))
   // Legacy alias used in a few spots below
   const skinsAndPayoutEnabled = payoutSectionEnabled
 
@@ -2367,9 +2374,9 @@ export default function AdminDashboard({
             {/* ── Per Ball / Per Point Payout Value ── */}
             {round && !isTraditional && (
               <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {!skinsAndPayoutEnabled && roundIsSettingUp && (
+                {!skinsAndPayoutEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    Complete the round form above to unlock
+                    {creatingNewRound ? 'Save the new round above to unlock' : 'Complete the round form above to unlock'}
                   </p>
                 )}
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">
@@ -2412,9 +2419,9 @@ export default function AdminDashboard({
             {/* ── Skins Game ── */}
             {round && (
               <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {!skinsSectionEnabled && roundIsSettingUp && (
+                {!skinsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    Save Payout Value above to unlock
+                    {creatingNewRound ? 'Save the new round above to unlock' : 'Save Per Ball/Per Point Value above to unlock'}
                   </p>
                 )}
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
@@ -2587,9 +2594,9 @@ export default function AdminDashboard({
             {/* ── Mixed Groups (standard format only) ── */}
             {round && round.format === 'standard' && (
               <div className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {!mixedGroupsSectionEnabled && roundIsSettingUp && (
+                {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    Save Skins Settings above to unlock
+                    {creatingNewRound ? 'Save the new round above to unlock' : 'Save Skins Settings above to unlock'}
                   </p>
                 )}
                 <h3 className="font-semibold text-gray-900 text-sm">Mixed Groups</h3>
@@ -3063,9 +3070,11 @@ export default function AdminDashboard({
                     {(round.format === 'daytona' || round.format === 'traditional') ? 'Add Group +' : 'Add Team +'}
                   </button>
                 </div>
-                {!teamsAddEnabled && roundIsSettingUp && (
+                {!teamsAddEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
-                    <p className="text-xs text-gray-400 text-center">Complete all sections above to unlock</p>
+                    <p className="text-xs text-gray-400 text-center">
+                      {creatingNewRound ? 'Save the new round above to unlock' : 'Complete all sections above to unlock'}
+                    </p>
                   </div>
                 )}
 
