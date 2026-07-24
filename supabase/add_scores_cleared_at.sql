@@ -1,0 +1,1 @@
+ALTER TABLE rounds ADD COLUMN IF NOT EXISTS scores_cleared_at TIMESTAMPTZ;

@@ -588,6 +588,10 @@ export default function AdminDashboard({
   const [showNewRoundForm, setShowNewRoundForm] = useState(!round)
   const [showNewRoundWarning, setShowNewRoundWarning] = useState(false)
   const [showCreateConfirm, setShowCreateConfirm] = useState(false)
+  const [editingRoundSettings, setEditingRoundSettings] = useState(false)
+  const [editRoundPending, setEditRoundPending] = useState(false)
+  const [editRoundError, setEditRoundError] = useState('')
+  const [editScoreClearConfirm, setEditScoreClearConfirm] = useState(false)
   const createFormRef = useRef<HTMLFormElement>(null)
   const [selectedBallsCount, setSelectedBallsCount] = useState('3')
   const [createIncludeTotal, setCreateIncludeTotal] = useState(false)
@@ -1238,6 +1242,71 @@ export default function AdminDashboard({
     }
   }
 
+  function enterRoundEditMode() {
+    if (!round) return
+    setNewRoundName(round.name ?? '')
+    setNewRoundDate(round.date ?? '')
+    setSelectedFormat(round.format ?? 'standard')
+    const matchedSlug = courses.find((c) => c.name === round.course)?.slug ?? ''
+    setSelectedCourse(matchedSlug)
+    setSelectedBallsCount(String(round.balls_count ?? 3))
+    setCreateIncludeTotal(round.include_total ?? false)
+    setSelectedHoleCount(String(holes.length || 18))
+    setSelectedStartHole(String(holes.length > 0 ? holes[0].hole_number : 1))
+    setBankerMinBetInput(String(round.banker_min_bet ?? 2))
+    setEditRoundError('')
+    setEditingRoundSettings(true)
+  }
+
+  async function handleEditRoundSave() {
+    if (!round) return
+    if (!newRoundName.trim() || !newRoundDate || !selectedFormat || !selectedCourse) {
+      setEditRoundError('Round name, date, format, and course are required.')
+      return
+    }
+    if (liveScores.length > 0) {
+      setEditScoreClearConfirm(true)
+      return
+    }
+    await doEditRound(false)
+  }
+
+  async function doEditRound(clearScores: boolean) {
+    if (!round) return
+    setEditRoundPending(true)
+    setEditRoundError('')
+    try {
+      const res = await fetch(`/api/round/${round.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newRoundName.trim(),
+          date: newRoundDate,
+          courseSlug: selectedCourse,
+          format: selectedFormat,
+          ballsCount: parseInt(selectedBallsCount) || 3,
+          includeTotal: createIncludeTotal,
+          holeCount: parseInt(selectedHoleCount) || 18,
+          startHole: parseInt(selectedStartHole) || 1,
+          bankerMinBet: parseFloat(bankerMinBetInput) || 2,
+          clearScores,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setEditRoundError(data.error)
+      } else {
+        setEditingRoundSettings(false)
+        setEditScoreClearConfirm(false)
+        window.location.reload()
+      }
+    } catch (e) {
+      setEditRoundError(e instanceof Error ? e.message : 'Network error. Please try again.')
+    } finally {
+      setEditRoundPending(false)
+    }
+  }
+
   const startMissingItems: string[] = []
   if (!newRoundName.trim()) startMissingItems.push('Round Name')
   if (!newRoundDate) startMissingItems.push('Date')
@@ -1302,10 +1371,10 @@ export default function AdminDashboard({
   }
 
   useEffect(() => {
-    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame
+    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame])
+  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm])
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -1452,7 +1521,40 @@ export default function AdminDashboard({
           </div>
         </div>
       )}
-      {/* ── Create Round confirmation modal is now rendered inside the <form> below ── */}
+      {/* ── Edit Round — Clear Scores confirmation modal ── */}
+      {editScoreClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg font-bold">!</div>
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base leading-snug">Clear all saved scores?</h2>
+                <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+                  This round already has scored holes. Saving these changes will clear all scored holes. Each scorekeeper will see a warning on their scorecard to re-enter completed hole scores.
+                </p>
+              </div>
+            </div>
+            <div className="border-t border-gray-100" />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setEditScoreClearConfirm(false)}
+                disabled={editRoundPending}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => doEditRound(true)}
+                disabled={editRoundPending}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: '#b91c1c' }}>
+                {editRoundPending ? 'Saving…' : 'Confirm & Clear Scores'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Remove Team confirmation modal ── */}
       {confirmRemoveTeamId && (() => {
@@ -1931,9 +2033,15 @@ export default function AdminDashboard({
           </div>
             {/* Create round */}
             {/* Collapse immediately on submit (createPending) or while refresh is pending (effectivePendingId) */}
-            {round && (!showNewRoundForm || createPending || !!effectivePendingId) ? (
-              /* Collapsed state — just show the button */
-              <div className="bg-white rounded-2xl border border-gray-200 px-4 py-5 flex items-center justify-center">
+            {round && ((!showNewRoundForm && !editingRoundSettings) || createPending || !!effectivePendingId) ? (
+              /* Collapsed state — show "Edit Round Settings" and "New Round +" buttons */
+              <div className="bg-white rounded-2xl border border-gray-200 px-4 py-5 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={enterRoundEditMode}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                  Edit Round Settings
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowNewRoundWarning(true)}
@@ -1946,19 +2054,22 @@ export default function AdminDashboard({
               <div className="bg-white rounded-2xl border border-gray-200 p-5">
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-gray-900 text-sm">
-                    {round ? 'Start New Round' : 'Set Up Round'}
+                    {editingRoundSettings ? 'Edit Round Settings' : round ? 'Start New Round' : 'Set Up Round'}
                   </h3>
                   {round && (
-                    <button type="button" onClick={() => setShowNewRoundForm(false)}
+                    <button
+                      type="button"
+                      onClick={() => { editingRoundSettings ? setEditingRoundSettings(false) : setShowNewRoundForm(false) }}
                       className="text-xs text-gray-400 hover:text-gray-600">✕ Cancel</button>
                   )}
                 </div>
-                {round && (
+                {round && !editingRoundSettings && (
                   <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mb-3">
                     This will end the current round and start a new one.
                   </p>
                 )}
-                {createError && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createError}</p>}
+                {editRoundError && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{editRoundError}</p>}
+                {createError && !editingRoundSettings && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2 mb-2">{createError}</p>}
                 <form ref={createFormRef} className="space-y-3">
                   <input type="hidden" name="orgId" value={orgId} />
                   <input type="hidden" name="orgSlug" value={orgSlug} />
@@ -2124,50 +2235,61 @@ export default function AdminDashboard({
                     </select>
                     <p className="text-xs text-gray-400 mt-1">Course pars auto-load — edit them in the Par Per Hole section after creating.</p>
                   </div>
-                  <div
-                    className="relative"
-                    onMouseEnter={() => { if (!canStartRound) setShowStartTooltip(true) }}
-                    onMouseLeave={() => setShowStartTooltip(false)}
-                  >
-                    {showStartTooltip && !canStartRound && (
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 w-56 shadow-lg pointer-events-none">
-                        <p className="font-semibold mb-1">Still needed:</p>
-                        <ul className="space-y-0.5 text-gray-300">
-                          {startMissingItems.map((item) => (
-                            <li key={item}>• {item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                  {editingRoundSettings ? (
                     <button
                       type="button"
-                      disabled={!canStartRound || createPending}
-                      onClick={async () => {
-                        if (!createFormRef.current) return
-                        setCreatePending(true)
-                        setCreateError('')
-                        try {
-                          const body = new FormData(createFormRef.current)
-                          const res = await fetch('/api/create-round', { method: 'POST', body })
-                          const data = await res.json()
-                          if (data.error) {
-                            setCreateError(data.error)
-                            setCreatePending(false)
-                          } else {
-                            const savedRoundId = data.roundId ?? round?.id
-                            if (savedRoundId) setSetupLS(savedRoundId, 'roundSaved', true)
-                            window.location.href = `/${orgSlug}/admin/dashboard`
-                          }
-                        } catch (e) {
-                          setCreateError(e instanceof Error ? e.message : 'Network error. Please try again.')
-                          setCreatePending(false)
-                        }
-                      }}
+                      disabled={editRoundPending || !newRoundName.trim() || !newRoundDate || !selectedFormat || !selectedCourse}
+                      onClick={handleEditRoundSave}
                       className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 transition"
-                      style={{ background: navy, cursor: !canStartRound ? 'not-allowed' : undefined }}>
-                      {createPending ? 'Creating…' : round ? 'Save' : 'Create Round'}
+                      style={{ background: navy }}>
+                      {editRoundPending ? 'Saving…' : 'Save Changes'}
                     </button>
-                  </div>
+                  ) : (
+                    <div
+                      className="relative"
+                      onMouseEnter={() => { if (!canStartRound) setShowStartTooltip(true) }}
+                      onMouseLeave={() => setShowStartTooltip(false)}
+                    >
+                      {showStartTooltip && !canStartRound && (
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 w-56 shadow-lg pointer-events-none">
+                          <p className="font-semibold mb-1">Still needed:</p>
+                          <ul className="space-y-0.5 text-gray-300">
+                            {startMissingItems.map((item) => (
+                              <li key={item}>• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!canStartRound || createPending}
+                        onClick={async () => {
+                          if (!createFormRef.current) return
+                          setCreatePending(true)
+                          setCreateError('')
+                          try {
+                            const body = new FormData(createFormRef.current)
+                            const res = await fetch('/api/create-round', { method: 'POST', body })
+                            const data = await res.json()
+                            if (data.error) {
+                              setCreateError(data.error)
+                              setCreatePending(false)
+                            } else {
+                              const savedRoundId = data.roundId ?? round?.id
+                              if (savedRoundId) setSetupLS(savedRoundId, 'roundSaved', true)
+                              window.location.href = `/${orgSlug}/admin/dashboard`
+                            }
+                          } catch (e) {
+                            setCreateError(e instanceof Error ? e.message : 'Network error. Please try again.')
+                            setCreatePending(false)
+                          }
+                        }}
+                        className="w-full text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 transition"
+                        style={{ background: navy, cursor: !canStartRound ? 'not-allowed' : undefined }}>
+                        {createPending ? 'Creating…' : round ? 'Save' : 'Create Round'}
+                      </button>
+                    </div>
+                  )}
                 </form>
               </div>
             )}
