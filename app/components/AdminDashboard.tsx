@@ -650,6 +650,11 @@ export default function AdminDashboard({
   const [rosterError, setRosterError] = useState('')
   const [rosterPickerTeamId, setRosterPickerTeamId] = useState<string | null>(null)
   const [rosterSearch, setRosterSearch] = useState('')
+  const [rosterPickerMaxPlayers, setRosterPickerMaxPlayers] = useState(5)
+  const [rosterPickerCurrentCount, setRosterPickerCurrentCount] = useState(0)
+  const [rosterPickerSelectedIds, setRosterPickerSelectedIds] = useState<Set<string>>(new Set())
+  const [rosterPickerAlreadyNames, setRosterPickerAlreadyNames] = useState<Set<string>>(new Set())
+  const [rosterPickerPending, setRosterPickerPending] = useState(false)
 
   // Team Generator state
   const [showTeamGenerator, setShowTeamGenerator] = useState(false)
@@ -1101,10 +1106,31 @@ export default function AdminDashboard({
     await deleteRosterPlayer(id)
     setLiveRoster((prev) => prev.filter((p) => p.id !== id))
   }
-  async function handleAddFromRoster(teamId: string, rosterPlayerId: string) {
-    const res = await addRosterPlayerToTeam(teamId, rosterPlayerId)
-    if (res.error) { alert(res.error); return }
-    setRosterPickerTeamId(null); router.refresh()
+  function closeRosterPicker() {
+    setRosterPickerTeamId(null)
+    setRosterSearch('')
+    setRosterPickerSelectedIds(new Set())
+  }
+
+  function toggleRosterPickerSelection(id: string) {
+    setRosterPickerSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function handleSaveFromRoster() {
+    if (!rosterPickerTeamId || rosterPickerSelectedIds.size === 0) return
+    setRosterPickerPending(true)
+    for (const rosterId of rosterPickerSelectedIds) {
+      const res = await addRosterPlayerToTeam(rosterPickerTeamId, rosterId)
+      if (res.error) { alert(res.error); break }
+    }
+    setRosterPickerPending(false)
+    closeRosterPicker()
+    router.refresh()
   }
 
   async function handleCreateHammerMatchup() {
@@ -1287,34 +1313,78 @@ export default function AdminDashboard({
 
       {/* ── Roster picker modal ── */}
       {rosterPickerTeamId && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => { setRosterPickerTeamId(null); setRosterSearch('') }}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => !rosterPickerPending && closeRosterPicker()}>
           <div className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-8" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-gray-900">Pick from Roster</h3>
-              <button onClick={() => { setRosterPickerTeamId(null); setRosterSearch('') }} className="text-gray-400 text-xl leading-none">✕</button>
+              <div>
+                <h3 className="font-bold text-gray-900">Pick from Roster</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {rosterPickerCurrentCount + rosterPickerSelectedIds.size}/{rosterPickerMaxPlayers} players
+                  {rosterPickerSelectedIds.size > 0 && <span className="text-green-600 font-medium"> · {rosterPickerSelectedIds.size} selected</span>}
+                </p>
+              </div>
+              <button onClick={closeRosterPicker} disabled={rosterPickerPending} className="text-gray-400 text-xl leading-none">✕</button>
             </div>
             <input value={rosterSearch} onChange={(e) => setRosterSearch(e.target.value)}
               placeholder="Search players…" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none mb-3" />
-            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            <div className="space-y-1.5 max-h-56 overflow-y-auto">
               {liveRoster
                 .filter((rp) => rp.name.toLowerCase().includes(rosterSearch.toLowerCase()))
-                .map((rp) => (
-                  <button key={rp.id} type="button"
-                    onClick={() => handleAddFromRoster(rosterPickerTeamId, rp.id)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition text-left">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{rp.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {rp.handicap_index != null && <span className="text-xs text-gray-500">HCP {rp.handicap_index < 0 ? `+${Math.abs(rp.handicap_index)}` : rp.handicap_index}</span>}
-                        {rp.ghin_number && <span className="text-xs font-mono text-blue-500">GHIN {rp.ghin_number}</span>}
+                .map((rp) => {
+                  const alreadyOnTeam = rosterPickerAlreadyNames.has(rp.name.toLowerCase())
+                  const isSelected = rosterPickerSelectedIds.has(rp.id)
+                  const atMax = rosterPickerCurrentCount + rosterPickerSelectedIds.size >= rosterPickerMaxPlayers
+                  const isDisabled = alreadyOnTeam || (!isSelected && atMax)
+                  return (
+                    <button key={rp.id} type="button"
+                      disabled={isDisabled}
+                      onClick={() => toggleRosterPickerSelection(rp.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition text-left ${
+                        alreadyOnTeam
+                          ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
+                          : isSelected
+                            ? 'border-green-400 bg-green-50'
+                            : isDisabled
+                              ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
+                              : 'border-gray-100 bg-gray-50 hover:bg-blue-50 hover:border-blue-200'
+                      }`}>
+                      <div>
+                        <p className={`text-sm font-medium ${isSelected ? 'text-green-700' : 'text-gray-800'}`}>{rp.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {rp.handicap_index != null && <span className="text-xs text-gray-500">HCP {rp.handicap_index < 0 ? `+${Math.abs(rp.handicap_index)}` : rp.handicap_index}</span>}
+                          {rp.ghin_number && <span className="text-xs font-mono text-blue-500">GHIN {rp.ghin_number}</span>}
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-blue-500 text-sm font-semibold">Add →</span>
-                  </button>
-                ))}
+                      <div className="flex-shrink-0 ml-2">
+                        {alreadyOnTeam
+                          ? <span className="text-xs text-gray-400">Added</span>
+                          : isSelected
+                            ? <span className="text-green-500 text-lg font-bold">✓</span>
+                            : <span className="text-blue-500 text-sm font-semibold">+ Select</span>
+                        }
+                      </div>
+                    </button>
+                  )
+                })}
               {liveRoster.filter((rp) => rp.name.toLowerCase().includes(rosterSearch.toLowerCase())).length === 0 && (
                 <p className="text-sm text-gray-400 text-center py-4">No players found</p>
               )}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button type="button" onClick={closeRosterPicker} disabled={rosterPickerPending}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-600 disabled:opacity-50">
+                Cancel
+              </button>
+              <button type="button" onClick={handleSaveFromRoster}
+                disabled={rosterPickerPending || rosterPickerSelectedIds.size === 0}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: navy }}>
+                {rosterPickerPending
+                  ? 'Adding…'
+                  : rosterPickerSelectedIds.size === 0
+                    ? 'Add Players'
+                    : `Add ${rosterPickerSelectedIds.size} Player${rosterPickerSelectedIds.size !== 1 ? 's' : ''}`}
+              </button>
             </div>
           </div>
         </div>
@@ -3649,7 +3719,14 @@ export default function AdminDashboard({
                               return (
                                 <>
                                 {liveRoster.length > 0 && (
-                                  <button type="button" onClick={() => { setRosterPickerTeamId(team.id); setRosterSearch('') }}
+                                  <button type="button" onClick={() => {
+                                    setRosterPickerTeamId(team.id)
+                                    setRosterSearch('')
+                                    setRosterPickerMaxPlayers(maxPlayers)
+                                    setRosterPickerCurrentCount(teamPlayers.length)
+                                    setRosterPickerAlreadyNames(new Set(teamPlayers.map((p) => p.name.toLowerCase())))
+                                    setRosterPickerSelectedIds(new Set())
+                                  }}
                                     className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 font-medium mt-2 hover:bg-blue-50 transition">
                                     Pick from Roster
                                   </button>
