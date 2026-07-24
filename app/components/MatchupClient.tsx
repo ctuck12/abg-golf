@@ -692,6 +692,12 @@ export default function MatchupClient({
   const [newP2, setNewP2] = useState('')
   const [newBetType, setNewBetType] = useState<BetType | ''>('')
   const [newBetAmount, setNewBetAmount] = useState('')
+  // Auto-total for Nassau handicap strokes: front + back (blank when both blank)
+  const sumStrokes = (a: string, b: string) => {
+    const av = parseFloat(a), bv = parseFloat(b)
+    if (isNaN(av) && isNaN(bv)) return ''
+    return String((isNaN(av) ? 0 : av) + (isNaN(bv) ? 0 : bv))
+  }
   const [newFrontAmount, setNewFrontAmount] = useState('')
   const [newBackAmount, setNewBackAmount] = useState('')
   const [newTotalAmount, setNewTotalAmount] = useState('')
@@ -1465,12 +1471,12 @@ export default function MatchupClient({
                             <div className="grid grid-cols-3 gap-2">
                               <div>
                                 <label className="block text-xs font-medium text-gray-400 mb-1">Front</label>
-                                <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesFront} onChange={(e) => setNewStrokesFront(e.target.value)}
+                                <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesFront} onChange={(e) => { setNewStrokesFront(e.target.value); setNewStrokesTotal(sumStrokes(e.target.value, newStrokesBack)) }}
                                   className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
                               </div>
                               <div>
                                 <label className="block text-xs font-medium text-gray-400 mb-1">Back</label>
-                                <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesBack} onChange={(e) => setNewStrokesBack(e.target.value)}
+                                <input type="number" min="0" step="0.5" placeholder="0" value={newStrokesBack} onChange={(e) => { setNewStrokesBack(e.target.value); setNewStrokesTotal(sumStrokes(newStrokesFront, e.target.value)) }}
                                   className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
                               </div>
                               <div>
@@ -1695,13 +1701,13 @@ export default function MatchupClient({
                                           <div>
                                             <label className="block text-xs font-medium text-gray-500 mb-1">Front</label>
                                             <input type="number" min="0" step="0.5" placeholder="0"
-                                              value={editH2HStrokesFront} onChange={(e) => setEditH2HStrokesFront(e.target.value)}
+                                              value={editH2HStrokesFront} onChange={(e) => { setEditH2HStrokesFront(e.target.value); setEditH2HStrokesTotal(sumStrokes(e.target.value, editH2HStrokesBack)) }}
                                               className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
                                           </div>
                                           <div>
                                             <label className="block text-xs font-medium text-gray-500 mb-1">Back</label>
                                             <input type="number" min="0" step="0.5" placeholder="0"
-                                              value={editH2HStrokesBack} onChange={(e) => setEditH2HStrokesBack(e.target.value)}
+                                              value={editH2HStrokesBack} onChange={(e) => { setEditH2HStrokesBack(e.target.value); setEditH2HStrokesTotal(sumStrokes(editH2HStrokesFront, e.target.value)) }}
                                               className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
                                           </div>
                                           <div>
@@ -2082,12 +2088,12 @@ export default function MatchupClient({
                             <div className="grid grid-cols-3 gap-2">
                               <div>
                                 <label className="block text-xs font-medium text-gray-400 mb-1">Front</label>
-                                <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesFront} onChange={(e) => setBbStrokesFront(e.target.value)}
+                                <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesFront} onChange={(e) => { setBbStrokesFront(e.target.value); setBbStrokesTotal(sumStrokes(e.target.value, bbStrokesBack)) }}
                                   className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
                               </div>
                               <div>
                                 <label className="block text-xs font-medium text-gray-400 mb-1">Back</label>
-                                <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesBack} onChange={(e) => setBbStrokesBack(e.target.value)}
+                                <input type="number" min="0" step="0.5" placeholder="0" value={bbStrokesBack} onChange={(e) => { setBbStrokesBack(e.target.value); setBbStrokesTotal(sumStrokes(bbStrokesFront, e.target.value)) }}
                                   className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
                               </div>
                               <div>
@@ -2307,13 +2313,13 @@ export default function MatchupClient({
                                           <div>
                                             <label className="block text-xs font-medium text-gray-500 mb-1">Front</label>
                                             <input type="number" min="0" step="0.5" placeholder="0"
-                                              value={editBBStrokesFront} onChange={(e) => setEditBBStrokesFront(e.target.value)}
+                                              value={editBBStrokesFront} onChange={(e) => { setEditBBStrokesFront(e.target.value); setEditBBStrokesTotal(sumStrokes(e.target.value, editBBStrokesBack)) }}
                                               className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
                                           </div>
                                           <div>
                                             <label className="block text-xs font-medium text-gray-500 mb-1">Back</label>
                                             <input type="number" min="0" step="0.5" placeholder="0"
-                                              value={editBBStrokesBack} onChange={(e) => setEditBBStrokesBack(e.target.value)}
+                                              value={editBBStrokesBack} onChange={(e) => { setEditBBStrokesBack(e.target.value); setEditBBStrokesTotal(sumStrokes(editBBStrokesFront, e.target.value)) }}
                                               className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
                                           </div>
                                           <div>
