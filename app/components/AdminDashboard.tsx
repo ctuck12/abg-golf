@@ -3978,16 +3978,14 @@ export default function AdminDashboard({
                                         Skins
                                       </button>
                                     )}
-                                    {!isDaytona && (
-                                      <select
-                                        value={holesRangeOverrides[p.id] ?? p.holes_range ?? 'all'}
-                                        onChange={(e) => handleUpdateHolesRange(p.id, e.target.value)}
-                                        className={`text-xs px-1 py-0.5 rounded border focus:outline-none ${(holesRangeOverrides[p.id] ?? p.holes_range ?? 'all') !== 'all' ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold' : 'border-gray-300 text-gray-400'}`}>
-                                        <option value="all">18 Holes</option>
-                                        <option value="front9">Front 9</option>
-                                        <option value="back9">Back 9</option>
-                                      </select>
-                                    )}
+                                    <select
+                                      value={holesRangeOverrides[p.id] ?? p.holes_range ?? 'all'}
+                                      onChange={(e) => handleUpdateHolesRange(p.id, e.target.value)}
+                                      className={`text-xs px-1 py-0.5 rounded border focus:outline-none ${(holesRangeOverrides[p.id] ?? p.holes_range ?? 'all') !== 'all' ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold' : 'border-gray-300 text-gray-400'}`}>
+                                      <option value="all">18 Holes</option>
+                                      <option value="front9">Front 9</option>
+                                      <option value="back9">Back 9</option>
+                                    </select>
                                     <button type="button" onClick={() => setRenamingPlayer(p.id)}
                                       className="text-xs text-blue-500 hover:text-blue-700">Rename</button>
                                     <button type="button" onClick={() => setConfirmRemovePlayerId(p.id)}
