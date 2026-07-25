@@ -34,16 +34,10 @@ export async function sendPushToAll(
   }
 }
 
-export async function sendFirstScoreEmail(opts: {
-  orgName: string
-  roundName: string
-  scorerLabel: string
-  holeNumber: number
-}) {
+export async function sendEmailNotification(opts: { subject: string; text: string }) {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return
   const to = process.env.SCORE_NOTIFY_EMAIL || 'ctuck12@gmail.com'
-  const { orgName, roundName, scorerLabel, holeNumber } = opts
   try {
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -51,12 +45,11 @@ export async function sendFirstScoreEmail(opts: {
       body: JSON.stringify({
         from: 'ABG Golf <onboarding@resend.dev>',
         to: [to],
-        subject: `⛳ ${orgName}: first scores are in for ${roundName}`,
-        html: `<p><strong>${orgName}</strong> just entered the first scores of <strong>${roundName}</strong>.</p>
-<p>${scorerLabel} saved hole ${holeNumber}.</p>`,
+        subject: opts.subject,
+        html: opts.text.split('\n').map((l) => `<p>${l}</p>`).join(''),
       }),
     })
   } catch (e) {
-    console.error('[notify] first-score email failed:', e)
+    console.error('[notify] email failed:', e)
   }
 }

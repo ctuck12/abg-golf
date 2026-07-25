@@ -71,6 +71,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (clearScores) {
     updates.scores_cleared_at = new Date().toISOString()
     updates.first_score_at = null
+    updates.front9_notified_at = null
+    updates.finished_notified_at = null
   }
 
   const { error: roundErr } = await sb.from('rounds').update(updates).eq('id', roundId)

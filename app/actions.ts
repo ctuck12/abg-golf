@@ -4,12 +4,60 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { createServerClient } from '@/lib/supabase-server'
-import { sendFirstScoreEmail, sendPushToAll } from '@/lib/notify'
+import { sendEmailNotification, sendPushToAll } from '@/lib/notify'
 
-// Claims the round's first-score stamp atomically; only the save that flips
-// first_score_at from NULL sends the notification email. Fails silently
-// (including when the first_score_at column doesn't exist yet).
-async function claimFirstScoreAndNotify(
+const FORMAT_LABELS: Record<string, string> = {
+  daytona: 'Daytona', banker: 'Banker', traditional: 'Traditional', hammer: 'Hammer',
+}
+
+// Round roster summary for notifications: teams/groups with player first names.
+async function buildRosterSummary(
+  supabase: ReturnType<typeof createServerClient>,
+  roundId: string,
+  format: string
+): Promise<string> {
+  const { data: teams } = await supabase.from('teams').select('id, name').eq('round_id', roundId).order('name')
+  if (!teams || teams.length === 0) return ''
+  const { data: players } = await supabase
+    .from('players').select('name, team_id, position').in('team_id', teams.map((t) => t.id)).order('position', { ascending: true })
+  const byTeam: Record<string, string[]> = {}
+  for (const p of players ?? []) {
+    if (!byTeam[p.team_id]) byTeam[p.team_id] = []
+    byTeam[p.team_id].push(p.name.split(' ')[0])
+  }
+  if (teams.length === 1) {
+    const names = byTeam[teams[0].id] ?? []
+    return names.length ? `Playing: ${names.join(', ')}` : ''
+  }
+  const label = format === 'standard' ? '' : `${teams.length} groups — `
+  return label + teams.map((t) => `${t.name}: ${(byTeam[t.id] ?? []).join(', ')}`).join(' · ')
+}
+
+// Fetches every round player's id + holes_range (team players and playing-group guests).
+async function fetchRoundPlayers(supabase: ReturnType<typeof createServerClient>, roundId: string) {
+  const [{ data: teams }, { data: groups }] = await Promise.all([
+    supabase.from('teams').select('id').eq('round_id', roundId),
+    supabase.from('playing_groups').select('id').eq('round_id', roundId),
+  ])
+  const teamIds = (teams ?? []).map((t) => t.id)
+  const groupIds = (groups ?? []).map((g) => g.id)
+  const [{ data: teamPlayers }, { data: links }] = await Promise.all([
+    teamIds.length ? supabase.from('players').select('id, holes_range').in('team_id', teamIds) : Promise.resolve({ data: [] as { id: string; holes_range: string | null }[] }),
+    groupIds.length ? supabase.from('playing_group_players').select('player_id').in('playing_group_id', groupIds) : Promise.resolve({ data: [] as { player_id: string }[] }),
+  ])
+  const known = new Set((teamPlayers ?? []).map((p) => p.id))
+  const guestIds = (links ?? []).map((l) => l.player_id).filter((id) => !known.has(id))
+  const { data: guests } = guestIds.length
+    ? await supabase.from('players').select('id, holes_range').in('id', guestIds)
+    : { data: [] as { id: string; holes_range: string | null }[] }
+  return [...(teamPlayers ?? []), ...(guests ?? [])]
+}
+
+// First-score + milestone notifications after a hole save. Stamps on the round
+// (first_score_at / front9_notified_at / finished_notified_at) are claimed
+// atomically so each notification sends exactly once, even with concurrent
+// groups. Fails silently, including before the migrations run.
+async function notifyScoreEvents(
   supabase: ReturnType<typeof createServerClient>,
   roundId: string | null | undefined,
   scorerLabel: string,
@@ -17,26 +65,98 @@ async function claimFirstScoreAndNotify(
 ) {
   if (!roundId) return
   try {
-    const { data } = await supabase
+    // ── Round underway (first score) ──
+    const { data: claimed } = await supabase
       .from('rounds')
       .update({ first_score_at: new Date().toISOString() })
       .eq('id', roundId)
       .is('first_score_at', null)
-      .select('id, name, org_id')
-    if (!data || data.length === 0) return
-    const { data: org } = await supabase.from('organizations').select('name, slug').eq('id', data[0].org_id).single()
+      .select('id, name, org_id, course, format, balls_count')
+    if (claimed && claimed.length > 0) {
+      const r = claimed[0]
+      const format = r.format ?? 'standard'
+      const [{ data: org }, roster] = await Promise.all([
+        supabase.from('organizations').select('name, slug').eq('id', r.org_id).single(),
+        buildRosterSummary(supabase, roundId, format),
+      ])
+      const orgName = org?.name ?? 'Unknown group'
+      const formatLabel = FORMAT_LABELS[format] ?? `${r.balls_count ?? 3}-Ball`
+      const title = `⛳ ${orgName}: round underway`
+      const body = [
+        `${r.name ?? 'Round'} at ${r.course ?? 'course'} · ${formatLabel}`,
+        `${scorerLabel} saved hole ${holeNumber}.`,
+        roster,
+      ].filter(Boolean).join('\n')
+      const url = org?.slug ? `/${org.slug}` : '/'
+      await Promise.all([
+        sendPushToAll(supabase, { title, body, url }),
+        sendEmailNotification({ subject: title, text: body }),
+      ])
+    }
+
+    // ── Milestones: front nine complete / round complete ──
+    // Groups save holes in order, so the round's front nine can only complete on
+    // a hole-9 save and the round on a last-hole save — skip all other saves.
+    const { data: round } = await supabase
+      .from('rounds')
+      .select('id, name, org_id, front9_notified_at, finished_notified_at')
+      .eq('id', roundId).single()
+    if (!round) return
+    const { data: holesRaw } = await supabase.from('holes').select('hole_number').eq('round_id', roundId)
+    const holeNums = (holesRaw ?? []).map((h) => h.hole_number)
+    if (holeNums.length === 0) return
+    const lastHole = Math.max(...holeNums)
+    const is18 = holeNums.length > 9
+    const wantFront9 = is18 && !round.front9_notified_at && holeNumber === 9
+    const wantFinal = !round.finished_notified_at && holeNumber === lastHole
+    if (!wantFront9 && !wantFinal) return
+
+    const roundPlayers = await fetchRoundPlayers(supabase, roundId)
+    if (roundPlayers.length === 0) return
+    const playerIds = roundPlayers.map((p) => p.id)
+    const { data: scores } = await supabase.from('scores').select('player_id, hole_number').in('player_id', playerIds)
+    const have = new Set((scores ?? []).map((s) => `${s.player_id}:${s.hole_number}`))
+    const coveredHoles = (range: string | null | undefined, nums: number[]) =>
+      nums.filter((n) => range === 'front9' ? n <= 9 : range === 'back9' ? n > 9 : true)
+    const allComplete = (nums: number[]) =>
+      roundPlayers.every((p) => coveredHoles(p.holes_range, nums).every((n) => have.has(`${p.id}:${n}`)))
+
+    const { data: org } = await supabase.from('organizations').select('name, slug').eq('id', round.org_id).single()
     const orgName = org?.name ?? 'Unknown group'
-    const roundName = data[0].name ?? 'round'
-    await Promise.all([
-      sendPushToAll(supabase, {
-        title: `⛳ ${orgName}: round underway`,
-        body: `First scores are in for ${roundName} — ${scorerLabel} saved hole ${holeNumber}.`,
-        url: org?.slug ? `/${org.slug}` : '/',
-      }),
-      sendFirstScoreEmail({ orgName, roundName, scorerLabel, holeNumber }),
-    ])
+    const url = org?.slug ? `/${org.slug}` : '/'
+    const roundName = round.name ?? 'Round'
+
+    if (wantFront9 && allComplete(holeNums.filter((n) => n <= 9))) {
+      const { data: won } = await supabase
+        .from('rounds')
+        .update({ front9_notified_at: new Date().toISOString() })
+        .eq('id', roundId).is('front9_notified_at', null).select('id')
+      if (won && won.length > 0) {
+        const title = `⛳ ${orgName}: front 9 complete`
+        const body = `All groups have finished the front nine of ${roundName}. Tap for the leaderboard.`
+        await Promise.all([
+          sendPushToAll(supabase, { title, body, url }),
+          sendEmailNotification({ subject: title, text: body }),
+        ])
+      }
+    }
+
+    if (wantFinal && allComplete(holeNums)) {
+      const { data: won } = await supabase
+        .from('rounds')
+        .update({ finished_notified_at: new Date().toISOString() })
+        .eq('id', roundId).is('finished_notified_at', null).select('id')
+      if (won && won.length > 0) {
+        const title = `⛳ ${orgName}: final results are in`
+        const body = `${roundName} is complete — every group has finished. Tap for results and payouts.`
+        await Promise.all([
+          sendPushToAll(supabase, { title, body, url }),
+          sendEmailNotification({ subject: title, text: body }),
+        ])
+      }
+    }
   } catch (e) {
-    console.error('[claimFirstScoreAndNotify] failed:', e)
+    console.error('[notifyScoreEvents] failed:', e)
   }
 }
 
@@ -120,7 +240,7 @@ export async function submitHoleScores(
     const { error } = await supabase.from('scores').upsert(rows, { onConflict: 'player_id,hole_number' })
     if (error) return { error: error.message }
     const { data: teamRow } = await supabase.from('teams').select('round_id, name').eq('id', teamId).single()
-    await claimFirstScoreAndNotify(supabase, teamRow?.round_id, teamRow?.name ?? 'A team', holeNumber)
+    await notifyScoreEvents(supabase, teamRow?.round_id, teamRow?.name ?? 'A team', holeNumber)
   }
   return { success: true }
 }
@@ -415,7 +535,7 @@ export async function submitHammerHoleScores(
   if (rows.length > 0) {
     const { error } = await supabase.from('scores').upsert(rows, { onConflict: 'player_id,hole_number' })
     if (error) return { error: error.message }
-    await claimFirstScoreAndNotify(supabase, (matchup as { round_id?: string | null }).round_id, 'A Hammer matchup', holeNumber)
+    await notifyScoreEvents(supabase, (matchup as { round_id?: string | null }).round_id, 'A Hammer matchup', holeNumber)
   }
   return { success: true }
 }
@@ -613,7 +733,7 @@ export async function submitGroupHoleScores(
     const { error } = await supabase.from('scores').upsert(rows, { onConflict: 'player_id,hole_number' })
     if (error) return { error: error.message }
     const { data: groupRow } = await supabase.from('playing_groups').select('round_id, name').eq('id', groupId).single()
-    await claimFirstScoreAndNotify(supabase, groupRow?.round_id, groupRow?.name ?? 'A group', holeNumber)
+    await notifyScoreEvents(supabase, groupRow?.round_id, groupRow?.name ?? 'A group', holeNumber)
   }
   return { success: true }
 }
@@ -778,7 +898,7 @@ export async function clearAllScores(roundId: string) {
     const { error } = await supabase.from('scores').delete().in('player_id', playerIds)
     if (error) return { error: error.message }
   }
-  await supabase.from('rounds').update({ scores_cleared_at: new Date().toISOString(), first_score_at: null }).eq('id', roundId)
+  await supabase.from('rounds').update({ scores_cleared_at: new Date().toISOString(), first_score_at: null, front9_notified_at: null, finished_notified_at: null }).eq('id', roundId)
   return { success: true }
 }
 
