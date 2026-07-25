@@ -8,6 +8,8 @@ import {
   adminLogout, renameTeam, renamePlayer, movePlayer,
   updateSkinsSettings, updatePlayerSkinsParticipation, updateTeamSettings,
   updatePlayerHandicap,
+  updatePlayerHolesRange,
+  clearAllScores,
   updateRoundAutoHandicap,
   toggleMixedGroups,
   setPlayingGroupCount,
@@ -147,7 +149,7 @@ type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
 type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; daytona_variant_back9?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null }
-type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
+type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -759,6 +761,9 @@ export default function AdminDashboard({
     setGroupSideGames(prev => ({ ...prev, [groupId]: { ...prev[groupId], ...patch } }))
   }
   const [skinsOverrides, setSkinsOverrides] = useState<Record<string, boolean>>({})
+  const [holesRangeOverrides, setHolesRangeOverrides] = useState<Record<string, string>>({})
+  const [confirmClearScores, setConfirmClearScores] = useState(false)
+  const [clearScoresPending, setClearScoresPending] = useState(false)
 
   const [createPending, setCreatePending] = useState(false)
   const [createError, setCreateError] = useState('')
@@ -1239,6 +1244,18 @@ export default function AdminDashboard({
     const next = !current
     setSkinsOverrides(prev => ({ ...prev, [playerId]: next }))
     updatePlayerSkinsParticipation(playerId, next).then(() => router.refresh())
+  }
+  function handleUpdateHolesRange(playerId: string, range: string) {
+    setHolesRangeOverrides(prev => ({ ...prev, [playerId]: range }))
+    updatePlayerHolesRange(playerId, range).then(() => router.refresh())
+  }
+  async function handleClearAllScores() {
+    if (!round) return
+    setClearScoresPending(true)
+    await clearAllScores(round.id)
+    setClearScoresPending(false)
+    setConfirmClearScores(false)
+    router.refresh()
   }
   async function handleMovePlayer(playerId: string, direction: 'up' | 'down') {
     await movePlayer(playerId, direction)
@@ -2504,6 +2521,34 @@ export default function AdminDashboard({
                     <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Clear All Scores (any format, once started) ── */}
+            {round && round.is_started && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-semibold text-gray-900 text-sm mb-1">Clear All Scores</h3>
+                <p className="text-xs text-gray-400 mb-3">Deletes every saved score in this round for all teams and groups. Teams, matchups, and settings are kept.</p>
+                {confirmClearScores ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-red-700">Clear every score in this round? This cannot be undone.</p>
+                    <div className="flex gap-2">
+                      <button type="button" disabled={clearScoresPending} onClick={handleClearAllScores}
+                        className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#b91c1c' }}>
+                        {clearScoresPending ? 'Clearing…' : 'Yes, Clear All Scores'}
+                      </button>
+                      <button type="button" disabled={clearScoresPending} onClick={() => setConfirmClearScores(false)}
+                        className="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setConfirmClearScores(true)}
+                    className="text-sm font-semibold px-4 py-2 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition">
+                    Clear All Scores
+                  </button>
+                )}
               </div>
             )}
 
@@ -3932,6 +3977,16 @@ export default function AdminDashboard({
                                         className={`text-xs px-2 py-0.5 rounded border transition ${(skinsOverrides[p.id] ?? p.skins_participant) ? 'bg-amber-100 border-amber-400 text-amber-800 font-semibold' : 'border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-600'}`}>
                                         Skins
                                       </button>
+                                    )}
+                                    {!isDaytona && (
+                                      <select
+                                        value={holesRangeOverrides[p.id] ?? p.holes_range ?? 'all'}
+                                        onChange={(e) => handleUpdateHolesRange(p.id, e.target.value)}
+                                        className={`text-xs px-1 py-0.5 rounded border focus:outline-none ${(holesRangeOverrides[p.id] ?? p.holes_range ?? 'all') !== 'all' ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold' : 'border-gray-300 text-gray-400'}`}>
+                                        <option value="all">18 Holes</option>
+                                        <option value="front9">Front 9</option>
+                                        <option value="back9">Back 9</option>
+                                      </select>
                                     )}
                                     <button type="button" onClick={() => setRenamingPlayer(p.id)}
                                       className="text-xs text-blue-500 hover:text-blue-700">Rename</button>

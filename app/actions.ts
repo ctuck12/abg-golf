@@ -615,6 +615,43 @@ export async function deletePlayer(playerId: string) {
   await supabase.from('players').delete().eq('id', playerId)
 }
 
+export async function updatePlayerHolesRange(playerId: string, holesRange: string) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('players').update({ holes_range: holesRange }).eq('id', playerId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+// Deletes every score in the round (team players and playing-group guests)
+// and stamps scores_cleared_at so open scorekeeper screens reload.
+export async function clearAllScores(roundId: string) {
+  if (!roundId) return { error: 'No round.' }
+  const supabase = createServerClient()
+
+  const [{ data: teams }, { data: groups }] = await Promise.all([
+    supabase.from('teams').select('id').eq('round_id', roundId),
+    supabase.from('playing_groups').select('id').eq('round_id', roundId),
+  ])
+  const teamIds = (teams ?? []).map((t) => t.id)
+  const groupIds = (groups ?? []).map((g) => g.id)
+
+  const [{ data: teamPlayers }, { data: groupLinks }] = await Promise.all([
+    teamIds.length ? supabase.from('players').select('id').in('team_id', teamIds) : Promise.resolve({ data: [] as { id: string }[] }),
+    groupIds.length ? supabase.from('playing_group_players').select('player_id').in('playing_group_id', groupIds) : Promise.resolve({ data: [] as { player_id: string }[] }),
+  ])
+  const playerIds = [...new Set([
+    ...(teamPlayers ?? []).map((p) => p.id),
+    ...(groupLinks ?? []).map((l) => l.player_id),
+  ])]
+
+  if (playerIds.length > 0) {
+    const { error } = await supabase.from('scores').delete().in('player_id', playerIds)
+    if (error) return { error: error.message }
+  }
+  await supabase.from('rounds').update({ scores_cleared_at: new Date().toISOString() }).eq('id', roundId)
+  return { success: true }
+}
+
 export async function movePlayer(playerId: string, direction: 'up' | 'down') {
   const supabase = createServerClient()
 

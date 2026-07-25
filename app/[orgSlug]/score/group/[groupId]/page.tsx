@@ -51,7 +51,7 @@ export default async function PlayingGroupScorecardPage({
   // Fetch group players with their team info
   const { data: groupPlayersRaw } = await sb
     .from('players')
-    .select('id, name, team_id, position, handicap')
+    .select('id, name, team_id, position, handicap, holes_range')
     .in('id', groupPlayerIds)
     .order('position', { ascending: true })
   const groupPlayers = groupPlayersRaw ?? []

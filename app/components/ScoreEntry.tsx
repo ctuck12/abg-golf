@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
 import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import {
   computeHoleBallScores, computeTeamBallSummary,
-  computeHoleDaytonaWithSides, computeDaytonaSidesSummary,
+  computeHoleDaytonaWithSides, computeDaytonaSidesSummary, playerCoversHole,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   computeHoleDaytonaPointsFiveMan,
   calculatePoolPayouts, settleDaytonaPlayerPoints,
@@ -13,7 +13,7 @@ import {
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 
-type Player = { id: string; name: string; handicap?: number | null }
+type Player = { id: string; name: string; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type Team = { id: string; name: string }
@@ -348,6 +348,9 @@ export default function ScoreEntry({
   const leftLabel = isFlares ? 'Out' : 'Left'
   const rightLabel = isFlares ? 'In' : 'Right'
 
+  // Players whose holes_range covers a given hole — 9-hole players are skipped elsewhere
+  const activePlayers = (holeNumber: number) => players.filter((p) => playerCoversHole(p.holes_range, holeNumber))
+
   const [strokes, setStrokes] = useState<Record<string, Record<number, number>>>(() => {
     const s: Record<string, Record<number, number>> = {}
     for (const sc of initialScores) {
@@ -360,7 +363,8 @@ export default function ScoreEntry({
   const [savedHoles, setSavedHoles] = useState<Set<number>>(() => {
     const saved = new Set<number>()
     for (let h = 1; h <= 18; h++) {
-      if (players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
+      const active = players.filter((p) => playerCoversHole(p.holes_range, h))
+      if (active.length > 0 && active.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
         saved.add(h)
       }
     }
@@ -372,7 +376,8 @@ export default function ScoreEntry({
   const [expandedHole, setExpandedHole] = useState<number | null>(() => {
     const saved = new Set<number>()
     for (let h = 1; h <= 18; h++) {
-      if (players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
+      const active = players.filter((p) => playerCoversHole(p.holes_range, h))
+      if (active.length > 0 && active.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
         saved.add(h)
       }
     }
@@ -680,7 +685,8 @@ export default function ScoreEntry({
         setSavedHoles(() => {
           const saved = new Set<number>()
           for (let h = 1; h <= 18; h++) {
-            if (players.every((p) => scoresData.some((s: { player_id: string; hole_number: number }) => s.player_id === p.id && s.hole_number === h))) {
+            const active = players.filter((p) => playerCoversHole(p.holes_range, h))
+            if (active.length > 0 && active.every((p) => scoresData.some((s: { player_id: string; hole_number: number }) => s.player_id === p.id && s.hole_number === h))) {
               saved.add(h)
             }
           }
@@ -827,7 +833,8 @@ export default function ScoreEntry({
     if (isDaytonaMode) {
       const saved = new Set<number>()
       for (let h = 1; h <= 18; h++) {
-        if (players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
+        const active = players.filter((p) => playerCoversHole(p.holes_range, h))
+        if (active.length > 0 && active.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h))) {
           saved.add(h)
         }
       }
@@ -876,7 +883,7 @@ export default function ScoreEntry({
       return
     }
 
-    const playerScores = players.map((p) => ({
+    const playerScores = activePlayers(holeNumber).map((p) => ({
       playerId: p.id,
       strokes: strokes[p.id]?.[holeNumber] ?? holes.find((h) => h.hole_number === holeNumber)?.par ?? 4,
     }))
@@ -1866,8 +1873,9 @@ export default function ScoreEntry({
           const holeIsFlares = isFlaresForHole(hole.hole_number)
           const holeLeftLabel = holeIsFlares ? (hole.par === 3 ? 'Close' : 'Out') : 'Left'
           const holeRightLabel = holeIsFlares ? (hole.par === 3 ? 'Far' : 'In') : 'Right'
+          const holeActivePlayers = activePlayers(hole.hole_number)
 
-          const savedHolePlayerScores = players.map((p) => {
+          const savedHolePlayerScores = holeActivePlayers.map((p) => {
             const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
             return sc?.strokes ?? hole.par
           })
@@ -2227,7 +2235,7 @@ export default function ScoreEntry({
                     )
                   })()}
 
-                  {players.map((player, playerIdx) => {
+                  {holeActivePlayers.map((player, playerIdx) => {
                     const val = strokes[player.id]?.[hole.hole_number] ?? hole.par
                     const side = holeAssignments[player.id] as DaytonaSide | undefined
                     const isAssigned = player.id in holeAssignments
@@ -2254,7 +2262,7 @@ export default function ScoreEntry({
                                 // Once exactly 2 are on 'left' (Out/Close), auto-assign all remaining unassigned to 'right' (In/Far)
                                 const newLeftCount = Object.values(holeMap).filter(s => s === 'left').length
                                 if (newLeftCount === 2) {
-                                  for (const p of players) {
+                                  for (const p of holeActivePlayers) {
                                     if (!(p.id in holeMap)) holeMap[p.id] = 'right'
                                   }
                                 }
@@ -2263,7 +2271,7 @@ export default function ScoreEntry({
                                 const newRightCount = Object.values(holeMap).filter(s => s === 'right').length
                                 const rightTarget = holeIs5Man ? 3 : 2
                                 if (newRightCount === rightTarget) {
-                                  for (const p of players) {
+                                  for (const p of holeActivePlayers) {
                                     if (!(p.id in holeMap)) holeMap[p.id] = 'left'
                                   }
                                 }
@@ -2300,7 +2308,7 @@ export default function ScoreEntry({
                           })()}
                         </span>
                         {(() => {
-                          const allAssigned = !isDaytonaMode || players.every((p) => p.id in holeAssignments)
+                          const allAssigned = !isDaytonaMode || holeActivePlayers.every((p) => p.id in holeAssignments)
                           const scoreActive = !isDaytonaMode || allAssigned
                           const canInteract = allAssigned
                           return (
@@ -2334,7 +2342,7 @@ export default function ScoreEntry({
 
                   {/* ── Daytona assignment validation ── */}
                   {isDaytonaMode && (() => {
-                    const allAssigned = players.every((p) => p.id in holeAssignments)
+                    const allAssigned = holeActivePlayers.every((p) => p.id in holeAssignments)
                     return (
                       <>
                         {!allAssigned && (
@@ -2497,7 +2505,7 @@ export default function ScoreEntry({
                   })()}
 
                   {(() => {
-                    const allAssigned = !isDaytonaMode || players.every((p) => p.id in holeAssignments)
+                    const allAssigned = !isDaytonaMode || holeActivePlayers.every((p) => p.id in holeAssignments)
                     const daytonaReady = !isDaytonaMode || (allAssigned && leftCount === 2)
                     return (
                       <>

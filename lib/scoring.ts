@@ -183,6 +183,13 @@ export type TeamBallSummary = {
   holesPerBall: number[]          // how many holes contributed to each ball
 }
 
+// Whether a player with the given holes_range plays the given hole.
+export function playerCoversHole(range: string | null | undefined, holeNumber: number): boolean {
+  if (range === 'front9') return holeNumber <= 9
+  if (range === 'back9') return holeNumber > 9
+  return true
+}
+
 export function computeTeamBallSummary(
   holes: { hole_number: number; par: number }[],
   playerIds: string[],

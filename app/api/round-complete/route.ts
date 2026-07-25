@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   const { data: players } = await supabase
     .from('players')
-    .select('id')
+    .select('id, holes_range')
     .in('team_id', teamIds)
 
   const playerIds = (players ?? []).map((p) => p.id)
@@ -42,7 +42,13 @@ export async function GET(request: NextRequest) {
     scoreCountByPlayer[s.player_id] = (scoreCountByPlayer[s.player_id] ?? 0) + 1
   }
 
-  const allDone = playerIds.every((id) => (scoreCountByPlayer[id] ?? 0) >= holeCount)
+  // A player only needs scores for the holes their range covers
+  const holeNumbers = (holes ?? []).map((h) => h.hole_number)
+  const expectedFor = (range: string | null | undefined) =>
+    range === 'front9' ? holeNumbers.filter((n) => n <= 9).length
+    : range === 'back9' ? holeNumbers.filter((n) => n > 9).length
+    : holeCount
+  const allDone = (players ?? []).every((p) => (scoreCountByPlayer[p.id] ?? 0) >= expectedFor((p as { holes_range?: string | null }).holes_range))
 
   return NextResponse.json({ allDone })
 }

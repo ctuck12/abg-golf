@@ -30,7 +30,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
     .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap, banker_min_bet').eq('id', team.round_id).single()
   if (!round || !round.is_active || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
-  const { data: players } = await sb.from('players').select('id, name, handicap').eq('team_id', teamId).order('position', { ascending: true })
+  const { data: players } = await sb.from('players').select('id, name, handicap, holes_range').eq('team_id', teamId).order('position', { ascending: true })
   const playerIds = (players ?? []).map((p) => p.id)
 
   const isDaytona = (round.format ?? 'standard') === 'daytona'

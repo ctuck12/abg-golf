@@ -41,7 +41,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
 
   const [playersRes, scoresRes, assignmentsRes, matchupsRaw, bestBallRes, holeValuesRes] = await Promise.all([
-    teamIds.length ? sb.from('players').select('id, team_id, name, position, skins_participant, handicap').in('team_id', teamIds).order('position', { ascending: true }) : Promise.resolve({ data: [] as { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap: number | null }[] }),
+    teamIds.length ? sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range').in('team_id', teamIds).order('position', { ascending: true }) : Promise.resolve({ data: [] as { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap: number | null }[] }),
     roundId ? sb.from('scores').select('player_id, hole_number, strokes') : Promise.resolve({ data: [] }),
     roundId && isDaytona ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId) : Promise.resolve({ data: [] }),
     roundId ? sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [], error: null }),
@@ -81,7 +81,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const teamPlayerIdSet = new Set(teamPlayers.map((p) => p.id))
   const pgPlayerIds = (playingGroupPlayersRaw ?? []).map((gp) => gp.player_id).filter((id) => !teamPlayerIdSet.has(id))
   const { data: manualGroupPlayersRaw } = pgPlayerIds.length
-    ? await sb.from('players').select('id, team_id, name, position, skins_participant, handicap').in('id', pgPlayerIds)
+    ? await sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range').in('id', pgPlayerIds)
     : { data: [] as typeof teamPlayers }
   const allPlayers = [...teamPlayers, ...(manualGroupPlayersRaw ?? [])]
 

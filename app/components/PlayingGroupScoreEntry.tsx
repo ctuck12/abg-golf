@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
-import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints } from '@/lib/scoring'
+import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints, playerCoversHole } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 
@@ -11,7 +11,7 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
-type Player = { id: string; name: string; team_id: string; position: number | null; handicap?: number | null }
+type Player = { id: string; name: string; team_id: string; position: number | null; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -65,6 +65,8 @@ export default function PlayingGroupScoreEntry({
   const is5Man = isDaytonaMode && (daytonaVariant === '5man-normal' || daytonaVariant === '5man-flares')
   const leftLabel = isFlares ? 'Out' : 'Left'
   const rightLabel = isFlares ? 'In' : 'Right'
+  // Players whose holes_range covers a given hole — 9-hole players are skipped elsewhere
+  const activePlayers = (holeNumber: number) => players.filter((p) => playerCoversHole(p.holes_range, holeNumber))
   const router = useRouter()
   const [strokes, setStrokes] = useState<Record<string, Record<number, number>>>(() => {
     const s: Record<string, Record<number, number>> = {}
@@ -97,7 +99,8 @@ export default function PlayingGroupScoreEntry({
   const [savedHoles, setSavedHoles] = useState<Set<number>>(() => {
     const saved = new Set<number>()
     for (const h of holes) {
-      if (players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))) {
+      const active = players.filter((p) => playerCoversHole(p.holes_range, h.hole_number))
+      if (active.length > 0 && active.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))) {
         saved.add(h.hole_number)
       }
     }
@@ -105,7 +108,8 @@ export default function PlayingGroupScoreEntry({
   })
   const [expandedHole, setExpandedHole] = useState<number | null>(() => {
     for (const h of holes) {
-      if (!players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))) {
+      const active = players.filter((p) => playerCoversHole(p.holes_range, h.hole_number))
+      if (!(active.length > 0 && active.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number)))) {
         return h.hole_number
       }
     }
@@ -130,7 +134,7 @@ export default function PlayingGroupScoreEntry({
     }
     if (isDaytonaMode) {
       const firstUnsaved = holes.find((h) =>
-        !players.every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))
+        !players.filter((p) => playerCoversHole(p.holes_range, h.hole_number)).every((p) => initialScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))
       )?.hole_number
       if (firstUnsaved !== undefined && !m[firstUnsaved]) m[firstUnsaved] = {}
     }
@@ -267,7 +271,8 @@ export default function PlayingGroupScoreEntry({
         setSavedHoles(() => {
           const saved = new Set<number>()
           for (const h of holes) {
-            if (players.every((p) => scoresData.some((s: Score) => s.player_id === p.id && s.hole_number === h.hole_number))) saved.add(h.hole_number)
+            const active = players.filter((p) => playerCoversHole(p.holes_range, h.hole_number))
+            if (active.length > 0 && active.every((p) => scoresData.some((s: Score) => s.player_id === p.id && s.hole_number === h.hole_number))) saved.add(h.hole_number)
           }
           return saved
         })
@@ -543,7 +548,7 @@ export default function PlayingGroupScoreEntry({
       }
     }
 
-    const playerScores = players.map((p) => ({
+    const playerScores = activePlayers(holeNumber).map((p) => ({
       playerId: p.id,
       strokes: strokes[p.id]?.[holeNumber] ?? hole.par,
     }))
@@ -940,6 +945,7 @@ export default function PlayingGroupScoreEntry({
           const leftCount = Object.values(holeAssignments).filter((s) => s === 'left').length
           const holeLeftLabel = isFlares && hole.par === 3 ? 'Close' : leftLabel
           const holeRightLabel = isFlares && hole.par === 3 ? 'Far' : rightLabel
+          const holeActivePlayers = activePlayers(hole.hole_number)
 
           const holeStrokeIds = effectiveStrokeIds(hole.hole_number)
           // Net = gross - 1 if player has a stroke on this hole
@@ -1279,13 +1285,13 @@ export default function PlayingGroupScoreEntry({
                     )
                   })()}
 
-                  {players.map((player) => {
+                  {holeActivePlayers.map((player) => {
                     const val = strokes[player.id]?.[hole.hole_number] ?? hole.par
                     const side = holeAssignments[player.id] as 'left' | 'right' | undefined
                     const isAssigned = player.id in holeAssignments
                     const defaultSide: 'left' | 'right' = leftCount < 2 ? 'left' : 'right'
                     const displaySide = side ?? defaultSide
-                    const allAssigned = !isDaytonaMode || players.every((p) => p.id in holeAssignments)
+                    const allAssigned = !isDaytonaMode || holeActivePlayers.every((p) => p.id in holeAssignments)
                     const canScore = !isDaytonaMode || allAssigned
                     return (
                       <div key={player.id} className="flex items-center gap-2">
@@ -1297,13 +1303,13 @@ export default function PlayingGroupScoreEntry({
                               const hm: Record<string, 'left' | 'right'> = { ...(assignments[hole.hole_number] ?? {}) }
                               hm[player.id] = isAssigned ? (side === 'left' ? 'right' : 'left') : displaySide
                               const newLeft = Object.values(hm).filter(s => s === 'left').length
-                              if (newLeft === 2) { for (const p of players) { if (!(p.id in hm)) hm[p.id] = 'right' } }
+                              if (newLeft === 2) { for (const p of holeActivePlayers) { if (!(p.id in hm)) hm[p.id] = 'right' } }
                               const newRight = Object.values(hm).filter(s => s === 'right').length
                               const rightTarget = is5Man ? 3 : 2
-                              if (newRight === rightTarget) { for (const p of players) { if (!(p.id in hm)) hm[p.id] = 'left' } }
+                              if (newRight === rightTarget) { for (const p of holeActivePlayers) { if (!(p.id in hm)) hm[p.id] = 'left' } }
                               setAssignments((a) => ({ ...a, [hole.hole_number]: hm }))
                               // Persist assignments to DB as soon as all players are assigned — don't wait for Save Hole
-                              if (players.every((p) => p.id in hm)) {
+                              if (holeActivePlayers.every((p) => p.id in hm)) {
                                 saveDaytonaAssignments(
                                   roundId,
                                   hole.hole_number,
@@ -1349,7 +1355,7 @@ export default function PlayingGroupScoreEntry({
                   })}
 
                   {isDaytonaMode && (() => {
-                    const allAssigned = players.every((p) => p.id in holeAssignments)
+                    const allAssigned = holeActivePlayers.every((p) => p.id in holeAssignments)
                     if (!allAssigned) return <p className="text-xs text-red-500 mt-1">Select 2 {holeLeftLabel} players</p>
                     if (leftCount !== 2) return <p className="text-xs text-red-500 mt-1">{is5Man ? `Need exactly 2 ${holeLeftLabel} & 3 ${holeRightLabel}` : `Need exactly 2 ${holeLeftLabel} & 2 ${holeRightLabel}`}</p>
                     return null

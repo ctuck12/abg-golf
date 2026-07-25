@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  computeTeamBallSummary,
+  computeTeamBallSummary, playerCoversHole,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
   computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
@@ -12,7 +12,7 @@ import PinLoginModal from './PinLoginModal'
 import { ScoreNotation } from './ScoreNotation'
 
 type Team = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null; exclude_matchups?: boolean | null }
-type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null }
+type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -3170,7 +3170,10 @@ export default function LeaderboardClient({
                 const teamPlayers = players.filter((p) => p.team_id === row.team.id)
                 const teamPlayerIds = teamPlayers.map((p) => p.id)
                 const thruCount = teamPlayerIds.length > 0
-                  ? holes.filter((h) => teamPlayerIds.every((id) => scores.some((s) => s.player_id === id && s.hole_number === h.hole_number))).length
+                  ? holes.filter((h) => {
+                      const active = teamPlayers.filter((p) => playerCoversHole(p.holes_range, h.hole_number))
+                      return active.length > 0 && active.every((p) => scores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))
+                    }).length
                   : 0
                 const hasScores = thruCount > 0
                 return (
