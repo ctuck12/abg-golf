@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { createServerClient } from '@/lib/supabase-server'
-import { sendFirstScoreEmail } from '@/lib/notify'
+import { sendFirstScoreEmail, sendPushToAll } from '@/lib/notify'
 
 // Claims the round's first-score stamp atomically; only the save that flips
 // first_score_at from NULL sends the notification email. Fails silently
@@ -24,8 +24,17 @@ async function claimFirstScoreAndNotify(
       .is('first_score_at', null)
       .select('id, name, org_id')
     if (!data || data.length === 0) return
-    const { data: org } = await supabase.from('organizations').select('name').eq('id', data[0].org_id).single()
-    await sendFirstScoreEmail({ orgName: org?.name ?? 'Unknown group', roundName: data[0].name ?? 'round', scorerLabel, holeNumber })
+    const { data: org } = await supabase.from('organizations').select('name, slug').eq('id', data[0].org_id).single()
+    const orgName = org?.name ?? 'Unknown group'
+    const roundName = data[0].name ?? 'round'
+    await Promise.all([
+      sendPushToAll(supabase, {
+        title: `⛳ ${orgName}: round underway`,
+        body: `First scores are in for ${roundName} — ${scorerLabel} saved hole ${holeNumber}.`,
+        url: org?.slug ? `/${org.slug}` : '/',
+      }),
+      sendFirstScoreEmail({ orgName, roundName, scorerLabel, holeNumber }),
+    ])
   } catch (e) {
     console.error('[claimFirstScoreAndNotify] failed:', e)
   }
@@ -606,6 +615,26 @@ export async function submitGroupHoleScores(
     const { data: groupRow } = await supabase.from('playing_groups').select('round_id, name').eq('id', groupId).single()
     await claimFirstScoreAndNotify(supabase, groupRow?.round_id, groupRow?.name ?? 'A group', holeNumber)
   }
+  return { success: true }
+}
+
+// ── PWA push subscriptions ────────────────────────────────────────────────────
+
+export async function savePushSubscription(subscription: { endpoint: string; keys?: Record<string, string> }) {
+  if (!subscription?.endpoint) return { error: 'Invalid subscription.' }
+  const supabase = createServerClient()
+  const { error } = await supabase.from('push_subscriptions').upsert(
+    { endpoint: subscription.endpoint, subscription },
+    { onConflict: 'endpoint' }
+  )
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function removePushSubscription(endpoint: string) {
+  if (!endpoint) return { error: 'Invalid subscription.' }
+  const supabase = createServerClient()
+  await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
   return { success: true }
 }
 
