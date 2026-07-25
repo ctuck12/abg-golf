@@ -86,8 +86,8 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   const players = [...teamPlayers, ...guestPlayers].sort((a, b) => a.name.localeCompare(b.name))
 
   const scorecardTeamId = (teams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
-  const groupAuthCookie = cookieStore.getAll().find((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
-  const scorecardGroupId = groupAuthCookie ? groupAuthCookie.name.replace('playing_group_auth_', '') : null
+  // Only honor group cookies for the current round's playing groups (ignore stale rounds)
+  const scorecardGroupId = groupIds.find((id) => cookieStore.get(`playing_group_auth_${id}`)?.value === 'true') ?? null
 
   return (
     <MatchupClient

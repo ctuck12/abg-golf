@@ -63,8 +63,9 @@ export default async function OrgPlayerPage({ params, searchParams }: { params: 
 
   const { data: allTeams } = await sb.from('teams').select('id').eq('round_id', roundId)
   const scorecardTeamId = (allTeams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? (isAdmin && teamId ? teamId : null)
-  const groupAuthCookie = cookieStore.getAll().find((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
-  const scorecardGroupId = groupAuthCookie ? groupAuthCookie.name.replace('playing_group_auth_', '') : null
+  // Only honor group cookies for the current round's playing groups (ignore stale rounds)
+  const { data: roundGroupsRaw } = await sb.from('playing_groups').select('id').eq('round_id', roundId)
+  const scorecardGroupId = (roundGroupsRaw ?? []).find((g) => cookieStore.get(`playing_group_auth_${g.id}`)?.value === 'true')?.id ?? null
 
   const [{ data: holes }, { data: scores }, { data: holeStrokesRaw }] = await Promise.all([
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', roundId).order('hole_number'),

@@ -30,7 +30,9 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const cookieStore = await cookies()
   const { orgId, isAdmin, isMaster } = auth
 
-  const hasGroupSession = cookieStore.getAll().some((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
+  const cookieGroupIds = cookieStore.getAll()
+    .filter((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
+    .map((c) => c.name.replace('playing_group_auth_', ''))
 
   const { data: round } = await sb
     .from('rounds')
@@ -38,6 +40,17 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     .eq('is_active', true)
     .eq('org_id', orgId)
     .single()
+
+  // Only honor group-scorer cookies that belong to the CURRENT round's playing
+  // groups — stale cookies from a previous round otherwise produce dead
+  // "Enter Scores" links (the old group's round is inactive, so the score page
+  // silently bounces back here).
+  let validGroupIds: string[] = []
+  if (round?.mixed_groups && cookieGroupIds.length) {
+    const { data: roundGroups } = await sb.from('playing_groups').select('id').eq('round_id', round.id).in('id', cookieGroupIds)
+    validGroupIds = (roundGroups ?? []).map((g) => g.id)
+  }
+  const hasGroupSession = validGroupIds.length > 0
 
   if (isAdmin && !hasGroupSession && !round?.is_started) redirect(`/${orgSlug}/admin/dashboard`)
 
@@ -50,8 +63,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
 
   // Detect active scorecard session from cookies
   const scorecardTeamId = teams.find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null
-  const groupAuthCookie = cookieStore.getAll().find((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
-  const scorecardGroupId = groupAuthCookie ? groupAuthCookie.name.replace('playing_group_auth_', '') : null
+  const scorecardGroupId = validGroupIds[0] ?? null
 
   if (!round || !round.is_started) {
     // Fetch playing groups for pre-round PIN entry in mixed mode
