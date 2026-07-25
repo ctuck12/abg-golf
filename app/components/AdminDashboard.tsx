@@ -19,7 +19,7 @@ import {
   createRosterPlayer,
   updateRosterPlayer,
   deleteRosterPlayer,
-  addRosterPlayerToTeam,
+  addRosterPlayersToTeam,
   createHammerMatchup,
   deleteHammerMatchup,
   bulkCreateTeams,
@@ -1155,11 +1155,9 @@ export default function AdminDashboard({
   async function handleSaveFromRoster() {
     if (!rosterPickerTeamId || rosterPickerSelectedIds.size === 0) return
     setRosterPickerPending(true)
-    for (const rosterId of rosterPickerSelectedIds) {
-      const res = await addRosterPlayerToTeam(rosterPickerTeamId, rosterId)
-      if (res.error) { alert(res.error); break }
-    }
+    const res = await addRosterPlayersToTeam(rosterPickerTeamId, [...rosterPickerSelectedIds])
     setRosterPickerPending(false)
+    if (res.error) alert(res.error)
     closeRosterPicker()
     router.refresh()
   }

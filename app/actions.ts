@@ -438,6 +438,44 @@ export async function addRosterPlayerToTeam(teamId: string, rosterPlayerId: stri
   return { success: true }
 }
 
+// Bulk version of addRosterPlayerToTeam — one round of queries and a single
+// insert for the whole selection instead of N sequential server actions.
+export async function addRosterPlayersToTeam(teamId: string, rosterPlayerIds: string[]) {
+  if (!rosterPlayerIds.length) return { success: true }
+  const supabase = createServerClient()
+
+  const [{ data: rps }, { data: teamRow }, { data: existing }] = await Promise.all([
+    supabase.from('org_players').select('id, name, handicap_index').in('id', rosterPlayerIds),
+    supabase.from('teams').select('round_id').eq('id', teamId).single(),
+    supabase.from('players').select('position').eq('team_id', teamId).order('position', { ascending: false }).limit(1),
+  ])
+  if (!rps || rps.length === 0) return { error: 'Roster players not found.' }
+
+  if (teamRow?.round_id) {
+    const { data: allTeams } = await supabase.from('teams').select('id').eq('round_id', teamRow.round_id)
+    const allTeamIds = (allTeams ?? []).map((t: { id: string }) => t.id)
+    if (allTeamIds.length > 0) {
+      const { data: allPlayers } = await supabase.from('players').select('name').in('team_id', allTeamIds)
+      const existingNames = new Set((allPlayers ?? []).map((p: { name: string }) => p.name.trim().toLowerCase()))
+      const dupe = rps.find((rp) => existingNames.has(rp.name.trim().toLowerCase()))
+      if (dupe) return { error: `${dupe.name} is already in this round.` }
+    }
+  }
+
+  let nextPosition = existing?.[0]?.position != null ? existing[0].position + 1 : 0
+  // Preserve the order the admin picked them in
+  const ordered = rosterPlayerIds
+    .map((id) => rps.find((rp) => rp.id === id))
+    .filter((rp): rp is NonNullable<typeof rp> => !!rp)
+  const rows = ordered.map((rp) => ({
+    name: rp.name, team_id: teamId, position: nextPosition++,
+    handicap: rp.handicap_index ?? null, roster_player_id: rp.id,
+  }))
+  const { error } = await supabase.from('players').insert(rows)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function toggleMixedGroups(roundId: string, value: boolean) {
   const supabase = createServerClient()
   const update: Record<string, unknown> = { mixed_groups: value }
