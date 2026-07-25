@@ -4,6 +4,32 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { createServerClient } from '@/lib/supabase-server'
+import { sendFirstScoreEmail } from '@/lib/notify'
+
+// Claims the round's first-score stamp atomically; only the save that flips
+// first_score_at from NULL sends the notification email. Fails silently
+// (including when the first_score_at column doesn't exist yet).
+async function claimFirstScoreAndNotify(
+  supabase: ReturnType<typeof createServerClient>,
+  roundId: string | null | undefined,
+  scorerLabel: string,
+  holeNumber: number
+) {
+  if (!roundId) return
+  try {
+    const { data } = await supabase
+      .from('rounds')
+      .update({ first_score_at: new Date().toISOString() })
+      .eq('id', roundId)
+      .is('first_score_at', null)
+      .select('id, name, org_id')
+    if (!data || data.length === 0) return
+    const { data: org } = await supabase.from('organizations').select('name').eq('id', data[0].org_id).single()
+    await sendFirstScoreEmail({ orgName: org?.name ?? 'Unknown group', roundName: data[0].name ?? 'round', scorerLabel, holeNumber })
+  } catch (e) {
+    console.error('[claimFirstScoreAndNotify] failed:', e)
+  }
+}
 
 // ── Course presets ────────────────────────────────────────────────────────────
 
@@ -78,12 +104,14 @@ export async function submitHoleScores(
   if (!cookieStore.get(`team_auth_${teamId}`)?.value) return { error: 'Session expired. Please log in again.' }
 
   const supabase = createServerClient()
-  for (const { playerId, strokes } of playerScores) {
-    if (strokes < 1 || strokes > 20) continue
-    await supabase.from('scores').upsert(
-      { player_id: playerId, hole_number: holeNumber, strokes },
-      { onConflict: 'player_id,hole_number' }
-    )
+  const rows = playerScores
+    .filter(({ strokes }) => strokes >= 1 && strokes <= 20)
+    .map(({ playerId, strokes }) => ({ player_id: playerId, hole_number: holeNumber, strokes }))
+  if (rows.length > 0) {
+    const { error } = await supabase.from('scores').upsert(rows, { onConflict: 'player_id,hole_number' })
+    if (error) return { error: error.message }
+    const { data: teamRow } = await supabase.from('teams').select('round_id, name').eq('id', teamId).single()
+    await claimFirstScoreAndNotify(supabase, teamRow?.round_id, teamRow?.name ?? 'A team', holeNumber)
   }
   return { success: true }
 }
@@ -367,17 +395,18 @@ export async function submitHammerHoleScores(
   const cookieStore = await cookies()
   const supabase = createServerClient()
   // Check auth for either team in the matchup
-  const { data: matchup } = await supabase.from('hammer_matchups').select('team1_id, team2_id').eq('id', matchupId).single()
+  const { data: matchup } = await supabase.from('hammer_matchups').select('team1_id, team2_id, round_id').eq('id', matchupId).single()
   if (!matchup) return { error: 'Matchup not found.' }
   const hasAuth = cookieStore.get(`team_auth_${matchup.team1_id}`)?.value === 'true' ||
                   cookieStore.get(`team_auth_${matchup.team2_id}`)?.value === 'true'
   if (!hasAuth) return { error: 'Session expired. Please log in again.' }
-  for (const { playerId, strokes } of playerScores) {
-    if (strokes < 1 || strokes > 20) continue
-    await supabase.from('scores').upsert(
-      { player_id: playerId, hole_number: holeNumber, strokes },
-      { onConflict: 'player_id,hole_number' }
-    )
+  const rows = playerScores
+    .filter(({ strokes }) => strokes >= 1 && strokes <= 20)
+    .map(({ playerId, strokes }) => ({ player_id: playerId, hole_number: holeNumber, strokes }))
+  if (rows.length > 0) {
+    const { error } = await supabase.from('scores').upsert(rows, { onConflict: 'player_id,hole_number' })
+    if (error) return { error: error.message }
+    await claimFirstScoreAndNotify(supabase, (matchup as { round_id?: string | null }).round_id, 'A Hammer matchup', holeNumber)
   }
   return { success: true }
 }
@@ -568,13 +597,14 @@ export async function submitGroupHoleScores(
   const cookieStore = await cookies()
   if (!cookieStore.get(`playing_group_auth_${groupId}`)?.value) return { error: 'Session expired. Please log in again.' }
   const supabase = createServerClient()
-  for (const { playerId, strokes } of playerScores) {
-    if (strokes < 1 || strokes > 20) continue
-    const { error } = await supabase.from('scores').upsert(
-      { player_id: playerId, hole_number: holeNumber, strokes },
-      { onConflict: 'player_id,hole_number' }
-    )
+  const rows = playerScores
+    .filter(({ strokes }) => strokes >= 1 && strokes <= 20)
+    .map(({ playerId, strokes }) => ({ player_id: playerId, hole_number: holeNumber, strokes }))
+  if (rows.length > 0) {
+    const { error } = await supabase.from('scores').upsert(rows, { onConflict: 'player_id,hole_number' })
     if (error) return { error: error.message }
+    const { data: groupRow } = await supabase.from('playing_groups').select('round_id, name').eq('id', groupId).single()
+    await claimFirstScoreAndNotify(supabase, groupRow?.round_id, groupRow?.name ?? 'A group', holeNumber)
   }
   return { success: true }
 }
@@ -719,7 +749,7 @@ export async function clearAllScores(roundId: string) {
     const { error } = await supabase.from('scores').delete().in('player_id', playerIds)
     if (error) return { error: error.message }
   }
-  await supabase.from('rounds').update({ scores_cleared_at: new Date().toISOString() }).eq('id', roundId)
+  await supabase.from('rounds').update({ scores_cleared_at: new Date().toISOString(), first_score_at: null }).eq('id', roundId)
   return { success: true }
 }
 

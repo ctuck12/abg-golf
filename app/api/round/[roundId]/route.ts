@@ -68,7 +68,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     include_total: actualIncludeTotal,
   }
   if (actualBankerMinBet != null) updates.banker_min_bet = actualBankerMinBet
-  if (clearScores) updates.scores_cleared_at = new Date().toISOString()
+  if (clearScores) {
+    updates.scores_cleared_at = new Date().toISOString()
+    updates.first_score_at = null
+  }
 
   const { error: roundErr } = await sb.from('rounds').update(updates).eq('id', roundId)
   if (roundErr) return NextResponse.json({ error: roundErr.message }, { status: 400 })
