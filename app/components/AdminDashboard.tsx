@@ -1426,8 +1426,8 @@ export default function AdminDashboard({
       {/* ── Roster picker modal ── */}
       {rosterPickerTeamId && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => !rosterPickerPending && closeRosterPicker()}>
-          <div className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-8" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-8 flex flex-col" style={{ maxHeight: '90dvh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <div>
                 <h3 className="font-bold text-gray-900">Pick from Roster</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -1438,8 +1438,8 @@ export default function AdminDashboard({
               <button onClick={closeRosterPicker} disabled={rosterPickerPending} className="text-gray-400 text-xl leading-none">✕</button>
             </div>
             <input value={rosterSearch} onChange={(e) => setRosterSearch(e.target.value)}
-              placeholder="Search players…" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none mb-3" />
-            <div className="space-y-1.5 max-h-56 overflow-y-auto">
+              placeholder="Search players…" className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none mb-3 flex-shrink-0" />
+            <div className="space-y-1.5 overflow-y-auto flex-1 min-h-0" style={{ maxHeight: '62dvh' }}>
               {liveRoster
                 .filter((rp) => rp.name.toLowerCase().includes(rosterSearch.toLowerCase()))
                 .map((rp) => {
@@ -1482,7 +1482,7 @@ export default function AdminDashboard({
                 <p className="text-sm text-gray-400 text-center py-4">No players found</p>
               )}
             </div>
-            <div className="flex gap-2 mt-4">
+            <div className="flex gap-2 mt-4 flex-shrink-0">
               <button type="button" onClick={closeRosterPicker} disabled={rosterPickerPending}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-600 disabled:opacity-50">
                 Cancel
