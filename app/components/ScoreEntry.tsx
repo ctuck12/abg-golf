@@ -2078,7 +2078,7 @@ export default function ScoreEntry({
                             Select Banker{isLastTwo ? ' (auto: most down)' : ''}
                           </p>
                           <div className="flex flex-wrap gap-1.5">
-                            {players.map((p) => {
+                            {holeActivePlayers.map((p) => {
                               const isBankerPlayer = hd.bankerPlayerId === p.id
                               const isSuggested = suggestedBankerId === p.id && !hd.bankerPlayerId
                               return (
@@ -2134,7 +2134,7 @@ export default function ScoreEntry({
                           <div>
                             <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Player Bets</p>
                             <div className="space-y-2">
-                              {players.filter((p) => p.id !== hd.bankerPlayerId).map((p) => {
+                              {holeActivePlayers.filter((p) => p.id !== hd.bankerPlayerId).map((p) => {
                                 const pb = bets[p.id] ?? { baseBet: bankerMinBet, playerDoubled: false, bankerDoubled: false }
                                 const effective = pb.baseBet * (pb.playerDoubled ? 2 : 1) * (pb.bankerDoubled ? 2 : 1)
                                 return (

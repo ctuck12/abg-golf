@@ -39,8 +39,8 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
 
   const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, bestBallRes, { data: groupLinks }] = await Promise.all([
     teamIds.length
-      ? sb.from('players').select('id, name, team_id, handicap').in('team_id', teamIds).order('name')
-      : Promise.resolve({ data: [] as { id: string; name: string; team_id: string; handicap: number | null }[] }),
+      ? sb.from('players').select('id, name, team_id, handicap, holes_range').in('team_id', teamIds).order('name')
+      : Promise.resolve({ data: [] as { id: string; name: string; team_id: string; handicap: number | null; holes_range: string | null }[] }),
     sb.from('holes').select('hole_number, par').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
     sb.from('matchups').select('id, player1_id, player2_id, bet, press, hole_range').eq('round_id', round.id).order('created_at'),
@@ -59,8 +59,8 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   const teamPlayerIdSet = new Set((playersRaw ?? []).map((p) => p.id))
   const guestIds = (groupLinks ?? []).map((r) => r.player_id).filter((id) => !teamPlayerIdSet.has(id))
   const { data: guestPlayersRaw } = guestIds.length
-    ? await sb.from('players').select('id, name, handicap').in('id', guestIds)
-    : { data: [] as { id: string; name: string; handicap: number | null }[] }
+    ? await sb.from('players').select('id, name, handicap, holes_range').in('id', guestIds)
+    : { data: [] as { id: string; name: string; handicap: number | null; holes_range: string | null }[] }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let savedMatchups: { id: string; player1_id: string; player2_id: string; bet: string; press: any[] }[]
@@ -81,8 +81,8 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   }
 
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t.name]))
-  const teamPlayers = (playersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: teamMap[p.team_id] ?? '', handicap: p.handicap ?? null }))
-  const guestPlayers = (guestPlayersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: playerToGroup[p.id] ?? '', handicap: p.handicap ?? null }))
+  const teamPlayers = (playersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: teamMap[p.team_id] ?? '', handicap: p.handicap ?? null, holes_range: p.holes_range ?? null }))
+  const guestPlayers = (guestPlayersRaw ?? []).map((p) => ({ id: p.id, name: p.name, teamName: playerToGroup[p.id] ?? '', handicap: p.handicap ?? null, holes_range: p.holes_range ?? null }))
   const players = [...teamPlayers, ...guestPlayers].sort((a, b) => a.name.localeCompare(b.name))
 
   const scorecardTeamId = (teams ?? []).find((t) => cookieStore.get(`team_auth_${t.id}`)?.value === 'true')?.id ?? null

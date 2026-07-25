@@ -8,7 +8,7 @@ import {
 import { ScoreNotation } from './ScoreNotation'
 import PinLoginModal from './PinLoginModal'
 
-type Player = { id: string; name: string; teamName: string; handicap?: number | null }
+type Player = { id: string; name: string; teamName: string; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
@@ -959,6 +959,18 @@ export default function MatchupClient({
   const is9HoleRound = holes.length === 9
   const lastHoleNumber = holes.length > 0 ? Math.max(...holes.map((h) => h.hole_number)) : 18
 
+  // If any participant is a 9-hole player, the matchup is locked to that nine:
+  // hole range auto-sets and Nassau is unavailable.
+  const participantRange = (ids: (string | null | undefined)[]): HoleRange | null => {
+    for (const id of ids) {
+      const r = players.find((p) => p.id === id)?.holes_range
+      if (r === 'front9' || r === 'back9') return r
+    }
+    return null
+  }
+  const newH2HParticipantRange = participantRange([newP1, newP2])
+  const bbParticipantRange = participantRange([bbT1P1, bbT1P2, bbT2P1, bbT2P2])
+
   // When form opens for a 9-hole round, force Overall (straight) bet type
   useEffect(() => {
     if (showH2HForm && is9HoleRound) setNewBetType('straight')
@@ -966,13 +978,20 @@ export default function MatchupClient({
   useEffect(() => {
     if (showBBForm && is9HoleRound) setBbBetType('straight')
   }, [showBBForm, is9HoleRound])
+  // A 9-hole participant locks the matchup to their nine and rules out Nassau
+  useEffect(() => {
+    if (newH2HParticipantRange) setNewHoleRange(newH2HParticipantRange)
+  }, [newH2HParticipantRange])
+  useEffect(() => {
+    if (bbParticipantRange) setBbHoleRange(bbParticipantRange)
+  }, [bbParticipantRange])
   // Nassau not available for front9/back9 matchups — reset if user selects a range
   useEffect(() => {
-    if (newHoleRange !== 'all' && newBetType === 'nassau') setNewBetType('straight')
-  }, [newHoleRange, newBetType])
+    if ((newHoleRange !== 'all' || newH2HParticipantRange) && newBetType === 'nassau') setNewBetType('straight')
+  }, [newHoleRange, newH2HParticipantRange, newBetType])
   useEffect(() => {
-    if (bbHoleRange !== 'all' && bbBetType === 'nassau') setBbBetType('straight')
-  }, [bbHoleRange, bbBetType])
+    if ((bbHoleRange !== 'all' || bbParticipantRange) && bbBetType === 'nassau') setBbBetType('straight')
+  }, [bbHoleRange, bbParticipantRange, bbBetType])
   useEffect(() => {
     if (editH2HHoleRange !== 'all' && editH2HBetType === 'nassau') setEditH2HBetType('straight')
   }, [editH2HHoleRange, editH2HBetType])
@@ -1426,7 +1445,7 @@ export default function MatchupClient({
                       <select value={newBetType} onChange={(e) => { setNewBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setNewSweepEnabled(false); setNewSweepAmount('') } }}
                         className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                         <option value="" disabled>Select…</option>
-                        {!is9HoleRound && newHoleRange === 'all' && <option value="nassau">Nassau</option>}
+                        {!is9HoleRound && newHoleRange === 'all' && !newH2HParticipantRange && <option value="nassau">Nassau</option>}
                         <option value="straight">Overall</option>
                       </select>
                     </div>
@@ -2043,7 +2062,7 @@ export default function MatchupClient({
                       <select value={bbBetType} onChange={(e) => { setBbBetType(e.target.value as BetType | ''); if (e.target.value !== 'nassau') { setBbSweepEnabled(false); setBbSweepAmount('') } }}
                         className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                         <option value="" disabled>Select…</option>
-                        {!is9HoleRound && bbHoleRange === 'all' && <option value="nassau">Nassau</option>}
+                        {!is9HoleRound && bbHoleRange === 'all' && !bbParticipantRange && <option value="nassau">Nassau</option>}
                         <option value="straight">Overall</option>
                       </select>
                     </div>
