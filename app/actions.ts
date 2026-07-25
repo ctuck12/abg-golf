@@ -653,10 +653,42 @@ export async function deletePlayer(playerId: string) {
   await supabase.from('players').delete().eq('id', playerId)
 }
 
+// Convert a Nassau bet string to an Overall (straight) bet scoped to one nine:
+// amount = that nine's Nassau amount (falling back to the Total amount), and the
+// handicap becomes that nine's stroke value. Non-Nassau bets pass through.
+function convertBetForNine(bet: string, nine: 'front9' | 'back9'): string {
+  if (!bet || !bet.startsWith('nassau:')) return bet
+  const p = bet.split(':')
+  const rawAmt = p[1] ?? ''
+  const amts = rawAmt.split('|')
+  const [f, b, t] = amts.length === 3 ? amts : [rawAmt, rawAmt, rawAmt]
+  const amt = (nine === 'front9' ? f : b) || t || ''
+  const scoring = p[2] === 'match' ? 'match' : 'stroke'
+  const side = p[4] ?? ''
+  const nineStrokes = parseFloat((nine === 'front9' ? p[5] : p[6]) ?? '') || 0
+  if (side && nineStrokes > 0) return `straight:${amt}:${scoring}::${side}:0:0:${nineStrokes}`
+  return `straight:${amt}:${scoring}`
+}
+
 export async function updatePlayerHolesRange(playerId: string, holesRange: string) {
   const supabase = createServerClient()
   const { error } = await supabase.from('players').update({ holes_range: holesRange }).eq('id', playerId)
   if (error) return { error: error.message }
+
+  // Lock this player's existing matchups to their nine and auto-convert any
+  // Nassau bets to Overall — a 9-hole player can't play a three-way bet.
+  if (holesRange === 'front9' || holesRange === 'back9') {
+    const [{ data: h2h }, { data: bb }] = await Promise.all([
+      supabase.from('matchups').select('id, bet, hole_range').or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`),
+      supabase.from('best_ball_matchups').select('id, bet, hole_range').or(`team1_player1_id.eq.${playerId},team1_player2_id.eq.${playerId},team2_player1_id.eq.${playerId},team2_player2_id.eq.${playerId}`),
+    ])
+    await Promise.all([
+      ...(h2h ?? []).map((m) =>
+        supabase.from('matchups').update({ bet: convertBetForNine(m.bet ?? '', holesRange), hole_range: holesRange }).eq('id', m.id)),
+      ...(bb ?? []).map((m) =>
+        supabase.from('best_ball_matchups').update({ bet: convertBetForNine(m.bet ?? '', holesRange), hole_range: holesRange }).eq('id', m.id)),
+    ])
+  }
   return { success: true }
 }
 
