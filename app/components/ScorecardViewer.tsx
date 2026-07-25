@@ -48,7 +48,7 @@ const tdScore = (highlight?: boolean, isBall?: boolean): React.CSSProperties => 
 
 export default function ScorecardViewer({
   orgSlug, orgId, orgName, isMaster = false,
-  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0, holeStrokes = {}, scorecardTeamId: scorecardTeamIdProp = null, includeTotal = false, roundId, scoresClearedAt: initialScoresClearedAt = null,
+  teamName, players, holes, scores: initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', dtAssignments = [], isAdmin = false, pressedHoles = {}, dtPayoutValue = 0, holeStrokes = {}, scorecardTeamId: scorecardTeamIdProp = null, includeTotal = false, roundId,
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   teamName: string
@@ -72,8 +72,6 @@ export default function ScorecardViewer({
   const [scorecardTeamId] = useState<string | null>(scorecardTeamIdProp)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
-  const [scoresClearedAt, setScoresClearedAt] = useState<string | null>(initialScoresClearedAt)
-  const [clearedBannerDismissed, setClearedBannerDismissed] = useState(false)
 
   async function handleSignOut() {
     await fetch('/api/org-logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orgId }) })
@@ -96,19 +94,6 @@ export default function ScorecardViewer({
     const interval = setInterval(refetch, 5000)
     return () => { clearInterval(interval) }
   }, [players])
-
-  useEffect(() => {
-    if (!roundId) return
-    async function pollRoundStatus() {
-      const data = await fetch('/api/round-status?roundId=' + roundId).then((r) => r.json()).catch(() => null)
-      if (data?.scores_cleared_at && data.scores_cleared_at !== scoresClearedAt) {
-        setScoresClearedAt(data.scores_cleared_at)
-        setClearedBannerDismissed(false)
-      }
-    }
-    const interval = setInterval(pollRoundStatus, 15000)
-    return () => { clearInterval(interval) }
-  }, [roundId, scoresClearedAt])
 
   // Pre-compute per-hole data (player scores + ball scores)
   const holeData = holes.map((hole) => {
@@ -236,29 +221,6 @@ export default function ScorecardViewer({
         </div>
       </header>
       <div ref={spacerRef} />
-
-      {scoresClearedAt && !clearedBannerDismissed && (() => {
-        const clearedMs = new Date(scoresClearedAt).getTime()
-        const isRecent = !isNaN(clearedMs) && Date.now() - clearedMs < 24 * 60 * 60 * 1000
-        if (!isRecent) return null
-        return (
-          <div className="sticky top-0 z-20 px-3 pt-3">
-            <div className="max-w-4xl mx-auto bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 flex items-start gap-3 shadow-sm">
-              <span className="text-amber-600 text-lg leading-none flex-shrink-0">⚠</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-800">Scores cleared by admin</p>
-                <p className="text-xs text-amber-700 mt-0.5">All scores have been reset. Please re-enter scores for any completed holes.</p>
-              </div>
-              <button
-                onClick={() => setClearedBannerDismissed(true)}
-                className="text-amber-500 hover:text-amber-700 flex-shrink-0 text-lg leading-none"
-                aria-label="Dismiss">
-                ✕
-              </button>
-            </div>
-          </div>
-        )
-      })()}
 
       <div className="max-w-4xl mx-auto px-3 py-4">
 

@@ -3230,13 +3230,13 @@ export default function LeaderboardClient({
             </div>
             {[...rows].sort((a, b) => a.team.name.localeCompare(b.team.name)).map((row) => {
               const rosterPlayers = players.filter((p) => p.team_id === row.team.id)
-              // Auto-size the name list so it fits between the team name and the
-              // Scorecard button (shrink font, never the row). Estimate widths:
-              // card = min(viewport, 512) − page padding; row eats px-4 + two gap-3
-              // gaps + team-name column + button. ~0.55px per char per font px.
+              // Auto-size the name list to fit beside the team name (shrink font,
+              // never the row). Estimate widths: card = min(viewport, 512) − page
+              // padding; row eats px-4 + gap-3 + team-name column. ~0.55px per
+              // char per font px.
               const rosterCardW = Math.min(_vpw, 512) - 32
               const rosterTeamW = Math.max(80, row.team.name.length * 8.5)
-              const rosterAvailW = rosterCardW - 32 - 24 - rosterTeamW - 76 - 8
+              const rosterAvailW = rosterCardW - 32 - 12 - rosterTeamW - 8
               const rosterChars = rosterPlayers.reduce((a, p) => a + p.name.length, 0) + Math.max(0, rosterPlayers.length - 1) * 3
               const rosterFs = rosterChars > 0
                 ? Math.max(9, Math.min(14, Math.floor((rosterAvailW / (rosterChars * 0.55)) * 2) / 2))
@@ -3269,11 +3269,6 @@ export default function LeaderboardClient({
                     ))}
                   </span>
                   </div>
-                  <a href={`/${orgSlug}/scorecard/${row.team.id}`}
-                    className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
-                    style={{ background: gold, color: navy }}>
-                    Scorecard
-                  </a>
                 </div>
               )
             })}
