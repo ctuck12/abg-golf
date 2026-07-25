@@ -10,8 +10,6 @@ import {
   updatePlayerHandicap,
   updatePlayerHolesRange,
   clearAllScores,
-  savePushSubscription,
-  removePushSubscription,
   updateRoundAutoHandicap,
   toggleMixedGroups,
   setPlayingGroupCount,
@@ -39,7 +37,6 @@ import {
   type DaytonaHoleAssignment, type BallHalfResult, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
-import { VAPID_PUBLIC_KEY } from '@/lib/push-keys'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -767,22 +764,6 @@ export default function AdminDashboard({
   const [holesRangeOverrides, setHolesRangeOverrides] = useState<Record<string, string>>({})
   const [confirmClearScores, setConfirmClearScores] = useState(false)
   const [clearScoresPending, setClearScoresPending] = useState(false)
-  // PWA push notifications: 'checking' | 'unsupported' | 'subscribed' | 'unsubscribed' | 'denied'
-  const [pushState, setPushState] = useState('checking')
-  const [pushBusy, setPushBusy] = useState(false)
-  useEffect(() => {
-    (async () => {
-      try {
-        if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
-          setPushState('unsupported'); return
-        }
-        if (Notification.permission === 'denied') { setPushState('denied'); return }
-        const reg = await navigator.serviceWorker.ready
-        const sub = await reg.pushManager.getSubscription()
-        setPushState(sub ? 'subscribed' : 'unsubscribed')
-      } catch { setPushState('unsupported') }
-    })()
-  }, [])
 
   const [createPending, setCreatePending] = useState(false)
   const [createError, setCreateError] = useState('')
@@ -1265,36 +1246,6 @@ export default function AdminDashboard({
   function handleUpdateHolesRange(playerId: string, range: string) {
     setHolesRangeOverrides(prev => ({ ...prev, [playerId]: range }))
     updatePlayerHolesRange(playerId, range).then(() => router.refresh())
-  }
-  async function handleEnablePush() {
-    setPushBusy(true)
-    try {
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') { setPushState(perm === 'denied' ? 'denied' : 'unsubscribed'); return }
-      const reg = await navigator.serviceWorker.ready
-      const b64 = VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/')
-      const pad = '='.repeat((4 - (b64.length % 4)) % 4)
-      const raw = atob(b64 + pad)
-      const key = new Uint8Array([...raw].map((c) => c.charCodeAt(0)))
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
-      const res = await savePushSubscription(JSON.parse(JSON.stringify(sub)))
-      if (res.error) { alert(res.error); return }
-      setPushState('subscribed')
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not enable notifications.')
-    } finally { setPushBusy(false) }
-  }
-  async function handleDisablePush() {
-    setPushBusy(true)
-    try {
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.getSubscription()
-      if (sub) {
-        await removePushSubscription(sub.endpoint)
-        await sub.unsubscribe()
-      }
-      setPushState('unsubscribed')
-    } finally { setPushBusy(false) }
   }
   async function handleClearAllScores() {
     if (!round) return
@@ -2570,37 +2521,6 @@ export default function AdminDashboard({
                 </div>
               </div>
             )}
-
-            {/* ── Score notifications (this device) ── */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <h3 className="font-semibold text-gray-900 text-sm mb-1">Score Notifications</h3>
-              <p className="text-xs text-gray-400 mb-3">Get a notification on this device when a round&apos;s first scores are entered.</p>
-              {pushState === 'unsupported' && (
-                <p className="text-xs text-amber-700 bg-amber-50 rounded px-3 py-2">
-                  Notifications aren&apos;t available in this browser. On iPhone, add the app to your Home Screen (Share → Add to Home Screen) and open it from there.
-                </p>
-              )}
-              {pushState === 'denied' && (
-                <p className="text-xs text-amber-700 bg-amber-50 rounded px-3 py-2">
-                  Notifications are blocked for this app in your device settings. Enable them there, then come back.
-                </p>
-              )}
-              {pushState === 'subscribed' && (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-green-600">Enabled on this device ✓</span>
-                  <button type="button" disabled={pushBusy} onClick={handleDisablePush}
-                    className="text-xs text-gray-500 border border-gray-300 px-2.5 py-1 rounded-lg hover:bg-gray-50 disabled:opacity-50">
-                    Turn Off
-                  </button>
-                </div>
-              )}
-              {pushState === 'unsubscribed' && (
-                <button type="button" disabled={pushBusy} onClick={handleEnablePush}
-                  className="text-sm font-semibold px-4 py-2 rounded-lg text-white disabled:opacity-60" style={{ background: navy }}>
-                  {pushBusy ? 'Enabling…' : 'Enable on This Device'}
-                </button>
-              )}
-            </div>
 
             {/* ── Clear All Scores (any format, once started) ── */}
             {round && round.is_started && (
