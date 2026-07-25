@@ -112,8 +112,11 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
     const supabase = createServerClient()
 
-    const { data: dbCourse } = await supabase
-      .from('courses').select('name, pars, stroke_indexes').eq('slug', courseSlug).single()
+    // Course lookup and old-round deactivation are independent — run together
+    const [{ data: dbCourse }] = await Promise.all([
+      supabase.from('courses').select('name, pars, stroke_indexes').eq('slug', courseSlug).single(),
+      supabase.from('rounds').update({ is_active: false }).eq('is_active', true).eq('org_id', orgId),
+    ])
 
     const courseName = dbCourse?.name ?? COURSE_NAMES[courseSlug] ?? courseSlug
     const allParsRaw = dbCourse?.pars ?? COURSE_PARS[courseSlug] ?? Array(18).fill(4)
@@ -128,8 +131,6 @@ export async function createRound(_prev: unknown, formData: FormData) {
     const strokeIndexes = holeCount === 9
       ? (startHole === 10 ? allStrokeIndexes.slice(9) : allStrokeIndexes.slice(0, 9))
       : allStrokeIndexes
-
-    await supabase.from('rounds').update({ is_active: false }).eq('is_active', true).eq('org_id', orgId)
 
     const { data: round, error } = await supabase
       .from('rounds')
