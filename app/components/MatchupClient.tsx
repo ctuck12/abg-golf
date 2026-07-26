@@ -305,6 +305,33 @@ function computeBestBall(
   }
 }
 
+// Which stroke holes actually lowered the team's counted best ball: compares
+// the team low with the player's net vs. what it would be on their gross.
+function bbStrokeContribLabel(
+  playerId: string,
+  partnerId: string,
+  strokeHoles: Record<number, number>,
+  rawMap: Record<string, Record<number, number>>,
+  adjMap: Record<string, Record<number, number>>
+): string {
+  const played: number[] = []
+  const contributed: number[] = []
+  for (const hStr of Object.keys(strokeHoles)) {
+    const h = Number(hStr)
+    const pGross = rawMap[playerId]?.[h]
+    if (pGross == null) continue
+    played.push(h)
+    const pNet = adjMap[playerId]?.[h] ?? pGross
+    const partnerNet = adjMap[partnerId]?.[h]
+    const teamWith = partnerNet != null ? Math.min(pNet, partnerNet) : pNet
+    const teamWithout = partnerNet != null ? Math.min(pGross, partnerNet) : pGross
+    if (teamWith < teamWithout) contributed.push(h)
+  }
+  if (played.length === 0) return 'No stroke holes played yet.'
+  if (contributed.length === 0) return "No strokes have factored into the team's low ball yet."
+  return `Stroke counted in the team low ball on hole${contributed.length > 1 ? 's' : ''}: ${contributed.sort((a, b) => a - b).join(', ')}`
+}
+
 // ── Payout types ─────────────────────────────────────────────────────────────
 type PayoutSegment = {
   name: 'Front' | 'Back' | 'Total'
@@ -866,7 +893,7 @@ export default function MatchupClient({
   const [showNetPositions, setShowNetPositions] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' | 'medley' } | null>(null)
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
-  const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | { playerStrokes: { name: string; strokes: number; holesLabel: string }[] } | null>(null)
+  const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | { playerStrokes: { name: string; strokes: number; holesLabel: string; contribLabel?: string }[] } | null>(null)
 
   function captureSearchPos() {
     if (searchWrapperRef.current && !fixedSearch) {
@@ -1286,6 +1313,9 @@ export default function MatchupClient({
                       {e.holesLabel && (
                         <p className="text-xs text-gray-500 mt-0.5">Strokes on holes: <span className="font-semibold text-gray-700">{e.holesLabel}</span></p>
                       )}
+                      {e.contribLabel && (
+                        <p className="text-xs mt-0.5" style={{ color: e.contribLabel.startsWith('Stroke counted') ? '#16a34a' : '#9ca3af' }}>{e.contribLabel}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1454,36 +1484,38 @@ export default function MatchupClient({
                   target.handicapSide === 't1' ? bbHcpInfo : null,
                   target.handicapSide === 't2' ? bbHcpInfo : null,
                 ]
+                const teamStarFor = (ids: [string, string], names: [string, string]): (() => void) | null => {
+                  if (!hasPlayerStrokes) return null
+                  const entries = ids
+                    .map((id, i) => ({
+                      name: names[i],
+                      strokes: Number(target.playerStrokes?.[id]) || 0,
+                      holesLabel: Object.entries(modalStrokeHoles[id] ?? {})
+                        .sort((a, b) => Number(a[0]) - Number(b[0]))
+                        .map(([h, n]) => (n as number) > 1 ? `${h} (×${n})` : h)
+                        .join(', '),
+                      contribLabel: bbStrokeContribLabel(id, ids.find((x) => x !== id) ?? id, modalStrokeHoles[id] ?? {}, scoreMap, adjMap),
+                    }))
+                    .filter((e) => e.strokes > 0)
+                  if (entries.length === 0) return null
+                  return () => setStrokesPopover({ playerStrokes: entries })
+                }
                 return (
-                  <>
-                    <HorizontalScorecardTable
-                      rows={[
-                        { label: target.t1Name, scoreMap: t1Map },
-                        { label: target.t2Name, scoreMap: t2Map },
-                      ]}
-                      holes={holes}
-                      showMatchPlay={target.scoringType === 'match'}
-                      betType={target.betType}
-                      strokesInfo={bbStrokesInfo}
-                      onStrokesClick={setStrokesPopover}
-                    />
-                    {hasPlayerStrokes && (
-                      <div className="mt-4">
-                        <p className="text-xs font-semibold text-gray-500 mb-1">Player scorecards — <span style={{ color: gold }}>*</span> = handicap stroke received (net used for best ball)</p>
-                        <div className="overflow-x-auto">
-                          <HorizontalScorecardTable
-                            rows={[
-                              { label: target.t1p1Name, scoreMap: scoreMap[target.t1p1Id] ?? {}, starHoles: modalStrokeHoles[target.t1p1Id] },
-                              { label: target.t1p2Name, scoreMap: scoreMap[target.t1p2Id] ?? {}, starHoles: modalStrokeHoles[target.t1p2Id] },
-                              { label: target.t2p1Name, scoreMap: scoreMap[target.t2p1Id] ?? {}, starHoles: modalStrokeHoles[target.t2p1Id] },
-                              { label: target.t2p2Name, scoreMap: scoreMap[target.t2p2Id] ?? {}, starHoles: modalStrokeHoles[target.t2p2Id] },
-                            ]}
-                            holes={holes}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  <HorizontalScorecardTable
+                    rows={[
+                      { label: target.t1Name, scoreMap: t1Map },
+                      { label: target.t2Name, scoreMap: t2Map },
+                    ]}
+                    holes={holes}
+                    showMatchPlay={target.scoringType === 'match'}
+                    betType={target.betType}
+                    strokesInfo={bbStrokesInfo}
+                    onStrokesClick={setStrokesPopover}
+                    rowStars={[
+                      teamStarFor([target.t1p1Id, target.t1p2Id], [target.t1p1Name, target.t1p2Name]),
+                      teamStarFor([target.t2p1Id, target.t2p2Id], [target.t2p1Name, target.t2p2Name]),
+                    ]}
+                  />
                 )
               })() : (() => {
                 const target = showScorecardFor
@@ -2860,6 +2892,7 @@ export default function MatchupClient({
                                                 .sort((a, b) => Number(a[0]) - Number(b[0]))
                                                 .map(([h, n]) => (n as number) > 1 ? `${h} (×${n})` : h)
                                                 .join(', '),
+                                              contribLabel: bbStrokeContribLabel(id, rowIds.find((x) => x !== id) ?? id, bbCardStrokeHoles[id] ?? {}, scoreMap, bbCardScoreMap),
                                             }))
                                             .filter((e) => e.strokes > 0)
                                           if (ps.length === 0) return null
@@ -3398,7 +3431,7 @@ export default function MatchupClient({
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function HorizontalScorecardTable({
-  rows, holes, showMatchPlay = false, betType = '', strokesInfo, onStrokesClick,
+  rows, holes, showMatchPlay = false, betType = '', strokesInfo, onStrokesClick, rowStars,
 }: {
   rows: { label: string; scoreMap: Partial<Record<number, number>>; starHoles?: Partial<Record<number, number>> }[]
   holes: Hole[]
@@ -3406,6 +3439,7 @@ function HorizontalScorecardTable({
   betType?: BetType | ''
   strokesInfo?: ({ front: number; back: number; total: number } | null)[]
   onStrokesClick?: (info: { recipientName: string; front: number; back: number; total: number }) => void
+  rowStars?: ((() => void) | null)[]
 }) {
   const frontNine = holes.filter((h) => h.hole_number <= 9)
   const backNine = holes.filter((h) => h.hole_number >= 10)
@@ -3583,6 +3617,13 @@ function HorizontalScorecardTable({
                       title="View handicap strokes">*</button>
                   )
                 })()}
+                {rowStars?.[rowIdx] && (
+                  <button
+                    onClick={rowStars[rowIdx]!}
+                    className="font-bold leading-none"
+                    style={{ color: gold, fontSize: '0.9rem', marginLeft: '2px', verticalAlign: 'text-top', position: 'relative', top: '1px' }}
+                    title="View handicap strokes">*</button>
+                )}
               </td>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => {
                 const hole = holes.find((h) => h.hole_number === n)
