@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
 
   const roundQuery = sb.from('rounds').select('id').eq('is_active', true)
   if (orgId) roundQuery.eq('org_id', orgId)
-  const { data: round } = await roundQuery.single()
+  const { data: roundRows } = await roundQuery.order('created_at', { ascending: false }).limit(1)
+  const round = roundRows?.[0] ?? null
 
   if (!round) {
     return NextResponse.json({ isAdmin, scorecardTeamId: null })

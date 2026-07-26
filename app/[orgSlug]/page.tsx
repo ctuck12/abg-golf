@@ -34,12 +34,17 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     .filter((c) => c.name.startsWith('playing_group_auth_') && c.value === 'true')
     .map((c) => c.name.replace('playing_group_auth_', ''))
 
-  const { data: round } = await sb
+  // .limit(1) instead of .single(): .single() errors out (round -> null) if the
+  // org ever ends up with more than one active round, which bounced admins off
+  // the leaderboard entirely. Newest active round wins, matching the admin hub.
+  const { data: roundRows } = await sb
     .from('rounds')
     .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, skins_mode, handicap_rounding, mixed_groups, exclude_matchups')
     .eq('is_active', true)
     .eq('org_id', orgId)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const round = roundRows?.[0] ?? null
 
   // Only honor group-scorer cookies that belong to the CURRENT round's playing
   // groups — stale cookies from a previous round otherwise produce dead

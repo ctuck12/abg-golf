@@ -26,7 +26,8 @@ export default async function OrgAllScorecardsPage({
   const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
   const orgName = orgRow?.name ?? orgSlug
 
-  const { data: round } = await sb.from('rounds').select('id, format, daytona_variant, handicap_rounding').eq('is_active', true).eq('org_id', orgId).single()
+  const { data: roundRows } = await sb.from('rounds').select('id, format, daytona_variant, handicap_rounding').eq('is_active', true).eq('org_id', orgId).order('created_at', { ascending: false }).limit(1)
+  const round = roundRows?.[0] ?? null
   if (!round || round.format !== 'daytona') redirect(`/${orgSlug}`)
 
   const { data: allTeams } = await sb.from('teams').select('id, name, daytona_variant, daytona_variant_back9').eq('round_id', round.id)

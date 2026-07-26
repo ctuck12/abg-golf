@@ -18,12 +18,14 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
   const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
   const orgName = orgRow?.name ?? orgSlug
 
-  const { data: round } = await sb
+  const { data: roundRows } = await sb
     .from('rounds')
     .select('id, name, balls_count, format, is_started, mixed_groups, handicap_rounding')
     .eq('is_active', true)
     .eq('org_id', orgId)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const round = roundRows?.[0] ?? null
 
   if (!round || !round.is_started) redirect(`/${orgSlug}`)
 

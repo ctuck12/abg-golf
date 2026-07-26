@@ -39,6 +39,7 @@ import {
   computePlayerDaytonaDollarsSplit,
   computeSkinsResults,
   computeSkinsPotResults,
+  playerCoversHole,
   type DaytonaHoleAssignment, type BallHalfResult, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
@@ -999,7 +1000,12 @@ export default function AdminDashboard({
   const is9HoleRound = (isDaytona || isTraditional || isBanker) && roundHoleCount === 9
   const roundIncludeTotal = round?.include_total ?? false
   const numSegments = roundIncludeTotal ? 3 : 2          // Front + Back [+ Total]
-  const isComplete = teamPlayers.length > 0 && holes.length > 0 && teamPlayers.every((p) => liveScores.filter((s) => s.player_id === p.id).length === holes.length)
+  // Complete = every player has a score on every hole THEY cover (players set
+  // to Front 9 / Back 9 only need scores on their nine, not all 18)
+  const isComplete = teamPlayers.length > 0 && holes.length > 0 && teamPlayers.every((p) => {
+    const covered = holes.filter((h) => playerCoversHole(p.holes_range ?? null, h.hole_number))
+    return covered.length > 0 && covered.every((h) => liveScores.some((s) => s.player_id === p.id && s.hole_number === h.hole_number))
+  })
 
   // Standard ball payouts
   const frontHoles = holes.filter((h) => h.hole_number <= 9)

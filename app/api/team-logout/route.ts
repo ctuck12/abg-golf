@@ -6,11 +6,13 @@ export async function POST() {
   const cookieStore = await cookies()
   const sb = createServerClient()
 
-  const { data: round } = await sb
+  const { data: roundRows } = await sb
     .from('rounds')
     .select('id')
     .eq('is_active', true)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const round = roundRows?.[0] ?? null
 
   if (round) {
     const { data: teams } = await sb.from('teams').select('id').eq('round_id', round.id)
