@@ -37,7 +37,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
     : { data: [] as { id: string; name: string }[] }
   const groupIds = (playingGroupsRaw ?? []).map((g) => g.id)
 
-  const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, bestBallRes, { data: groupLinks }] = await Promise.all([
+  const [{ data: playersRaw }, { data: holes }, { data: scores }, matchupsRes, bestBallRes, { data: groupLinks }, medleyRes] = await Promise.all([
     teamIds.length
       ? sb.from('players').select('id, name, team_id, handicap, holes_range').in('team_id', teamIds).order('name')
       : Promise.resolve({ data: [] as { id: string; name: string; team_id: string; handicap: number | null; holes_range: string | null }[] }),
@@ -48,6 +48,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
     isMixedGroups && groupIds.length
       ? sb.from('playing_group_players').select('player_id, playing_group_id').in('playing_group_id', groupIds)
       : Promise.resolve({ data: [] as { player_id: string; playing_group_id: string }[] }),
+    sb.from('medley_matchups').select('id, players, bet_type, amount').eq('round_id', round.id).order('created_at'),
   ])
 
   // Build group name lookup and player→group map
@@ -102,6 +103,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
       roundName={round.name}
       initialMatchups={savedMatchups ?? []}
       initialBestBallMatchups={savedBestBall ?? []}
+      initialMedleyMatchups={(medleyRes.data ?? []) as { id: string; players: { id: string; front?: number | null; back?: number | null; total?: number | null }[]; bet_type: string; amount: number }[]}
       isAdmin={isAdmin}
       scorecardTeamId={scorecardTeamId}
       format={round.format ?? 'standard'}

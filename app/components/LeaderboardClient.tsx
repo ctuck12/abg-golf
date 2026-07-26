@@ -5,6 +5,7 @@ import {
   computeTeamBallSummary, playerCoversHole,
   computeBBStrokeHoles, applyPlayerStrokesToScoreMap,
   pressForfeitMap, type PressForfeit,
+  computeMedley, type MedleyMatchup,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
   computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
@@ -77,7 +78,7 @@ type HammerHoleState = { stake: number; lastHammerTeam: 1 | 2 | null; foldedTeam
 type MatchupBetType = 'nassau' | 'straight'
 type MatchupScoringType = 'stroke' | 'match'
 type MPayoutSeg = { name: 'Front' | 'Back' | 'Total'; settled: boolean; winnerLabel: string | null; tied: boolean; amount: number; perPlayer: boolean; forfeited?: boolean }
-type MPayoutRow = { id: string; type: 'h2h' | 'bb'; label: string; betLabel: string; segments: MPayoutSeg[]; nassauResult?: { winnerLabel: string | null; amount: number; perPlayer: boolean; anySettled: boolean; swept?: boolean } }
+type MPayoutRow = { id: string; type: 'h2h' | 'bb' | 'medley'; label: string; betLabel: string; segments: MPayoutSeg[]; nassauResult?: { winnerLabel: string | null; amount: number; perPlayer: boolean; anySettled: boolean; swept?: boolean } }
 
 function parseMBetAmounts(raw: string): { frontAmount: number; backAmount: number; totalAmount: number } {
   const p = raw.split('|')
@@ -150,7 +151,7 @@ function minimizeSettlements(players: { id: string; name: string }[], net: Recor
   }
   return out
 }
-function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestBallMatchup[], players: { id: string; name: string }[], scoreMap: Record<string, Record<number, number>>, holes: Hole[]): { rows: MPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
+function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestBallMatchup[], medleyMatchups: MedleyMatchup[], players: { id: string; name: string }[], scoreMap: Record<string, Record<number, number>>, holes: Hole[]): { rows: MPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
   const net: Record<string, number> = {}
   for (const p of players) net[p.id] = 0
   const rows: MPayoutRow[] = []
@@ -328,6 +329,26 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
     }
     rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
   }
+
+  // ── Medley (3-5 players, low ball) ────────────────────────────────
+  for (const mm of medleyMatchups) {
+    const entries = (mm.players ?? []).filter((e) => e && e.id && players.some((p) => p.id === e.id))
+    if (entries.length < 2) continue
+    for (const e of entries) involvedIds.add(e.id)
+    const { segments: medSegs, netDelta } = computeMedley({ ...mm, players: entries }, scoreMap, holes)
+    for (const [id, amt] of Object.entries(netDelta)) net[id] = (net[id] ?? 0) + amt
+    const names = entries.map((e) => players.find((p) => p.id === e.id)?.name.split(' ')[0] ?? '?')
+    const amtNum = Number(mm.amount) || 0
+    rows.push({
+      id: mm.id, type: 'medley',
+      label: names.join(' vs '),
+      betLabel: amtNum > 0 ? `$${amtNum} ${mm.bet_type === 'nassau' ? 'Nassau' : 'Overall'} · Low Ball` : 'No bet configured',
+      segments: amtNum > 0 ? medSegs.map((s) => ({
+        name: s.name, settled: s.settled, tied: s.tied, amount: s.amount, perPlayer: true,
+        winnerLabel: s.winnerId ? (players.find((p) => p.id === s.winnerId)?.name ?? null) : null,
+      })) : [],
+    })
+  }
   return { rows, net, involvedIds }
 }
 
@@ -351,7 +372,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, excludeMatchups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {}, hammerMatchups = [], hammerHolesMap = {},
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], medleyMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, excludeMatchups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {}, hammerMatchups = [], hammerHolesMap = {},
 }: {
   orgSlug: string
   orgId: string
@@ -384,6 +405,7 @@ export default function LeaderboardClient({
   includeTotal?: boolean
   matchups?: SavedMatchup[]
   bestBallMatchups?: BestBallMatchup[]
+  medleyMatchups?: MedleyMatchup[]
   skinsEnabled?: boolean
   skinsAmount?: number
   initialHoleValues?: Record<string, Record<number, number>>
@@ -1049,7 +1071,7 @@ export default function LeaderboardClient({
     if (!scoreMapForMatchups[s.player_id]) scoreMapForMatchups[s.player_id] = {}
     scoreMapForMatchups[s.player_id][s.hole_number] = s.strokes
   }
-  const matchupPayouts = computeMatchupPayouts(matchups, bestBallMatchups, players, scoreMapForMatchups, holes)
+  const matchupPayouts = computeMatchupPayouts(matchups, bestBallMatchups, medleyMatchups ?? [], players, scoreMapForMatchups, holes)
 
   // Players whose groups have "Exclude Matchups from Payouts" toggled on
   const visibleMatchupPayouts = excludeMatchups

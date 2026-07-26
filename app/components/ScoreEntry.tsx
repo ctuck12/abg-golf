@@ -6,6 +6,7 @@ import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, playerCoversHole,
   computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, type PressForfeit,
+  computeMedley, type MedleyMatchup,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   computeHoleDaytonaPointsFiveMan,
   calculatePoolPayouts, settleDaytonaPlayerPoints,
@@ -31,7 +32,7 @@ type MPayoutSeg = { name: 'Front' | 'Back' | 'Total'; settled: boolean; winnerLa
 type MPayoutRow = { id: string; label: string; betLabel: string; segments: MPayoutSeg[]; nassauResult?: { winnerLabel: string | null; amount: number; perPlayer: boolean; anySettled: boolean; swept?: boolean } }
 type PayoutsData = {
   teams: AllTeam[]; players: AllPlayer[]; scores: Score[]; ballValues: BallValue[]
-  assignments: DaytonaHoleAssignment[]; matchups: SavedMatchup[]; bestBallMatchups: BestBallMatchup[]
+  assignments: DaytonaHoleAssignment[]; matchups: SavedMatchup[]; bestBallMatchups: BestBallMatchup[]; medleyMatchups: MedleyMatchup[]
   holeValues: Record<string, Record<number, number>>
   bankerHolesAll: { team_id: string; hole_number: number; banker_player_id: string | null; max_bet: number }[]
   bankerBetsAll: { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]
@@ -155,7 +156,7 @@ function minimizeSettlements(players: { id: string; name: string }[], net: Recor
   }
   return out
 }
-function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestBallMatchup[], players: { id: string; name: string }[], scoreMap: Record<string, Record<number, number>>, holes: { hole_number: number; par: number }[]): { rows: MPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
+function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestBallMatchup[], medleyMatchups: MedleyMatchup[], players: { id: string; name: string }[], scoreMap: Record<string, Record<number, number>>, holes: { hole_number: number; par: number }[]): { rows: MPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
   const net: Record<string, number> = {}
   for (const p of players) net[p.id] = 0
   const rows: MPayoutRow[] = []
@@ -314,6 +315,26 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
       }
     }
     rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: formatMBet(m.bet), segments: segs, nassauResult })
+  }
+
+  // ── Medley (3-5 players, low ball) ────────────────────────────────
+  for (const mm of medleyMatchups) {
+    const entries = (mm.players ?? []).filter((e) => e && e.id && players.some((p) => p.id === e.id))
+    if (entries.length < 2) continue
+    for (const e of entries) involvedIds.add(e.id)
+    const { segments: medSegs, netDelta } = computeMedley({ ...mm, players: entries }, scoreMap, holes)
+    for (const [id, amt] of Object.entries(netDelta)) net[id] = (net[id] ?? 0) + amt
+    const names = entries.map((e) => players.find((p) => p.id === e.id)?.name.split(' ')[0] ?? '?')
+    const amtNum = Number(mm.amount) || 0
+    rows.push({
+      id: mm.id,
+      label: names.join(' vs '),
+      betLabel: amtNum > 0 ? `$${amtNum} ${mm.bet_type === 'nassau' ? 'Nassau' : 'Overall'} · Low Ball` : 'No bet configured',
+      segments: amtNum > 0 ? medSegs.map((s) => ({
+        name: s.name, settled: s.settled, tied: s.tied, amount: s.amount, perPlayer: true,
+        winnerLabel: s.winnerId ? (players.find((p) => p.id === s.winnerId)?.name ?? null) : null,
+      })) : [],
+    })
   }
   return { rows, net, involvedIds }
 }
@@ -676,6 +697,7 @@ export default function ScoreEntry({
         assignments: data.assignments as DaytonaHoleAssignment[],
         matchups: data.matchups as SavedMatchup[],
         bestBallMatchups: data.bestBallMatchups as BestBallMatchup[],
+        medleyMatchups: (data.medleyMatchups ?? []) as MedleyMatchup[],
         holeValues: data.holeValues,
         bankerHolesAll: data.bankerHolesAll,
         bankerBetsAll: data.bankerBetsAll,
@@ -1539,7 +1561,7 @@ export default function ScoreEntry({
                   if (!scoreMapM[s.player_id]) scoreMapM[s.player_id] = {}
                   scoreMapM[s.player_id][s.hole_number] = s.strokes
                 }
-                const matchupPayoutsResult = computeMatchupPayouts(payoutsData.matchups, payoutsData.bestBallMatchups, payoutsData.players, scoreMapM, holes)
+                const matchupPayoutsResult = computeMatchupPayouts(payoutsData.matchups, payoutsData.bestBallMatchups, payoutsData.medleyMatchups ?? [], payoutsData.players, scoreMapM, holes)
                 const matchupOnlySettlements = minimizeSettlements(payoutsData.players, matchupPayoutsResult.net)
 
                 // Ball/Daytona pool payouts

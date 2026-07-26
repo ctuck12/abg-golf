@@ -92,7 +92,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const isTraditional = (round.format ?? 'standard') === 'traditional'
   const isHammer = (round.format ?? 'standard') === 'hammer'
 
-  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }, { data: holeStrokesRaw }] = await Promise.all([
+  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }, { data: holeStrokesRaw }, medleyRes] = await Promise.all([
     sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
@@ -106,6 +106,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     isMixedGroups ? sb.from('playing_groups').select('id, name, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('round_id', round.id).order('name') : Promise.resolve({ data: [] as { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null; banker_side_game_min_bet?: number | null; auto_strokes?: boolean | null }[] }),
     isMixedGroups ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', (await sb.from('playing_groups').select('id').eq('round_id', round.id)).data?.map((g) => g.id) ?? []) : Promise.resolve({ data: [] as { playing_group_id: string; player_id: string }[] }),
     (isMixedGroups || isDaytona || isHammer) ? sb.from('hole_strokes').select('hole_number, player_id').eq('round_id', round.id) : Promise.resolve({ data: [] as { hole_number: number; player_id: string }[] }),
+    sb.from('medley_matchups').select('id, players, bet_type, amount').eq('round_id', round.id).order('created_at'),
   ])
 
   const lbGroupPlayerMap: Record<string, string[]> = {}
@@ -212,6 +213,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       includeTotal={round.include_total ?? false}
       matchups={matchups ?? []}
       bestBallMatchups={bestBallMatchups ?? []}
+      medleyMatchups={(medleyRes.data ?? []) as { id: string; players: { id: string; front?: number | null; back?: number | null; total?: number | null }[]; bet_type: string; amount: number }[]}
       skinsEnabled={round.skins_enabled ?? false}
       skinsAmount={round.skins_amount ?? 0}
       initialHoleValues={initialHoleValues}

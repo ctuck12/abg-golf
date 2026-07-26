@@ -5,8 +5,9 @@ import {
   saveMatchup, deleteMatchup, updateMatchupBet, updateMatchupPresses, updateMatchupHoleRange,
   saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet, updateBestBallPresses, updateBestBallHoleRange,
   updateBestBallPlayerStrokes,
+  saveMedleyMatchup, updateMedleyMatchup, deleteMedleyMatchup,
 } from '@/app/actions'
-import { computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, type PressForfeit } from '@/lib/scoring'
+import { computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, computeMedley, type PressForfeit, type MedleyMatchup, type MedleyPlayerEntry } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import PinLoginModal from './PinLoginModal'
 
@@ -316,7 +317,7 @@ type PayoutSegment = {
 }
 type PayoutRow = {
   id: string
-  type: 'h2h' | 'bb'
+  type: 'h2h' | 'bb' | 'medley'
   label: string
   betLabel: string
   segments: PayoutSegment[]
@@ -356,6 +357,7 @@ function computeBBPressResult(
 function computeMatchupPayouts(
   matchups: SavedMatchup[],
   bestBallMatchups: BestBallMatchup[],
+  medleyMatchups: MedleyMatchup[],
   players: Player[],
   scoreMap: Record<string, Record<number, number>>,
   holes: Hole[]
@@ -648,6 +650,26 @@ function computeMatchupPayouts(
     rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: formatBet(m.bet), segments, nassauResult })
   }
 
+  // ── Medley (3-5 players, low ball) ────────────────────────────────
+  for (const mm of medleyMatchups) {
+    const entries = (mm.players ?? []).filter((e) => e && e.id && players.some((p) => p.id === e.id))
+    if (entries.length < 2) continue
+    for (const e of entries) involvedIds.add(e.id)
+    const { segments: medSegs, netDelta } = computeMedley({ ...mm, players: entries }, scoreMap, holes)
+    for (const [id, amt] of Object.entries(netDelta)) net[id] = (net[id] ?? 0) + amt
+    const names = entries.map((e) => players.find((p) => p.id === e.id)?.name.split(' ')[0] ?? '?')
+    const amtNum = Number(mm.amount) || 0
+    rows.push({
+      id: mm.id, type: 'medley',
+      label: names.join(' vs '),
+      betLabel: amtNum > 0 ? `$${amtNum} ${mm.bet_type === 'nassau' ? 'Nassau' : 'Overall'} · Low Ball` : 'No bet configured',
+      segments: amtNum > 0 ? medSegs.map((s) => ({
+        name: s.name, settled: s.settled, tied: s.tied, amount: s.amount, perPlayer: true,
+        winnerLabel: s.winnerId ? (players.find((p) => p.id === s.winnerId)?.name ?? null) : null,
+      })) : [],
+    })
+  }
+
   // ── Minimize settlements ──────────────────────────────────────────
   const pw = players.map((p) => ({ id: p.id, name: p.name, bal: Math.round((net[p.id] ?? 0) * 100) / 100 }))
     .filter((b) => b.bal > 0.005).sort((a, b) => b.bal - a.bal).map((b) => ({ ...b }))
@@ -669,7 +691,7 @@ function computeMatchupPayouts(
 
 export default function MatchupClient({
   orgSlug, orgId, orgName, isMaster = false,
-  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard', teams = [], isMixedGroups = false, playingGroups = [], scorecardGroupId: scorecardGroupIdProp = null,
+  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, initialMedleyMatchups = [], isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard', teams = [], isMixedGroups = false, playingGroups = [], scorecardGroupId: scorecardGroupIdProp = null,
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   roundId: string
@@ -679,6 +701,7 @@ export default function MatchupClient({
   roundName: string
   initialMatchups: SavedMatchup[]
   initialBestBallMatchups: BestBallMatchup[]
+  initialMedleyMatchups?: MedleyMatchup[]
   isAdmin?: boolean
   scorecardTeamId?: string | null
   format?: string
@@ -699,6 +722,21 @@ export default function MatchupClient({
   })
   const [matchups, setMatchups] = useState(initialMatchups)
   const [bestBallMatchups, setBestBallMatchups] = useState(initialBestBallMatchups)
+  const [medleyMatchups, setMedleyMatchups] = useState<MedleyMatchup[]>(initialMedleyMatchups)
+  // Medley create form
+  const [showMedleyForm, setShowMedleyForm] = useState(false)
+  const [medSlots, setMedSlots] = useState<string[]>(['', '', '', '', ''])
+  const [medBetType, setMedBetType] = useState<'straight' | 'nassau'>('straight')
+  const [medAmount, setMedAmount] = useState('')
+  const [medStrokesEnabled, setMedStrokesEnabled] = useState(false)
+  const [medStrokesDraft, setMedStrokesDraft] = useState<Record<string, { front: string; back: string; overall: string }>>({})
+  const [savingMedley, setSavingMedley] = useState(false)
+  // Medley edit
+  const [editingMedley, setEditingMedley] = useState<string | null>(null)
+  const [editMedBetType, setEditMedBetType] = useState<'straight' | 'nassau'>('straight')
+  const [editMedAmount, setEditMedAmount] = useState('')
+  const [editMedStrokesEnabled, setEditMedStrokesEnabled] = useState(false)
+  const [editMedStrokesDraft, setEditMedStrokesDraft] = useState<Record<string, { front: string; back: string; overall: string }>>({})
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [showPinLogin, setShowPinLogin] = useState(false)
@@ -824,7 +862,7 @@ export default function MatchupClient({
   const [showBBForm, setShowBBForm] = useState(false)
   const [showPayouts, setShowPayouts] = useState(false)
   const [showNetPositions, setShowNetPositions] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' | 'medley' } | null>(null)
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
   const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | null>(null)
 
@@ -977,6 +1015,51 @@ export default function MatchupClient({
     await deleteBestBallMatchup(id)
   }
 
+  // ── Medley handlers ────────────────────────────────────────────────
+  function buildMedleyEntries(ids: string[], betType: 'straight' | 'nassau', strokesEnabled: boolean, draft: Record<string, { front: string; back: string; overall: string }>): MedleyPlayerEntry[] {
+    return ids.map((id) => {
+      if (!strokesEnabled) return { id, front: 0, back: 0, total: 0 }
+      const d = draft[id] ?? { front: '', back: '', overall: '' }
+      if (betType === 'nassau') {
+        const f = parseFloat(d.front) || 0
+        const b = parseFloat(d.back) || 0
+        return { id, front: f, back: b, total: f + b }
+      }
+      return { id, front: 0, back: 0, total: parseFloat(d.overall) || 0 }
+    })
+  }
+  async function handleCreateMedley() {
+    const ids = medSlots.filter(Boolean)
+    if (ids.length < 3 || new Set(ids).size !== ids.length) return
+    const amt = parseFloat(medAmount)
+    if (isNaN(amt) || amt <= 0) return
+    setSavingMedley(true)
+    const entries = buildMedleyEntries(ids, medBetType, medStrokesEnabled, medStrokesDraft)
+    const res = await saveMedleyMatchup(roundId, entries, medBetType, amt)
+    if (!res.error && res.id) {
+      setMedleyMatchups((prev) => [...prev, { id: res.id!, players: entries, bet_type: medBetType, amount: amt }])
+      setMedSlots(['', '', '', '', ''])
+      setMedBetType('straight'); setMedAmount('')
+      setMedStrokesEnabled(false); setMedStrokesDraft({})
+      setShowMedleyForm(false)
+    }
+    setSavingMedley(false)
+  }
+  async function handleSaveMedley(id: string) {
+    const m = medleyMatchups.find((x) => x.id === id)
+    if (!m) return
+    const ids = (m.players ?? []).map((e) => e.id)
+    const amt = parseFloat(editMedAmount) || 0
+    const entries = buildMedleyEntries(ids, editMedBetType, editMedStrokesEnabled, editMedStrokesDraft)
+    setMedleyMatchups((prev) => prev.map((x) => x.id === id ? { ...x, players: entries, bet_type: editMedBetType, amount: amt } : x))
+    setEditingMedley(null)
+    await updateMedleyMatchup(id, entries, editMedBetType, amt)
+  }
+  async function handleDeleteMedley(id: string) {
+    setMedleyMatchups((prev) => prev.filter((m) => m.id !== id))
+    await deleteMedleyMatchup(id)
+  }
+
   async function handleSaveBBBet(id: string) {
     const amtStr = editBBBetType === 'nassau'
       ? `${editBBFrontAmount.trim() || '0'}|${editBBBackAmount.trim() || '0'}|${editBBTotalAmount.trim() || '0'}`
@@ -1050,8 +1133,8 @@ export default function MatchupClient({
   }, [editBBHoleRange, editBBBetType])
 
   const payouts = useMemo(
-    () => computeMatchupPayouts(matchups, bestBallMatchups, players, scoreMap, holes),
-    [matchups, bestBallMatchups, players, scoreMap, holes]
+    () => computeMatchupPayouts(matchups, bestBallMatchups, medleyMatchups, players, scoreMap, holes),
+    [matchups, bestBallMatchups, medleyMatchups, players, scoreMap, holes]
   )
 
   // Filter payout rows by the current search query so search drives Matchup Results too.
@@ -1067,6 +1150,10 @@ export default function MatchupClient({
         if (bb) {
           const ids = [bb.team1_player1_id, bb.team1_player2_id, bb.team2_player1_id, bb.team2_player2_id]
           return ids.some((id) => players.find((p) => p.id === id)?.name.toLowerCase().includes(searchLower))
+        }
+        const med = medleyMatchups.find((m) => m.id === row.id)
+        if (med) {
+          return (med.players ?? []).some((e) => players.find((p) => p.id === e.id)?.name.toLowerCase().includes(searchLower))
         }
         return false
       })
@@ -1163,6 +1250,7 @@ export default function MatchupClient({
               <button
                 onClick={() => {
                   if (confirmDelete.type === 'h2h') handleDeleteH2H(confirmDelete.id)
+                  else if (confirmDelete.type === 'medley') handleDeleteMedley(confirmDelete.id)
                   else handleDeleteBB(confirmDelete.id)
                   setConfirmDelete(null)
                 }}
@@ -2799,6 +2887,270 @@ export default function MatchupClient({
           </div>
         </div>
 
+        {/* ── Medley ── */}
+        <div>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Medley</p>
+            {!showMedleyForm && (
+              <button onClick={() => setShowMedleyForm(true)}
+                className="text-sm font-semibold px-4 py-1.5 rounded-lg" style={{ background: navy, color: 'white' }}>+ Add</button>
+            )}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            {showMedleyForm && (
+              <div className="px-4 pt-3 pb-3 border-b border-gray-100">
+                <div className="space-y-3 bg-gray-50 rounded-xl p-3 border border-gray-200">
+                  <p className="text-xs text-gray-500">Pick 3–5 players — lowest score wins the bet from each of the others.</p>
+                  <div className="space-y-1.5">
+                    {medSlots.map((slot, i) => (
+                      <select key={i} value={slot}
+                        onChange={(e) => setMedSlots((prev) => prev.map((s, j) => j === i ? e.target.value : s))}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                        <option value="">{i < 3 ? `Player ${i + 1}…` : `Player ${i + 1} (optional)…`}</option>
+                        {players.map((p) => <option key={p.id} value={p.id}
+                          disabled={p.id !== slot && medSlots.includes(p.id)}>{p.name}</option>)}
+                      </select>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Bet Type</label>
+                      <select value={medBetType} onChange={(e) => setMedBetType(e.target.value as 'straight' | 'nassau')}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                        <option value="straight">Overall</option>
+                        {!is9HoleRound && <option value="nassau">Nassau</option>}
+                      </select>
+                    </div>
+                    <div className="w-24 flex-shrink-0">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Amt ($)</label>
+                      <input type="number" min="0" step="1" placeholder="0" value={medAmount}
+                        onChange={(e) => setMedAmount(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 cursor-pointer">
+                      <input type="checkbox" checked={medStrokesEnabled} onChange={(e) => { setMedStrokesEnabled(e.target.checked); if (!e.target.checked) setMedStrokesDraft({}) }} className="rounded" />
+                      Handicap Strokes
+                    </label>
+                    {medStrokesEnabled && (
+                      <div className="pl-3 border-l-2 border-gray-200 ml-1 mt-2 space-y-1.5">
+                        {medSlots.filter(Boolean).map((pid) => {
+                          const d = medStrokesDraft[pid] ?? { front: '', back: '', overall: '' }
+                          return (
+                            <div key={pid} className="flex items-center gap-2">
+                              <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">{players.find((p) => p.id === pid)?.name.split(' ')[0]}</span>
+                              {medBetType === 'nassau' ? (
+                                <>
+                                  <input type="number" min="0" step="0.5" placeholder="F" value={d.front}
+                                    onChange={(e) => setMedStrokesDraft((prev) => ({ ...prev, [pid]: { ...d, front: e.target.value } }))}
+                                    className="w-14 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                                  <input type="number" min="0" step="0.5" placeholder="B" value={d.back}
+                                    onChange={(e) => setMedStrokesDraft((prev) => ({ ...prev, [pid]: { ...d, back: e.target.value } }))}
+                                    className="w-14 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                                  <span className="text-xs text-gray-400 w-12 text-right">T: {(parseFloat(d.front) || 0) + (parseFloat(d.back) || 0)}</span>
+                                </>
+                              ) : (
+                                <input type="number" min="0" step="0.5" placeholder="0" value={d.overall}
+                                  onChange={(e) => setMedStrokesDraft((prev) => ({ ...prev, [pid]: { ...d, overall: e.target.value } }))}
+                                  className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                              )}
+                            </div>
+                          )
+                        })}
+                        <p className="text-xs text-gray-400">Strokes come off each player&apos;s score total — not individual holes.</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                    <button onClick={() => { setShowMedleyForm(false); setMedSlots(['', '', '', '', '']); setMedBetType('straight'); setMedAmount(''); setMedStrokesEnabled(false); setMedStrokesDraft({}) }}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">Cancel</button>
+                    <button onClick={handleCreateMedley}
+                      disabled={medSlots.filter(Boolean).length < 3 || new Set(medSlots.filter(Boolean)).size !== medSlots.filter(Boolean).length || !medAmount.trim() || !(parseFloat(medAmount) > 0) || savingMedley}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
+                      style={{ background: navy, color: 'white' }}>
+                      {savingMedley ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(() => {
+              const filtered = searchLower
+                ? medleyMatchups.filter((m) => (m.players ?? []).some((e) => players.find((p) => p.id === e.id)?.name.toLowerCase().includes(searchLower)))
+                : medleyMatchups
+              if (filtered.length === 0) return (
+                <p className="text-center text-sm text-gray-400 py-6">
+                  {searchLower ? 'No matchups found for that player' : 'No medley matchups saved yet'}
+                </p>
+              )
+              return (
+                <div className="divide-y divide-gray-100">
+                  {filtered.map((m) => {
+                    const entries = (m.players ?? []).filter((e) => e && e.id && players.some((p) => p.id === e.id))
+                    if (entries.length < 2) return null
+                    const { segments: medSegs, lines } = computeMedley({ ...m, players: entries }, scoreMap, holes)
+                    const segOf = (name: 'Front' | 'Back' | 'Total') => medSegs.find((s) => s.name === name)
+                    const fSeg = segOf('Front'), bSeg = segOf('Back'), tSeg = segOf('Total')
+                    const isNassauMed = m.bet_type === 'nassau'
+                    const label = entries.map((e) => players.find((p) => p.id === e.id)?.name.split(' ')[0] ?? '?').join(' vs ')
+                    const isEditingMed = editingMedley === m.id
+                    const amtNum = Number(m.amount) || 0
+                    return (
+                      <div key={m.id}>
+                        <div className="px-4 py-3">
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                            {!isEditingMed && (
+                              <span className="flex items-center gap-1.5">
+                                {amtNum > 0
+                                  ? <span className="font-medium whitespace-nowrap" style={{ color: gold, fontSize: 'clamp(9px, 2.3vw, 11px)' }}>Bet: ${amtNum} {isNassauMed ? 'Nassau' : 'Overall'} · Low Ball</span>
+                                  : <span className="text-gray-300 text-[11px]">No bet</span>}
+                                <button onClick={() => {
+                                  setEditingMedley(m.id)
+                                  setEditMedBetType(isNassauMed ? 'nassau' : 'straight')
+                                  setEditMedAmount(amtNum > 0 ? String(amtNum) : '')
+                                  const hasStrokes = entries.some((e) => (Number(e.front) || 0) > 0 || (Number(e.back) || 0) > 0 || (Number(e.total) || 0) > 0)
+                                  setEditMedStrokesEnabled(hasStrokes)
+                                  setEditMedStrokesDraft(Object.fromEntries(entries.map((e) => [e.id, {
+                                    front: (Number(e.front) || 0) > 0 ? String(e.front) : '',
+                                    back: (Number(e.back) || 0) > 0 ? String(e.back) : '',
+                                    overall: (Number(e.total) || 0) > 0 ? String(e.total) : '',
+                                  }])))
+                                }}
+                                  className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
+                              </span>
+                            )}
+                            <span className="flex-1" />
+                            <button onClick={() => setConfirmDelete({ id: m.id, label, type: 'medley' })} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                          </div>
+
+                          {isEditingMed && (
+                            <div className="space-y-3 mb-3 bg-gray-50 rounded-xl p-3 border border-gray-200 [&_input]:text-base [&_select]:text-base">
+                              <div className="flex gap-2 items-end">
+                                <div className="flex-1">
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Bet Type</label>
+                                  <select value={editMedBetType} onChange={(e) => setEditMedBetType(e.target.value as 'straight' | 'nassau')}
+                                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none">
+                                    <option value="straight">Overall</option>
+                                    {!is9HoleRound && <option value="nassau">Nassau</option>}
+                                  </select>
+                                </div>
+                                <div className="w-24 flex-shrink-0">
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Amt ($)</label>
+                                  <input type="number" min="0" step="1" placeholder="0" value={editMedAmount}
+                                    onChange={(e) => setEditMedAmount(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 cursor-pointer">
+                                  <input type="checkbox" checked={editMedStrokesEnabled} onChange={(e) => { setEditMedStrokesEnabled(e.target.checked); if (!e.target.checked) setEditMedStrokesDraft({}) }} className="rounded" />
+                                  Handicap Strokes
+                                </label>
+                                {editMedStrokesEnabled && (
+                                  <div className="pl-3 border-l-2 border-gray-200 ml-1 mt-2 space-y-1.5">
+                                    {entries.map((e) => {
+                                      const d = editMedStrokesDraft[e.id] ?? { front: '', back: '', overall: '' }
+                                      return (
+                                        <div key={e.id} className="flex items-center gap-2">
+                                          <span className="flex-1 min-w-0 text-xs text-gray-800 truncate">{players.find((p) => p.id === e.id)?.name.split(' ')[0]}</span>
+                                          {editMedBetType === 'nassau' ? (
+                                            <>
+                                              <input type="number" min="0" step="0.5" placeholder="F" value={d.front}
+                                                onChange={(ev) => setEditMedStrokesDraft((prev) => ({ ...prev, [e.id]: { ...d, front: ev.target.value } }))}
+                                                className="w-14 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                              <input type="number" min="0" step="0.5" placeholder="B" value={d.back}
+                                                onChange={(ev) => setEditMedStrokesDraft((prev) => ({ ...prev, [e.id]: { ...d, back: ev.target.value } }))}
+                                                className="w-14 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                              <span className="text-xs text-gray-400 w-10 text-right">T: {(parseFloat(d.front) || 0) + (parseFloat(d.back) || 0)}</span>
+                                            </>
+                                          ) : (
+                                            <input type="number" min="0" step="0.5" placeholder="0" value={d.overall}
+                                              onChange={(ev) => setEditMedStrokesDraft((prev) => ({ ...prev, [e.id]: { ...d, overall: ev.target.value } }))}
+                                              className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSaveMedley(m.id)}
+                                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: navy }}>Save</button>
+                                <button onClick={() => setEditingMedley(null)}
+                                  className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">Cancel</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Results table */}
+                          <div className="rounded-lg border border-gray-300 overflow-hidden">
+                            <div className="overflow-x-auto">
+                            <table className="min-w-full border-collapse">
+                              <thead>
+                                <tr style={{ background: navy }}>
+                                  <th className="px-3 py-1.5 text-left text-xs font-semibold text-white">Player</th>
+                                  {isNassauMed && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Front</th>}
+                                  {isNassauMed && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Back</th>}
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Total</th>
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Thru</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {lines.map((line) => {
+                                  const lp = players.find((p) => p.id === line.id)
+                                  const hasStrokes = line.strokes.front > 0 || line.strokes.back > 0 || line.strokes.total > 0
+                                  const chk = <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>
+                                  return (
+                                    <tr key={line.id} className="border-t border-gray-100">
+                                      <td className="px-3 py-2 whitespace-nowrap">
+                                        <span className="text-xs font-semibold text-gray-800">{lp?.name ?? '?'}</span>
+                                        {hasStrokes && (
+                                          <button
+                                            onClick={() => setStrokesPopover({ recipientName: lp?.name ?? '', front: line.strokes.front, back: line.strokes.back, total: line.strokes.total })}
+                                            className="font-bold leading-none"
+                                            style={{ color: gold, fontSize: '0.9rem', marginLeft: '2px', verticalAlign: 'text-top', position: 'relative', top: '1px' }}
+                                            title="View handicap strokes">*</button>
+                                        )}
+                                      </td>
+                                      {isNassauMed && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: vpColor(line.front) }}>
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          <VsParDisplay n={line.front} />
+                                          {fSeg?.settled && !fSeg.tied && fSeg.winnerId === line.id && chk}
+                                        </span>
+                                      </td>}
+                                      {isNassauMed && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: vpColor(line.back) }}>
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          <VsParDisplay n={line.back} />
+                                          {bSeg?.settled && !bSeg.tied && bSeg.winnerId === line.id && chk}
+                                        </span>
+                                      </td>}
+                                      <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: vpColor(line.total) }}>
+                                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                                          <VsParDisplay n={line.total} />
+                                          {tSeg?.settled && !tSeg.tied && tSeg.winnerId === line.id && chk}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-2 text-center text-xs text-gray-500">{line.thru === 0 ? '–' : line.thru >= holes.length ? 'F' : line.thru}</td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+
         {/* ── Matchup Results ── */}
         {payouts.rows.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -2823,13 +3175,17 @@ export default function MatchupClient({
                   const prevRow = rowIdx > 0 ? filteredPayoutRows[rowIdx - 1] : null
                   const showH2HHeader = row.type === 'h2h' && (!prevRow || prevRow.type !== 'h2h')
                   const showBBHeader = row.type === 'bb' && (!prevRow || prevRow.type !== 'bb')
+                  const showMedleyHeader = row.type === 'medley' && (!prevRow || prevRow.type !== 'medley')
                   const h2hMatch = matchups.find((m) => m.id === row.id)
                   const bbMatch = bestBallMatchups.find((m) => m.id === row.id)
+                  const medMatch = medleyMatchups.find((m) => m.id === row.id)
                   const involvedPlayerIds = h2hMatch
                     ? [h2hMatch.player1_id, h2hMatch.player2_id]
                     : bbMatch
                       ? [bbMatch.team1_player1_id, bbMatch.team1_player2_id, bbMatch.team2_player1_id, bbMatch.team2_player2_id]
-                      : []
+                      : medMatch
+                        ? (medMatch.players ?? []).map((e) => e.id)
+                        : []
                   const allFinished = involvedPlayerIds.length > 0 && holes.length > 0 &&
                     involvedPlayerIds.every((id) => Object.keys(scoreMap[id] ?? {}).length >= holes.length)
 
@@ -2850,6 +3206,9 @@ export default function MatchupClient({
                     )}
                     {showBBHeader && (
                       <p className="text-xs font-bold uppercase tracking-widest text-gray-400 px-1 pt-1 pb-0.5">2v2 Best Ball</p>
+                    )}
+                    {showMedleyHeader && (
+                      <p className="text-xs font-bold uppercase tracking-widest text-gray-400 px-1 pt-1 pb-0.5">Medley</p>
                     )}
                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       <div className="px-4 pt-3 pb-1 border-b border-gray-100">

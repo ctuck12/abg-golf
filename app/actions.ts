@@ -1014,6 +1014,42 @@ export async function updateBestBallPlayerStrokes(id: string, playerStrokes: Rec
   return {}
 }
 
+// ── Medley matchups ───────────────────────────────────────────────────────────
+
+export async function saveMedleyMatchup(
+  roundId: string,
+  players: { id: string; front?: number | null; back?: number | null; total?: number | null }[],
+  betType: string,
+  amount: number
+) {
+  if (players.length < 3 || players.length > 5) return { error: 'Medley needs 3–5 players.' }
+  const sb = createServerClient()
+  const { data, error } = await sb.from('medley_matchups').insert({
+    round_id: roundId, players, bet_type: betType, amount,
+  }).select('id').single()
+  if (error) return { error: error.message }
+  return { id: data.id }
+}
+
+export async function updateMedleyMatchup(
+  id: string,
+  players: { id: string; front?: number | null; back?: number | null; total?: number | null }[],
+  betType: string,
+  amount: number
+) {
+  const sb = createServerClient()
+  const { error } = await sb.from('medley_matchups').update({ players, bet_type: betType, amount }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
+export async function deleteMedleyMatchup(id: string) {
+  const sb = createServerClient()
+  const { error } = await sb.from('medley_matchups').delete().eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function deleteBestBallMatchup(id: string) {
   const sb = createServerClient()
   const { error } = await sb.from('best_ball_matchups').delete().eq('id', id)

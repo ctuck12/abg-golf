@@ -34,6 +34,7 @@ import {
   computeDaytonaSidesSummary, settleDaytonaPlayerPoints,
   computeBBStrokeHoles, applyPlayerStrokesToScoreMap,
   pressForfeitMap, type PressForfeit,
+  computeMedley, type MedleyMatchup,
   computePlayerDaytonaDollarsSplit,
   computeSkinsResults,
   type DaytonaHoleAssignment, type BallHalfResult, type SkinResult,
@@ -182,7 +183,7 @@ type MatchupPayoutSegment = {
 }
 type MatchupPayoutRow = {
   id: string
-  type: 'h2h' | 'bb'
+  type: 'h2h' | 'bb' | 'medley'
   label: string
   betLabel: string
   segments: MatchupPayoutSegment[]
@@ -360,6 +361,7 @@ function computePressResult(
 function computeAdminMatchupPayouts(
   matchups: SavedMatchup[],
   bestBallMatchups: BestBallMatchup[],
+  medleyMatchups: MedleyMatchup[],
   players: { id: string; name: string }[],
   scoreMap: Record<string, Record<number, number>>,
   holes: Hole[]
@@ -566,6 +568,26 @@ function computeAdminMatchupPayouts(
     rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: formatMatchupBet(m.bet), segments, nassauResult: nassauResultBB })
   }
 
+
+  // ── Medley (3-5 players, low ball) ────────────────────────────────
+  for (const mm of medleyMatchups) {
+    const entries = (mm.players ?? []).filter((e) => e && e.id && players.some((p) => p.id === e.id))
+    if (entries.length < 2) continue
+    for (const e of entries) involvedIds.add(e.id)
+    const { segments: medSegs, netDelta } = computeMedley({ ...mm, players: entries }, scoreMap, holes)
+    for (const [id, amt] of Object.entries(netDelta)) net[id] = (net[id] ?? 0) + amt
+    const names = entries.map((e) => players.find((p) => p.id === e.id)?.name.split(' ')[0] ?? '?')
+    const amtNum = Number(mm.amount) || 0
+    rows.push({
+      id: mm.id, type: 'medley' as const,
+      label: names.join(' vs '),
+      betLabel: amtNum > 0 ? `$${amtNum} ${mm.bet_type === 'nassau' ? 'Nassau' : 'Overall'} · Low Ball` : 'No bet configured',
+      segments: amtNum > 0 ? medSegs.map((s) => ({
+        name: s.name, settled: s.settled, tied: s.tied, amount: s.amount, perPlayer: true,
+        winnerLabel: s.winnerId ? (players.find((p) => p.id === s.winnerId)?.name ?? null) : null,
+      })) : [],
+    })
+  }
   return { rows, net, involvedIds }
 }
 
@@ -584,12 +606,12 @@ function setSetupLS(roundId: string | undefined, key: string, val: boolean) {
 export default function AdminDashboard({
   orgSlug, orgId, orgName, isMaster = false,
   round, teams, players, holes, ballValues, scores, scorecardTeamId = null, scorecardGroupId = null, dtAssignments = [],
-  matchups = [], bestBallMatchups = [], initialHoleValues = {}, courses = [],
+  matchups = [], bestBallMatchups = [], medleyMatchups = [], initialHoleValues = {}, courses = [],
   playingGroups = [], playingGroupPlayers = [], roster = [], hammerMatchups = [],
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; scorecardGroupId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
-  matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]; initialHoleValues?: Record<string, Record<number, number>>
+  matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]; medleyMatchups?: MedleyMatchup[]; initialHoleValues?: Record<string, Record<number, number>>
   courses?: { name: string; slug: string; pars: number[] }[]
   playingGroups?: PlayingGroup[]
   playingGroupPlayers?: PlayingGroupPlayer[]
@@ -1016,8 +1038,8 @@ export default function AdminDashboard({
   }, [liveScores])
 
   const matchupData = useMemo(
-    () => computeAdminMatchupPayouts(liveMatchups, liveBestBallMatchups, players, scoreMap, holes),
-    [liveMatchups, liveBestBallMatchups, players, scoreMap, holes]
+    () => computeAdminMatchupPayouts(liveMatchups, liveBestBallMatchups, medleyMatchups, players, scoreMap, holes),
+    [liveMatchups, liveBestBallMatchups, medleyMatchups, players, scoreMap, holes]
   )
 
   // Skins — declared before combinedDaytonaNet / combinedStandardNet which consume playerNet

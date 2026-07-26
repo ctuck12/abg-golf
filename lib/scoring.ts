@@ -232,6 +232,97 @@ export function applyPlayerStrokesToScoreMap(
   return adjusted
 }
 
+// ── Medley matchups (3-5 players, low ball wins) ─────────────────────────────
+export type MedleyPlayerEntry = { id: string; front?: number | null; back?: number | null; total?: number | null }
+export type MedleyMatchup = { id: string; players: MedleyPlayerEntry[]; bet_type: string; amount: number }
+export type MedleySegmentResult = {
+  name: 'Front' | 'Back' | 'Total'
+  settled: boolean
+  winnerId: string | null   // null when pending or tied
+  tied: boolean
+  amount: number
+}
+export type MedleyPlayerLine = {
+  id: string
+  front: number | null; back: number | null; total: number | null   // handicap-adjusted vs par
+  thru: number
+  strokes: { front: number; back: number; total: number }
+}
+
+// Computes segment results, per-player display lines, and net dollar deltas.
+// A segment settles when every participant has scored every one of its holes;
+// the lowest adjusted vs-par wins and collects `amount` from EACH other player.
+// Ties for low push (no money). Strokes subtract from segment totals directly.
+export function computeMedley(
+  m: MedleyMatchup,
+  scoreMap: Record<string, Record<number, number>>,
+  holes: { hole_number: number; par: number }[]
+): { segments: MedleySegmentResult[]; lines: MedleyPlayerLine[]; netDelta: Record<string, number> } {
+  const entries = (m.players ?? []).filter((p) => p && p.id)
+  const netDelta: Record<string, number> = {}
+  for (const e of entries) netDelta[e.id] = 0
+  const amount = Number(m.amount) || 0
+  const isNassau = m.bet_type === 'nassau'
+  const frontHoles = holes.filter((h) => h.hole_number <= 9)
+  const backHoles = holes.filter((h) => h.hole_number > 9)
+
+  const strokesOf = (e: MedleyPlayerEntry) => {
+    const f = Number(e.front) || 0
+    const b = Number(e.back) || 0
+    const t = e.total != null && !isNaN(Number(e.total)) && Number(e.total) !== 0 ? Number(e.total) : f + b
+    return { front: f, back: b, total: t }
+  }
+
+  const segVsPar = (pid: string, segHoles: { hole_number: number; par: number }[]) => {
+    let sum = 0, played = 0
+    for (const h of segHoles) {
+      const s = scoreMap[pid]?.[h.hole_number]
+      if (s == null) continue
+      sum += s - h.par; played++
+    }
+    return { vsPar: played > 0 ? sum : null, played, complete: segHoles.length > 0 && played === segHoles.length }
+  }
+
+  const lines: MedleyPlayerLine[] = entries.map((e) => {
+    const st = strokesOf(e)
+    const f = segVsPar(e.id, frontHoles)
+    const b = segVsPar(e.id, backHoles)
+    const t = segVsPar(e.id, holes)
+    return {
+      id: e.id,
+      front: f.vsPar !== null ? f.vsPar - st.front : null,
+      back: b.vsPar !== null ? b.vsPar - st.back : null,
+      total: t.vsPar !== null ? t.vsPar - st.total : null,
+      thru: t.played,
+      strokes: st,
+    }
+  })
+
+  const resolveSeg = (name: 'Front' | 'Back' | 'Total', segHoles: { hole_number: number; par: number }[], adjOf: (l: MedleyPlayerLine) => number | null): MedleySegmentResult => {
+    const settled = segHoles.length > 0 && entries.every((e) => segVsPar(e.id, segHoles).complete)
+    if (!settled || entries.length === 0) return { name, settled: false, winnerId: null, tied: false, amount }
+    const adjs = lines.map((l) => ({ id: l.id, adj: adjOf(l) }))
+    if (adjs.some((a) => a.adj === null)) return { name, settled: false, winnerId: null, tied: false, amount }
+    const min = Math.min(...adjs.map((a) => a.adj as number))
+    const winners = adjs.filter((a) => a.adj === min)
+    if (winners.length > 1) return { name, settled: true, winnerId: null, tied: true, amount }
+    const wId = winners[0].id
+    for (const a of adjs) {
+      if (a.id === wId) netDelta[a.id] = (netDelta[a.id] ?? 0) + amount * (adjs.length - 1)
+      else netDelta[a.id] = (netDelta[a.id] ?? 0) - amount
+    }
+    return { name, settled: true, winnerId: wId, tied: false, amount }
+  }
+
+  const segments: MedleySegmentResult[] = []
+  if (isNassau) {
+    segments.push(resolveSeg('Front', frontHoles, (l) => l.front))
+    segments.push(resolveSeg('Back', backHoles, (l) => l.back))
+  }
+  segments.push(resolveSeg('Total', holes, (l) => l.total))
+  return { segments, lines, netDelta }
+}
+
 // ── Matchup press forfeits ───────────────────────────────────────────────────
 // A press may forfeit segments of the original bet; the earliest forfeiting
 // press per segment wins. Returns segment → press start hole.

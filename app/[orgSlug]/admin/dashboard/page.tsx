@@ -32,7 +32,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const isDaytona = (round?.format ?? 'standard') === 'daytona'
 
   // Wave 2: everything that only needs the round id
-  const [teamsRes, holesRes, ballValuesRes, scoresRes, assignmentsRes, matchupsRaw, bestBallRes, holeValuesRes, coursesRes, playingGroupsRes, rosterRes, hammerRes] = await Promise.all([
+  const [teamsRes, holesRes, ballValuesRes, scoresRes, assignmentsRes, matchupsRaw, bestBallRes, holeValuesRes, coursesRes, playingGroupsRes, rosterRes, hammerRes, medleyRes] = await Promise.all([
     roundId ? sb.from('teams').select('id, name, pin, is_admin, daytona_variant, daytona_variant_back9, banker_side_game, banker_side_game_min_bet, auto_strokes, hammer_side_game, hammer_base_bet, hammer_format').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
     roundId ? sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', roundId).order('hole_number') : Promise.resolve({ data: [] }),
     roundId ? sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number') : Promise.resolve({ data: [] }),
@@ -45,6 +45,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
     roundId ? sb.from('playing_groups').select('id, name, pin, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] as { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }[] }),
     sb.from('org_players').select('id, name, ghin_number, handicap_index, email').eq('org_id', orgId).order('name'),
     roundId ? sb.from('hammer_matchups').select('id, team1_id, team2_id, base_bet, auto_handicap').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
+    roundId ? sb.from('medley_matchups').select('id, players, bet_type, amount').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
   ])
 
   const teams = teamsRes.data ?? []
@@ -102,6 +103,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
       dtAssignments={assignmentsRes.data ?? []}
       matchups={matchups ?? []}
       bestBallMatchups={bestBallRes.data ?? []}
+      medleyMatchups={(medleyRes.data ?? []) as { id: string; players: { id: string; front?: number | null; back?: number | null; total?: number | null }[]; bet_type: string; amount: number }[]}
       initialHoleValues={initialHoleValues}
       courses={coursesRes.data ?? []}
       playingGroups={playingGroupsRaw}
