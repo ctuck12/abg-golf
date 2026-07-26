@@ -2275,34 +2275,6 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Clear All Scores (any format, once started) ── */}
-            {round && round.is_started && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">Clear All Scores</h3>
-                <p className="text-xs text-gray-400 mb-3">Deletes every saved score in this round for all teams and groups. Teams, matchups, and settings are kept.</p>
-                {confirmClearScores ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-red-700">Clear every score in this round? This cannot be undone.</p>
-                    <div className="flex gap-2">
-                      <button type="button" disabled={clearScoresPending} onClick={handleClearAllScores}
-                        className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#b91c1c' }}>
-                        {clearScoresPending ? 'Clearing…' : 'Yes, Clear All Scores'}
-                      </button>
-                      <button type="button" disabled={clearScoresPending} onClick={() => setConfirmClearScores(false)}
-                        className="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700">
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => setConfirmClearScores(true)}
-                    className="text-sm font-semibold px-4 py-2 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition">
-                    Clear All Scores
-                  </button>
-                )}
-              </div>
-            )}
-
             {/* ── Hammer Matchups (standalone Hammer format only) ── */}
             {round && round.format === 'hammer' && round.is_started && (
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
@@ -3836,6 +3808,34 @@ export default function AdminDashboard({
                       </div>
                     )}
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Clear All Scores (any format, once started) — last card before activation/banner ── */}
+            {round && round.is_started && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-semibold text-gray-900 text-sm mb-1">Clear All Scores</h3>
+                <p className="text-xs text-gray-400 mb-3">Deletes every saved score in this round for all teams and groups. Teams, matchups, and settings are kept.</p>
+                {confirmClearScores ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-red-700">Clear every score in this round? This cannot be undone.</p>
+                    <div className="flex gap-2">
+                      <button type="button" disabled={clearScoresPending} onClick={handleClearAllScores}
+                        className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ background: '#b91c1c' }}>
+                        {clearScoresPending ? 'Clearing…' : 'Yes, Clear All Scores'}
+                      </button>
+                      <button type="button" disabled={clearScoresPending} onClick={() => setConfirmClearScores(false)}
+                        className="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setConfirmClearScores(true)}
+                    className="text-sm font-semibold px-4 py-2 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition">
+                    Clear All Scores
+                  </button>
                 )}
               </div>
             )}
