@@ -2136,7 +2136,6 @@ export default function MatchupClient({
                                   {!isOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Front</th>}
                                   {!isOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Back</th>}
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Total</th>
-                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Thru</th>
                                   {(m.press ?? []).map((pr, pi) => {
                                     const pLabel = (m.press ?? []).length === 1 ? 'Press' : `Press ${pi + 1}`
                                     return (
@@ -2148,6 +2147,7 @@ export default function MatchupClient({
                                       </th>
                                     )
                                   })}
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Thru</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2203,7 +2203,6 @@ export default function MatchupClient({
                                             : (h2hHoleLastSettlement && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>
-                                      <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                       {pressResults.map((pr, pi) => {
                                         const pNet = rowIdx === 0 ? pr.p1Net : pr.p2Net
                                         const pWins = rowIdx === 0 ? pr.p1Wins : pr.p2Wins
@@ -2216,6 +2215,7 @@ export default function MatchupClient({
                                           </td>
                                         )
                                       })}
+                                      <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                     </tr>
                                   )
                                 })}
@@ -2836,7 +2836,6 @@ export default function MatchupClient({
                                   {!isBBOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Front</th>}
                                   {!isBBOverallBet && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Back</th>}
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Total</th>
-                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Thru</th>
                                   {(m.press ?? []).map((pr, pi) => {
                                     const pLabel = (m.press ?? []).length === 1 ? 'Press' : `Press ${pi + 1}`
                                     return (
@@ -2848,6 +2847,7 @@ export default function MatchupClient({
                                       </th>
                                     )
                                   })}
+                                  <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Thru</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2932,7 +2932,6 @@ export default function MatchupClient({
                                             : (bbHoleLastSettlement && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>
-                                      <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                       {bbPressResults.map((pr, pi) => {
                                         const pNet = rowIdx === 0 ? pr.t1Net : pr.t2Net
                                         const pWins = rowIdx === 0 ? pr.t1Wins : pr.t2Wins
@@ -2945,6 +2944,7 @@ export default function MatchupClient({
                                           </td>
                                         )
                                       })}
+                                      <td className="px-3 py-2 text-center text-xs text-gray-500">{thru === 0 ? '–' : thru === 18 ? 'F' : thru}</td>
                                     </tr>
                                   )
                                 })}
