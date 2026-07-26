@@ -866,7 +866,7 @@ export default function MatchupClient({
   const [showNetPositions, setShowNetPositions] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' | 'medley' } | null>(null)
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
-  const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | null>(null)
+  const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | { playerStrokes: { name: string; strokes: number }[] } | null>(null)
 
   function captureSearchPos() {
     if (searchWrapperRef.current && !fixedSearch) {
@@ -1274,6 +1274,20 @@ export default function MatchupClient({
               <h3 className="font-bold text-gray-900 text-base">Handicap Strokes</h3>
               <button onClick={() => setStrokesPopover(null)} className="text-gray-400 text-xl font-bold leading-none">×</button>
             </div>
+            {'playerStrokes' in strokesPopover ? (
+              <>
+                <div className="space-y-2">
+                  {strokesPopover.playerStrokes.map((e) => (
+                    <div key={e.name} className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-800">{e.name}</span>
+                      <span className="text-xl font-bold" style={{ color: gold }}>+{e.strokes}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-3">Applied automatically on their hardest handicap holes — shown with * on the matchup scorecards.</p>
+              </>
+            ) : (
+              <>
             <p className="text-xs text-gray-500 mb-3">
               <span className="font-semibold text-gray-800">{strokesPopover.recipientName}</span> is receiving:
             </p>
@@ -1291,6 +1305,8 @@ export default function MatchupClient({
                 <p className="text-xl font-bold" style={{ color: gold }}>+{strokesPopover.total}</p>
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -2830,6 +2846,20 @@ export default function MatchupClient({
                                             style={{ color: gold, fontSize: '0.9rem', marginLeft: '2px', verticalAlign: 'text-top', position: 'relative', top: '6px' }}
                                             title="View handicap strokes">*</button>
                                         )}
+                                        {(() => {
+                                          const rowIds = rowIdx === 0 ? [m.team1_player1_id, m.team1_player2_id] : [m.team2_player1_id, m.team2_player2_id]
+                                          const ps = rowIds
+                                            .map((id) => ({ name: players.find((p) => p.id === id)?.name.split(' ')[0] ?? '?', strokes: Number(m.player_strokes?.[id]) || 0 }))
+                                            .filter((e) => e.strokes > 0)
+                                          if (ps.length === 0) return null
+                                          return (
+                                            <button
+                                              onClick={() => setStrokesPopover({ playerStrokes: ps })}
+                                              className="font-bold leading-none"
+                                              style={{ color: gold, fontSize: '0.9rem', marginLeft: '2px', verticalAlign: 'text-top', position: 'relative', top: '6px' }}
+                                              title="View handicap strokes">*</button>
+                                          )
+                                        })()}
                                       </td>
                                       {!isBBOverallBet && <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: isBBMatchPlay ? undefined : vpColor(front) }}>
                                         {isBBMatchPlay && !isFirstRow && mFront === 0 && front !== null && <span style={asLabelStyle}>AS</span>}
