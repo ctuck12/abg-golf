@@ -451,6 +451,7 @@ export default function MatchupClient({
     entry: PressEntry | MedleyPressEntry
   } | null>(null)
   const [unconfirmedPressWarning, setUnconfirmedPressWarning] = useState<{ context: 'h2h' | 'bb' | 'medley'; matchupId: string; action: 'save' | 'cancel' } | null>(null)
+  const [confirmRemovePress, setConfirmRemovePress] = useState<{ context: 'h2h' | 'bb' | 'medley'; index: number; label: string; desc: string } | null>(null)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [showPinLogin, setShowPinLogin] = useState(false)
@@ -802,6 +803,16 @@ export default function MatchupClient({
     await Promise.all([updateBestBallBet(id, bet), updateBestBallPresses(id, savedBBPresses), updateBestBallHoleRange(id, savedBBHoleRange), updateBestBallPlayerStrokes(id, savedPlayerStrokes)])
   }
 
+  // Removes the press the user confirmed deleting (takes effect on matchup Save)
+  function commitRemovePress() {
+    if (!confirmRemovePress) return
+    const { context, index } = confirmRemovePress
+    if (context === 'h2h') setEditH2HPresses(prev => prev.filter((_, i) => i !== index))
+    else if (context === 'bb') setEditBBPresses(prev => prev.filter((_, i) => i !== index))
+    else setEditMedPresses(prev => prev.filter((_, i) => i !== index))
+    setConfirmRemovePress(null)
+  }
+
   // Adds the confirmed press to the right edit list and resets the press form
   function commitConfirmedPress() {
     if (!pressConfirm) return
@@ -1126,6 +1137,28 @@ export default function MatchupClient({
               <button onClick={() => setPressConfirm(null)}
                 className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Remove Press confirmation ── */}
+      {confirmRemovePress && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setConfirmRemovePress(null)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-1">Remove {confirmRemovePress.label}?</h3>
+            <p className="text-sm text-gray-600 mb-1"><span className="font-semibold" style={{ color: gold }}>{confirmRemovePress.label}:</span> {confirmRemovePress.desc}</p>
+            <p className="text-xs text-gray-400 mb-4">The removal takes effect once you hit Save on the matchup.</p>
+            <div className="flex gap-2">
+              <button onClick={commitRemovePress}
+                className="flex-1 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#b91c1c' }}>
+                Remove Press
+              </button>
+              <button onClick={() => setConfirmRemovePress(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
+                Keep Press
               </button>
             </div>
           </div>
@@ -1797,7 +1830,7 @@ export default function MatchupClient({
                                         <div key={pr.id} className="flex items-center gap-1.5 text-xs">
                                           <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
                                           <span className="text-gray-600">{hl} · ${pr.amount}{sl}{fl}</span>
-                                          <button onClick={() => setEditH2HPresses(prev => prev.filter((_, i) => i !== pi))}
+                                          <button onClick={() => setConfirmRemovePress({ context: 'h2h', index: pi, label: `Press ${pi + 1}`, desc: `${hl} · $${pr.amount}${sl}${fl}` })}
                                             className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
                                         </div>
                                       )
@@ -2512,7 +2545,7 @@ export default function MatchupClient({
                                         <div key={pr.id} className="flex items-center gap-1.5 text-xs">
                                           <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
                                           <span className="text-gray-600">{hl} · ${pr.amount}{sl}{fl}</span>
-                                          <button onClick={() => setEditBBPresses(prev => prev.filter((_, i) => i !== pi))}
+                                          <button onClick={() => setConfirmRemovePress({ context: 'bb', index: pi, label: `Press ${pi + 1}`, desc: `${hl} · $${pr.amount}${sl}${fl}` })}
                                             className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
                                         </div>
                                       )
@@ -3005,7 +3038,7 @@ export default function MatchupClient({
                                         <div key={pr.id} className="flex items-center gap-1.5 text-xs">
                                           <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
                                           <span className="text-gray-600">{hl} · ${pr.amount}{sl ? ` · ${sl}` : ''}</span>
-                                          <button onClick={() => setEditMedPresses(prev => prev.filter((_, i) => i !== pi))}
+                                          <button onClick={() => setConfirmRemovePress({ context: 'medley', index: pi, label: `Press ${pi + 1}`, desc: `${hl} · $${pr.amount}${sl ? ` · ${sl}` : ''}` })}
                                             className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
                                         </div>
                                       )
