@@ -269,11 +269,8 @@ export async function createRound(_prev: unknown, formData: FormData) {
 
     const supabase = createServerClient()
 
-    // Course lookup and old-round deactivation are independent — run together
-    const [{ data: dbCourse }] = await Promise.all([
-      supabase.from('courses').select('name, pars, stroke_indexes').eq('slug', courseSlug).single(),
-      supabase.from('rounds').update({ is_active: false }).eq('is_active', true).eq('org_id', orgId),
-    ])
+    const { data: dbCourse } = await supabase
+      .from('courses').select('name, pars, stroke_indexes').eq('slug', courseSlug).single()
 
     const courseName = dbCourse?.name ?? COURSE_NAMES[courseSlug] ?? courseSlug
     const allParsRaw = dbCourse?.pars ?? COURSE_PARS[courseSlug] ?? Array(18).fill(4)
@@ -289,14 +286,24 @@ export async function createRound(_prev: unknown, formData: FormData) {
       ? (startHole === 10 ? allStrokeIndexes.slice(9) : allStrokeIndexes.slice(0, 9))
       : allStrokeIndexes
 
+    // IMPORTANT: the new round is inserted INACTIVE and only swapped in as the
+    // active round once it (and its holes/ball values) fully exists. The current
+    // round is never touched until the replacement is complete, so a failure at
+    // any step can no longer leave the group with no active round.
     const { data: round, error } = await supabase
       .from('rounds')
-      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: true, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}), ...((format === 'daytona' || isBanker) ? { auto_handicap: true } : {}) })
+      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: false, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}), ...((format === 'daytona' || isBanker) ? { auto_handicap: true } : {}) })
       .select().single()
 
     if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
 
-    await Promise.all([
+    const abortCreate = async (msg: string) => {
+      // Remove the half-created inactive round; the previous round stays active.
+      await supabase.from('rounds').delete().eq('id', round.id).eq('is_active', false)
+      return { error: msg }
+    }
+
+    const [{ error: holesErr }, { error: bvErr }] = await Promise.all([
       supabase.from('holes').insert(
         pars.map((par, i) => ({ round_id: round.id, hole_number: startHole + i, par, stroke_index: strokeIndexes[i] ?? null }))
       ),
@@ -304,6 +311,17 @@ export async function createRound(_prev: unknown, formData: FormData) {
         Array.from({ length: ballsCount }, (_, i) => ({ round_id: round.id, ball_number: i + 1, value_dollars: 0 }))
       ),
     ])
+    if (holesErr || bvErr) return abortCreate((holesErr ?? bvErr)?.message ?? 'Failed to set up the new round.')
+
+    // Atomic swap: deactivate the old round + activate the new one in a single
+    // DB transaction (see supabase/add_swap_active_round_fn.sql).
+    const { error: swapErr } = await supabase.rpc('swap_active_round', { p_round_id: round.id, p_org_id: orgId })
+    if (swapErr) {
+      // Fallback while the SQL function isn't installed yet: two-step swap.
+      const { error: actErr } = await supabase.from('rounds').update({ is_active: true }).eq('id', round.id)
+      if (actErr) return abortCreate(actErr.message)
+      await supabase.from('rounds').update({ is_active: false }).eq('org_id', orgId).eq('is_active', true).neq('id', round.id)
+    }
 
     return { success: true, roundId: round.id }
   } catch (e) {
