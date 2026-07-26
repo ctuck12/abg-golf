@@ -866,7 +866,7 @@ export default function MatchupClient({
   const [showNetPositions, setShowNetPositions] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' | 'medley' } | null>(null)
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
-  const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | { playerStrokes: { name: string; strokes: number }[] } | null>(null)
+  const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | { playerStrokes: { name: string; strokes: number; holesLabel: string }[] } | null>(null)
 
   function captureSearchPos() {
     if (searchWrapperRef.current && !fixedSearch) {
@@ -1276,15 +1276,19 @@ export default function MatchupClient({
             </div>
             {'playerStrokes' in strokesPopover ? (
               <>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {strokesPopover.playerStrokes.map((e) => (
-                    <div key={e.name} className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-800">{e.name}</span>
-                      <span className="text-xl font-bold" style={{ color: gold }}>+{e.strokes}</span>
+                    <div key={e.name}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-800">{e.name}</span>
+                        <span className="text-xl font-bold" style={{ color: gold }}>+{e.strokes}</span>
+                      </div>
+                      {e.holesLabel && (
+                        <p className="text-xs text-gray-500 mt-0.5">Strokes on holes: <span className="font-semibold text-gray-700">{e.holesLabel}</span></p>
+                      )}
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 mt-3">Applied automatically on their hardest handicap holes — shown with * on the matchup scorecards.</p>
               </>
             ) : (
               <>
@@ -2849,7 +2853,14 @@ export default function MatchupClient({
                                         {(() => {
                                           const rowIds = rowIdx === 0 ? [m.team1_player1_id, m.team1_player2_id] : [m.team2_player1_id, m.team2_player2_id]
                                           const ps = rowIds
-                                            .map((id) => ({ name: players.find((p) => p.id === id)?.name.split(' ')[0] ?? '?', strokes: Number(m.player_strokes?.[id]) || 0 }))
+                                            .map((id) => ({
+                                              name: players.find((p) => p.id === id)?.name.split(' ')[0] ?? '?',
+                                              strokes: Number(m.player_strokes?.[id]) || 0,
+                                              holesLabel: Object.entries(bbCardStrokeHoles[id] ?? {})
+                                                .sort((a, b) => Number(a[0]) - Number(b[0]))
+                                                .map(([h, n]) => (n as number) > 1 ? `${h} (×${n})` : h)
+                                                .join(', '),
+                                            }))
                                             .filter((e) => e.strokes > 0)
                                           if (ps.length === 0) return null
                                           return (
