@@ -1943,7 +1943,7 @@ export default function MatchupClient({
                           )}
 
                           {/* summary table (5 columns + press columns) */}
-                          <div className="rounded-lg border border-gray-300 overflow-hidden">
+                          <div className={`rounded-lg overflow-hidden ${isEditing ? 'border-2 border-amber-400 shadow-[0_0_0_3px_rgba(245,158,11,0.15)]' : 'border border-gray-300'}`}>
                             <div className="overflow-x-auto">
                             <table className="min-w-full border-collapse">
                               <thead>
@@ -2658,7 +2658,7 @@ export default function MatchupClient({
                           )}
 
                           {/* 5-column summary table */}
-                          <div className="rounded-lg border border-gray-300 overflow-hidden">
+                          <div className={`rounded-lg overflow-hidden ${isEditingBB ? 'border-2 border-amber-400 shadow-[0_0_0_3px_rgba(245,158,11,0.15)]' : 'border border-gray-300'}`}>
                             <div className="overflow-x-auto">
                             <table className="min-w-full border-collapse">
                               <thead>
@@ -3123,7 +3123,7 @@ export default function MatchupClient({
                           )}
 
                           {/* Results table */}
-                          <div className="rounded-lg border border-gray-300 overflow-hidden">
+                          <div className={`rounded-lg overflow-hidden ${isEditingMed ? 'border-2 border-amber-400 shadow-[0_0_0_3px_rgba(245,158,11,0.15)]' : 'border border-gray-300'}`}>
                             <div className="overflow-x-auto">
                             <table className="min-w-full border-collapse">
                               <thead>
