@@ -460,6 +460,7 @@ function computeAdminMatchupPayouts(
       }
     }
     // ── Press bets ──────────────────────────────────────────────────────────
+    let p1PressNet = 0
     for (const press of (m.press ?? [])) {
       const pressHoles = mHoles.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
       if (pressHoles.length === 0) continue
@@ -473,8 +474,27 @@ function computeAdminMatchupPayouts(
       const strokes = press.strokes ?? 0
       const adjP1 = (p1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
       const adjP2 = (p2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
-      if (adjP1 < adjP2) { net[p1] = (net[p1] ?? 0) + press.amount; net[p2] = (net[p2] ?? 0) - press.amount }
-      else if (adjP2 < adjP1) { net[p2] = (net[p2] ?? 0) + press.amount; net[p1] = (net[p1] ?? 0) - press.amount }
+      if (adjP1 < adjP2) { net[p1] = (net[p1] ?? 0) + press.amount; net[p2] = (net[p2] ?? 0) - press.amount; p1PressNet += press.amount }
+      else if (adjP2 < adjP1) { net[p2] = (net[p2] ?? 0) + press.amount; net[p1] = (net[p1] ?? 0) - press.amount; p1PressNet -= press.amount }
+    }
+    // Fold settled presses into the displayed result so it matches the money
+    if ((m.press ?? []).length > 0) {
+      const totalSeg = segments[segments.length - 1]
+      const baseNet = nassauResult
+        ? (nassauResult.winnerLabel === mp1.name ? nassauResult.amount : nassauResult.winnerLabel === mp2.name ? -nassauResult.amount : 0)
+        : (totalSeg.settled && !totalSeg.tied && totalSeg.winnerLabel !== null ? (totalSeg.winnerLabel === mp1.name ? totalSeg.amount : -totalSeg.amount) : 0)
+      const anySettledBase = nassauResult ? nassauResult.anySettled : totalSeg.settled
+      const combined = baseNet + p1PressNet
+      const combinedWinner = combined > 0 ? mp1.name : combined < 0 ? mp2.name : null
+      if (anySettledBase || p1PressNet !== 0) {
+        nassauResult = {
+          winnerLabel: combinedWinner,
+          amount: Math.abs(combined),
+          perPlayer: false,
+          anySettled: true,
+          ...(nassauResult?.swept && combinedWinner === nassauResult.winnerLabel ? { swept: true } : {}),
+        }
+      }
     }
     rows.push({ id: m.id, type: 'h2h', label: `${mp1.name} vs ${mp2.name}`, betLabel: formatMatchupBet(m.bet), segments, nassauResult })
   }
@@ -566,6 +586,44 @@ function computeAdminMatchupPayouts(
             for (const id of loseIds) net[id] = (net[id] ?? 0) - adj
             nassauResultBB = { ...nassauResultBB, amount: sweepAmt, swept: true }
           }
+        }
+      }
+    }
+    // BB press bets
+    let t1PressNet = 0
+    for (const press of (m.press ?? [])) {
+      const pressHoles = mHoles.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
+      if (pressHoles.length === 0) continue
+      let t1Sum = 0, t2Sum = 0, parSum = 0, played = 0
+      for (const h of pressHoles) {
+        const t1Arr = ([bbSM[t1Ids[0]]?.[h.hole_number] ?? null, bbSM[t1Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        const t2Arr = ([bbSM[t2Ids[0]]?.[h.hole_number] ?? null, bbSM[t2Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        if (t1Arr.length === 0 || t2Arr.length === 0) continue
+        t1Sum += Math.min(...t1Arr); t2Sum += Math.min(...t2Arr); parSum += h.par; played++
+      }
+      if (played !== pressHoles.length || played === 0) continue
+      const strokes = press.strokes ?? 0
+      const adjT1 = (t1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
+      const adjT2 = (t2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
+      if (adjT1 < adjT2) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t2Ids) net[id] = (net[id] ?? 0) - press.amount; t1PressNet += press.amount }
+      else if (adjT2 < adjT1) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t1Ids) net[id] = (net[id] ?? 0) - press.amount; t1PressNet -= press.amount }
+    }
+    // Fold settled presses into the displayed result so it matches the money
+    if ((m.press ?? []).length > 0) {
+      const totalSeg = segments[segments.length - 1]
+      const baseNet = nassauResultBB
+        ? (nassauResultBB.winnerLabel === t1Name ? nassauResultBB.amount : nassauResultBB.winnerLabel === t2Name ? -nassauResultBB.amount : 0)
+        : (totalSeg.settled && !totalSeg.tied && totalSeg.winnerLabel !== null ? (totalSeg.winnerLabel === t1Name ? totalSeg.amount : -totalSeg.amount) : 0)
+      const anySettledBase = nassauResultBB ? nassauResultBB.anySettled : totalSeg.settled
+      const combined = baseNet + t1PressNet
+      const combinedWinner = combined > 0 ? t1Name : combined < 0 ? t2Name : null
+      if (anySettledBase || t1PressNet !== 0) {
+        nassauResultBB = {
+          winnerLabel: combinedWinner,
+          amount: Math.abs(combined),
+          perPlayer: true,
+          anySettled: true,
+          ...(nassauResultBB?.swept && combinedWinner === nassauResultBB.winnerLabel ? { swept: true } : {}),
         }
       }
     }

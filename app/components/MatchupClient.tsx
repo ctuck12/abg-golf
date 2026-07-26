@@ -512,6 +512,7 @@ function computeMatchupPayouts(
       }
     }
     // ── Press bets ──────────────────────────────────────────────────────────
+    let p1PressNet = 0
     for (const press of (m.press ?? [])) {
       const pressHoles = matchupHoles.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
       if (pressHoles.length === 0) continue
@@ -525,8 +526,27 @@ function computeMatchupPayouts(
       const strokes = press.strokes ?? 0
       const adjP1 = (p1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
       const adjP2 = (p2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
-      if (adjP1 < adjP2) { net[p1] = (net[p1] ?? 0) + press.amount; net[p2] = (net[p2] ?? 0) - press.amount }
-      else if (adjP2 < adjP1) { net[p2] = (net[p2] ?? 0) + press.amount; net[p1] = (net[p1] ?? 0) - press.amount }
+      if (adjP1 < adjP2) { net[p1] = (net[p1] ?? 0) + press.amount; net[p2] = (net[p2] ?? 0) - press.amount; p1PressNet += press.amount }
+      else if (adjP2 < adjP1) { net[p2] = (net[p2] ?? 0) + press.amount; net[p1] = (net[p1] ?? 0) - press.amount; p1PressNet -= press.amount }
+    }
+    // Fold settled presses into the displayed result so it matches the money
+    if ((m.press ?? []).length > 0) {
+      const totalSeg = segments[segments.length - 1]
+      const baseNet = nassauResult
+        ? (nassauResult.winnerLabel === mp1.name ? nassauResult.amount : nassauResult.winnerLabel === mp2.name ? -nassauResult.amount : 0)
+        : (totalSeg.settled && !totalSeg.tied && totalSeg.winnerLabel !== null ? (totalSeg.winnerLabel === mp1.name ? totalSeg.amount : -totalSeg.amount) : 0)
+      const anySettledBase = nassauResult ? nassauResult.anySettled : totalSeg.settled
+      const combined = baseNet + p1PressNet
+      const combinedWinner = combined > 0 ? mp1.name : combined < 0 ? mp2.name : null
+      if (anySettledBase || p1PressNet !== 0) {
+        nassauResult = {
+          winnerLabel: combinedWinner,
+          amount: Math.abs(combined),
+          perPlayer: false,
+          anySettled: true,
+          ...(nassauResult?.swept && combinedWinner === nassauResult.winnerLabel ? { swept: true } : {}),
+        }
+      }
     }
     rows.push({ id: m.id, type: 'h2h', label: `${mp1.name} vs ${mp2.name}`, betLabel: formatBet(m.bet), segments, nassauResult })
   }
@@ -658,6 +678,7 @@ function computeMatchupPayouts(
       }
     }
     // BB press bets
+    let t1PressNet = 0
     for (const press of (m.press ?? [])) {
       const pressHoles = bbMatchupHoles.filter(h => h.hole_number >= press.holeStart && h.hole_number <= press.holeEnd)
       if (pressHoles.length === 0) continue
@@ -672,8 +693,27 @@ function computeMatchupPayouts(
       const strokes = press.strokes ?? 0
       const adjT1 = (t1Sum - parSum) - (press.strokesSide === 'p1' ? strokes : 0)
       const adjT2 = (t2Sum - parSum) - (press.strokesSide === 'p2' ? strokes : 0)
-      if (adjT1 < adjT2) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t2Ids) net[id] = (net[id] ?? 0) - press.amount }
-      else if (adjT2 < adjT1) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t1Ids) net[id] = (net[id] ?? 0) - press.amount }
+      if (adjT1 < adjT2) { for (const id of t1Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t2Ids) net[id] = (net[id] ?? 0) - press.amount; t1PressNet += press.amount }
+      else if (adjT2 < adjT1) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + press.amount; for (const id of t1Ids) net[id] = (net[id] ?? 0) - press.amount; t1PressNet -= press.amount }
+    }
+    // Fold settled presses into the displayed result so it matches the money
+    if ((m.press ?? []).length > 0) {
+      const totalSeg = segments[segments.length - 1]
+      const baseNet = nassauResult
+        ? (nassauResult.winnerLabel === t1Name ? nassauResult.amount : nassauResult.winnerLabel === t2Name ? -nassauResult.amount : 0)
+        : (totalSeg.settled && !totalSeg.tied && totalSeg.winnerLabel !== null ? (totalSeg.winnerLabel === t1Name ? totalSeg.amount : -totalSeg.amount) : 0)
+      const anySettledBase = nassauResult ? nassauResult.anySettled : totalSeg.settled
+      const combined = baseNet + t1PressNet
+      const combinedWinner = combined > 0 ? t1Name : combined < 0 ? t2Name : null
+      if (anySettledBase || t1PressNet !== 0) {
+        nassauResult = {
+          winnerLabel: combinedWinner,
+          amount: Math.abs(combined),
+          perPlayer: true,
+          anySettled: true,
+          ...(nassauResult?.swept && combinedWinner === nassauResult.winnerLabel ? { swept: true } : {}),
+        }
+      }
     }
     rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: formatBet(m.bet), segments, nassauResult })
   }
@@ -3456,16 +3496,6 @@ export default function MatchupClient({
                   const allFinished = involvedPlayerIds.length > 0 && holes.length > 0 &&
                     involvedPlayerIds.every((id) => Object.keys(scoreMap[id] ?? {}).length >= holes.length)
 
-                  // Net press amount from p1's perspective (+ve = p1 net wins from presses)
-                  let p1PressNet = 0
-                  if (row.type === 'h2h' && h2hMatch) {
-                    for (const pr of (h2hMatch.press ?? [])) {
-                      const res = computePressResult(h2hMatch.player1_id, h2hMatch.player2_id, scoreMap, holes, pr)
-                      if (res.p1Wins) p1PressNet += pr.amount
-                      else if (res.p2Wins) p1PressNet -= pr.amount
-                    }
-                  }
-
                   return (
                     <div key={row.id}>
                     {showH2HHeader && (
@@ -3481,7 +3511,7 @@ export default function MatchupClient({
                       <div className="px-4 pt-3 pb-1 border-b border-gray-100">
                         <p className="text-xs font-bold text-gray-800">{row.label}</p>
                         <p className="text-xs" style={{ color: row.segments.length === 0 ? '#9ca3af' : gold }}>
-                          {row.betLabel}{row.type === 'h2h' && h2hMatch && (h2hMatch.press ?? []).length > 0 ? ' · Press' : ''}
+                          {row.betLabel}{(row.type === 'h2h' && h2hMatch && (h2hMatch.press ?? []).length > 0) || (row.type === 'bb' && bbMatch && (bbMatch.press ?? []).length > 0) || (row.type === 'medley' && medMatch && (medMatch.press ?? []).length > 0) ? ' · Press' : ''}
                         </p>
                       </div>
                       {row.segments.length === 0 ? (
@@ -3493,12 +3523,7 @@ export default function MatchupClient({
                           <tbody>
                             {/* For Nassau bets show only the Result summary row; for Overall show the single segment */}
                             {!row.nassauResult && row.segments.map((seg) => {
-                              const mp1r = row.type === 'h2h' ? players.find((p) => p.id === h2hMatch?.player1_id) : null
-                              const winnerPressNet = row.type === 'h2h' && seg.settled && !seg.tied
-                                ? (seg.winnerLabel === mp1r?.name ? p1PressNet : -p1PressNet)
-                                : 0
-                              const totalAmt = seg.settled && !seg.tied ? seg.amount + winnerPressNet : seg.amount
-                              const fmtAmt = totalAmt % 1 === 0 ? String(Math.abs(totalAmt)) : Math.abs(totalAmt).toFixed(2)
+                              const fmtAmt = seg.amount % 1 === 0 ? String(Math.abs(seg.amount)) : Math.abs(seg.amount).toFixed(2)
                               return (
                                 <tr key={seg.name} className="border-t border-gray-100 bg-gray-50">
                                   <td className="px-4 py-2 text-xs font-semibold text-gray-500 w-14">Result</td>
@@ -3519,12 +3544,7 @@ export default function MatchupClient({
                             })}
                             {row.nassauResult && (() => {
                               const nr = row.nassauResult!
-                              const mp1r = row.type === 'h2h' ? players.find((p) => p.id === h2hMatch?.player1_id) : null
-                              const winnerPressNet = nr.anySettled && nr.winnerLabel !== null
-                                ? (nr.winnerLabel === mp1r?.name ? p1PressNet : -p1PressNet)
-                                : 0
-                              const totalAmt = nr.anySettled && nr.winnerLabel !== null ? nr.amount + winnerPressNet : nr.amount
-                              const fmtAmt = totalAmt % 1 === 0 ? String(Math.abs(totalAmt)) : Math.abs(totalAmt).toFixed(2)
+                              const fmtAmt = nr.amount % 1 === 0 ? String(Math.abs(nr.amount)) : Math.abs(nr.amount).toFixed(2)
                               return (
                                 <tr className="border-t border-gray-100 bg-gray-50">
                                   <td className="px-4 py-2 text-xs font-bold text-gray-500 w-14">Result</td>
