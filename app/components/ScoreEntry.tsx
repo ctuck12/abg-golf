@@ -456,6 +456,8 @@ export default function ScoreEntry({
   const [strokesPending, setStrokesPending] = useState(false)
 
   const isBanker = format === 'banker' || bankerSideGame
+  // Traditional/Banker rounds score individually — ball summaries are meaningless there
+  const showBalls = !isDaytonaMode && format !== 'traditional' && format !== 'banker'
 
   function bankerMultiplier(net: number, par: number): number {
     if (net <= par - 2) return 3  // eagle or better → 3×
@@ -1929,7 +1931,7 @@ export default function ScoreEntry({
             const sc = savedScores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)
             return sc?.strokes ?? hole.par
           })
-          const holeBalls = !isDaytonaMode ? computeHoleBallScores(savedHolePlayerScores, ballsCount) : []
+          const holeBalls = showBalls ? computeHoleBallScores(savedHolePlayerScores, ballsCount) : []
 
           // Compute Left/Right DT for collapsed row using saved data (net scores)
           const holeAssignments = assignments[hole.hole_number] ?? {}
@@ -2575,7 +2577,7 @@ export default function ScoreEntry({
               )}
             </div>
 
-              {hole.hole_number === 9 && !isDaytonaMode && (
+              {hole.hole_number === 9 && showBalls && (
                 <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: navy }}>
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Front 9 Total</p>
@@ -2605,7 +2607,7 @@ export default function ScoreEntry({
                   </div>
                 </div>
               )}
-              {hole.hole_number === 18 && !isDaytonaMode && (
+              {hole.hole_number === 18 && showBalls && (
                 <div className="bg-white rounded-xl border overflow-hidden" style={{ borderColor: navy }}>
                   <div className="flex items-center px-4 py-3 gap-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Back 9 Total</p>
