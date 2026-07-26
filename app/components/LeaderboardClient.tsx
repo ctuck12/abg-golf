@@ -7,7 +7,7 @@ import {
   pressForfeitMap, type PressForfeit,
   computeMedley, type MedleyMatchup, roundHcp,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
-  calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
+  calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults, computeSkinsPotResults,
   computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
   type DaytonaHoleAssignment, type SkinResult,
 } from '@/lib/scoring'
@@ -372,7 +372,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], medleyMatchups = [], handicapRounding = 'down', skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, excludeMatchups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {}, hammerMatchups = [], hammerHolesMap = {},
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], medleyMatchups = [], handicapRounding = 'down', skinsEnabled = false, skinsAmount = 0, skinsMode = 'per_hole', initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, excludeMatchups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {}, hammerMatchups = [], hammerHolesMap = {},
 }: {
   orgSlug: string
   orgId: string
@@ -409,6 +409,7 @@ export default function LeaderboardClient({
   handicapRounding?: string | null
   skinsEnabled?: boolean
   skinsAmount?: number
+  skinsMode?: string
   initialHoleValues?: Record<string, Record<number, number>>
   hammerMatchups?: HammerMatchup[]
   hammerHolesMap?: Record<string, Record<number, HammerHoleState>>
@@ -1088,9 +1089,15 @@ export default function LeaderboardClient({
 
   // Skins
   const skinsParticipants = players.filter((p) => p.skins_participant)
+  const skinsPotMode = skinsMode === 'pot'
   const skinsResults = skinsEnabled && skinsParticipants.length > 0
-    ? computeSkinsResults(holes, scores, skinsParticipants, skinsAmount)
+    ? (skinsPotMode
+        ? computeSkinsPotResults(holes, scores, skinsParticipants, skinsAmount)
+        : computeSkinsResults(holes, scores, skinsParticipants, skinsAmount))
     : { skins: [] as SkinResult[], playerNet: {} as Record<string, number>, skinsWon: 0, settlements: [] }
+  const skinsPotInfo = skinsPotMode && 'potTotal' in skinsResults
+    ? (skinsResults as unknown as { potTotal: number; complete: boolean; leaders: { id: string; name: string; count: number }[] })
+    : null
 
   // Combined net (ball/daytona + matchups + skins)
   type PlayerBreakdown = { ball: number; daytona: number; banker: number; matchups: number; skins: number; hammer: number }
@@ -1946,8 +1953,14 @@ export default function LeaderboardClient({
                     <div className="border-t border-gray-100">
                       {/* Amount header */}
                       <div className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm text-gray-900">Amount</p>
-                        <p className="text-xs text-gray-400 mt-0.5">${skinsAmount % 1 === 0 ? skinsAmount : skinsAmount.toFixed(2)}/skin</p>
+                        <p className="text-sm text-gray-900">{skinsPotMode ? 'Pot' : 'Amount'}</p>
+                        {skinsPotMode ? (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            ${skinsAmount % 1 === 0 ? skinsAmount : skinsAmount.toFixed(2)} buy-in × {skinsParticipants.length} player{skinsParticipants.length !== 1 ? 's' : ''} = <span className="font-semibold text-gray-600">${(skinsPotInfo?.potTotal ?? 0) % 1 === 0 ? (skinsPotInfo?.potTotal ?? 0) : (skinsPotInfo?.potTotal ?? 0).toFixed(2)}</span> — most skins takes the pot, ties split it
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-400 mt-0.5">${skinsAmount % 1 === 0 ? skinsAmount : skinsAmount.toFixed(2)}/skin</p>
+                        )}
                       </div>
                       {/* Current Skins — players with ≥1 skin */}
                       <div className="px-4 py-3 border-b border-gray-100">
@@ -1973,7 +1986,9 @@ export default function LeaderboardClient({
                                     </span>
                                   </span>
                                   <span className="text-xs font-semibold text-green-600 shrink-0">
-                                    +${(skinsAmount * (skinsParticipants.length - 1) * holes.length).toFixed(2)}
+                                    {skinsPotMode
+                                      ? `${holes.length} skin${holes.length !== 1 ? 's' : ''}`
+                                      : `+$${(skinsAmount * (skinsParticipants.length - 1) * holes.length).toFixed(2)}`}
                                   </span>
                                 </div>
                               ))}
@@ -1998,7 +2013,30 @@ export default function LeaderboardClient({
                           </div>
                         )}
                       </div>
-                      {skinsResults.skinsWon > 0 && (
+                      {/* Pot status (winner-takes-pot mode) */}
+                      {skinsPotMode && skinsPotInfo && (
+                        <div className="px-4 py-3 border-b border-gray-100">
+                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Pot Status</p>
+                          {skinsResults.skinsWon === 0 ? (
+                            <p className="text-xs text-gray-400">No skins won yet</p>
+                          ) : skinsPotInfo.complete ? (
+                            <p className="text-xs text-gray-700">
+                              {skinsPotInfo.leaders.length === 1 ? (
+                                <><span className="font-semibold text-green-700">{skinsPotInfo.leaders[0].name}</span> wins the ${skinsPotInfo.potTotal % 1 === 0 ? skinsPotInfo.potTotal : skinsPotInfo.potTotal.toFixed(2)} pot with {skinsPotInfo.leaders[0].count} skin{skinsPotInfo.leaders[0].count !== 1 ? 's' : ''}</>
+                              ) : (
+                                <><span className="font-semibold text-green-700">{skinsPotInfo.leaders.map((l) => l.name).join(', ')}</span> tie with {skinsPotInfo.leaders[0].count} skin{skinsPotInfo.leaders[0].count !== 1 ? 's' : ''} each and split the ${skinsPotInfo.potTotal % 1 === 0 ? skinsPotInfo.potTotal : skinsPotInfo.potTotal.toFixed(2)} pot evenly</>
+                              )}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-gray-700">
+                              <span className="font-semibold text-gray-800">{skinsPotInfo.leaders.map((l) => l.name).join(', ')}</span>
+                              {' '}lead{skinsPotInfo.leaders.length === 1 ? 's' : ''} with {skinsPotInfo.leaders[0].count} skin{skinsPotInfo.leaders[0].count !== 1 ? 's' : ''}
+                              <span className="text-gray-400"> — pot settles once all participants finish the round</span>
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {(skinsPotMode ? (skinsPotInfo?.complete ?? false) && skinsAmount > 0 : skinsResults.skinsWon > 0) && (
                         <>
                           <div className="border-t border-gray-100 px-4 pt-3 pb-2">
                             <button

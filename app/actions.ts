@@ -822,8 +822,9 @@ export async function updateSkinsSettings(_prev: unknown, formData: FormData) {
   const roundId = formData.get('roundId') as string
   const enabled = formData.get('skins_enabled') === 'true'
   const amount = parseFloat(formData.get('skins_amount') as string) || 0
+  const mode = (formData.get('skins_mode') as string) === 'pot' ? 'pot' : 'per_hole'
   const supabase = createServerClient()
-  const { error } = await supabase.from('rounds').update({ skins_enabled: enabled, skins_amount: amount }).eq('id', roundId)
+  const { error } = await supabase.from('rounds').update({ skins_enabled: enabled, skins_amount: amount, skins_mode: mode }).eq('id', roundId)
   if (error) return { error: error.message }
   return { success: true }
 }

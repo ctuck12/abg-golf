@@ -889,6 +889,68 @@ export function settleDaytonaPlayerPoints(
 
 // ── Skins Game ────────────────────────────────────────────────────────────────
 
+
+// ── Skins: winner-take-pot mode ───────────────────────────────────────────────
+// Every participant antes buyIn; most skins over the round takes the pot,
+// ties for most split it evenly. Money only moves once every participant has
+// completed all the holes their range covers (the lead can change until then).
+export function computeSkinsPotResults(
+  holes: { hole_number: number; par: number }[],
+  scores: { player_id: string; hole_number: number; strokes: number }[],
+  participants: { id: string; name: string; holes_range?: string | null }[],
+  buyIn: number
+): {
+  skins: SkinResult[]
+  playerNet: Record<string, number>
+  skinsWon: number
+  settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[]
+  potTotal: number
+  complete: boolean
+  leaders: { id: string; name: string; count: number }[]
+} {
+  const base = computeSkinsResults(holes, scores, participants, 0)
+  const counts: Record<string, number> = {}
+  for (const p of participants) counts[p.id] = 0
+  for (const sk of base.skins) if (sk.status === 'won' && sk.winnerId && counts[sk.winnerId] !== undefined) counts[sk.winnerId]++
+
+  const complete = holes.length > 0 && participants.length > 0 && participants.every((p) =>
+    holes.filter((h) => playerCoversHole(p.holes_range, h.hole_number))
+      .every((h) => scores.some((sc) => sc.player_id === p.id && sc.hole_number === h.hole_number))
+  )
+
+  const potTotal = Math.round(buyIn * participants.length * 100) / 100
+  const playerNet: Record<string, number> = {}
+  for (const p of participants) playerNet[p.id] = 0
+
+  const maxCount = participants.length > 0 ? Math.max(...participants.map((p) => counts[p.id] ?? 0)) : 0
+  const leaders = participants
+    .filter((p) => (counts[p.id] ?? 0) === maxCount)
+    .map((p) => ({ id: p.id, name: p.name, count: counts[p.id] ?? 0 }))
+
+  if (complete && buyIn > 0 && participants.length > 1 && leaders.length > 0) {
+    const share = potTotal / leaders.length
+    const winnerIds = new Set(leaders.map((l) => l.id))
+    for (const p of participants) {
+      playerNet[p.id] = Math.round(((winnerIds.has(p.id) ? share : 0) - buyIn) * 100) / 100
+    }
+  }
+
+  const pw = participants.map((p) => ({ id: p.id, name: p.name, bal: playerNet[p.id] ?? 0 })).filter((b) => b.bal > 0.005).sort((a, b) => b.bal - a.bal)
+  const nw = participants.map((p) => ({ id: p.id, name: p.name, bal: playerNet[p.id] ?? 0 })).filter((b) => b.bal < -0.005).sort((a, b) => a.bal - b.bal)
+  const settlements: { fromId: string; fromName: string; toId: string; toName: string; amount: number }[] = []
+  let wi = 0, li = 0
+  while (wi < pw.length && li < nw.length) {
+    const amount = Math.round(Math.min(pw[wi].bal, -nw[li].bal) * 100) / 100
+    if (amount > 0) settlements.push({ fromId: nw[li].id, fromName: nw[li].name, toId: pw[wi].id, toName: pw[wi].name, amount })
+    pw[wi].bal = Math.round((pw[wi].bal - amount) * 100) / 100
+    nw[li].bal = Math.round((nw[li].bal + amount) * 100) / 100
+    if (pw[wi].bal <= 0.005) wi++
+    if (nw[li].bal >= -0.005) li++
+  }
+
+  return { skins: base.skins, playerNet, skinsWon: base.skinsWon, settlements, potTotal, complete, leaders }
+}
+
 export type SkinResult = {
   holeNumber: number
   par: number

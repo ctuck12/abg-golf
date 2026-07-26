@@ -38,6 +38,7 @@ import {
   computeMedley, type MedleyMatchup,
   computePlayerDaytonaDollarsSplit,
   computeSkinsResults,
+  computeSkinsPotResults,
   type DaytonaHoleAssignment, type BallHalfResult, type SkinResult,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
@@ -147,7 +148,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number; exclude_matchups?: boolean } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; skins_mode?: string | null; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number; exclude_matchups?: boolean } | null
 type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
@@ -886,6 +887,7 @@ export default function AdminDashboard({
   useEffect(() => {
     setSkinsEnabled(round?.skins_enabled ?? null)
     setSkinsAmount(round?.skins_amount ?? 0)
+    setSkinsMode(round?.skins_mode ?? 'per_hole')
     setBallVals(
       ballValues.length > 0
         ? Object.fromEntries(ballValues.map((bv) => [bv.ball_number, bv.value_dollars]))
@@ -976,6 +978,7 @@ export default function AdminDashboard({
     return round?.skins_enabled ?? null
   })
   const [skinsAmount, setSkinsAmount] = useState(round?.skins_amount ?? 0)
+  const [skinsMode, setSkinsMode] = useState<string>(round?.skins_mode ?? 'per_hole')
 
   // Live state — kept in sync with server props and updated by real-time subscriptions
   const [liveMatchups, setLiveMatchups] = useState(matchups)
@@ -1052,9 +1055,11 @@ export default function AdminDashboard({
   )
   const skinsResults = useMemo(
     () => skinsEnabled && skinsParticipants.length > 0
-      ? computeSkinsResults(holes, liveScores, skinsParticipants, skinsAmount)
+      ? (skinsMode === 'pot'
+          ? computeSkinsPotResults(holes, liveScores, skinsParticipants, skinsAmount)
+          : computeSkinsResults(holes, liveScores, skinsParticipants, skinsAmount))
       : { skins: [] as SkinResult[], playerNet: {} as Record<string, number>, skinsWon: 0, settlements: [] },
-    [skinsEnabled, skinsParticipants, holes, liveScores, skinsAmount]
+    [skinsEnabled, skinsParticipants, holes, liveScores, skinsAmount, skinsMode]
   )
 
   const combinedDaytonaNet = useMemo(() => {
@@ -2513,6 +2518,7 @@ export default function AdminDashboard({
                 <form action={skinsAction} className="space-y-4">
                   <input type="hidden" name="roundId" value={round.id} />
                   <input type="hidden" name="skins_enabled" value={String(skinsEnabled ?? false)} />
+                  <input type="hidden" name="skins_mode" value={skinsMode} />
                   {skinsState?.error && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{skinsState.error}</p>}
                   {skinsSaved && roundIsSettingUp && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Skins settings saved!</p>}
                   {/* Yes / No toggle */}
@@ -2540,11 +2546,44 @@ export default function AdminDashboard({
                         No
                       </button>
                     </div>
-                    <p className="text-xs text-gray-400 mt-1.5">Lowest individual score ≤ par on each hole wins a skin from every other participant.</p>
+                    <p className="text-xs text-gray-400 mt-1.5">Lowest individual score ≤ par on each hole wins a skin.</p>
                   </div>
-                  {/* Amount per skin */}
+                  {/* Payout format */}
+                  {skinsEnabled && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Payout Format</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSkinsMode('per_hole')}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
+                            skinsMode !== 'pot'
+                              ? 'border-green-500 bg-green-50 text-green-700'
+                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                          }`}>
+                          Per Skin
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSkinsMode('pot')}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
+                            skinsMode === 'pot'
+                              ? 'border-green-500 bg-green-50 text-green-700'
+                              : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                          }`}>
+                          Winner Takes Pot
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1.5">
+                        {skinsMode === 'pot'
+                          ? 'Everyone buys in. Whoever wins the most skins over the round takes the whole pot — ties split it evenly.'
+                          : 'Each skin won pays out immediately from every other participant.'}
+                      </p>
+                    </div>
+                  )}
+                  {/* Amount per skin / buy-in */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Amount Per Skin ($)</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{skinsMode === 'pot' ? 'Buy-In Per Player ($)' : 'Amount Per Skin ($)'}</label>
                     <input
                       type="number" name="skins_amount" min="0" step="1"
                       value={skinsAmount}
@@ -2552,7 +2591,11 @@ export default function AdminDashboard({
                       onFocus={(e) => { if (skinsAmount === 0) e.target.value = '' }}
                       disabled={!skinsEnabled}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none disabled:opacity-40 disabled:bg-gray-50" />
-                    <p className="text-xs text-gray-400 mt-1">Each other participant owes this amount to the skin winner per hole won.</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {skinsMode === 'pot'
+                        ? 'Each participant puts this amount into the pot. Pot = buy-in × number of participants.'
+                        : 'Each other participant owes this amount to the skin winner per hole won.'}
+                    </p>
                   </div>
                   <button type="submit" disabled={skinsPending || skinsEnabled === null}
                     className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
