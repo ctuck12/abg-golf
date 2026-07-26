@@ -440,6 +440,17 @@ export default function MatchupClient({
   const [newMedPressStrokesEnabled, setNewMedPressStrokesEnabled] = useState(false)
   const [newMedPressStrokesDraft, setNewMedPressStrokesDraft] = useState<Record<string, string>>({})
   const [medPressPopover, setMedPressPopover] = useState<{ pressLabel: string; holesLabel: string; amount: number; strokes: { name: string; strokes: number }[] } | null>(null)
+  // Press confirmation popup (shown after "Confirm Press") + unconfirmed-press warning
+  const [pressConfirm, setPressConfirm] = useState<{
+    context: 'h2h' | 'bb' | 'medley'
+    matchupLabel: string
+    holesLabel: string
+    amount: number
+    strokesLabel: string | null
+    forfeitLabel: string | null
+    entry: PressEntry | MedleyPressEntry
+  } | null>(null)
+  const [unconfirmedPressWarning, setUnconfirmedPressWarning] = useState<{ context: 'h2h' | 'bb' | 'medley'; matchupId: string; action: 'save' | 'cancel' } | null>(null)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [showPinLogin, setShowPinLogin] = useState(false)
@@ -791,6 +802,39 @@ export default function MatchupClient({
     await Promise.all([updateBestBallBet(id, bet), updateBestBallPresses(id, savedBBPresses), updateBestBallHoleRange(id, savedBBHoleRange), updateBestBallPlayerStrokes(id, savedPlayerStrokes)])
   }
 
+  // Adds the confirmed press to the right edit list and resets the press form
+  function commitConfirmedPress() {
+    if (!pressConfirm) return
+    const { context, entry } = pressConfirm
+    if (context === 'medley') {
+      setEditMedPresses(prev => [...prev, entry as MedleyPressEntry])
+      setNewMedPressAmount(''); setNewMedPressStrokesEnabled(false); setNewMedPressStrokesDraft({})
+      setMedPressEnabled(false)
+    } else {
+      setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false)
+      setNewPressForfeitEnabled(false); setNewPressForfeitSegs({ front: false, back: false, total: false })
+      if (context === 'h2h') { setEditH2HPresses(prev => [...prev, entry as PressEntry]); setPressEnabled(false) }
+      else { setEditBBPresses(prev => [...prev, entry as PressEntry]); setBBPressEnabled(false) }
+    }
+    setPressConfirm(null)
+  }
+
+  // User chose to proceed with Save/Cancel despite an unconfirmed press — discard it, then continue
+  function resolveUnconfirmedPress() {
+    if (!unconfirmedPressWarning) return
+    const { context, matchupId, action } = unconfirmedPressWarning
+    setUnconfirmedPressWarning(null)
+    if (context === 'medley') {
+      setMedPressEnabled(false); setNewMedPressAmount(''); setNewMedPressStrokesEnabled(false); setNewMedPressStrokesDraft({})
+      if (action === 'save') handleSaveMedley(matchupId); else setEditingMedley(null)
+    } else {
+      setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false)
+      setNewPressForfeitEnabled(false); setNewPressForfeitSegs({ front: false, back: false, total: false })
+      if (context === 'h2h') { setPressEnabled(false); if (action === 'save') handleSaveH2HBet(matchupId); else setEditingH2H(null) }
+      else { setBBPressEnabled(false); if (action === 'save') handleSaveBBBet(matchupId); else setEditingBB(null) }
+    }
+  }
+
   const searchLower = searchQuery.toLowerCase().trim()
   const bbSelected = [bbT1P1, bbT1P2, bbT2P1, bbT2P2].filter(Boolean)
   const isComplete = holes.length > 0 && players.every((p) => Object.keys(scoreMap[p.id] ?? {}).length >= holes.length)
@@ -1051,6 +1095,61 @@ export default function MatchupClient({
                   </span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Press popup ── */}
+      {pressConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setPressConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-0.5">Confirm Press</h3>
+            <p className="text-xs text-gray-500 mb-3">{pressConfirm.matchupLabel}</p>
+            <div className="space-y-1.5 text-sm text-gray-700 mb-3">
+              <div className="flex justify-between"><span className="text-gray-500">Holes</span><span className="font-semibold">{pressConfirm.holesLabel}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Amount</span><span className="font-semibold" style={{ color: gold }}>${pressConfirm.amount}{pressConfirm.context === 'medley' ? ' per player' : ''}</span></div>
+              {pressConfirm.strokesLabel && (
+                <div className="flex justify-between gap-3"><span className="text-gray-500 flex-shrink-0">Strokes</span><span className="font-semibold text-right">{pressConfirm.strokesLabel}</span></div>
+              )}
+              {pressConfirm.forfeitLabel && (
+                <div className="flex justify-between gap-3"><span className="text-gray-500 flex-shrink-0">Forfeit</span><span className="font-semibold text-right text-red-600">{pressConfirm.forfeitLabel}</span></div>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mb-4">The press takes effect once you hit Save on the matchup.</p>
+            <div className="flex gap-2">
+              <button onClick={commitConfirmedPress}
+                className="flex-1 py-2 rounded-lg text-sm font-bold text-white" style={{ background: '#f59e0b' }}>
+                Confirm
+              </button>
+              <button onClick={() => setPressConfirm(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Unconfirmed Press warning ── */}
+      {unconfirmedPressWarning && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setUnconfirmedPressWarning(null)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-1">Unconfirmed Press</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              You started setting up a press for this matchup but haven&apos;t hit Confirm Press. If you continue, that press will be discarded.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => setUnconfirmedPressWarning(null)}
+                className="w-full py-2 rounded-lg text-sm font-bold text-white" style={{ background: navy }}>
+                Go Back
+              </button>
+              <button onClick={resolveUnconfirmedPress}
+                className="w-full py-2 rounded-lg text-sm font-semibold text-red-600 border border-red-300 bg-white">
+                {unconfirmedPressWarning.action === 'save' ? 'Discard Press & Save' : 'Discard Press & Cancel Edit'}
+              </button>
             </div>
           </div>
         </div>
@@ -1806,17 +1905,23 @@ export default function MatchupClient({
                                           ...(newPressStrokesEnabled && newPressStrokes.trim() ? { strokesSide: newPressStrokesSide, strokes: parseFloat(newPressStrokes) || 0 } : {}),
                                           ...(newPressForfeitEnabled && forfSegs.length > 0 ? { forfeit: { by: newPressForfeitBy, segments: forfSegs } } : {}),
                                         }
-                                        setEditH2HPresses(prev => [...prev, entry])
-                                        setNewPressAmount('')
-                                        setNewPressStrokes('')
-                                        setNewPressStrokesEnabled(false)
-                                        setNewPressForfeitEnabled(false)
-                                        setNewPressForfeitSegs({ front: false, back: false, total: false })
-                                        setPressEnabled(false)
+                                        const strokesNum = newPressStrokesEnabled && newPressStrokes.trim() ? (parseFloat(newPressStrokes) || 0) : 0
+                                        setPressConfirm({
+                                          context: 'h2h',
+                                          matchupLabel: `${p1First} vs ${p2First}`,
+                                          holesLabel: hEnd === newPressHoleStart ? `Hole ${newPressHoleStart}` : `Holes ${newPressHoleStart}–${hEnd}`,
+                                          amount: amt,
+                                          strokesLabel: strokesNum > 0 ? `${newPressStrokesSide === 'p1' ? p1First : p2First} gets +${strokesNum}` : null,
+                                          forfeitLabel: newPressForfeitEnabled && forfSegs.length > 0
+                                            ? `${newPressForfeitBy === 'p1' ? p1First : p2First} forfeits ${forfSegs.map((s) => s === 'front' ? 'Front' : s === 'back' ? 'Back' : 'Total').join(' + ')}`
+                                            : null,
+                                          entry,
+                                        })
                                       }}
                                       disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
-                                      className="text-xs font-semibold text-blue-600 disabled:opacity-40">
-                                      + Add
+                                      className="w-full py-2 rounded-lg text-sm font-bold text-white disabled:opacity-40 transition"
+                                      style={{ background: '#f59e0b' }}>
+                                      Confirm Press
                                     </button>
                                   </div>
                                 )}
@@ -1824,12 +1929,12 @@ export default function MatchupClient({
 
                               {/* Save / Cancel */}
                               <div className="flex gap-2">
-                                <button onClick={() => handleSaveH2HBet(m.id)}
+                                <button onClick={() => { if (pressEnabled) setUnconfirmedPressWarning({ context: 'h2h', matchupId: m.id, action: 'save' }); else handleSaveH2HBet(m.id) }}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-white"
                                   style={{ background: navy }}>
                                   Save
                                 </button>
-                                <button onClick={() => { setEditingH2H(null); setPressEnabled(false) }}
+                                <button onClick={() => { if (pressEnabled) setUnconfirmedPressWarning({ context: 'h2h', matchupId: m.id, action: 'cancel' }); else { setEditingH2H(null); setPressEnabled(false) } }}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
                                   Cancel
                                 </button>
@@ -2515,17 +2620,23 @@ export default function MatchupClient({
                                           ...(newPressStrokesEnabled && newPressStrokes.trim() ? { strokesSide: newPressStrokesSide, strokes: parseFloat(newPressStrokes) || 0 } : {}),
                                           ...(newPressForfeitEnabled && forfSegs.length > 0 ? { forfeit: { by: newPressForfeitBy, segments: forfSegs } } : {}),
                                         }
-                                        setEditBBPresses(prev => [...prev, entry])
-                                        setNewPressAmount('')
-                                        setNewPressStrokes('')
-                                        setNewPressStrokesEnabled(false)
-                                        setNewPressForfeitEnabled(false)
-                                        setNewPressForfeitSegs({ front: false, back: false, total: false })
-                                        setBBPressEnabled(false)
+                                        const strokesNum = newPressStrokesEnabled && newPressStrokes.trim() ? (parseFloat(newPressStrokes) || 0) : 0
+                                        setPressConfirm({
+                                          context: 'bb',
+                                          matchupLabel: `${t1Name} vs ${t2Name}`,
+                                          holesLabel: hEnd === newPressHoleStart ? `Hole ${newPressHoleStart}` : `Holes ${newPressHoleStart}–${hEnd}`,
+                                          amount: amt,
+                                          strokesLabel: strokesNum > 0 ? `${newPressStrokesSide === 'p1' ? t1Name : t2Name} gets +${strokesNum}` : null,
+                                          forfeitLabel: newPressForfeitEnabled && forfSegs.length > 0
+                                            ? `${newPressForfeitBy === 'p1' ? t1Name : t2Name} forfeits ${forfSegs.map((s) => s === 'front' ? 'Front' : s === 'back' ? 'Back' : 'Total').join(' + ')}`
+                                            : null,
+                                          entry,
+                                        })
                                       }}
                                       disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
-                                      className="text-xs font-semibold text-blue-600 disabled:opacity-40">
-                                      + Add
+                                      className="w-full py-2 rounded-lg text-sm font-bold text-white disabled:opacity-40 transition"
+                                      style={{ background: '#f59e0b' }}>
+                                      Confirm Press
                                     </button>
                                   </div>
                                 )}
@@ -2533,12 +2644,12 @@ export default function MatchupClient({
 
                               {/* Save / Cancel */}
                               <div className="flex gap-2">
-                                <button onClick={() => handleSaveBBBet(m.id)}
+                                <button onClick={() => { if (bbPressEnabled) setUnconfirmedPressWarning({ context: 'bb', matchupId: m.id, action: 'save' }); else handleSaveBBBet(m.id) }}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-white"
                                   style={{ background: navy }}>
                                   Save
                                 </button>
-                                <button onClick={() => { setEditingBB(null); setBBPressEnabled(false) }}
+                                <button onClick={() => { if (bbPressEnabled) setUnconfirmedPressWarning({ context: 'bb', matchupId: m.id, action: 'cancel' }); else { setEditingBB(null); setBBPressEnabled(false) } }}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
                                   Cancel
                                 </button>
@@ -2981,24 +3092,31 @@ export default function MatchupClient({
                                           amount: amt,
                                           ...(strokesEntries.length > 0 ? { strokes: Object.fromEntries(strokesEntries) } : {}),
                                         }
-                                        setEditMedPresses(prev => [...prev, entry])
-                                        setNewMedPressAmount('')
-                                        setNewMedPressStrokesEnabled(false)
-                                        setNewMedPressStrokesDraft({})
-                                        setMedPressEnabled(false)
+                                        setPressConfirm({
+                                          context: 'medley',
+                                          matchupLabel: label,
+                                          holesLabel: hEnd === newMedPressHoleStart ? `Hole ${newMedPressHoleStart}` : `Holes ${newMedPressHoleStart}–${hEnd}`,
+                                          amount: amt,
+                                          strokesLabel: strokesEntries.length > 0
+                                            ? strokesEntries.map(([pid, n]) => `${players.find((p) => p.id === pid)?.name.split(' ')[0] ?? '?'} +${n}`).join(', ')
+                                            : null,
+                                          forfeitLabel: null,
+                                          entry,
+                                        })
                                       }}
                                       disabled={!newMedPressAmount.trim() || !(parseFloat(newMedPressAmount) > 0)}
-                                      className="text-xs font-semibold text-blue-600 disabled:opacity-40">
-                                      + Add
+                                      className="w-full py-2 rounded-lg text-sm font-bold text-white disabled:opacity-40 transition"
+                                      style={{ background: '#f59e0b' }}>
+                                      Confirm Press
                                     </button>
                                   </div>
                                 )}
                               </div>
 
                               <div className="flex gap-2">
-                                <button onClick={() => handleSaveMedley(m.id)}
+                                <button onClick={() => { if (medPressEnabled) setUnconfirmedPressWarning({ context: 'medley', matchupId: m.id, action: 'save' }); else handleSaveMedley(m.id) }}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: navy }}>Save</button>
-                                <button onClick={() => { setEditingMedley(null); setMedPressEnabled(false) }}
+                                <button onClick={() => { if (medPressEnabled) setUnconfirmedPressWarning({ context: 'medley', matchupId: m.id, action: 'cancel' }); else { setEditingMedley(null); setMedPressEnabled(false) } }}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">Cancel</button>
                               </div>
                             </div>
