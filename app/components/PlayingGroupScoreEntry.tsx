@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
-import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints, playerCoversHole } from '@/lib/scoring'
+import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints, playerCoversHole, roundHcp } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 
@@ -44,6 +44,7 @@ export default function PlayingGroupScoreEntry({
   initialHoleStrokes = {}, initialHoleValues = {},
   bankerSideGame = false, bankerMinBet = 2, initialBankerHoles = {}, initialBankerBets = {},
   autoStrokes = false,
+  handicapRounding = 'down',
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster: boolean; isAdmin: boolean
   groupId: string; groupName: string; roundId: string; roundName: string; roundDate: string; roundCourse: string
@@ -59,6 +60,7 @@ export default function PlayingGroupScoreEntry({
   initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
   autoStrokes?: boolean
+  handicapRounding?: string | null
 }) {
   const isDaytonaMode = !!isDaytonaSideGame
   const isFlares = daytonaVariant === '5man-flares'
@@ -348,7 +350,7 @@ export default function PlayingGroupScoreEntry({
     const minHcp = groupHcps.length ? Math.min(...groupHcps) : 0
     return players.filter((p) => {
       if (p.handicap == null) return false
-      const relStrokes = Math.max(0, Math.floor(p.handicap - minHcp))
+      const relStrokes = Math.max(0, roundHcp(p.handicap - minHcp, handicapRounding))
       return relStrokes > 0 && hole.stroke_index! <= relStrokes
     }).map((p) => p.id)
   }
@@ -387,7 +389,7 @@ export default function PlayingGroupScoreEntry({
     if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
     const effIds = effectiveStrokeIds(holeNumber)
     const pNet = playerGross - (effIds.includes(p.id) ? 1 : 0)
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
     const bankerPlayer = players.find((pl) => pl.id === bankerId)
     const bHcpRaw = bankerPlayer?.handicap ?? null
     const pHcpRaw = p.handicap ?? null
@@ -467,7 +469,7 @@ export default function PlayingGroupScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = players.find((p) => p.id === bankerPlayerId)?.handicap ?? null
     if (bankerHcpRaw == null) return []
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
     const bankerHcp = effHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
@@ -485,7 +487,7 @@ export default function PlayingGroupScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = players.find((p) => p.id === bankerPlayerId)?.handicap ?? null
     if (bankerHcpRaw == null) return []
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
     const bankerHcp = effHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false

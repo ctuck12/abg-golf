@@ -27,7 +27,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
   const orgName = orgRow?.name ?? orgSlug
 
   const { data: round } = await sb
-    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap, banker_min_bet').eq('id', team.round_id).single()
+    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap, handicap_rounding, banker_min_bet').eq('id', team.round_id).single()
   if (!round || !round.is_active || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
   const { data: players } = await sb.from('players').select('id, name, handicap, holes_range').eq('team_id', teamId).order('position', { ascending: true })
@@ -121,6 +121,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       format={round.format ?? 'standard'}
       daytonaVariant={isDaytonaSideGame ? parsedDaytonaVariant : ((team as { daytona_variant?: string | null }).daytona_variant?.split('|')[0] ?? round.daytona_variant ?? '4man')}
       daytonaVariantBack9={(team as { daytona_variant_back9?: string | null }).daytona_variant_back9 ?? null}
+      handicapRounding={(round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
       isDaytonaSideGame={isDaytonaSideGame}
       isAdmin={isAdmin}
       isStarted={round.is_started ?? false}

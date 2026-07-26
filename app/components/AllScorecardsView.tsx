@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import {
-  computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
+  computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, roundHcp,
   type DaytonaHoleAssignment,
 } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
@@ -51,7 +51,7 @@ function ptsColor(pts: number | null): string {
 
 export default function AllScorecardsView({
   orgSlug, orgId, orgName, isMaster = false,
-  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, daytonaVariantBack9 = null, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {}, dtPayoutValue = 0, initialHoleStrokes = {},
+  roundId, players: initialPlayers, allPlayerIds, holes, initialScores, initialAssignments, daytonaVariant, daytonaVariantBack9 = null, isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, teamHoleValues = {}, dtPayoutValue = 0, initialHoleStrokes = {}, handicapRounding = 'down',
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   roundId: string
@@ -67,6 +67,7 @@ export default function AllScorecardsView({
   teamHoleValues?: Record<string, Record<number, number>>
   dtPayoutValue?: number
   initialHoleStrokes?: Record<string, number[]>
+  handicapRounding?: string | null
 }) {
   const [scores, setScores] = useState(initialScores)
   const [showOptions, setShowOptions] = useState(false)
@@ -124,7 +125,7 @@ export default function AllScorecardsView({
     if (player.handicap == null || player.teamId == null || !strokeIndex) return false
     const minHcp = teamMinHcpMap.get(player.teamId) ?? null
     if (minHcp === null) return false
-    const rel = Math.max(0, Math.floor(player.handicap - minHcp))
+    const rel = Math.max(0, roundHcp(player.handicap - minHcp, handicapRounding))
     return rel > 0 && strokeIndex <= rel
   }
 

@@ -30,12 +30,13 @@ export default async function OrgPlayerPage({ params, searchParams }: { params: 
   let roundFormat = 'standard'
   let teamDaytonaVariant: string | null = null
   let teamDaytonaVariantBack9: string | null = null
+  let roundHandicapRounding: string = 'down'
 
   if (player.team_id) {
     const { data: team } = await sb.from('teams').select('id, name, round_id, daytona_variant, daytona_variant_back9').eq('id', player.team_id).single()
     if (!team) redirect(`/${orgSlug}`)
 
-    const { data: round } = await sb.from('rounds').select('id, is_started, format, daytona_variant, org_id').eq('id', team.round_id).single()
+    const { data: round } = await sb.from('rounds').select('id, is_started, format, daytona_variant, org_id, handicap_rounding').eq('id', team.round_id).single()
     if (!round || !round.is_started || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
     teamId = team.id
@@ -44,6 +45,7 @@ export default async function OrgPlayerPage({ params, searchParams }: { params: 
     roundFormat = round.format ?? 'standard'
     teamDaytonaVariant = (team as { daytona_variant?: string | null }).daytona_variant ?? null
     teamDaytonaVariantBack9 = (team as { daytona_variant_back9?: string | null }).daytona_variant_back9 ?? null
+    roundHandicapRounding = (round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'
   } else {
     // Manually-added player with no team — find via playing_group_players
     const { data: groupPlayer } = await sb.from('playing_group_players').select('playing_group_id').eq('player_id', playerId).single()
@@ -114,6 +116,7 @@ export default async function OrgPlayerPage({ params, searchParams }: { params: 
       allRoundScores: allScoresData ?? [],
       daytonaVariant: teamDaytonaVariant ?? '4man',
       daytonaVariantBack9: teamDaytonaVariantBack9,
+      handicapRounding: roundHandicapRounding,
       pressedHoles,
       dtPayoutValue,
       playerHandicaps,

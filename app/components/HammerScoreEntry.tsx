@@ -2,6 +2,7 @@
 
 import { useState, useMemo, Fragment, useEffect, useRef } from 'react'
 import { saveHammerHole, submitHammerHoleScores, saveHoleStrokes } from '@/app/actions'
+import { roundHcp } from '@/lib/scoring'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -32,13 +33,13 @@ export default function HammerScoreEntry({
   orgSlug, orgId, orgName, isMaster, isAdmin,
   matchupId, roundId, roundName, roundDate, roundCourse,
   team1, team2, allPlayers, holes, initialScores,
-  baseBet, autoHandicap, allPlayerHandicaps, initialHoleStrokes, initialHammerHoles, isStarted,
+  baseBet, autoHandicap, allPlayerHandicaps, initialHoleStrokes, initialHammerHoles, isStarted, handicapRounding = 'down',
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster: boolean; isAdmin: boolean
   matchupId: string; roundId: string; roundName: string; roundDate: string; roundCourse: string
   team1: { id: string; name: string }; team2: { id: string; name: string }
   allPlayers: Player[]; holes: Hole[]; initialScores: Score[]
-  baseBet: number; autoHandicap: boolean
+  baseBet: number; autoHandicap: boolean; handicapRounding?: string | null
   allPlayerHandicaps: Record<string, number | null>
   initialHoleStrokes: Record<number, string[]>
   initialHammerHoles: Record<number, HammerHoleState>
@@ -186,7 +187,7 @@ export default function HammerScoreEntry({
     if (!hole?.stroke_index) return []
     const allHcps = Object.values(allPlayerHandicaps).filter((h): h is number => h != null)
     if (allHcps.length === 0) return []
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
     const minHcp = Math.min(...allHcps.map(effHcp))
     return allPlayers.filter((p) => {
       const hcp = allPlayerHandicaps[p.id] ?? null

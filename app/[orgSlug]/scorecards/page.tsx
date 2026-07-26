@@ -26,7 +26,7 @@ export default async function OrgAllScorecardsPage({
   const { data: orgRow } = await sb.from('organizations').select('name').eq('id', orgId).single()
   const orgName = orgRow?.name ?? orgSlug
 
-  const { data: round } = await sb.from('rounds').select('id, format, daytona_variant').eq('is_active', true).eq('org_id', orgId).single()
+  const { data: round } = await sb.from('rounds').select('id, format, daytona_variant, handicap_rounding').eq('is_active', true).eq('org_id', orgId).single()
   if (!round || round.format !== 'daytona') redirect(`/${orgSlug}`)
 
   const { data: allTeams } = await sb.from('teams').select('id, name, daytona_variant, daytona_variant_back9').eq('round_id', round.id)
@@ -91,6 +91,7 @@ export default async function OrgAllScorecardsPage({
       initialAssignments={(assignments ?? []) as DaytonaHoleAssignment[]}
       daytonaVariant={daytonaVariant}
       daytonaVariantBack9={daytonaVariantBack9}
+      handicapRounding={(round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
       isAdmin={isAdmin}
       scorecardTeamId={scorecardTeamId}
       teamHoleValues={teamHoleValues}

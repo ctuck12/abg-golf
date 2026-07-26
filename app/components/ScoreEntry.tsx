@@ -5,7 +5,7 @@ import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHo
 import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, playerCoversHole,
-  computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, type PressForfeit,
+  computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, type PressForfeit, roundHcp,
   computeMedley, type MedleyMatchup,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   computeHoleDaytonaPointsFiveMan,
@@ -156,7 +156,7 @@ function minimizeSettlements(players: { id: string; name: string }[], net: Recor
   }
   return out
 }
-function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestBallMatchup[], medleyMatchups: MedleyMatchup[], players: { id: string; name: string }[], scoreMap: Record<string, Record<number, number>>, holes: { hole_number: number; par: number }[]): { rows: MPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
+function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestBallMatchup[], medleyMatchups: MedleyMatchup[], players: { id: string; name: string }[], scoreMap: Record<string, Record<number, number>>, holes: { hole_number: number; par: number }[], handicapRounding?: string | null): { rows: MPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
   const net: Record<string, number> = {}
   for (const p of players) net[p.id] = 0
   const rows: MPayoutRow[] = []
@@ -248,7 +248,7 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
     if (!hasBet) { rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: 'No bet configured', segments: [] }); continue }
     const mHoles = m.hole_range === 'front9' ? holes.filter((h) => h.hole_number <= 9) : m.hole_range === 'back9' ? holes.filter((h) => h.hole_number > 9) : holes
     const mLastHole = mHoles.length > 0 ? Math.max(...mHoles.map((h) => h.hole_number)) : 18
-    const bbSM = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, mHoles))
+    const bbSM = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, mHoles, handicapRounding))
     const stats = bbStats(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbSM, mHoles)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id], t2Ids = [m.team2_player1_id, m.team2_player2_id]
     const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
@@ -353,7 +353,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', daytonaVariantBack9 = null, isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds,
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', daytonaVariantBack9 = null, isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds, handicapRounding = 'down',
 }: {
   orgSlug: string
   orgId: string
@@ -385,6 +385,7 @@ export default function ScoreEntry({
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
   sideGameGroupScores?: { player_id: string; hole_number: number; strokes: number }[]
   sideGameGroupPlayerIds?: string[]
+  handicapRounding?: string | null
 }) {
   const isDaytona = format === 'daytona'
   const isDaytonaMode = isDaytona || !!isDaytonaSideGame
@@ -493,7 +494,7 @@ export default function ScoreEntry({
     if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
     const effIds = effectiveStrokeIds(holeNumber)
     const pNet = playerGross - (effIds.includes(playerId) ? 1 : 0)
-    const rawHcp = (h: number) => Math.trunc(h)
+    const rawHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
     const bHcpRaw = allRoundPlayerHandicaps[bankerId] ?? null
     const pHcpRaw = allRoundPlayerHandicaps[playerId] ?? null
     const si = strokeIndex ?? 999
@@ -569,7 +570,7 @@ export default function ScoreEntry({
     return players.filter((p) => {
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const relStrokes = Math.max(0, Math.floor(hcp - minHcp))
+      const relStrokes = Math.max(0, roundHcp(hcp - minHcp, handicapRounding))
       return relStrokes > 0 && hole.stroke_index! <= relStrokes
     }).map((p) => p.id)
   }
@@ -580,7 +581,7 @@ export default function ScoreEntry({
     if (!hole?.stroke_index) return []
     const allHandicaps = Object.values(allRoundPlayerHandicaps).filter((h): h is number => h != null)
     if (allHandicaps.length === 0) return []
-    const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
     const minHcp = Math.min(...allHandicaps.map(effHcp))
     return players.filter((p) => {
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
@@ -597,7 +598,7 @@ export default function ScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = allRoundPlayerHandicaps[bankerPlayerId] ?? null
     if (bankerHcpRaw == null) return []
-    const rawHcp = (h: number) => Math.trunc(h)
+    const rawHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
     const bankerHcp = rawHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
@@ -615,7 +616,7 @@ export default function ScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = allRoundPlayerHandicaps[bankerPlayerId] ?? null
     if (bankerHcpRaw == null) return []
-    const rawHcp = (h: number) => Math.trunc(h)
+    const rawHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
     const bankerHcp = rawHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
@@ -1561,7 +1562,7 @@ export default function ScoreEntry({
                   if (!scoreMapM[s.player_id]) scoreMapM[s.player_id] = {}
                   scoreMapM[s.player_id][s.hole_number] = s.strokes
                 }
-                const matchupPayoutsResult = computeMatchupPayouts(payoutsData.matchups, payoutsData.bestBallMatchups, payoutsData.medleyMatchups ?? [], payoutsData.players, scoreMapM, holes)
+                const matchupPayoutsResult = computeMatchupPayouts(payoutsData.matchups, payoutsData.bestBallMatchups, payoutsData.medleyMatchups ?? [], payoutsData.players, scoreMapM, holes, handicapRounding)
                 const matchupOnlySettlements = minimizeSettlements(payoutsData.players, matchupPayoutsResult.net)
 
                 // Ball/Daytona pool payouts

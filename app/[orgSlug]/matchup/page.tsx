@@ -20,7 +20,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, balls_count, format, is_started, mixed_groups')
+    .select('id, name, balls_count, format, is_started, mixed_groups, handicap_rounding')
     .eq('is_active', true)
     .eq('org_id', orgId)
     .single()
@@ -103,6 +103,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
       roundName={round.name}
       initialMatchups={savedMatchups ?? []}
       initialBestBallMatchups={savedBestBall ?? []}
+      handicapRounding={(round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
       initialMedleyMatchups={(medleyRes.data ?? []) as { id: string; players: { id: string; front?: number | null; back?: number | null; total?: number | null }[]; bet_type: string; amount: number }[]}
       isAdmin={isAdmin}
       scorecardTeamId={scorecardTeamId}

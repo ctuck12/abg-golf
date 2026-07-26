@@ -31,7 +31,7 @@ export default async function PlayingGroupScorecardPage({
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, is_active, is_started, org_id, mixed_groups, include_total')
+    .select('id, name, date, course, balls_count, format, is_active, is_started, org_id, mixed_groups, include_total, handicap_rounding')
     .eq('id', group.round_id)
     .single()
   if (!round || !round.is_active || round.org_id !== orgId || !round.mixed_groups) redirect(`/${orgSlug}`)
@@ -167,6 +167,7 @@ export default async function PlayingGroupScorecardPage({
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}
       autoStrokes={autoStrokes}
+      handicapRounding={(round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
     />
   )
 }

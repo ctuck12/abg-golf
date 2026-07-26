@@ -765,6 +765,13 @@ export async function updateRoundAutoHandicap(roundId: string, autoHandicap: boo
   return { success: true }
 }
 
+export async function updateRoundHandicapRounding(roundId: string, mode: string) {
+  const supabase = createServerClient()
+  const { error } = await supabase.from('rounds').update({ handicap_rounding: mode }).eq('id', roundId)
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
 export async function updateRoundName(roundId: string, name: string) {
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ name: name.trim() }).eq('id', roundId)

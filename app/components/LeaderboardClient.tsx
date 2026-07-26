@@ -5,7 +5,7 @@ import {
   computeTeamBallSummary, playerCoversHole,
   computeBBStrokeHoles, applyPlayerStrokesToScoreMap,
   pressForfeitMap, type PressForfeit,
-  computeMedley, type MedleyMatchup,
+  computeMedley, type MedleyMatchup, roundHcp,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
   computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
@@ -151,7 +151,7 @@ function minimizeSettlements(players: { id: string; name: string }[], net: Recor
   }
   return out
 }
-function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestBallMatchup[], medleyMatchups: MedleyMatchup[], players: { id: string; name: string }[], scoreMap: Record<string, Record<number, number>>, holes: Hole[]): { rows: MPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
+function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestBallMatchup[], medleyMatchups: MedleyMatchup[], players: { id: string; name: string }[], scoreMap: Record<string, Record<number, number>>, holes: Hole[], handicapRounding?: string | null): { rows: MPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
   const net: Record<string, number> = {}
   for (const p of players) net[p.id] = 0
   const rows: MPayoutRow[] = []
@@ -261,7 +261,7 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
     if (!hasBet) { rows.push({ id: m.id, type: 'bb', label: `${t1Name} vs ${t2Name}`, betLabel: 'No bet configured', segments: [] }); continue }
     const mHoles = m.hole_range === 'front9' ? holes.filter((h) => h.hole_number <= 9) : m.hole_range === 'back9' ? holes.filter((h) => h.hole_number > 9) : holes
     const mLastHole = mHoles.length > 0 ? Math.max(...mHoles.map((h) => h.hole_number)) : 18
-    const bbSM = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, mHoles))
+    const bbSM = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, mHoles, handicapRounding))
     const stats = bbStats(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbSM, mHoles)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id], t2Ids = [m.team2_player1_id, m.team2_player2_id]
     const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
@@ -372,7 +372,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], medleyMatchups = [], skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, excludeMatchups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {}, hammerMatchups = [], hammerHolesMap = {},
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], medleyMatchups = [], handicapRounding = 'down', skinsEnabled = false, skinsAmount = 0, initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, excludeMatchups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {}, hammerMatchups = [], hammerHolesMap = {},
 }: {
   orgSlug: string
   orgId: string
@@ -406,6 +406,7 @@ export default function LeaderboardClient({
   matchups?: SavedMatchup[]
   bestBallMatchups?: BestBallMatchup[]
   medleyMatchups?: MedleyMatchup[]
+  handicapRounding?: string | null
   skinsEnabled?: boolean
   skinsAmount?: number
   initialHoleValues?: Record<string, Record<number, number>>
@@ -700,7 +701,7 @@ export default function LeaderboardClient({
       return teamPlayers.filter((p) => {
         const hcp = p.handicap ?? null
         if (hcp == null) return false
-        const rel = Math.max(0, Math.floor(hcp - teamMinHcp))
+        const rel = Math.max(0, roundHcp(hcp - teamMinHcp, handicapRounding))
         return rel > 0 && strokeIndex <= rel
       }).map((p) => p.id)
     }
@@ -833,7 +834,7 @@ export default function LeaderboardClient({
               return tradTeamPlayers.filter((p) => {
                 const hcp = p.handicap ?? null
                 if (hcp == null) return false
-                const rel = Math.max(0, Math.floor(hcp - tradTeamMinHcp))
+                const rel = Math.max(0, roundHcp(hcp - tradTeamMinHcp, handicapRounding))
                 return rel > 0 && strokeIndex <= rel
               }).map((p) => p.id)
             }
@@ -924,7 +925,7 @@ export default function LeaderboardClient({
                     ? groupPlayers.filter((p) => {
                         const hcp = p.handicap ?? null
                         if (hcp == null) return false
-                        const rel = Math.max(0, Math.floor(hcp - pgMinHcp))
+                        const rel = Math.max(0, roundHcp(hcp - pgMinHcp, handicapRounding))
                         return rel > 0 && hole.stroke_index! <= rel
                       }).map((p) => p.id)
                     : [])
@@ -962,7 +963,7 @@ export default function LeaderboardClient({
             const bBets = liveBankerBets[pg.id] ?? {}
             const pgAutoStrokes = !!(pg as { auto_strokes?: boolean | null }).auto_strokes
             const pgMinBet = (pg as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
-            const effHcp = (h: number) => Math.max(0, Math.trunc(h))
+            const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
             for (const pid of pids) bankerTotals[pid] = 0
             for (const hole of holes) {
               const hd = bHoles[hole.hole_number]
@@ -1071,7 +1072,7 @@ export default function LeaderboardClient({
     if (!scoreMapForMatchups[s.player_id]) scoreMapForMatchups[s.player_id] = {}
     scoreMapForMatchups[s.player_id][s.hole_number] = s.strokes
   }
-  const matchupPayouts = computeMatchupPayouts(matchups, bestBallMatchups, medleyMatchups ?? [], players, scoreMapForMatchups, holes)
+  const matchupPayouts = computeMatchupPayouts(matchups, bestBallMatchups, medleyMatchups ?? [], players, scoreMapForMatchups, holes, handicapRounding)
 
   // Players whose groups have "Exclude Matchups from Payouts" toggled on
   const visibleMatchupPayouts = excludeMatchups
@@ -2207,7 +2208,7 @@ export default function LeaderboardClient({
                   ? groupPlayersArrFb.filter((p) => {
                       const hcp = p.handicap ?? null
                       if (hcp == null) return false
-                      const rel = Math.max(0, Math.floor(hcp - groupMinHcpFb))
+                      const rel = Math.max(0, roundHcp(hcp - groupMinHcpFb, handicapRounding))
                       return rel > 0 && hole.stroke_index! <= rel
                     }).map((p) => p.id)
                   : [])
@@ -2243,7 +2244,7 @@ export default function LeaderboardClient({
         const totalBankerAmtMap = new Map<string, number>()
         if (groupHasBanker) {
           const scPgAutoStrokes = !!(activePlayingGroup as { auto_strokes?: boolean | null } | null)?.auto_strokes
-          const scEffHcp = (h: number) => Math.max(0, Math.trunc(h))
+          const scEffHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
           for (const hole of [...scFrontNine, ...scBackNine]) {
             const hd = groupBankerHoles[hole.hole_number]
             if (!hd?.bankerPlayerId) continue

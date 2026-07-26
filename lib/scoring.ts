@@ -183,13 +183,22 @@ export type TeamBallSummary = {
   holesPerBall: number[]          // how many holes contributed to each ball
 }
 
+// ── Handicap rounding ────────────────────────────────────────────────────────
+// mode 'nearest' rounds half-up (7.4→7, 7.5→8); anything else keeps the
+// legacy behavior (fallback 'floor' or 'trunc' per call site).
+export function roundHcp(v: number, mode: string | null | undefined, fallback: 'floor' | 'trunc' = 'floor'): number {
+  if (mode === 'nearest') return Math.round(v)
+  return fallback === 'trunc' ? Math.trunc(v) : Math.floor(v)
+}
+
 // ── Best Ball per-player handicap strokes ────────────────────────────────────
 // Allocates each player's stroke count across the hardest holes (lowest
 // stroke_index first; holes without an index come last, then by hole number).
 // Returns playerId → (hole_number → strokes received on that hole).
 export function computeBBStrokeHoles(
   playerStrokes: Record<string, number> | null | undefined,
-  holes: { hole_number: number; stroke_index?: number | null }[]
+  holes: { hole_number: number; stroke_index?: number | null }[],
+  handicapRounding?: string | null
 ): Record<string, Record<number, number>> {
   const out: Record<string, Record<number, number>> = {}
   if (!playerStrokes || holes.length === 0) return out
@@ -198,7 +207,7 @@ export function computeBBStrokeHoles(
     return ai !== bi ? ai - bi : a.hole_number - b.hole_number
   })
   for (const [pid, raw] of Object.entries(playerStrokes)) {
-    const n = Math.max(0, Math.floor(Number(raw) || 0))
+    const n = Math.max(0, roundHcp(Number(raw) || 0, handicapRounding))
     if (n === 0) continue
     const perHole: Record<number, number> = {}
     for (let i = 0; i < n; i++) {

@@ -11,6 +11,7 @@ import {
   updatePlayerHolesRange,
   clearAllScores,
   updateRoundAutoHandicap,
+  updateRoundHandicapRounding,
   toggleMixedGroups,
   setPlayingGroupCount,
   createPlayingGroup,
@@ -146,7 +147,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number; exclude_matchups?: boolean } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number; exclude_matchups?: boolean } | null
 type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
@@ -364,7 +365,8 @@ function computeAdminMatchupPayouts(
   medleyMatchups: MedleyMatchup[],
   players: { id: string; name: string }[],
   scoreMap: Record<string, Record<number, number>>,
-  holes: Hole[]
+  holes: Hole[],
+  handicapRounding?: string | null
 ): { rows: MatchupPayoutRow[]; net: Record<string, number>; involvedIds: Set<string> } {
   const net: Record<string, number> = {}
   for (const p of players) net[p.id] = 0
@@ -493,7 +495,7 @@ function computeAdminMatchupPayouts(
     }
     const mHoles = m.hole_range === 'front9' ? holes.filter((h) => h.hole_number <= 9) : m.hole_range === 'back9' ? holes.filter((h) => h.hole_number > 9) : holes
     const mLastHole = mHoles.length > 0 ? Math.max(...mHoles.map((h) => h.hole_number)) : lastHoleNumber
-    const bbSM = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, mHoles))
+    const bbSM = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, mHoles, handicapRounding))
     const stats = computeBBStats(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbSM, mHoles)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id]
     const t2Ids = [m.team2_player1_id, m.team2_player2_id]
@@ -755,8 +757,9 @@ export default function AdminDashboard({
 
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
+  const [hcpRounding, setHcpRounding] = useState(round?.handicap_rounding ?? 'down')
   // Re-sync when a different round loads (e.g. a new Daytona/Banker round created with auto handicap on)
-  useEffect(() => { setAutoHandicap(round?.auto_handicap ?? false) }, [round?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setAutoHandicap(round?.auto_handicap ?? false); setHcpRounding(round?.handicap_rounding ?? 'down') }, [round?.id])  // eslint-disable-line react-hooks/exhaustive-deps
   const [mixedGroups, setMixedGroups] = useState<boolean | null>(() => {
     const ls = getSetupLS(round?.id)
     const answered = ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true)
@@ -1038,8 +1041,8 @@ export default function AdminDashboard({
   }, [liveScores])
 
   const matchupData = useMemo(
-    () => computeAdminMatchupPayouts(liveMatchups, liveBestBallMatchups, medleyMatchups, players, scoreMap, holes),
-    [liveMatchups, liveBestBallMatchups, medleyMatchups, players, scoreMap, holes]
+    () => computeAdminMatchupPayouts(liveMatchups, liveBestBallMatchups, medleyMatchups, players, scoreMap, holes, round?.handicap_rounding),
+    [liveMatchups, liveBestBallMatchups, medleyMatchups, players, scoreMap, holes, round?.handicap_rounding]
   )
 
   // Skins — declared before combinedDaytonaNet / combinedStandardNet which consume playerNet
@@ -1277,6 +1280,12 @@ export default function AdminDashboard({
     await setPlayerGroup(playerId, groupId)
   }
 
+  async function handleSetHcpRounding(mode: string) {
+    if (!round || mode === hcpRounding) return
+    setHcpRounding(mode)
+    await updateRoundHandicapRounding(round.id, mode)
+    router.refresh()
+  }
   async function handleToggleAutoHandicap() {
     if (!round) return
     const next = !autoHandicap
@@ -2559,17 +2568,32 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Auto Handicap toggle (Daytona / Banker) ── */}
-            {round && (isDaytona || round.format === 'banker') && round.is_started && (
+            {/* ── Handicap Settings (auto strokes + rounding) ── */}
+            {round && round.is_started && (
               <div className="bg-white rounded-2xl border border-gray-200 p-5">
                 <h3 className="font-semibold text-gray-900 text-sm mb-3">Handicap Settings</h3>
-                <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
-                  <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
-                    <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
+                {(isDaytona || round.format === 'banker') && (
+                  <div className="flex items-center gap-3 cursor-pointer mb-4" onClick={handleToggleAutoHandicap}>
+                    <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
+                      <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
+                      <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
-                    <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-gray-800 mb-1">Stroke Rounding</p>
+                  <p className="text-xs text-gray-400 mb-2">How decimal handicaps become whole strokes. Round Down: 7.9 → 7. Round Up: 7.4 → 7, 7.5 → 8.</p>
+                  <div className="flex gap-1.5">
+                    {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, label]) => (
+                      <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition"
+                        style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>

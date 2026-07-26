@@ -28,7 +28,7 @@ export default async function HammerScorecardPage({
   if (!hasAuth) redirect(`/${orgSlug}`)
 
   const { data: round } = await sb
-    .from('rounds').select('id, name, date, course, format, org_id, is_active, is_started, auto_handicap')
+    .from('rounds').select('id, name, date, course, format, org_id, is_active, is_started, auto_handicap, handicap_rounding')
     .eq('id', matchup.round_id).single()
   if (!round || !round.is_active || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
@@ -93,6 +93,7 @@ export default async function HammerScorecardPage({
       initialScores={scores ?? []}
       baseBet={matchup.base_bet}
       autoHandicap={matchup.auto_handicap ?? false}
+      handicapRounding={(round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
       allPlayerHandicaps={allPlayerHandicaps}
       initialHoleStrokes={initialHoleStrokes}
       initialHammerHoles={initialHammerHoles}

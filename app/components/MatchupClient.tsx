@@ -360,7 +360,8 @@ function computeMatchupPayouts(
   medleyMatchups: MedleyMatchup[],
   players: Player[],
   scoreMap: Record<string, Record<number, number>>,
-  holes: Hole[]
+  holes: Hole[],
+  handicapRounding?: string | null
 ): {
   rows: PayoutRow[]
   net: Record<string, number>
@@ -529,7 +530,7 @@ function computeMatchupPayouts(
       ? holes.filter(h => h.hole_number > 9)
       : holes
     const bbMatchupLastHole = bbMatchupHoles.length > 0 ? Math.max(...bbMatchupHoles.map(h => h.hole_number)) : lastHoleNumber
-    const bbScoreMap = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, bbMatchupHoles))
+    const bbScoreMap = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, bbMatchupHoles, handicapRounding))
     const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbScoreMap, bbMatchupHoles)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id]
     const t2Ids = [m.team2_player1_id, m.team2_player2_id]
@@ -691,7 +692,7 @@ function computeMatchupPayouts(
 
 export default function MatchupClient({
   orgSlug, orgId, orgName, isMaster = false,
-  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, initialMedleyMatchups = [], isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard', teams = [], isMixedGroups = false, playingGroups = [], scorecardGroupId: scorecardGroupIdProp = null,
+  roundId, players, holes, scores: initialScores, roundName, initialMatchups, initialBestBallMatchups, initialMedleyMatchups = [], isAdmin = false, scorecardTeamId: scorecardTeamIdProp = null, format = 'standard', teams = [], isMixedGroups = false, playingGroups = [], scorecardGroupId: scorecardGroupIdProp = null, handicapRounding = 'down',
 }: {
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   roundId: string
@@ -709,6 +710,7 @@ export default function MatchupClient({
   isMixedGroups?: boolean
   playingGroups?: { id: string; name: string }[]
   scorecardGroupId?: string | null
+  handicapRounding?: string | null
 }) {
   const scoresKey = `lb_scores_${roundId}`
   const [scores, setScores] = useState(() => {
@@ -1133,8 +1135,8 @@ export default function MatchupClient({
   }, [editBBHoleRange, editBBBetType])
 
   const payouts = useMemo(
-    () => computeMatchupPayouts(matchups, bestBallMatchups, medleyMatchups, players, scoreMap, holes),
-    [matchups, bestBallMatchups, medleyMatchups, players, scoreMap, holes]
+    () => computeMatchupPayouts(matchups, bestBallMatchups, medleyMatchups, players, scoreMap, holes, handicapRounding),
+    [matchups, bestBallMatchups, medleyMatchups, players, scoreMap, holes, handicapRounding]
   )
 
   // Filter payout rows by the current search query so search drives Matchup Results too.
@@ -1408,7 +1410,7 @@ export default function MatchupClient({
                 // the stroke-adjusted score map the best-ball rows are computed from
                 const bbModalHoles = target.holeRange === 'front9' ? holes.filter(h => h.hole_number <= 9)
                   : target.holeRange === 'back9' ? holes.filter(h => h.hole_number > 9) : holes
-                const modalStrokeHoles = computeBBStrokeHoles(target.playerStrokes, bbModalHoles)
+                const modalStrokeHoles = computeBBStrokeHoles(target.playerStrokes, bbModalHoles, handicapRounding)
                 const adjMap = applyPlayerStrokesToScoreMap(scoreMap, modalStrokeHoles)
                 const hasPlayerStrokes = Object.keys(modalStrokeHoles).length > 0
                 // Build per-hole best-ball score map for each team (net of player strokes)
@@ -2399,7 +2401,7 @@ export default function MatchupClient({
                       ? holes.filter(h => h.hole_number > 9)
                       : holes
                     const bbCardLastHole = bbCardMatchupHoles.length > 0 ? Math.max(...bbCardMatchupHoles.map(h => h.hole_number)) : lastHoleNumber
-                    const bbCardStrokeHoles = computeBBStrokeHoles(m.player_strokes, bbCardMatchupHoles)
+                    const bbCardStrokeHoles = computeBBStrokeHoles(m.player_strokes, bbCardMatchupHoles, handicapRounding)
                     const bbCardScoreMap = applyPlayerStrokesToScoreMap(scoreMap, bbCardStrokeHoles)
                     const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbCardScoreMap, bbCardMatchupHoles)
                     const isFinal = stats.holesPlayed === bbCardMatchupHoles.length && bbCardMatchupHoles.length > 0

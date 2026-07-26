@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { ScoreNotation } from './ScoreNotation'
-import { computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, type DaytonaHoleAssignment } from '@/lib/scoring'
+import { computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, roundHcp, type DaytonaHoleAssignment } from '@/lib/scoring'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -62,6 +62,7 @@ export default function PlayerScorecard({
     allRoundScores: RoundScore[]
     daytonaVariant?: string
     daytonaVariantBack9?: string | null
+    handicapRounding?: string | null
     pressedHoles?: Record<number, number>
     dtPayoutValue?: number
     playerHandicaps?: Record<string, number | null>
@@ -124,7 +125,7 @@ export default function PlayerScorecard({
     return Object.entries(dtPlayerHandicaps)
       .filter(([, hcp]) => {
         if (hcp == null) return false
-        const rel = Math.max(0, Math.floor(hcp - dtMinTeamHcp))
+        const rel = Math.max(0, roundHcp(hcp - dtMinTeamHcp, dtData?.handicapRounding))
         return rel > 0 && strokeIndex <= rel
       })
       .map(([id]) => id)

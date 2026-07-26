@@ -36,7 +36,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
 
   const { data: round } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, mixed_groups, exclude_matchups')
+    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, handicap_rounding, mixed_groups, exclude_matchups')
     .eq('is_active', true)
     .eq('org_id', orgId)
     .single()
@@ -213,6 +213,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       includeTotal={round.include_total ?? false}
       matchups={matchups ?? []}
       bestBallMatchups={bestBallMatchups ?? []}
+      handicapRounding={(round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
       medleyMatchups={(medleyRes.data ?? []) as { id: string; players: { id: string; front?: number | null; back?: number | null; total?: number | null }[]; bet_type: string; amount: number }[]}
       skinsEnabled={round.skins_enabled ?? false}
       skinsAmount={round.skins_amount ?? 0}
