@@ -619,6 +619,17 @@ export default function LeaderboardClient({
         .sort((a, b) => a.team.name.localeCompare(b.team.name, undefined, { numeric: true, sensitivity: 'base' }))
     : []
 
+  // Traditional round with a single group and no side games: the Group view
+  // shows the exact same list as Individual, so drop the redundant toggle.
+  const traditionalGroupRedundant = isTraditional && traditionalGroupRows.length <= 1 && !traditionalGroupRows.some((g) => g.hasDaytona)
+  const leaderboardViewTabs = isDaytona
+    ? [{ view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }]
+    : isTraditional
+    ? (traditionalGroupRedundant
+        ? [{ view: 'individual', label: 'Individual' }]
+        : [{ view: 'individual', label: 'Individual' }, { view: 'group', label: 'Group' }])
+    : [{ view: 'team', label: 'Team' }, { view: 'individual', label: 'Individual' }]
+
   const hasStandardGroupView = !isDaytona && !isTraditional && (isMixedGroups || initialTeams.some((t) => !!t.daytona_variant))
 
   const standardGroupRows = hasStandardGroupView
@@ -2536,12 +2547,7 @@ export default function LeaderboardClient({
         ) : (
           // Daytona, Traditional, Standard-without-group: 2 tabs max → fits on one row
           <div className="flex items-center gap-1 mb-3" style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
-            {(isDaytona
-              ? [{ view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }]
-              : isTraditional
-              ? [{ view: 'individual', label: 'Individual' }, { view: 'group', label: 'Group' }]
-              : [{ view: 'team', label: 'Team' }, { view: 'individual', label: 'Individual' }]
-            ).map(({ view, label }) => (
+            {leaderboardViewTabs.length > 1 && leaderboardViewTabs.map(({ view, label }) => (
               <button
                 key={view}
                 onClick={() => { const v = view as 'group' | 'team' | 'individual'; setLeaderboardView(v); sessionStorage.setItem('leaderboardView', v) }}
@@ -2550,7 +2556,7 @@ export default function LeaderboardClient({
                 {label}
               </button>
             ))}
-            <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 2px' }} />
+            {leaderboardViewTabs.length > 1 && <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 2px' }} />}
             <a href={`/${orgSlug}/matchup`} className="font-semibold px-2 py-1 rounded-full flex-shrink-0"
               style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: 'clamp(9px, 2.4vw, 11px)' }}>
               Matchups
@@ -2626,7 +2632,7 @@ export default function LeaderboardClient({
               )
             })}
           </div>
-        ) : isTraditional && leaderboardView === 'group' ? (
+        ) : isTraditional && leaderboardView === 'group' && !traditionalGroupRedundant ? (
           <div className="space-y-4">
             {traditionalGroupRows.length === 0 && <p className="text-center text-gray-500 text-sm py-8">No groups yet.</p>}
             {traditionalGroupRows.map((group) => {
