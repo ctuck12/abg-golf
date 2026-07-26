@@ -1560,7 +1560,12 @@ export default function MatchupClient({
 
                           {/* Edit form — shown below the controls row when editing */}
                           {isEditing && (
-                            <div ref={editH2HRef} className="space-y-3 mb-3 bg-gray-50 rounded-xl p-3 border border-gray-200 [&_input]:text-base [&_select]:text-base">
+                            <div ref={editH2HRef} className="space-y-3 mb-3 bg-amber-50/60 rounded-xl p-3 border-2 border-amber-400 [&_input]:text-base [&_select]:text-base">
+                              {/* Which matchup this edit form belongs to */}
+                              <div className="flex items-center gap-2 pb-2 border-b border-amber-200">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-white bg-amber-500 rounded px-1.5 py-0.5 flex-shrink-0">Editing</span>
+                                <span className="text-sm font-bold text-gray-900 truncate">{p1First} vs {p2First}</span>
+                              </div>
                               {/* Bet type label (static) + Hole range editor */}
                               <div className="flex items-center gap-2 flex-wrap">
                                 <div className="flex items-center gap-1.5">
@@ -2236,7 +2241,16 @@ export default function MatchupClient({
 
                           {/* Edit form — shown below the controls row when editing */}
                           {isEditingBB && (
-                            <div ref={editBBRef} className="space-y-3 mb-3 bg-gray-50 rounded-xl p-3 border border-gray-200 [&_input]:text-base [&_select]:text-base">
+                            <div ref={editBBRef} className="space-y-3 mb-3 bg-amber-50/60 rounded-xl p-3 border-2 border-amber-400 [&_input]:text-base [&_select]:text-base">
+                              {/* Which matchup this edit form belongs to */}
+                              <div className="flex items-center gap-2 pb-2 border-b border-amber-200">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-white bg-amber-500 rounded px-1.5 py-0.5 flex-shrink-0">Editing</span>
+                                <span className="text-sm font-bold truncate">
+                                  <span style={{ color: '#2563eb' }}>{t1Name}</span>
+                                  <span className="text-gray-400 font-semibold"> vs </span>
+                                  <span style={{ color: '#92400e' }}>{t2Name}</span>
+                                </span>
+                              </div>
                               {/* Bet type label (static) + Hole range editor */}
                               <div className="flex items-center gap-2 flex-wrap">
                                 <div className="flex items-center gap-1.5">
@@ -2812,7 +2826,12 @@ export default function MatchupClient({
                           </div>
 
                           {isEditingMed && (
-                            <div className="space-y-3 mb-3 bg-gray-50 rounded-xl p-3 border border-gray-200 [&_input]:text-base [&_select]:text-base">
+                            <div className="space-y-3 mb-3 bg-amber-50/60 rounded-xl p-3 border-2 border-amber-400 [&_input]:text-base [&_select]:text-base">
+                              {/* Which matchup this edit form belongs to */}
+                              <div className="flex items-center gap-2 pb-2 border-b border-amber-200">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-white bg-amber-500 rounded px-1.5 py-0.5 flex-shrink-0">Editing</span>
+                                <span className="text-sm font-bold text-gray-900 truncate">{label}</span>
+                              </div>
                               <div className="flex gap-2 items-end">
                                 <div className="flex-1">
                                   <label className="block text-xs font-medium text-gray-500 mb-1">Bet Type</label>
