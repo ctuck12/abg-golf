@@ -1069,6 +1069,13 @@ export async function updateMedleyMatchup(
   return {}
 }
 
+export async function updateMedleyPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokes?: Record<string, number> | null }[]) {
+  const sb = createServerClient()
+  const { error } = await sb.from('medley_matchups').update({ press: presses }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function deleteMedleyMatchup(id: string) {
   const sb = createServerClient()
   const { error } = await sb.from('medley_matchups').delete().eq('id', id)

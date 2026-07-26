@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     bankerSideGame && allPlayerIds.length
       ? supabase.from('hole_strokes').select('hole_number, player_id').eq('round_id', roundId).in('player_id', allPlayerIds)
       : Promise.resolve({ data: [] }),
-    supabase.from('medley_matchups').select('id, players, bet_type, amount').eq('round_id', roundId),
+    supabase.from('medley_matchups').select('id, players, bet_type, amount, press').eq('round_id', roundId),
   ])
 
   const holeValues: Record<string, Record<number, number>> = {}

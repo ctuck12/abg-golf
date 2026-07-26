@@ -5,9 +5,9 @@ import {
   saveMatchup, deleteMatchup, updateMatchupBet, updateMatchupPresses, updateMatchupHoleRange,
   saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet, updateBestBallPresses, updateBestBallHoleRange,
   updateBestBallPlayerStrokes,
-  saveMedleyMatchup, updateMedleyMatchup, deleteMedleyMatchup,
+  saveMedleyMatchup, updateMedleyMatchup, deleteMedleyMatchup, updateMedleyPresses,
 } from '@/app/actions'
-import { computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, computeMedley, type PressForfeit, type MedleyMatchup, type MedleyPlayerEntry } from '@/lib/scoring'
+import { computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, computeMedley, type PressForfeit, type MedleyMatchup, type MedleyPlayerEntry, type MedleyPressEntry } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import PinLoginModal from './PinLoginModal'
 
@@ -766,6 +766,16 @@ export default function MatchupClient({
   const [editMedAmount, setEditMedAmount] = useState('')
   const [editMedStrokesEnabled, setEditMedStrokesEnabled] = useState(false)
   const [editMedStrokesDraft, setEditMedStrokesDraft] = useState<Record<string, { front: string; back: string; overall: string }>>({})
+  // Medley press (edit form)
+  const [editMedPresses, setEditMedPresses] = useState<MedleyPressEntry[]>([])
+  const [medPressEnabled, setMedPressEnabled] = useState(false)
+  const [newMedPressHoleType, setNewMedPressHoleType] = useState<'1hole' | 'multihole'>('1hole')
+  const [newMedPressHoleStart, setNewMedPressHoleStart] = useState<number>(1)
+  const [newMedPressHoleEnd, setNewMedPressHoleEnd] = useState<number>(18)
+  const [newMedPressAmount, setNewMedPressAmount] = useState('')
+  const [newMedPressStrokesEnabled, setNewMedPressStrokesEnabled] = useState(false)
+  const [newMedPressStrokesDraft, setNewMedPressStrokesDraft] = useState<Record<string, string>>({})
+  const [medPressPopover, setMedPressPopover] = useState<{ pressLabel: string; holesLabel: string; amount: number; strokes: { name: string; strokes: number }[] } | null>(null)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [showPinLogin, setShowPinLogin] = useState(false)
@@ -1080,9 +1090,11 @@ export default function MatchupClient({
     const ids = (m.players ?? []).map((e) => e.id)
     const amt = parseFloat(editMedAmount) || 0
     const entries = buildMedleyEntries(ids, editMedBetType, editMedStrokesEnabled, editMedStrokesDraft)
-    setMedleyMatchups((prev) => prev.map((x) => x.id === id ? { ...x, players: entries, bet_type: editMedBetType, amount: amt } : x))
+    const savedPresses = editMedPresses
+    setMedleyMatchups((prev) => prev.map((x) => x.id === id ? { ...x, players: entries, bet_type: editMedBetType, amount: amt, press: savedPresses } : x))
     setEditingMedley(null)
-    await updateMedleyMatchup(id, entries, editMedBetType, amt)
+    setMedPressEnabled(false)
+    await Promise.all([updateMedleyMatchup(id, entries, editMedBetType, amt), updateMedleyPresses(id, savedPresses)])
   }
   async function handleDeleteMedley(id: string) {
     setMedleyMatchups((prev) => prev.filter((m) => m.id !== id))
@@ -1314,7 +1326,7 @@ export default function MatchupClient({
                         <p className="text-xs text-gray-500 mt-0.5">Strokes on holes: <span className="font-semibold text-gray-700">{e.holesLabel}</span></p>
                       )}
                       {e.contribLabel && (
-                        <p className="text-xs mt-0.5" style={{ color: e.contribLabel.startsWith('Stroke counted') ? '#16a34a' : '#9ca3af' }}>{e.contribLabel}</p>
+                        <p className="text-xs mt-0.5" style={{ color: e.contribLabel.startsWith('Hole(s) affected') ? '#16a34a' : '#9ca3af' }}>{e.contribLabel}</p>
                       )}
                     </div>
                   ))}
@@ -1376,6 +1388,36 @@ export default function MatchupClient({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Medley Press Info Popover ── */}
+      {medPressPopover && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setMedPressPopover(null)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-gray-900 text-base">{medPressPopover.pressLabel}</h3>
+              <button onClick={() => setMedPressPopover(null)} className="text-gray-400 text-xl font-bold leading-none">×</button>
+            </div>
+            <div className="space-y-1.5 text-sm text-gray-700">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Holes</span>
+                <span className="font-semibold">{medPressPopover.holesLabel}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Amount</span>
+                <span className="font-semibold" style={{ color: gold }}>${medPressPopover.amount} per player</span>
+              </div>
+              {medPressPopover.strokes.map((s) => (
+                <div key={s.name} className="flex justify-between">
+                  <span className="text-gray-500">Strokes</span>
+                  <span className="font-semibold">{s.name} gets +{s.strokes}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-3">Low ball over these holes wins the amount from each other player. Ties wash.</p>
           </div>
         </div>
       )}
@@ -3066,7 +3108,7 @@ export default function MatchupClient({
                   {filtered.map((m) => {
                     const entries = (m.players ?? []).filter((e) => e && e.id && players.some((p) => p.id === e.id))
                     if (entries.length < 2) return null
-                    const { segments: medSegs, lines } = computeMedley({ ...m, players: entries }, scoreMap, holes)
+                    const { segments: medSegs, lines, pressResults: medPressResults } = computeMedley({ ...m, players: entries }, scoreMap, holes)
                     const segOf = (name: 'Front' | 'Back' | 'Total') => medSegs.find((s) => s.name === name)
                     const fSeg = segOf('Front'), bSeg = segOf('Back'), tSeg = segOf('Total')
                     const isNassauMed = m.bet_type === 'nassau'
@@ -3093,6 +3135,10 @@ export default function MatchupClient({
                                     back: (Number(e.back) || 0) > 0 ? String(e.back) : '',
                                     overall: (Number(e.total) || 0) > 0 ? String(e.total) : '',
                                   }])))
+                                  setEditMedPresses(m.press ?? [])
+                                  setMedPressEnabled(false)
+                                  setNewMedPressHoleType('1hole'); setNewMedPressHoleStart(1); setNewMedPressHoleEnd(18)
+                                  setNewMedPressAmount(''); setNewMedPressStrokesEnabled(false); setNewMedPressStrokesDraft({})
                                 }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
@@ -3152,10 +3198,124 @@ export default function MatchupClient({
                                   </div>
                                 )}
                               </div>
+                              {/* Press section */}
+                              <div className="border-t border-gray-100 pt-2.5 space-y-2">
+                                {editMedPresses.length > 0 && (
+                                  <div className="flex flex-col gap-0.5">
+                                    {editMedPresses.map((pr, pi) => {
+                                      const hl = pr.holeStart === pr.holeEnd ? `H${pr.holeStart}` : `H${pr.holeStart}–${pr.holeEnd}`
+                                      const sl = Object.entries(pr.strokes ?? {}).filter(([, n]) => (Number(n) || 0) > 0)
+                                        .map(([pid, n]) => `${players.find((p) => p.id === pid)?.name.split(' ')[0] ?? '?'} +${n}`)
+                                        .join(', ')
+                                      return (
+                                        <div key={pr.id} className="flex items-center gap-1.5 text-xs">
+                                          <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
+                                          <span className="text-gray-600">{hl} · ${pr.amount}{sl ? ` · ${sl}` : ''}</span>
+                                          <button onClick={() => setEditMedPresses(prev => prev.filter((_, i) => i !== pi))}
+                                            className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer w-fit">
+                                  <input type="checkbox" checked={medPressEnabled}
+                                    onChange={(e) => { setMedPressEnabled(e.target.checked); if (!e.target.checked) { setNewMedPressAmount(''); setNewMedPressStrokesEnabled(false); setNewMedPressStrokesDraft({}) } }}
+                                    className="rounded" />
+                                  Press
+                                </label>
+                                {medPressEnabled && (
+                                  <div className="flex items-center gap-1.5 flex-wrap pl-2 border-l-2 border-amber-300">
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                      <input type="radio" name={`mpht-${m.id}`} checked={newMedPressHoleType === '1hole'}
+                                        onChange={() => { setNewMedPressHoleType('1hole'); setNewMedPressHoleEnd(newMedPressHoleStart) }} />
+                                      1 Hole
+                                    </label>
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                      <input type="radio" name={`mpht-${m.id}`} checked={newMedPressHoleType === 'multihole'}
+                                        onChange={() => setNewMedPressHoleType('multihole')} />
+                                      Multi
+                                    </label>
+                                    {newMedPressHoleType === '1hole' && (
+                                      <select value={newMedPressHoleStart}
+                                        onChange={(e) => { const v = parseInt(e.target.value); setNewMedPressHoleStart(v); setNewMedPressHoleEnd(v) }}
+                                        className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                        {Array.from({ length: 18 }, (_, i) => i + 1).map(n => (
+                                          <option key={n} value={n}>Hole {n}</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                    {newMedPressHoleType === 'multihole' && (
+                                      <>
+                                        <select value={newMedPressHoleStart}
+                                          onChange={(e) => { const v = parseInt(e.target.value); setNewMedPressHoleStart(v); if (newMedPressHoleEnd < v) setNewMedPressHoleEnd(v) }}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          {Array.from({ length: 18 }, (_, i) => i + 1).map(n => <option key={n} value={n}>H{n}</option>)}
+                                        </select>
+                                        <span className="text-xs text-gray-400">–</span>
+                                        <select value={newMedPressHoleEnd}
+                                          onChange={(e) => setNewMedPressHoleEnd(parseInt(e.target.value))}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          {Array.from({ length: 18 }, (_, i) => i + 1).filter(n => n >= newMedPressHoleStart).map(n => <option key={n} value={n}>H{n}</option>)}
+                                        </select>
+                                      </>
+                                    )}
+                                    <input type="number" min="0" step="1" placeholder="$amt" value={newMedPressAmount}
+                                      onChange={(e) => setNewMedPressAmount(e.target.value)}
+                                      className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-16" />
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer w-full">
+                                      <input type="checkbox" checked={newMedPressStrokesEnabled}
+                                        onChange={(e) => { setNewMedPressStrokesEnabled(e.target.checked); if (!e.target.checked) setNewMedPressStrokesDraft({}) }}
+                                        className="rounded" />
+                                      Strokes
+                                    </label>
+                                    {newMedPressStrokesEnabled && (
+                                      <div className="flex flex-col gap-1 w-full pl-2">
+                                        {entries.map((e) => (
+                                          <div key={e.id} className="flex items-center gap-2">
+                                            <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">{players.find((p) => p.id === e.id)?.name.split(' ')[0]}</span>
+                                            <input type="number" min="0" step="0.5" placeholder="0" value={newMedPressStrokesDraft[e.id] ?? ''}
+                                              onChange={(ev) => setNewMedPressStrokesDraft((prev) => ({ ...prev, [e.id]: ev.target.value }))}
+                                              className="w-14 border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none" />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        const amt = parseFloat(newMedPressAmount)
+                                        if (!newMedPressAmount.trim() || isNaN(amt) || amt <= 0) return
+                                        const hEnd = newMedPressHoleType === '1hole' ? newMedPressHoleStart : Math.max(newMedPressHoleStart, newMedPressHoleEnd)
+                                        const strokesEntries = newMedPressStrokesEnabled
+                                          ? Object.entries(newMedPressStrokesDraft)
+                                              .map(([pid, v]) => [pid, parseFloat(v) || 0] as [string, number])
+                                              .filter(([, n]) => n > 0)
+                                          : []
+                                        const entry: MedleyPressEntry = {
+                                          id: Math.random().toString(36).slice(2),
+                                          holeStart: newMedPressHoleStart,
+                                          holeEnd: hEnd,
+                                          amount: amt,
+                                          ...(strokesEntries.length > 0 ? { strokes: Object.fromEntries(strokesEntries) } : {}),
+                                        }
+                                        setEditMedPresses(prev => [...prev, entry])
+                                        setNewMedPressAmount('')
+                                        setNewMedPressStrokesEnabled(false)
+                                        setNewMedPressStrokesDraft({})
+                                        setMedPressEnabled(false)
+                                      }}
+                                      disabled={!newMedPressAmount.trim() || !(parseFloat(newMedPressAmount) > 0)}
+                                      className="text-xs font-semibold text-blue-600 disabled:opacity-40">
+                                      + Add
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
                               <div className="flex gap-2">
                                 <button onClick={() => handleSaveMedley(m.id)}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: navy }}>Save</button>
-                                <button onClick={() => setEditingMedley(null)}
+                                <button onClick={() => { setEditingMedley(null); setMedPressEnabled(false) }}
                                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">Cancel</button>
                               </div>
                             </div>
@@ -3171,6 +3331,26 @@ export default function MatchupClient({
                                   {isNassauMed && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Front</th>}
                                   {isNassauMed && <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Back</th>}
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Total</th>
+                                  {medPressResults.map((pres, pi) => {
+                                    const pLabel = medPressResults.length === 1 ? 'Press' : `Press ${pi + 1}`
+                                    return (
+                                      <th key={pi} className="px-2 py-1.5 text-center text-xs font-semibold text-white whitespace-nowrap">
+                                        {pLabel}
+                                        <button
+                                          onClick={() => setMedPressPopover({
+                                            pressLabel: pLabel,
+                                            holesLabel: pres.press.holeStart === pres.press.holeEnd
+                                              ? `Hole ${pres.press.holeStart}`
+                                              : `Holes ${pres.press.holeStart}–${pres.press.holeEnd}`,
+                                            amount: pres.press.amount,
+                                            strokes: Object.entries(pres.press.strokes ?? {})
+                                              .filter(([, n]) => (Number(n) || 0) > 0)
+                                              .map(([pid, n]) => ({ name: players.find((p) => p.id === pid)?.name.split(' ')[0] ?? '?', strokes: Number(n) })),
+                                          })}
+                                          style={{ color: gold, fontSize: '0.85rem', marginLeft: '1px', fontWeight: 700, lineHeight: 1 }}>*</button>
+                                      </th>
+                                    )
+                                  })}
                                   <th className="px-3 py-1.5 text-center text-xs font-semibold text-white">Thru</th>
                                 </tr>
                               </thead>
@@ -3209,6 +3389,17 @@ export default function MatchupClient({
                                           {tSeg?.settled && !tSeg.tied && tSeg.winnerId === line.id && chk}
                                         </span>
                                       </td>
+                                      {medPressResults.map((pres, pi) => {
+                                        const pAdj = pres.adj[line.id] ?? null
+                                        return (
+                                          <td key={pi} className="px-2 py-2 text-center text-xs font-semibold" style={{ color: vpColor(pAdj) }}>
+                                            <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              <VsParDisplay n={pAdj} />
+                                              {pres.complete && !pres.tied && pres.winnerId === line.id && chk}
+                                            </span>
+                                          </td>
+                                        )
+                                      })}
                                       <td className="px-3 py-2 text-center text-xs text-gray-500">{line.thru === 0 ? '–' : line.thru >= holes.length ? 'F' : line.thru}</td>
                                     </tr>
                                   )

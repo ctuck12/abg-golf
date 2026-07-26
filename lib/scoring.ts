@@ -243,7 +243,15 @@ export function applyPlayerStrokesToScoreMap(
 
 // ── Medley matchups (3-5 players, low ball wins) ─────────────────────────────
 export type MedleyPlayerEntry = { id: string; front?: number | null; back?: number | null; total?: number | null }
-export type MedleyMatchup = { id: string; players: MedleyPlayerEntry[]; bet_type: string; amount: number }
+export type MedleyPressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokes?: Record<string, number> | null }
+export type MedleyMatchup = { id: string; players: MedleyPlayerEntry[]; bet_type: string; amount: number; press?: MedleyPressEntry[] | null }
+export type MedleyPressResult = {
+  press: MedleyPressEntry
+  adj: Record<string, number | null>   // running strokes-adjusted vs-par over the press holes
+  complete: boolean
+  winnerId: string | null              // set once complete and not tied
+  tied: boolean
+}
 export type MedleySegmentResult = {
   name: 'Front' | 'Back' | 'Total'
   settled: boolean
@@ -266,7 +274,7 @@ export function computeMedley(
   m: MedleyMatchup,
   scoreMap: Record<string, Record<number, number>>,
   holes: { hole_number: number; par: number }[]
-): { segments: MedleySegmentResult[]; lines: MedleyPlayerLine[]; netDelta: Record<string, number> } {
+): { segments: MedleySegmentResult[]; lines: MedleyPlayerLine[]; netDelta: Record<string, number>; pressResults: MedleyPressResult[] } {
   const entries = (m.players ?? []).filter((p) => p && p.id)
   const netDelta: Record<string, number> = {}
   for (const e of entries) netDelta[e.id] = 0
@@ -329,7 +337,46 @@ export function computeMedley(
     segments.push(resolveSeg('Back', backHoles, (l) => l.back))
   }
   segments.push(resolveSeg('Total', holes, (l) => l.total))
-  return { segments, lines, netDelta }
+
+  // Presses: low ball over the press holes among all medley players; flat
+  // per-player press strokes come off the stretch total. Winner collects the
+  // press amount from each other player once everyone finishes the stretch;
+  // ties wash (same as the main bet).
+  const pressResults: MedleyPressResult[] = []
+  for (const pr of m.press ?? []) {
+    const prHoles = holes.filter((h) => h.hole_number >= pr.holeStart && h.hole_number <= pr.holeEnd)
+    const adj: Record<string, number | null> = {}
+    let complete = prHoles.length > 0 && entries.length > 1
+    for (const e of entries) {
+      let sum = 0, played = 0
+      for (const h of prHoles) {
+        const s = scoreMap[e.id]?.[h.hole_number]
+        if (s == null) continue
+        sum += s - h.par; played++
+      }
+      if (played < prHoles.length) complete = false
+      adj[e.id] = played > 0 ? sum - (Number(pr.strokes?.[e.id]) || 0) : null
+    }
+    let winnerId: string | null = null
+    let tied = false
+    if (complete) {
+      const vals = entries.map((e) => ({ id: e.id, v: adj[e.id] as number }))
+      const min = Math.min(...vals.map((x) => x.v))
+      const winners = vals.filter((x) => x.v === min)
+      if (winners.length > 1) tied = true
+      else {
+        winnerId = winners[0].id
+        const amt = Number(pr.amount) || 0
+        for (const x of vals) {
+          if (x.id === winnerId) netDelta[x.id] = (netDelta[x.id] ?? 0) + amt * (vals.length - 1)
+          else netDelta[x.id] = (netDelta[x.id] ?? 0) - amt
+        }
+      }
+    }
+    pressResults.push({ press: pr, adj, complete, winnerId, tied })
+  }
+
+  return { segments, lines, netDelta, pressResults }
 }
 
 // ── Matchup press forfeits ───────────────────────────────────────────────────

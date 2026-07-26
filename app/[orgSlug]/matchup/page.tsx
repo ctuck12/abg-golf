@@ -50,7 +50,7 @@ export default async function OrgMatchupPage({ params }: { params: Promise<{ org
     isMixedGroups && groupIds.length
       ? sb.from('playing_group_players').select('player_id, playing_group_id').in('playing_group_id', groupIds)
       : Promise.resolve({ data: [] as { player_id: string; playing_group_id: string }[] }),
-    sb.from('medley_matchups').select('id, players, bet_type, amount').eq('round_id', round.id).order('created_at'),
+    sb.from('medley_matchups').select('id, players, bet_type, amount, press').eq('round_id', round.id).order('created_at'),
   ])
 
   // Build group name lookup and player→group map

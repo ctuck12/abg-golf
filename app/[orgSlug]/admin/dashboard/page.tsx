@@ -45,7 +45,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
     roundId ? sb.from('playing_groups').select('id, name, pin, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] as { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean }[] }),
     sb.from('org_players').select('id, name, ghin_number, handicap_index, email').eq('org_id', orgId).order('name'),
     roundId ? sb.from('hammer_matchups').select('id, team1_id, team2_id, base_bet, auto_handicap').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
-    roundId ? sb.from('medley_matchups').select('id, players, bet_type, amount').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
+    roundId ? sb.from('medley_matchups').select('id, players, bet_type, amount, press').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
   ])
 
   const teams = teamsRes.data ?? []
