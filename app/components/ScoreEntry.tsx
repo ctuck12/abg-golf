@@ -5,6 +5,7 @@ import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHo
 import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, playerCoversHole,
+  computeBBStrokeHoles, applyPlayerStrokesToScoreMap,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   computeHoleDaytonaPointsFiveMan,
   calculatePoolPayouts, settleDaytonaPlayerPoints,
@@ -21,8 +22,8 @@ type AssignmentMap = Record<number, Record<string, DaytonaSide>>
 type AllTeam = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null }
 type AllPlayer = { id: string; team_id: string; name: string; position: number | null }
 type BallValue = { ball_number: number; value_dollars: number }
-type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string }
-type BestBallMatchup = { id: string; team1_player1_id: string; team1_player2_id: string; team2_player1_id: string; team2_player2_id: string; bet: string }
+type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; hole_range?: string | null }
+type BestBallMatchup = { id: string; team1_player1_id: string; team1_player2_id: string; team2_player1_id: string; team2_player2_id: string; bet: string; hole_range?: string | null; player_strokes?: Record<string, number> | null }
 type MatchupBetType = 'nassau' | 'straight'
 type MatchupScoringType = 'stroke' | 'match'
 type MPayoutSeg = { name: 'Front' | 'Back' | 'Total'; settled: boolean; winnerLabel: string | null; tied: boolean; amount: number; perPlayer: boolean }
@@ -165,9 +166,11 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
     const { betType, scoringType, sweepAmount, handicapSide, handicapFront, handicapBack, handicapTotal, frontAmount: fBetAmt, backAmount: bBetAmt, totalAmount: tBetAmt } = parseMBet(m.bet)
     const hasBet = betType !== '' && (fBetAmt > 0 || bBetAmt > 0 || tBetAmt > 0)
     if (!hasBet) { rows.push({ id: m.id, label: `${mp1.name} vs ${mp2.name}`, betLabel: 'No bet configured', segments: [] }); continue }
-    const stats = h2hStats(m.player1_id, m.player2_id, scoreMap, holes)
+    const mHoles = m.hole_range === 'front9' ? holes.filter((h) => h.hole_number <= 9) : m.hole_range === 'back9' ? holes.filter((h) => h.hole_number > 9) : holes
+    const mLastHole = mHoles.length > 0 ? Math.max(...mHoles.map((h) => h.hole_number)) : 18
+    const stats = h2hStats(m.player1_id, m.player2_id, scoreMap, mHoles)
     const hole9 = scoreMap[m.player1_id]?.[9] != null && scoreMap[m.player2_id]?.[9] != null
-    const hole18 = scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null
+    const hole18 = scoreMap[m.player1_id]?.[mLastHole] != null && scoreMap[m.player2_id]?.[mLastHole] != null
     const p1 = m.player1_id, p2 = m.player2_id
     // Stroke handicap adjustments (stroke play only)
     const hf = scoringType === 'stroke' ? (parseFloat(handicapFront) || 0) : 0
@@ -231,10 +234,13 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
     const hasBet = betType !== '' && (fBetAmt > 0 || bBetAmt > 0 || tBetAmt > 0)
     const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`, t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
     if (!hasBet) { rows.push({ id: m.id, label: `${t1Name} vs ${t2Name}`, betLabel: 'No bet configured', segments: [] }); continue }
-    const stats = bbStats(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, holes)
+    const mHoles = m.hole_range === 'front9' ? holes.filter((h) => h.hole_number <= 9) : m.hole_range === 'back9' ? holes.filter((h) => h.hole_number > 9) : holes
+    const mLastHole = mHoles.length > 0 ? Math.max(...mHoles.map((h) => h.hole_number)) : 18
+    const bbSM = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, mHoles))
+    const stats = bbStats(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbSM, mHoles)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id], t2Ids = [m.team2_player1_id, m.team2_player2_id]
     const hole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
-    const hole18 = t1Ids.some((id) => scoreMap[id]?.[18] != null) && t2Ids.some((id) => scoreMap[id]?.[18] != null)
+    const hole18 = t1Ids.some((id) => scoreMap[id]?.[mLastHole] != null) && t2Ids.some((id) => scoreMap[id]?.[mLastHole] != null)
     // Stroke handicap adjustments (stroke play only)
     const bbHf = scoringType === 'stroke' ? (parseFloat(bbHcpFront) || 0) : 0
     const bbHb = scoringType === 'stroke' ? (parseFloat(bbHcpBack) || 0) : 0

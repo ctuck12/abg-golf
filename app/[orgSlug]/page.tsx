@@ -97,8 +97,8 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
     sb.from('scores').select('player_id, hole_number, strokes'),
     sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
-    sb.from('matchups').select('id, player1_id, player2_id, bet, press').eq('round_id', round.id).order('created_at'),
-    sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet').eq('round_id', round.id).order('created_at'),
+    sb.from('matchups').select('id, player1_id, player2_id, bet, press, hole_range').eq('round_id', round.id).order('created_at'),
+    sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press, hole_range, player_strokes').eq('round_id', round.id).order('created_at'),
     (isDaytona || isMixedGroups)
       ? sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', round.id)
       : Promise.resolve({ data: [] }),

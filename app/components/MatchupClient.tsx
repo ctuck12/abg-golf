@@ -4,12 +4,14 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   saveMatchup, deleteMatchup, updateMatchupBet, updateMatchupPresses, updateMatchupHoleRange,
   saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet, updateBestBallPresses, updateBestBallHoleRange,
+  updateBestBallPlayerStrokes,
 } from '@/app/actions'
+import { computeBBStrokeHoles, applyPlayerStrokesToScoreMap } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import PinLoginModal from './PinLoginModal'
 
 type Player = { id: string; name: string; teamName: string; handicap?: number | null; holes_range?: string | null }
-type Hole = { hole_number: number; par: number }
+type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
 type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
 type HoleRange = 'all' | 'front9' | 'back9'
@@ -21,12 +23,13 @@ type BestBallMatchup = {
   bet: string
   press: PressEntry[]
   hole_range?: string
+  player_strokes?: Record<string, number> | null
 }
 type ScorecardTarget =
   | { type: 'player'; id: string; name: string }
   | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string; p1Handicap?: number | null; p2Handicap?: number | null; scoringType: ScoringType; betType: BetType | ''; handicapSide: string; handicapFront: number; handicapBack: number; handicapTotal: number }
   | { type: 'bestball'; p1Id: string; p2Id: string; teamName: string }
-  | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string; scoringType: ScoringType; betType: BetType | ''; handicapSide: string; handicapFront: number; handicapBack: number; handicapTotal: number }
+  | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string; scoringType: ScoringType; betType: BetType | ''; handicapSide: string; handicapFront: number; handicapBack: number; handicapTotal: number; playerStrokes?: Record<string, number> | null; holeRange?: string }
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -511,7 +514,8 @@ function computeMatchupPayouts(
       ? holes.filter(h => h.hole_number > 9)
       : holes
     const bbMatchupLastHole = bbMatchupHoles.length > 0 ? Math.max(...bbMatchupHoles.map(h => h.hole_number)) : lastHoleNumber
-    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, bbMatchupHoles)
+    const bbScoreMap = applyPlayerStrokesToScoreMap(scoreMap, computeBBStrokeHoles(m.player_strokes, bbMatchupHoles))
+    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbScoreMap, bbMatchupHoles)
     const t1Ids = [m.team1_player1_id, m.team1_player2_id]
     const t2Ids = [m.team2_player1_id, m.team2_player2_id]
     const bbHole9 = t1Ids.some((id) => scoreMap[id]?.[9] != null) && t2Ids.some((id) => scoreMap[id]?.[9] != null)
@@ -604,8 +608,8 @@ function computeMatchupPayouts(
       if (pressHoles.length === 0) continue
       let t1Sum = 0, t2Sum = 0, parSum = 0, played = 0
       for (const h of pressHoles) {
-        const t1Arr = ([scoreMap[t1Ids[0]]?.[h.hole_number] ?? null, scoreMap[t1Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
-        const t2Arr = ([scoreMap[t2Ids[0]]?.[h.hole_number] ?? null, scoreMap[t2Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        const t1Arr = ([bbScoreMap[t1Ids[0]]?.[h.hole_number] ?? null, bbScoreMap[t1Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
+        const t2Arr = ([bbScoreMap[t2Ids[0]]?.[h.hole_number] ?? null, bbScoreMap[t2Ids[1]]?.[h.hole_number] ?? null] as (number | null)[]).filter((s): s is number => s !== null)
         if (t1Arr.length === 0 || t2Arr.length === 0) continue
         t1Sum += Math.min(...t1Arr); t2Sum += Math.min(...t2Arr); parSum += h.par; played++
       }
@@ -759,6 +763,8 @@ export default function MatchupClient({
   const [bbStrokesFront, setBbStrokesFront] = useState('')
   const [bbStrokesBack, setBbStrokesBack] = useState('')
   const [bbStrokesTotal, setBbStrokesTotal] = useState('')
+  const [bbStrokesMode, setBbStrokesMode] = useState<'team' | 'player'>('team')
+  const [bbPlayerStrokesDraft, setBbPlayerStrokesDraft] = useState<Record<string, string>>({})
   const [savingBB, setSavingBB] = useState(false)
 
   const editBBRef = useRef<HTMLDivElement>(null)
@@ -774,6 +780,8 @@ export default function MatchupClient({
   const [editBBStrokesFront, setEditBBStrokesFront] = useState('')
   const [editBBStrokesBack, setEditBBStrokesBack] = useState('')
   const [editBBStrokesTotal, setEditBBStrokesTotal] = useState('')
+  const [editBBStrokesMode, setEditBBStrokesMode] = useState<'team' | 'player'>('team')
+  const [editBBPlayerStrokesDraft, setEditBBPlayerStrokesDraft] = useState<Record<string, string>>({})
   const [editBBFrontAmount, setEditBBFrontAmount] = useState('')
   const [editBBBackAmount, setEditBBBackAmount] = useState('')
   const [editBBTotalAmount, setEditBBTotalAmount] = useState('')
@@ -906,23 +914,30 @@ export default function MatchupClient({
     const bbAmtStr = bbBetType === 'nassau'
       ? `${bbBetAmount.trim() || '0'}|${bbBetAmount.trim() || '0'}|${bbBetAmount.trim() || '0'}`
       : bbBetAmount
+    const useTeamStrokes = bbScoringType === 'stroke' && bbStrokesEnabled && bbStrokesMode === 'team'
     const bet = composeBet(bbBetType, bbAmtStr, bbScoringType,
       bbSweepEnabled ? bbSweepAmount : '',
-      bbScoringType === 'stroke' && bbStrokesEnabled ? bbStrokesSide : '',
-      bbScoringType === 'stroke' && bbStrokesEnabled ? bbStrokesFront : '',
-      bbScoringType === 'stroke' && bbStrokesEnabled ? bbStrokesBack : '',
-      bbScoringType === 'stroke' && bbStrokesEnabled ? bbStrokesTotal : '',
+      useTeamStrokes ? bbStrokesSide : '',
+      useTeamStrokes ? bbStrokesFront : '',
+      useTeamStrokes ? bbStrokesBack : '',
+      useTeamStrokes ? bbStrokesTotal : '',
     )
-    const result = await saveBestBallMatchup(roundId, bbT1P1, bbT1P2, bbT2P1, bbT2P2, bet, bbHoleRange)
+    const psEntries = (bbScoringType === 'stroke' && bbStrokesEnabled && bbStrokesMode === 'player')
+      ? ids.map((id) => [id, Math.max(0, Math.floor(parseFloat(bbPlayerStrokesDraft[id] ?? '') || 0))] as [string, number]).filter(([, n]) => n > 0)
+      : []
+    const playerStrokesObj = psEntries.length > 0 ? Object.fromEntries(psEntries) : null
+    const result = await saveBestBallMatchup(roundId, bbT1P1, bbT1P2, bbT2P1, bbT2P2, bet, bbHoleRange, playerStrokesObj)
     if (!result.error && result.id) {
       setBestBallMatchups((prev) => [...prev, {
         id: result.id!, team1_player1_id: bbT1P1, team1_player2_id: bbT1P2,
         team2_player1_id: bbT2P1, team2_player2_id: bbT2P2, bet, press: [], hole_range: bbHoleRange,
+        player_strokes: playerStrokesObj,
       }])
       setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetAmount('')
       setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount('')
       setBbSweepAmount(''); setBbSweepEnabled(false)
       setBbStrokesEnabled(false); setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal('')
+      setBbStrokesMode('team'); setBbPlayerStrokesDraft({})
       setBbHoleRange('all')
       setShowBBForm(false)
     }
@@ -938,19 +953,26 @@ export default function MatchupClient({
     const amtStr = editBBBetType === 'nassau'
       ? `${editBBFrontAmount.trim() || '0'}|${editBBBackAmount.trim() || '0'}|${editBBTotalAmount.trim() || '0'}`
       : editBBBetAmount
+    const useTeamStrokes = editBBScoringType === 'stroke' && editBBStrokesEnabled && editBBStrokesMode === 'team'
     const bet = composeBet(editBBBetType, amtStr, editBBScoringType,
       editBBSweepEnabled ? editBBSweepAmount : '',
-      editBBScoringType === 'stroke' && editBBStrokesEnabled ? editBBStrokesSide : '',
-      editBBScoringType === 'stroke' && editBBStrokesEnabled ? editBBStrokesFront : '',
-      editBBScoringType === 'stroke' && editBBStrokesEnabled ? editBBStrokesBack : '',
-      editBBScoringType === 'stroke' && editBBStrokesEnabled ? editBBStrokesTotal : '',
+      useTeamStrokes ? editBBStrokesSide : '',
+      useTeamStrokes ? editBBStrokesFront : '',
+      useTeamStrokes ? editBBStrokesBack : '',
+      useTeamStrokes ? editBBStrokesTotal : '',
     )
+    const m0 = bestBallMatchups.find((m) => m.id === id)
+    const psIds = m0 ? [m0.team1_player1_id, m0.team1_player2_id, m0.team2_player1_id, m0.team2_player2_id] : []
+    const psEntries = (editBBScoringType === 'stroke' && editBBStrokesEnabled && editBBStrokesMode === 'player')
+      ? psIds.map((pid) => [pid, Math.max(0, Math.floor(parseFloat(editBBPlayerStrokesDraft[pid] ?? '') || 0))] as [string, number]).filter(([, n]) => n > 0)
+      : []
+    const savedPlayerStrokes = psEntries.length > 0 ? Object.fromEntries(psEntries) : null
     const savedBBPresses = editBBPresses
     const savedBBHoleRange = editBBHoleRange
-    setBestBallMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet, press: savedBBPresses, hole_range: savedBBHoleRange } : m))
+    setBestBallMatchups((prev) => prev.map((m) => m.id === id ? { ...m, bet, press: savedBBPresses, hole_range: savedBBHoleRange, player_strokes: savedPlayerStrokes } : m))
     setEditingBB(null)
     setBBPressEnabled(false)
-    await Promise.all([updateBestBallBet(id, bet), updateBestBallPresses(id, savedBBPresses), updateBestBallHoleRange(id, savedBBHoleRange)])
+    await Promise.all([updateBestBallBet(id, bet), updateBestBallPresses(id, savedBBPresses), updateBestBallHoleRange(id, savedBBHoleRange), updateBestBallPlayerStrokes(id, savedPlayerStrokes)])
   }
 
   const searchLower = searchQuery.toLowerCase().trim()
@@ -1266,17 +1288,24 @@ export default function MatchupClient({
                 )
               })() : showScorecardFor.type === 'bb-scorecards' ? (() => {
                 const target = showScorecardFor
-                // Build per-hole best-ball score map for each team
+                // Per-player stroke holes (allocated across the matchup's holes) and
+                // the stroke-adjusted score map the best-ball rows are computed from
+                const bbModalHoles = target.holeRange === 'front9' ? holes.filter(h => h.hole_number <= 9)
+                  : target.holeRange === 'back9' ? holes.filter(h => h.hole_number > 9) : holes
+                const modalStrokeHoles = computeBBStrokeHoles(target.playerStrokes, bbModalHoles)
+                const adjMap = applyPlayerStrokesToScoreMap(scoreMap, modalStrokeHoles)
+                const hasPlayerStrokes = Object.keys(modalStrokeHoles).length > 0
+                // Build per-hole best-ball score map for each team (net of player strokes)
                 const t1Map: Record<number, number> = {}
                 const t2Map: Record<number, number> = {}
                 for (const hole of holes) {
-                  const t1s1 = scoreMap[target.t1p1Id]?.[hole.hole_number]
-                  const t1s2 = scoreMap[target.t1p2Id]?.[hole.hole_number]
+                  const t1s1 = adjMap[target.t1p1Id]?.[hole.hole_number]
+                  const t1s2 = adjMap[target.t1p2Id]?.[hole.hole_number]
                   const t1Arr = ([t1s1, t1s2] as (number | undefined)[]).filter((s): s is number => s !== undefined)
                   if (t1Arr.length > 0) t1Map[hole.hole_number] = Math.min(...t1Arr)
 
-                  const t2s1 = scoreMap[target.t2p1Id]?.[hole.hole_number]
-                  const t2s2 = scoreMap[target.t2p2Id]?.[hole.hole_number]
+                  const t2s1 = adjMap[target.t2p1Id]?.[hole.hole_number]
+                  const t2s2 = adjMap[target.t2p2Id]?.[hole.hole_number]
                   const t2Arr = ([t2s1, t2s2] as (number | undefined)[]).filter((s): s is number => s !== undefined)
                   if (t2Arr.length > 0) t2Map[hole.hole_number] = Math.min(...t2Arr)
                 }
@@ -1288,17 +1317,35 @@ export default function MatchupClient({
                   target.handicapSide === 't2' ? bbHcpInfo : null,
                 ]
                 return (
-                  <HorizontalScorecardTable
-                    rows={[
-                      { label: target.t1Name, scoreMap: t1Map },
-                      { label: target.t2Name, scoreMap: t2Map },
-                    ]}
-                    holes={holes}
-                    showMatchPlay={target.scoringType === 'match'}
-                    betType={target.betType}
-                    strokesInfo={bbStrokesInfo}
-                    onStrokesClick={setStrokesPopover}
-                  />
+                  <>
+                    <HorizontalScorecardTable
+                      rows={[
+                        { label: target.t1Name, scoreMap: t1Map },
+                        { label: target.t2Name, scoreMap: t2Map },
+                      ]}
+                      holes={holes}
+                      showMatchPlay={target.scoringType === 'match'}
+                      betType={target.betType}
+                      strokesInfo={bbStrokesInfo}
+                      onStrokesClick={setStrokesPopover}
+                    />
+                    {hasPlayerStrokes && (
+                      <div className="mt-4">
+                        <p className="text-xs font-semibold text-gray-500 mb-1">Player scorecards — <span style={{ color: gold }}>*</span> = handicap stroke received (net used for best ball)</p>
+                        <div className="overflow-x-auto">
+                          <HorizontalScorecardTable
+                            rows={[
+                              { label: target.t1p1Name, scoreMap: scoreMap[target.t1p1Id] ?? {}, starHoles: modalStrokeHoles[target.t1p1Id] },
+                              { label: target.t1p2Name, scoreMap: scoreMap[target.t1p2Id] ?? {}, starHoles: modalStrokeHoles[target.t1p2Id] },
+                              { label: target.t2p1Name, scoreMap: scoreMap[target.t2p1Id] ?? {}, starHoles: modalStrokeHoles[target.t2p1Id] },
+                              { label: target.t2p2Name, scoreMap: scoreMap[target.t2p2Id] ?? {}, starHoles: modalStrokeHoles[target.t2p2Id] },
+                            ]}
+                            holes={holes}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )
               })() : (() => {
                 const target = showScorecardFor
@@ -2098,6 +2145,29 @@ export default function MatchupClient({
                       </label>
                       {bbStrokesEnabled && (
                         <div className="pl-3 border-l-2 border-gray-200 ml-1 mt-2 space-y-2">
+                          <div className="flex gap-1.5">
+                            {([['team', 'Team'], ['player', 'By Player']] as const).map(([mode, label]) => (
+                              <button key={mode} type="button" onClick={() => setBbStrokesMode(mode)}
+                                className="text-xs font-semibold px-2.5 py-1 rounded-lg border transition"
+                                style={bbStrokesMode === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          {bbStrokesMode === 'player' ? (
+                            <div className="space-y-1.5">
+                              {[bbT1P1, bbT1P2, bbT2P1, bbT2P2].map((pid, i) => pid ? (
+                                <div key={pid} className="flex items-center gap-2">
+                                  <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">{players.find((p) => p.id === pid)?.name.split(' ')[0] ?? `Player ${i + 1}`}</span>
+                                  <input type="number" min="0" step="1" placeholder="0"
+                                    value={bbPlayerStrokesDraft[pid] ?? ''}
+                                    onChange={(e) => setBbPlayerStrokesDraft((prev) => ({ ...prev, [pid]: e.target.value }))}
+                                    className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                </div>
+                              ) : null)}
+                              <p className="text-xs text-gray-400">Strokes are applied automatically on each player&apos;s hardest handicap holes.</p>
+                            </div>
+                          ) : (<>
                           <select value={bbStrokesSide} onChange={(e) => setBbStrokesSide(e.target.value as 't1' | 't2')}
                             className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none">
                             <option value="t1">Team 1 gets strokes</option>
@@ -2128,6 +2198,7 @@ export default function MatchupClient({
                                 className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-200" />
                             </div>
                           )}
+                          </>)}
                         </div>
                       )}
                     </div>
@@ -2135,7 +2206,7 @@ export default function MatchupClient({
 
                   {/* Save / Cancel */}
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-                    <button onClick={() => { setShowBBForm(false); setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetType(''); setBbBetAmount(''); setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount(''); setBbSweepEnabled(false); setBbSweepAmount(''); setBbStrokesEnabled(false); setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal(''); setBbHoleRange('all') }}
+                    <button onClick={() => { setShowBBForm(false); setBbT1P1(''); setBbT1P2(''); setBbT2P1(''); setBbT2P2(''); setBbBetType(''); setBbBetAmount(''); setBbFrontAmount(''); setBbBackAmount(''); setBbTotalAmount(''); setBbSweepEnabled(false); setBbSweepAmount(''); setBbStrokesEnabled(false); setBbStrokesFront(''); setBbStrokesBack(''); setBbStrokesTotal(''); setBbStrokesMode('team'); setBbPlayerStrokesDraft({}); setBbHoleRange('all') }}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">Cancel</button>
                     <button onClick={handleCreateBB}
                       disabled={!bbT1P1 || !bbT1P2 || !bbT2P1 || !bbT2P2 || new Set([bbT1P1, bbT1P2, bbT2P1, bbT2P2]).size !== 4 || !bbBetType || !bbBetAmount.trim() || savingBB}
@@ -2176,7 +2247,9 @@ export default function MatchupClient({
                       ? holes.filter(h => h.hole_number > 9)
                       : holes
                     const bbCardLastHole = bbCardMatchupHoles.length > 0 ? Math.max(...bbCardMatchupHoles.map(h => h.hole_number)) : lastHoleNumber
-                    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, bbCardMatchupHoles)
+                    const bbCardStrokeHoles = computeBBStrokeHoles(m.player_strokes, bbCardMatchupHoles)
+                    const bbCardScoreMap = applyPlayerStrokesToScoreMap(scoreMap, bbCardStrokeHoles)
+                    const stats = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbCardScoreMap, bbCardMatchupHoles)
                     const isFinal = stats.holesPlayed === bbCardMatchupHoles.length && bbCardMatchupHoles.length > 0
                     const leader = stats.t1Wins > stats.t2Wins ? 'team1' : stats.t2Wins > stats.t1Wins ? 'team2' : null
                     const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
@@ -2204,7 +2277,7 @@ export default function MatchupClient({
                     const t2WinsBack = bbListAdjT1Back !== null && bbListAdjT2Back !== null && bbListAdjT2Back < bbListAdjT1Back
                     const t1WinsTotal = bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT1Total < bbListAdjT2Total
                     const t2WinsTotal = bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT2Total < bbListAdjT1Total
-                    const bbPressResults = (m.press ?? []).map(pr => computeBBPressResult(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, scoreMap, bbCardMatchupHoles, pr))
+                    const bbPressResults = (m.press ?? []).map(pr => computeBBPressResult(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbCardScoreMap, bbCardMatchupHoles, pr))
 
                     return (
                       <div key={m.id}>
@@ -2216,7 +2289,7 @@ export default function MatchupClient({
                                 {m.bet
                                   ? <span className="font-medium whitespace-nowrap" style={{ color: gold, fontSize: 'clamp(9px, 2.3vw, 11px)' }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300 text-[11px]">No bet</span>}
-                                <button onClick={() => { setEditingBB(m.id); setEditBBHoleRange((m.hole_range ?? 'all') as HoleRange); const p = parseBet(m.bet); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditBBPresses(m.press ?? []); setBBPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
+                                <button onClick={() => { setEditingBB(m.id); setEditBBHoleRange((m.hole_range ?? 'all') as HoleRange); const p = parseBet(m.bet); const hasPS = !!(m.player_strokes && Object.keys(m.player_strokes).length > 0); setEditBBStrokesMode(hasPS ? 'player' : 'team'); setEditBBPlayerStrokesDraft(Object.fromEntries(Object.entries(m.player_strokes ?? {}).map(([k, v]) => [k, String(v)]))); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide || hasPS); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditBBPresses(m.press ?? []); setBBPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
@@ -2234,6 +2307,8 @@ export default function MatchupClient({
                                 handicapFront: bbListHf,
                                 handicapBack: bbListHb,
                                 handicapTotal: bbListHt,
+                                playerStrokes: m.player_strokes ?? null,
+                                holeRange: m.hole_range,
                               })}
                               className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
                               Scorecards
@@ -2322,6 +2397,29 @@ export default function MatchupClient({
                                   </label>
                                   {editBBStrokesEnabled && (
                                     <div className="pl-3 border-l-2 border-gray-200 space-y-2">
+                                      <div className="flex gap-1.5">
+                                        {([['team', 'Team'], ['player', 'By Player']] as const).map(([mode, label]) => (
+                                          <button key={mode} type="button" onClick={() => setEditBBStrokesMode(mode)}
+                                            className="text-xs font-semibold px-2.5 py-1 rounded-lg border transition"
+                                            style={editBBStrokesMode === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                                            {label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      {editBBStrokesMode === 'player' ? (
+                                        <div className="space-y-1.5">
+                                          {[m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id].map((pid) => (
+                                            <div key={pid} className="flex items-center gap-2">
+                                              <span className="flex-1 min-w-0 text-xs text-gray-800 truncate">{players.find((p) => p.id === pid)?.name.split(' ')[0] ?? 'Player'}</span>
+                                              <input type="number" min="0" step="1" placeholder="0"
+                                                value={editBBPlayerStrokesDraft[pid] ?? ''}
+                                                onChange={(e) => setEditBBPlayerStrokesDraft((prev) => ({ ...prev, [pid]: e.target.value }))}
+                                                className="w-14 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
+                                            </div>
+                                          ))}
+                                          <p className="text-xs text-gray-400">Strokes are applied automatically on each player&apos;s hardest handicap holes.</p>
+                                        </div>
+                                      ) : (<>
                                       <select value={editBBStrokesSide} onChange={(e) => setEditBBStrokesSide(e.target.value as 't1' | 't2')}
                                         className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
                                         <option value="t1">{t1Name} gets strokes</option>
@@ -2356,6 +2454,7 @@ export default function MatchupClient({
                                             className="w-32 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none" />
                                         </div>
                                       )}
+                                      </>)}
                                     </div>
                                   )}
                                 </div>
@@ -2799,7 +2898,7 @@ export default function MatchupClient({
 function HorizontalScorecardTable({
   rows, holes, showMatchPlay = false, betType = '', strokesInfo, onStrokesClick,
 }: {
-  rows: { label: string; scoreMap: Partial<Record<number, number>> }[]
+  rows: { label: string; scoreMap: Partial<Record<number, number>>; starHoles?: Partial<Record<number, number>> }[]
   holes: Hole[]
   showMatchPlay?: boolean
   betType?: BetType | ''
@@ -2954,7 +3053,10 @@ function HorizontalScorecardTable({
             </tr>
           )
         })()}
-        {rows.map(({ label, scoreMap }, rowIdx) => {
+        {rows.map(({ label, scoreMap, starHoles }, rowIdx) => {
+          const star = (n: number) => (starHoles?.[n] ?? 0) > 0
+            ? <span style={{ color: gold, fontWeight: 700, fontSize: '0.7rem', marginLeft: '1px', verticalAlign: 'text-top' }}>{'*'.repeat(Math.min(2, starHoles![n]!))}</span>
+            : null
           const frontScored = frontNine.filter((h) => scoreMap[h.hole_number] != null)
           const backScored = backNine.filter((h) => scoreMap[h.hole_number] != null)
           const frontStrokes = frontScored.reduce((s, h) => s + (scoreMap[h.hole_number] ?? 0), 0)
@@ -2986,7 +3088,7 @@ function HorizontalScorecardTable({
                 return (
                   <td key={n} style={cell()}>
                     {s != null && hole
-                      ? <ScoreNotation strokes={s} par={hole.par} size="sm" />
+                      ? <>{<ScoreNotation strokes={s} par={hole.par} size="sm" />}{star(n)}</>
                       : <span style={{ color: '#d1d5db' }}>–</span>}
                   </td>
                 )
@@ -3005,7 +3107,7 @@ function HorizontalScorecardTable({
                 return (
                   <td key={n} style={cell()}>
                     {s != null && hole
-                      ? <ScoreNotation strokes={s} par={hole.par} size="sm" />
+                      ? <>{<ScoreNotation strokes={s} par={hole.par} size="sm" />}{star(n)}</>
                       : <span style={{ color: '#d1d5db' }}>–</span>}
                   </td>
                 )

@@ -183,6 +183,55 @@ export type TeamBallSummary = {
   holesPerBall: number[]          // how many holes contributed to each ball
 }
 
+// ── Best Ball per-player handicap strokes ────────────────────────────────────
+// Allocates each player's stroke count across the hardest holes (lowest
+// stroke_index first; holes without an index come last, then by hole number).
+// Returns playerId → (hole_number → strokes received on that hole).
+export function computeBBStrokeHoles(
+  playerStrokes: Record<string, number> | null | undefined,
+  holes: { hole_number: number; stroke_index?: number | null }[]
+): Record<string, Record<number, number>> {
+  const out: Record<string, Record<number, number>> = {}
+  if (!playerStrokes || holes.length === 0) return out
+  const ordered = [...holes].sort((a, b) => {
+    const ai = a.stroke_index ?? 999, bi = b.stroke_index ?? 999
+    return ai !== bi ? ai - bi : a.hole_number - b.hole_number
+  })
+  for (const [pid, raw] of Object.entries(playerStrokes)) {
+    const n = Math.max(0, Math.floor(Number(raw) || 0))
+    if (n === 0) continue
+    const perHole: Record<number, number> = {}
+    for (let i = 0; i < n; i++) {
+      const h = ordered[i % ordered.length].hole_number
+      perHole[h] = (perHole[h] ?? 0) + 1
+    }
+    out[pid] = perHole
+  }
+  return out
+}
+
+// Returns a copy of scoreMap with each player's strokes subtracted on their
+// stroke holes. Players without strokes share the original references.
+export function applyPlayerStrokesToScoreMap(
+  scoreMap: Record<string, Record<number, number>>,
+  strokeHoles: Record<string, Record<number, number>>
+): Record<string, Record<number, number>> {
+  const pids = Object.keys(strokeHoles)
+  if (pids.length === 0) return scoreMap
+  const adjusted: Record<string, Record<number, number>> = { ...scoreMap }
+  for (const pid of pids) {
+    const orig = scoreMap[pid]
+    if (!orig) continue
+    const copy: Record<number, number> = { ...orig }
+    for (const [holeStr, s] of Object.entries(strokeHoles[pid])) {
+      const h = Number(holeStr)
+      if (copy[h] != null) copy[h] = copy[h] - s
+    }
+    adjusted[pid] = copy
+  }
+  return adjusted
+}
+
 // Whether a player with the given holes_range plays the given hole.
 export function playerCoversHole(range: string | null | undefined, holeNumber: number): boolean {
   if (range === 'front9') return holeNumber <= 9

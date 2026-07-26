@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const supabase = createServerClient()
   const { data } = await supabase
     .from('best_ball_matchups')
-    .select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press, hole_range')
+    .select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press, hole_range, player_strokes')
     .eq('round_id', roundId)
     .order('created_at')
   return NextResponse.json(data ?? [])

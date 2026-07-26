@@ -982,7 +982,8 @@ export async function saveBestBallMatchup(
   team1Player1Id: string, team1Player2Id: string,
   team2Player1Id: string, team2Player2Id: string,
   bet: string,
-  holeRange: string = 'all'
+  holeRange: string = 'all',
+  playerStrokes: Record<string, number> | null = null
 ) {
   const sb = createServerClient()
   const { data, error } = await sb.from('best_ball_matchups').insert({
@@ -993,6 +994,7 @@ export async function saveBestBallMatchup(
     team2_player2_id: team2Player2Id,
     bet: bet.trim(),
     hole_range: holeRange,
+    player_strokes: playerStrokes,
   }).select('id').single()
   if (error) return { error: error.message }
   return { id: data.id }
@@ -1001,6 +1003,13 @@ export async function saveBestBallMatchup(
 export async function updateBestBallHoleRange(id: string, holeRange: string) {
   const sb = createServerClient()
   const { error } = await sb.from('best_ball_matchups').update({ hole_range: holeRange }).eq('id', id)
+  if (error) return { error: error.message }
+  return {}
+}
+
+export async function updateBestBallPlayerStrokes(id: string, playerStrokes: Record<string, number> | null) {
+  const sb = createServerClient()
+  const { error } = await sb.from('best_ball_matchups').update({ player_strokes: playerStrokes }).eq('id', id)
   if (error) return { error: error.message }
   return {}
 }
