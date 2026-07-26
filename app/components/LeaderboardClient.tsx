@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   computeTeamBallSummary, playerCoversHole,
   computeBBStrokeHoles, applyPlayerStrokesToScoreMap,
+  pressForfeitMap, type PressForfeit,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults,
   computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
@@ -68,14 +69,14 @@ function buildSegmentBreakdown(
 }
 
 // ── Matchup payout types + helpers ───────────────────────────────────────────
-type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
+type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number; forfeit?: PressForfeit | null }
 type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; press: PressEntry[]; hole_range?: string | null }
 type BestBallMatchup = { id: string; team1_player1_id: string; team1_player2_id: string; team2_player1_id: string; team2_player2_id: string; bet: string; press?: PressEntry[]; hole_range?: string | null; player_strokes?: Record<string, number> | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
 type HammerHoleState = { stake: number; lastHammerTeam: 1 | 2 | null; foldedTeam: 1 | 2 | null; preTeeUsed: boolean }
 type MatchupBetType = 'nassau' | 'straight'
 type MatchupScoringType = 'stroke' | 'match'
-type MPayoutSeg = { name: 'Front' | 'Back' | 'Total'; settled: boolean; winnerLabel: string | null; tied: boolean; amount: number; perPlayer: boolean }
+type MPayoutSeg = { name: 'Front' | 'Back' | 'Total'; settled: boolean; winnerLabel: string | null; tied: boolean; amount: number; perPlayer: boolean; forfeited?: boolean }
 type MPayoutRow = { id: string; type: 'h2h' | 'bb'; label: string; betLabel: string; segments: MPayoutSeg[]; nassauResult?: { winnerLabel: string | null; amount: number; perPlayer: boolean; anySettled: boolean; swept?: boolean } }
 
 function parseMBetAmounts(raw: string): { frontAmount: number; backAmount: number; totalAmount: number } {
@@ -184,18 +185,28 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
       if (p2w) { net[p2] = (net[p2] ?? 0) + amt; net[p1] = (net[p1] ?? 0) - amt; return { winnerLabel: mp2.name, tied: false } }
       return { winnerLabel: null, tied: true }
     }
+    const forfeitAt = pressForfeitMap(m.press)
+    const preSeg = (startHole: number, seg: 'front' | 'back' | 'total') => {
+      const ps = h2hStats(m.player1_id, m.player2_id, scoreMap, mHoles.filter((h) => h.hole_number < startHole))
+      if (seg === 'front') return { sl: slH2H(ps.p1Front !== null ? ps.p1Front - (handicapSide === 'p1' ? hf : 0) : null, ps.p2Front !== null ? ps.p2Front - (handicapSide === 'p2' ? hf : 0) : null), diff: ps.p1FrontWins - ps.p2FrontWins }
+      if (seg === 'back') return { sl: slH2H(ps.p1Back !== null ? ps.p1Back - (handicapSide === 'p1' ? hb : 0) : null, ps.p2Back !== null ? ps.p2Back - (handicapSide === 'p2' ? hb : 0) : null), diff: ps.p1BackWins - ps.p2BackWins }
+      return { sl: slH2H(ps.p1Total !== null ? ps.p1Total - (handicapSide === 'p1' ? ht : 0) : null, ps.p2Total !== null ? ps.p2Total - (handicapSide === 'p2' ? ht : 0) : null), diff: ps.p1Wins - ps.p2Wins }
+    }
     const segs: MPayoutSeg[] = []
     if (betType === 'nassau') {
-      const fS = hole9 && stats.p1Front !== null && stats.p2Front !== null
-      const { winnerLabel: fWL, tied: fT } = resolveH2H(fS, slH2H(adjP1Front, adjP2Front), stats.p1FrontWins - stats.p2FrontWins, fBetAmt)
-      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: false })
-      const bS = hole18 && stats.p1Back !== null && stats.p2Back !== null
-      const { winnerLabel: bWL, tied: bT } = resolveH2H(bS, slH2H(adjP1Back, adjP2Back), stats.p1BackWins - stats.p2BackWins, bBetAmt)
-      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: false })
+      const fPre = forfeitAt.front !== undefined ? preSeg(forfeitAt.front, 'front') : null
+      const fS = fPre ? true : (hole9 && stats.p1Front !== null && stats.p2Front !== null)
+      const { winnerLabel: fWL, tied: fT } = resolveH2H(fS, fPre ? fPre.sl : slH2H(adjP1Front, adjP2Front), fPre ? fPre.diff : stats.p1FrontWins - stats.p2FrontWins, fBetAmt)
+      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: false, forfeited: !!fPre })
+      const bPre = forfeitAt.back !== undefined ? preSeg(forfeitAt.back, 'back') : null
+      const bS = bPre ? true : (hole18 && stats.p1Back !== null && stats.p2Back !== null)
+      const { winnerLabel: bWL, tied: bT } = resolveH2H(bS, bPre ? bPre.sl : slH2H(adjP1Back, adjP2Back), bPre ? bPre.diff : stats.p1BackWins - stats.p2BackWins, bBetAmt)
+      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: false, forfeited: !!bPre })
     }
-    const tS = hole18 && stats.p1Total !== null && stats.p2Total !== null
-    const { winnerLabel: tWL, tied: tT } = resolveH2H(tS, slH2H(adjP1Total, adjP2Total), stats.p1Wins - stats.p2Wins, tBetAmt)
-    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: false })
+    const tPre = forfeitAt.total !== undefined ? preSeg(forfeitAt.total, 'total') : null
+    const tS = tPre ? true : (hole18 && stats.p1Total !== null && stats.p2Total !== null)
+    const { winnerLabel: tWL, tied: tT } = resolveH2H(tS, tPre ? tPre.sl : slH2H(adjP1Total, adjP2Total), tPre ? tPre.diff : stats.p1Wins - stats.p2Wins, tBetAmt)
+    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: false, forfeited: !!tPre })
     let nassauResult: MPayoutRow['nassauResult']
     if (betType === 'nassau') {
       const p1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === mp1.name ? seg.amount : -seg.amount) : 0), 0)
@@ -271,18 +282,28 @@ function computeMatchupPayouts(matchups: SavedMatchup[], bestBallMatchups: BestB
       if (t2w) { for (const id of t2Ids) net[id] = (net[id] ?? 0) + amt; for (const id of t1Ids) net[id] = (net[id] ?? 0) - amt; return { winnerLabel: t2Name, tied: false } }
       return { winnerLabel: null, tied: true }
     }
+    const bbForfeitAt = pressForfeitMap(m.press)
+    const bbPreSeg = (startHole: number, seg: 'front' | 'back' | 'total') => {
+      const ps = bbStats(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbSM, mHoles.filter((h) => h.hole_number < startHole))
+      if (seg === 'front') return { sl: slBB(ps.t1Front !== null ? ps.t1Front - (handicapSide === 't1' ? bbHf : 0) : null, ps.t2Front !== null ? ps.t2Front - (handicapSide === 't2' ? bbHf : 0) : null), diff: ps.t1FrontWins - ps.t2FrontWins }
+      if (seg === 'back') return { sl: slBB(ps.t1Back !== null ? ps.t1Back - (handicapSide === 't1' ? bbHb : 0) : null, ps.t2Back !== null ? ps.t2Back - (handicapSide === 't2' ? bbHb : 0) : null), diff: ps.t1BackWins - ps.t2BackWins }
+      return { sl: slBB(ps.t1Total !== null ? ps.t1Total - (handicapSide === 't1' ? bbHt : 0) : null, ps.t2Total !== null ? ps.t2Total - (handicapSide === 't2' ? bbHt : 0) : null), diff: ps.t1Wins - ps.t2Wins }
+    }
     const segs: MPayoutSeg[] = []
     if (betType === 'nassau') {
-      const fS = hole9 && stats.t1Front !== null && stats.t2Front !== null
-      const { winnerLabel: fWL, tied: fT } = resolveBB(fS, slBB(adjT1Front, adjT2Front), stats.t1FrontWins - stats.t2FrontWins, fBetAmt)
-      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: true })
-      const bS = hole18 && stats.t1Back !== null && stats.t2Back !== null
-      const { winnerLabel: bWL, tied: bT } = resolveBB(bS, slBB(adjT1Back, adjT2Back), stats.t1BackWins - stats.t2BackWins, bBetAmt)
-      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: true })
+      const fPre = bbForfeitAt.front !== undefined ? bbPreSeg(bbForfeitAt.front, 'front') : null
+      const fS = fPre ? true : (hole9 && stats.t1Front !== null && stats.t2Front !== null)
+      const { winnerLabel: fWL, tied: fT } = resolveBB(fS, fPre ? fPre.sl : slBB(adjT1Front, adjT2Front), fPre ? fPre.diff : stats.t1FrontWins - stats.t2FrontWins, fBetAmt)
+      segs.push({ name: 'Front', settled: fS, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: true, forfeited: !!fPre })
+      const bPre = bbForfeitAt.back !== undefined ? bbPreSeg(bbForfeitAt.back, 'back') : null
+      const bS = bPre ? true : (hole18 && stats.t1Back !== null && stats.t2Back !== null)
+      const { winnerLabel: bWL, tied: bT } = resolveBB(bS, bPre ? bPre.sl : slBB(adjT1Back, adjT2Back), bPre ? bPre.diff : stats.t1BackWins - stats.t2BackWins, bBetAmt)
+      segs.push({ name: 'Back', settled: bS, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: true, forfeited: !!bPre })
     }
-    const tS = hole18 && stats.t1Total !== null && stats.t2Total !== null
-    const { winnerLabel: tWL, tied: tT } = resolveBB(tS, slBB(adjT1Total, adjT2Total), stats.t1Wins - stats.t2Wins, tBetAmt)
-    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: true })
+    const tPre = bbForfeitAt.total !== undefined ? bbPreSeg(bbForfeitAt.total, 'total') : null
+    const tS = tPre ? true : (hole18 && stats.t1Total !== null && stats.t2Total !== null)
+    const { winnerLabel: tWL, tied: tT } = resolveBB(tS, tPre ? tPre.sl : slBB(adjT1Total, adjT2Total), tPre ? tPre.diff : stats.t1Wins - stats.t2Wins, tBetAmt)
+    segs.push({ name: 'Total', settled: tS, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: true, forfeited: !!tPre })
     let nassauResult: MPayoutRow['nassauResult']
     if (betType === 'nassau') {
       const t1Net = segs.reduce((s, seg) => s + (seg.settled && !seg.tied && seg.winnerLabel !== null ? (seg.winnerLabel === t1Name ? seg.amount : -seg.amount) : 0), 0)

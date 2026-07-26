@@ -232,6 +232,23 @@ export function applyPlayerStrokesToScoreMap(
   return adjusted
 }
 
+// ── Matchup press forfeits ───────────────────────────────────────────────────
+// A press may forfeit segments of the original bet; the earliest forfeiting
+// press per segment wins. Returns segment → press start hole.
+export type PressForfeit = { by: string; segments: ('front' | 'back' | 'total')[] }
+export function pressForfeitMap(
+  press: { holeStart: number; forfeit?: PressForfeit | null }[] | null | undefined
+): Partial<Record<'front' | 'back' | 'total', number>> {
+  const out: Partial<Record<'front' | 'back' | 'total', number>> = {}
+  for (const pr of press ?? []) {
+    if (!pr.forfeit) continue
+    for (const seg of pr.forfeit.segments) {
+      if (out[seg] === undefined || pr.holeStart < out[seg]!) out[seg] = pr.holeStart
+    }
+  }
+  return out
+}
+
 // Whether a player with the given holes_range plays the given hole.
 export function playerCoversHole(range: string | null | undefined, holeNumber: number): boolean {
   if (range === 'front9') return holeNumber <= 9

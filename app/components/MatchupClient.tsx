@@ -6,14 +6,14 @@ import {
   saveBestBallMatchup, deleteBestBallMatchup, updateBestBallBet, updateBestBallPresses, updateBestBallHoleRange,
   updateBestBallPlayerStrokes,
 } from '@/app/actions'
-import { computeBBStrokeHoles, applyPlayerStrokesToScoreMap } from '@/lib/scoring'
+import { computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, type PressForfeit } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import PinLoginModal from './PinLoginModal'
 
 type Player = { id: string; name: string; teamName: string; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
-type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number }
+type PressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number; forfeit?: PressForfeit | null }
 type HoleRange = 'all' | 'front9' | 'back9'
 type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; press: PressEntry[]; hole_range?: string }
 type BestBallMatchup = {
@@ -312,6 +312,7 @@ type PayoutSegment = {
   tied: boolean
   amount: number               // bet amount per this segment (per-player for BB)
   perPlayer: boolean           // true for BB (label shows "$X/player")
+  forfeited?: boolean          // settled early because a press forfeited this segment
 }
 type PayoutRow = {
   id: string
@@ -425,19 +426,31 @@ function computeMatchupPayouts(
     const strokeLeader = (a: number | null, b: number | null): 'p1' | 'p2' | 'tie' | null =>
       a === null || b === null ? null : a < b ? 'p1' : b < a ? 'p2' : 'tie'
 
+    // Press-forfeited segments settle immediately to whoever led when the press began
+    const forfeitAt = pressForfeitMap(m.press)
+    const preSeg = (startHole: number, seg: 'front' | 'back' | 'total') => {
+      const ps = computeStats(m.player1_id, m.player2_id, scoreMap, matchupHoles.filter(h => h.hole_number < startHole))
+      if (seg === 'front') return { sl: strokeLeader(ps.p1Front !== null ? ps.p1Front - (handicapSide === 'p1' ? hf : 0) : null, ps.p2Front !== null ? ps.p2Front - (handicapSide === 'p2' ? hf : 0) : null), diff: ps.p1FrontWins - ps.p2FrontWins }
+      if (seg === 'back') return { sl: strokeLeader(ps.p1Back !== null ? ps.p1Back - (handicapSide === 'p1' ? hb : 0) : null, ps.p2Back !== null ? ps.p2Back - (handicapSide === 'p2' ? hb : 0) : null), diff: ps.p1BackWins - ps.p2BackWins }
+      return { sl: strokeLeader(ps.p1Total !== null ? ps.p1Total - (handicapSide === 'p1' ? ht : 0) : null, ps.p2Total !== null ? ps.p2Total - (handicapSide === 'p2' ? ht : 0) : null), diff: ps.p1Wins - ps.p2Wins }
+    }
+
     const segments: PayoutSegment[] = []
     if (betType === 'nassau') {
-      const fSett = hole9 && stats.p1Front !== null && stats.p2Front !== null
-      const { winnerLabel: fWL, tied: fT } = resolveH2H(fSett, strokeLeader(adjP1Front, adjP2Front), stats.p1FrontWins - stats.p2FrontWins, fBetAmt)
-      segments.push({ name: 'Front', settled: fSett, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: false })
+      const fPre = forfeitAt.front !== undefined ? preSeg(forfeitAt.front, 'front') : null
+      const fSett = fPre ? true : (hole9 && stats.p1Front !== null && stats.p2Front !== null)
+      const { winnerLabel: fWL, tied: fT } = resolveH2H(fSett, fPre ? fPre.sl : strokeLeader(adjP1Front, adjP2Front), fPre ? fPre.diff : stats.p1FrontWins - stats.p2FrontWins, fBetAmt)
+      segments.push({ name: 'Front', settled: fSett, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: false, forfeited: !!fPre })
 
-      const bSett = (scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null) && stats.p1Back !== null && stats.p2Back !== null
-      const { winnerLabel: bWL, tied: bT } = resolveH2H(bSett, strokeLeader(adjP1Back, adjP2Back), stats.p1BackWins - stats.p2BackWins, bBetAmt)
-      segments.push({ name: 'Back', settled: bSett, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: false })
+      const bPre = forfeitAt.back !== undefined ? preSeg(forfeitAt.back, 'back') : null
+      const bSett = bPre ? true : ((scoreMap[m.player1_id]?.[18] != null && scoreMap[m.player2_id]?.[18] != null) && stats.p1Back !== null && stats.p2Back !== null)
+      const { winnerLabel: bWL, tied: bT } = resolveH2H(bSett, bPre ? bPre.sl : strokeLeader(adjP1Back, adjP2Back), bPre ? bPre.diff : stats.p1BackWins - stats.p2BackWins, bBetAmt)
+      segments.push({ name: 'Back', settled: bSett, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: false, forfeited: !!bPre })
     }
-    const tSett = holeLastPlayed && stats.p1Total !== null && stats.p2Total !== null
-    const { winnerLabel: tWL, tied: tT } = resolveH2H(tSett, strokeLeader(adjP1Total, adjP2Total), stats.p1Wins - stats.p2Wins, tBetAmt)
-    segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: false })
+    const tPre = forfeitAt.total !== undefined ? preSeg(forfeitAt.total, 'total') : null
+    const tSett = tPre ? true : (holeLastPlayed && stats.p1Total !== null && stats.p2Total !== null)
+    const { winnerLabel: tWL, tied: tT } = resolveH2H(tSett, tPre ? tPre.sl : strokeLeader(adjP1Total, adjP2Total), tPre ? tPre.diff : stats.p1Wins - stats.p2Wins, tBetAmt)
+    segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: false, forfeited: !!tPre })
 
     let nassauResult: PayoutRow['nassauResult']
     if (betType === 'nassau') {
@@ -558,19 +571,31 @@ function computeMatchupPayouts(
       return { winnerLabel: null, tied: true }
     }
 
+    // Press-forfeited segments settle immediately to whoever led when the press began
+    const bbForfeitAt = pressForfeitMap(m.press)
+    const bbPreSeg = (startHole: number, seg: 'front' | 'back' | 'total') => {
+      const ps = computeBestBall(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbScoreMap, bbMatchupHoles.filter(h => h.hole_number < startHole))
+      if (seg === 'front') return { sl: strokeLeaderBB(ps.t1Front !== null ? ps.t1Front - (handicapSide === 't1' ? bbHf : 0) : null, ps.t2Front !== null ? ps.t2Front - (handicapSide === 't2' ? bbHf : 0) : null), diff: ps.t1FrontWins - ps.t2FrontWins }
+      if (seg === 'back') return { sl: strokeLeaderBB(ps.t1Back !== null ? ps.t1Back - (handicapSide === 't1' ? bbHb : 0) : null, ps.t2Back !== null ? ps.t2Back - (handicapSide === 't2' ? bbHb : 0) : null), diff: ps.t1BackWins - ps.t2BackWins }
+      return { sl: strokeLeaderBB(ps.t1Total !== null ? ps.t1Total - (handicapSide === 't1' ? bbHt : 0) : null, ps.t2Total !== null ? ps.t2Total - (handicapSide === 't2' ? bbHt : 0) : null), diff: ps.t1Wins - ps.t2Wins }
+    }
+
     const segments: PayoutSegment[] = []
     if (betType === 'nassau') {
-      const fSett = bbHole9 && stats.t1Front !== null && stats.t2Front !== null
-      const { winnerLabel: fWL, tied: fT } = resolveBB(fSett, strokeLeaderBB(adjT1Front, adjT2Front), stats.t1FrontWins - stats.t2FrontWins, fBetAmt)
-      segments.push({ name: 'Front', settled: fSett, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: true })
+      const fPre = bbForfeitAt.front !== undefined ? bbPreSeg(bbForfeitAt.front, 'front') : null
+      const fSett = fPre ? true : (bbHole9 && stats.t1Front !== null && stats.t2Front !== null)
+      const { winnerLabel: fWL, tied: fT } = resolveBB(fSett, fPre ? fPre.sl : strokeLeaderBB(adjT1Front, adjT2Front), fPre ? fPre.diff : stats.t1FrontWins - stats.t2FrontWins, fBetAmt)
+      segments.push({ name: 'Front', settled: fSett, winnerLabel: fWL, tied: fT, amount: fBetAmt, perPlayer: true, forfeited: !!fPre })
 
-      const bSett = bbHole18 && stats.t1Back !== null && stats.t2Back !== null
-      const { winnerLabel: bWL, tied: bT } = resolveBB(bSett, strokeLeaderBB(adjT1Back, adjT2Back), stats.t1BackWins - stats.t2BackWins, bBetAmt)
-      segments.push({ name: 'Back', settled: bSett, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: true })
+      const bPre = bbForfeitAt.back !== undefined ? bbPreSeg(bbForfeitAt.back, 'back') : null
+      const bSett = bPre ? true : (bbHole18 && stats.t1Back !== null && stats.t2Back !== null)
+      const { winnerLabel: bWL, tied: bT } = resolveBB(bSett, bPre ? bPre.sl : strokeLeaderBB(adjT1Back, adjT2Back), bPre ? bPre.diff : stats.t1BackWins - stats.t2BackWins, bBetAmt)
+      segments.push({ name: 'Back', settled: bSett, winnerLabel: bWL, tied: bT, amount: bBetAmt, perPlayer: true, forfeited: !!bPre })
     }
-    const tSett = bbHoleLastPlayed && stats.t1Total !== null && stats.t2Total !== null
-    const { winnerLabel: tWL, tied: tT } = resolveBB(tSett, strokeLeaderBB(adjT1Total, adjT2Total), stats.t1Wins - stats.t2Wins, tBetAmt)
-    segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: true })
+    const tPre = bbForfeitAt.total !== undefined ? bbPreSeg(bbForfeitAt.total, 'total') : null
+    const tSett = tPre ? true : (bbHoleLastPlayed && stats.t1Total !== null && stats.t2Total !== null)
+    const { winnerLabel: tWL, tied: tT } = resolveBB(tSett, tPre ? tPre.sl : strokeLeaderBB(adjT1Total, adjT2Total), tPre ? tPre.diff : stats.t1Wins - stats.t2Wins, tBetAmt)
+    segments.push({ name: 'Total', settled: tSett, winnerLabel: tWL, tied: tT, amount: tBetAmt, perPlayer: true, forfeited: !!tPre })
 
     let nassauResult: PayoutRow['nassauResult']
     if (betType === 'nassau') {
@@ -742,6 +767,9 @@ export default function MatchupClient({
   const [newPressHoleStart, setNewPressHoleStart] = useState<number>(1)
   const [newPressHoleEnd, setNewPressHoleEnd] = useState<number>(18)
   const [newPressAmount, setNewPressAmount] = useState('')
+  const [newPressForfeitEnabled, setNewPressForfeitEnabled] = useState(false)
+  const [newPressForfeitBy, setNewPressForfeitBy] = useState<'p1' | 'p2'>('p1')
+  const [newPressForfeitSegs, setNewPressForfeitSegs] = useState<{ front: boolean; back: boolean; total: boolean }>({ front: false, back: false, total: false })
   const [pressPopoverInfo, setPressPopoverInfo] = useState<{ press: PressEntry; p1Name: string; p2Name: string; pressLabel: string } | null>(null)
 
   const addBBRef = useRef<HTMLDivElement>(null)
@@ -1629,9 +1657,14 @@ export default function MatchupClient({
                     const isEditing = editingH2H === m.id
                     const p1First = mp1.name.split(' ')[0]
                     const p2First = mp2.name.split(' ')[0]
-                    const h2hHole9 = (scoreMap[m.player1_id]?.[9] != null) && (scoreMap[m.player2_id]?.[9] != null)
-                    const h2hHole18 = (scoreMap[m.player1_id]?.[18] != null) && (scoreMap[m.player2_id]?.[18] != null)
-                    const h2hHoleLastSettlement = (scoreMap[m.player1_id]?.[cardMatchupLastHole] != null) && (scoreMap[m.player2_id]?.[cardMatchupLastHole] != null)
+    const h2hRowPayout = payouts.rows.find(r => r.id === m.id)
+                    const fSegP = h2hRowPayout?.segments.find(s => s.name === 'Front')
+                    const bSegP = h2hRowPayout?.segments.find(s => s.name === 'Back')
+                    const tSegP = h2hRowPayout?.segments.find(s => s.name === 'Total')
+                    const fFor = !!fSegP?.forfeited, bFor = !!bSegP?.forfeited, tFor = !!tSegP?.forfeited
+                    const h2hHole9 = fFor || ((scoreMap[m.player1_id]?.[9] != null) && (scoreMap[m.player2_id]?.[9] != null))
+                    const h2hHole18 = bFor || ((scoreMap[m.player1_id]?.[18] != null) && (scoreMap[m.player2_id]?.[18] != null))
+                    const h2hHoleLastSettlement = tFor || ((scoreMap[m.player1_id]?.[cardMatchupLastHole] != null) && (scoreMap[m.player2_id]?.[cardMatchupLastHole] != null))
                     const { scoringType: h2hScoringType, betType: h2hBetType, handicapSide: h2hHcpSide, handicapFront: h2hHcpFront, handicapBack: h2hHcpBack, handicapTotal: h2hHcpTotal } = parseBet(m.bet)
                     const isMatchPlay = h2hScoringType === 'match'
                     const isOverallBet = h2hBetType === 'straight'
@@ -1645,12 +1678,12 @@ export default function MatchupClient({
                     const listAdjP2Back  = stats.p2Back  !== null ? stats.p2Back  - (h2hHcpSide === 'p2' ? listHb : 0) : null
                     const listAdjP1Total = stats.p1Total !== null ? stats.p1Total - (h2hHcpSide === 'p1' ? listHt : 0) : null
                     const listAdjP2Total = stats.p2Total !== null ? stats.p2Total - (h2hHcpSide === 'p2' ? listHt : 0) : null
-                    const p1WinsFront = listAdjP1Front !== null && listAdjP2Front !== null && listAdjP1Front < listAdjP2Front
-                    const p2WinsFront = listAdjP1Front !== null && listAdjP2Front !== null && listAdjP2Front < listAdjP1Front
-                    const p1WinsBack = listAdjP1Back !== null && listAdjP2Back !== null && listAdjP1Back < listAdjP2Back
-                    const p2WinsBack = listAdjP1Back !== null && listAdjP2Back !== null && listAdjP2Back < listAdjP1Back
-                    const p1WinsTotal = listAdjP1Total !== null && listAdjP2Total !== null && listAdjP1Total < listAdjP2Total
-                    const p2WinsTotal = listAdjP1Total !== null && listAdjP2Total !== null && listAdjP2Total < listAdjP1Total
+                    const p1WinsFront = fFor ? fSegP!.winnerLabel === mp1.name : listAdjP1Front !== null && listAdjP2Front !== null && listAdjP1Front < listAdjP2Front
+                    const p2WinsFront = fFor ? fSegP!.winnerLabel === mp2.name : listAdjP1Front !== null && listAdjP2Front !== null && listAdjP2Front < listAdjP1Front
+                    const p1WinsBack = bFor ? bSegP!.winnerLabel === mp1.name : listAdjP1Back !== null && listAdjP2Back !== null && listAdjP1Back < listAdjP2Back
+                    const p2WinsBack = bFor ? bSegP!.winnerLabel === mp2.name : listAdjP1Back !== null && listAdjP2Back !== null && listAdjP2Back < listAdjP1Back
+                    const p1WinsTotal = tFor ? tSegP!.winnerLabel === mp1.name : listAdjP1Total !== null && listAdjP2Total !== null && listAdjP1Total < listAdjP2Total
+                    const p2WinsTotal = tFor ? tSegP!.winnerLabel === mp2.name : listAdjP1Total !== null && listAdjP2Total !== null && listAdjP2Total < listAdjP1Total
                     // Press results (one per press entry)
                     const pressResults = (m.press ?? []).map(pr => computePressResult(m.player1_id, m.player2_id, scoreMap, cardMatchupHoles, pr))
 
@@ -1664,7 +1697,7 @@ export default function MatchupClient({
                                 {m.bet
                                   ? <span className="font-medium whitespace-nowrap" style={{ color: gold, fontSize: 'clamp(9px, 2.3vw, 11px)' }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300 text-[11px]">No bet</span>}
-                                <button onClick={() => { setEditingH2H(m.id); const p = parseBet(m.bet); setEditH2HBetType(p.betType); setEditH2HBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditH2HScoringType(p.scoringType); setEditH2HSweepAmount(p.sweepAmount); setEditH2HSweepEnabled(!!p.sweepAmount); setEditH2HStrokesEnabled(!!p.handicapSide); setEditH2HStrokesSide((p.handicapSide as 'p1' | 'p2') || 'p1'); setEditH2HStrokesFront(p.handicapFront); setEditH2HStrokesBack(p.handicapBack); setEditH2HStrokesTotal(p.handicapTotal); setEditH2HFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditH2HBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditH2HTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditH2HPresses(m.press ?? []); setEditH2HHoleRange((m.hole_range ?? 'all') as HoleRange); setPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editH2HRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
+                                <button onClick={() => { setEditingH2H(m.id); const p = parseBet(m.bet); setEditH2HBetType(p.betType); setEditH2HBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditH2HScoringType(p.scoringType); setEditH2HSweepAmount(p.sweepAmount); setEditH2HSweepEnabled(!!p.sweepAmount); setEditH2HStrokesEnabled(!!p.handicapSide); setEditH2HStrokesSide((p.handicapSide as 'p1' | 'p2') || 'p1'); setEditH2HStrokesFront(p.handicapFront); setEditH2HStrokesBack(p.handicapBack); setEditH2HStrokesTotal(p.handicapTotal); setEditH2HFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditH2HBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditH2HTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditH2HPresses(m.press ?? []); setEditH2HHoleRange((m.hole_range ?? 'all') as HoleRange); setPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressForfeitEnabled(false); setNewPressForfeitSegs({ front: false, back: false, total: false }); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editH2HRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
@@ -1805,10 +1838,13 @@ export default function MatchupClient({
                                       const sl = pr.strokesSide && (pr.strokes ?? 0) > 0
                                         ? ` · ${pr.strokesSide === 'p1' ? mp1.name.split(' ')[0] : mp2.name.split(' ')[0]} +${pr.strokes}`
                                         : ''
+                                      const fl = pr.forfeit && pr.forfeit.segments.length > 0
+                                        ? ` · ${pr.forfeit.by === 'p1' ? mp1.name.split(' ')[0] : mp2.name.split(' ')[0]} forfeits ${pr.forfeit.segments.map((s) => s === 'front' ? 'Front' : s === 'back' ? 'Back' : 'Total').join('+')}`
+                                        : ''
                                       return (
                                         <div key={pr.id} className="flex items-center gap-1.5 text-xs">
                                           <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
-                                          <span className="text-gray-600">{hl} · ${pr.amount}{sl}</span>
+                                          <span className="text-gray-600">{hl} · ${pr.amount}{sl}{fl}</span>
                                           <button onClick={() => setEditH2HPresses(prev => prev.filter((_, i) => i !== pi))}
                                             className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
                                         </div>
@@ -1879,22 +1915,50 @@ export default function MatchupClient({
                                     <input type="number" min="0" step="1" placeholder="$amt" value={newPressAmount}
                                       onChange={(e) => setNewPressAmount(e.target.value)}
                                       className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-16" />
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer w-full">
+                                      <input type="checkbox" checked={newPressForfeitEnabled}
+                                        onChange={(e) => { setNewPressForfeitEnabled(e.target.checked); if (!e.target.checked) setNewPressForfeitSegs({ front: false, back: false, total: false }) }}
+                                        className="rounded" />
+                                      Forfeit original bet
+                                    </label>
+                                    {newPressForfeitEnabled && (
+                                      <div className="flex items-center gap-1.5 flex-wrap w-full">
+                                        <select value={newPressForfeitBy} onChange={(e) => setNewPressForfeitBy(e.target.value as 'p1' | 'p2')}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          <option value="p1">{mp1.name.split(' ')[0]} pressed</option>
+                                          <option value="p2">{mp2.name.split(' ')[0]} pressed</option>
+                                        </select>
+                                        <span className="text-xs text-gray-400">forfeits:</span>
+                                        {(editH2HBetType === 'nassau' ? (['front', 'back', 'total'] as const) : (['total'] as const)).map((seg) => (
+                                          <label key={seg} className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                            <input type="checkbox" checked={newPressForfeitSegs[seg]}
+                                              onChange={(e) => setNewPressForfeitSegs((prev) => ({ ...prev, [seg]: e.target.checked }))}
+                                              className="rounded" />
+                                            {seg === 'front' ? 'Front' : seg === 'back' ? 'Back' : 'Total'}
+                                          </label>
+                                        ))}
+                                      </div>
+                                    )}
                                     <button
                                       onClick={() => {
                                         const amt = parseFloat(newPressAmount)
                                         if (!newPressAmount.trim() || isNaN(amt) || amt <= 0) return
                                         const hEnd = newPressHoleType === '1hole' ? newPressHoleStart : Math.max(newPressHoleStart, newPressHoleEnd)
+                                        const forfSegs = (['front', 'back', 'total'] as const).filter((s) => newPressForfeitSegs[s])
                                         const entry: PressEntry = {
                                           id: Math.random().toString(36).slice(2),
                                           holeStart: newPressHoleStart,
                                           holeEnd: hEnd,
                                           amount: amt,
                                           ...(newPressStrokesEnabled && newPressStrokes.trim() ? { strokesSide: newPressStrokesSide, strokes: parseFloat(newPressStrokes) || 0 } : {}),
+                                          ...(newPressForfeitEnabled && forfSegs.length > 0 ? { forfeit: { by: newPressForfeitBy, segments: forfSegs } } : {}),
                                         }
                                         setEditH2HPresses(prev => [...prev, entry])
                                         setNewPressAmount('')
                                         setNewPressStrokes('')
                                         setNewPressStrokesEnabled(false)
+                                        setNewPressForfeitEnabled(false)
+                                        setNewPressForfeitSegs({ front: false, back: false, total: false })
                                         setPressEnabled(false)
                                       }}
                                       disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
@@ -1975,7 +2039,7 @@ export default function MatchupClient({
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           {isMatchPlay ? mpCol(mFront, front !== null) : <VsParDisplay n={front} />}
                                           {isMatchPlay
-                                            ? (h2hHole9 && mFront > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            ? (h2hHole9 && (fFor ? wFront : mFront > 0) && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
                                             : (h2hHole9 && wFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>}
@@ -1984,7 +2048,7 @@ export default function MatchupClient({
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           {isMatchPlay ? mpCol(mBack, back !== null) : <VsParDisplay n={back} />}
                                           {isMatchPlay
-                                            ? (h2hHole18 && mBack > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            ? (h2hHole18 && (bFor ? wBack : mBack > 0) && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
                                             : (h2hHole18 && wBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>}
@@ -1993,7 +2057,7 @@ export default function MatchupClient({
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           {isMatchPlay ? mpCol(mTotal, total !== null) : <VsParDisplay n={total} />}
                                           {isMatchPlay
-                                            ? (h2hHoleLastSettlement && mTotal > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            ? (h2hHoleLastSettlement && (tFor ? wTotal : mTotal > 0) && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
                                             : (h2hHoleLastSettlement && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>
@@ -2255,9 +2319,14 @@ export default function MatchupClient({
                     const t1Name = `${t1p1.name.split(' ')[0]} & ${t1p2.name.split(' ')[0]}`
                     const t2Name = `${t2p1.name.split(' ')[0]} & ${t2p2.name.split(' ')[0]}`
                     const isEditingBB = editingBB === m.id
-                    const bbHole9 = (scoreMap[m.team1_player1_id]?.[9] != null || scoreMap[m.team1_player2_id]?.[9] != null) && (scoreMap[m.team2_player1_id]?.[9] != null || scoreMap[m.team2_player2_id]?.[9] != null)
-                    const bbHole18 = (scoreMap[m.team1_player1_id]?.[18] != null || scoreMap[m.team1_player2_id]?.[18] != null) && (scoreMap[m.team2_player1_id]?.[18] != null || scoreMap[m.team2_player2_id]?.[18] != null)
-                    const bbHoleLastSettlement = (scoreMap[m.team1_player1_id]?.[bbCardLastHole] != null || scoreMap[m.team1_player2_id]?.[bbCardLastHole] != null) && (scoreMap[m.team2_player1_id]?.[bbCardLastHole] != null || scoreMap[m.team2_player2_id]?.[bbCardLastHole] != null)
+                    const bbRowPayout = payouts.rows.find(r => r.id === m.id)
+                    const bbFSegP = bbRowPayout?.segments.find(s => s.name === 'Front')
+                    const bbBSegP = bbRowPayout?.segments.find(s => s.name === 'Back')
+                    const bbTSegP = bbRowPayout?.segments.find(s => s.name === 'Total')
+                    const bbFFor = !!bbFSegP?.forfeited, bbBFor = !!bbBSegP?.forfeited, bbTFor = !!bbTSegP?.forfeited
+                    const bbHole9 = bbFFor || ((scoreMap[m.team1_player1_id]?.[9] != null || scoreMap[m.team1_player2_id]?.[9] != null) && (scoreMap[m.team2_player1_id]?.[9] != null || scoreMap[m.team2_player2_id]?.[9] != null))
+                    const bbHole18 = bbBFor || ((scoreMap[m.team1_player1_id]?.[18] != null || scoreMap[m.team1_player2_id]?.[18] != null) && (scoreMap[m.team2_player1_id]?.[18] != null || scoreMap[m.team2_player2_id]?.[18] != null))
+                    const bbHoleLastSettlement = bbTFor || ((scoreMap[m.team1_player1_id]?.[bbCardLastHole] != null || scoreMap[m.team1_player2_id]?.[bbCardLastHole] != null) && (scoreMap[m.team2_player1_id]?.[bbCardLastHole] != null || scoreMap[m.team2_player2_id]?.[bbCardLastHole] != null))
                     const { scoringType: bbScoringTypeParsed, betType: bbBetTypeParsed, handicapSide: bbListHcpSide, handicapFront: bbListHcpFront, handicapBack: bbListHcpBack, handicapTotal: bbListHcpTotal } = parseBet(m.bet)
                     const isBBMatchPlay = bbScoringTypeParsed === 'match'
                     const isBBOverallBet = bbBetTypeParsed === 'straight'
@@ -2271,12 +2340,12 @@ export default function MatchupClient({
                     const bbListAdjT2Back  = stats.t2Back  !== null ? stats.t2Back  - (bbListHcpSide === 't2' ? bbListHb : 0) : null
                     const bbListAdjT1Total = stats.t1Total !== null ? stats.t1Total - (bbListHcpSide === 't1' ? bbListHt : 0) : null
                     const bbListAdjT2Total = stats.t2Total !== null ? stats.t2Total - (bbListHcpSide === 't2' ? bbListHt : 0) : null
-                    const t1WinsFront = bbListAdjT1Front !== null && bbListAdjT2Front !== null && bbListAdjT1Front < bbListAdjT2Front
-                    const t2WinsFront = bbListAdjT1Front !== null && bbListAdjT2Front !== null && bbListAdjT2Front < bbListAdjT1Front
-                    const t1WinsBack = bbListAdjT1Back !== null && bbListAdjT2Back !== null && bbListAdjT1Back < bbListAdjT2Back
-                    const t2WinsBack = bbListAdjT1Back !== null && bbListAdjT2Back !== null && bbListAdjT2Back < bbListAdjT1Back
-                    const t1WinsTotal = bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT1Total < bbListAdjT2Total
-                    const t2WinsTotal = bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT2Total < bbListAdjT1Total
+                    const t1WinsFront = bbFFor ? bbFSegP!.winnerLabel === t1Name : bbListAdjT1Front !== null && bbListAdjT2Front !== null && bbListAdjT1Front < bbListAdjT2Front
+                    const t2WinsFront = bbFFor ? bbFSegP!.winnerLabel === t2Name : bbListAdjT1Front !== null && bbListAdjT2Front !== null && bbListAdjT2Front < bbListAdjT1Front
+                    const t1WinsBack = bbBFor ? bbBSegP!.winnerLabel === t1Name : bbListAdjT1Back !== null && bbListAdjT2Back !== null && bbListAdjT1Back < bbListAdjT2Back
+                    const t2WinsBack = bbBFor ? bbBSegP!.winnerLabel === t2Name : bbListAdjT1Back !== null && bbListAdjT2Back !== null && bbListAdjT2Back < bbListAdjT1Back
+                    const t1WinsTotal = bbTFor ? bbTSegP!.winnerLabel === t1Name : bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT1Total < bbListAdjT2Total
+                    const t2WinsTotal = bbTFor ? bbTSegP!.winnerLabel === t2Name : bbListAdjT1Total !== null && bbListAdjT2Total !== null && bbListAdjT2Total < bbListAdjT1Total
                     const bbPressResults = (m.press ?? []).map(pr => computeBBPressResult(m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id, bbCardScoreMap, bbCardMatchupHoles, pr))
 
                     return (
@@ -2289,7 +2358,7 @@ export default function MatchupClient({
                                 {m.bet
                                   ? <span className="font-medium whitespace-nowrap" style={{ color: gold, fontSize: 'clamp(9px, 2.3vw, 11px)' }}>Bet: {formatBet(m.bet)}</span>
                                   : <span className="text-gray-300 text-[11px]">No bet</span>}
-                                <button onClick={() => { setEditingBB(m.id); setEditBBHoleRange((m.hole_range ?? 'all') as HoleRange); const p = parseBet(m.bet); const hasPS = !!(m.player_strokes && Object.keys(m.player_strokes).length > 0); setEditBBStrokesMode(hasPS ? 'player' : 'team'); setEditBBPlayerStrokesDraft(Object.fromEntries(Object.entries(m.player_strokes ?? {}).map(([k, v]) => [k, String(v)]))); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide || hasPS); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditBBPresses(m.press ?? []); setBBPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
+                                <button onClick={() => { setEditingBB(m.id); setEditBBHoleRange((m.hole_range ?? 'all') as HoleRange); const p = parseBet(m.bet); const hasPS = !!(m.player_strokes && Object.keys(m.player_strokes).length > 0); setEditBBStrokesMode(hasPS ? 'player' : 'team'); setEditBBPlayerStrokesDraft(Object.fromEntries(Object.entries(m.player_strokes ?? {}).map(([k, v]) => [k, String(v)]))); setEditBBBetType(p.betType); setEditBBBetAmount(p.betType === 'nassau' ? '' : p.amount); setEditBBScoringType(p.scoringType); setEditBBSweepAmount(p.sweepAmount); setEditBBSweepEnabled(!!p.sweepAmount); setEditBBStrokesEnabled(!!p.handicapSide || hasPS); setEditBBStrokesSide((p.handicapSide as 't1' | 't2') || 't1'); setEditBBStrokesFront(p.handicapFront); setEditBBStrokesBack(p.handicapBack); setEditBBStrokesTotal(p.handicapTotal); setEditBBFrontAmount(p.betType === 'nassau' ? String(p.frontAmount || '') : ''); setEditBBBackAmount(p.betType === 'nassau' ? String(p.backAmount || '') : ''); setEditBBTotalAmount(p.betType === 'nassau' ? String(p.totalAmount || '') : ''); setEditBBPresses(m.press ?? []); setBBPressEnabled(false); setNewPressAmount(''); setNewPressStrokes(''); setNewPressStrokesEnabled(false); setNewPressForfeitEnabled(false); setNewPressForfeitSegs({ front: false, back: false, total: false }); setNewPressHoleType('1hole'); setNewPressHoleStart(1); setNewPressHoleEnd(18); setTimeout(() => { const el = editBBRef.current; if (el) { const top = el.getBoundingClientRect().top + window.scrollY - 70; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }) } }, 50) }}
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
@@ -2469,10 +2538,13 @@ export default function MatchupClient({
                                       const sl = pr.strokesSide && (pr.strokes ?? 0) > 0
                                         ? ` · ${pr.strokesSide === 'p1' ? t1Name : t2Name} +${pr.strokes}`
                                         : ''
+                                      const fl = pr.forfeit && pr.forfeit.segments.length > 0
+                                        ? ` · ${pr.forfeit.by === 'p1' ? t1Name : t2Name} forfeits ${pr.forfeit.segments.map((s) => s === 'front' ? 'Front' : s === 'back' ? 'Back' : 'Total').join('+')}`
+                                        : ''
                                       return (
                                         <div key={pr.id} className="flex items-center gap-1.5 text-xs">
                                           <span className="font-semibold" style={{ color: gold }}>Press {pi + 1}:</span>
-                                          <span className="text-gray-600">{hl} · ${pr.amount}{sl}</span>
+                                          <span className="text-gray-600">{hl} · ${pr.amount}{sl}{fl}</span>
                                           <button onClick={() => setEditBBPresses(prev => prev.filter((_, i) => i !== pi))}
                                             className="text-gray-400 hover:text-red-500 ml-1 text-[11px]">✕</button>
                                         </div>
@@ -2543,22 +2615,50 @@ export default function MatchupClient({
                                     <input type="number" min="0" step="1" placeholder="$amt" value={newPressAmount}
                                       onChange={(e) => setNewPressAmount(e.target.value)}
                                       className="border border-gray-300 rounded px-1.5 py-1 text-xs focus:outline-none w-16" />
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer w-full">
+                                      <input type="checkbox" checked={newPressForfeitEnabled}
+                                        onChange={(e) => { setNewPressForfeitEnabled(e.target.checked); if (!e.target.checked) setNewPressForfeitSegs({ front: false, back: false, total: false }) }}
+                                        className="rounded" />
+                                      Forfeit original bet
+                                    </label>
+                                    {newPressForfeitEnabled && (
+                                      <div className="flex items-center gap-1.5 flex-wrap w-full">
+                                        <select value={newPressForfeitBy} onChange={(e) => setNewPressForfeitBy(e.target.value as 'p1' | 'p2')}
+                                          className="border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:outline-none">
+                                          <option value="p1">{t1Name} pressed</option>
+                                          <option value="p2">{t2Name} pressed</option>
+                                        </select>
+                                        <span className="text-xs text-gray-400">forfeits:</span>
+                                        {(editBBBetType === 'nassau' ? (['front', 'back', 'total'] as const) : (['total'] as const)).map((seg) => (
+                                          <label key={seg} className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                                            <input type="checkbox" checked={newPressForfeitSegs[seg]}
+                                              onChange={(e) => setNewPressForfeitSegs((prev) => ({ ...prev, [seg]: e.target.checked }))}
+                                              className="rounded" />
+                                            {seg === 'front' ? 'Front' : seg === 'back' ? 'Back' : 'Total'}
+                                          </label>
+                                        ))}
+                                      </div>
+                                    )}
                                     <button
                                       onClick={() => {
                                         const amt = parseFloat(newPressAmount)
                                         if (!newPressAmount.trim() || isNaN(amt) || amt <= 0) return
                                         const hEnd = newPressHoleType === '1hole' ? newPressHoleStart : Math.max(newPressHoleStart, newPressHoleEnd)
+                                        const forfSegs = (['front', 'back', 'total'] as const).filter((s) => newPressForfeitSegs[s])
                                         const entry: PressEntry = {
                                           id: Math.random().toString(36).slice(2),
                                           holeStart: newPressHoleStart,
                                           holeEnd: hEnd,
                                           amount: amt,
                                           ...(newPressStrokesEnabled && newPressStrokes.trim() ? { strokesSide: newPressStrokesSide, strokes: parseFloat(newPressStrokes) || 0 } : {}),
+                                          ...(newPressForfeitEnabled && forfSegs.length > 0 ? { forfeit: { by: newPressForfeitBy, segments: forfSegs } } : {}),
                                         }
                                         setEditBBPresses(prev => [...prev, entry])
                                         setNewPressAmount('')
                                         setNewPressStrokes('')
                                         setNewPressStrokesEnabled(false)
+                                        setNewPressForfeitEnabled(false)
+                                        setNewPressForfeitSegs({ front: false, back: false, total: false })
                                         setBBPressEnabled(false)
                                       }}
                                       disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
@@ -2646,7 +2746,7 @@ export default function MatchupClient({
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           {isBBMatchPlay ? mpCol(mFront, front !== null) : <VsParDisplay n={front} />}
                                           {isBBMatchPlay
-                                            ? (bbHole9 && mFront > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            ? (bbHole9 && (bbFFor ? wFront : mFront > 0) && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
                                             : (bbHole9 && wFront && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>}
@@ -2655,7 +2755,7 @@ export default function MatchupClient({
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           {isBBMatchPlay ? mpCol(mBack, back !== null) : <VsParDisplay n={back} />}
                                           {isBBMatchPlay
-                                            ? (bbHole18 && mBack > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            ? (bbHole18 && (bbBFor ? wBack : mBack > 0) && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
                                             : (bbHole18 && wBack && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>}
@@ -2664,7 +2764,7 @@ export default function MatchupClient({
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           {isBBMatchPlay ? mpCol(mTotal, total !== null) : <VsParDisplay n={total} />}
                                           {isBBMatchPlay
-                                            ? (bbHoleLastSettlement && mTotal > 0 && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
+                                            ? (bbHoleLastSettlement && (bbTFor ? wTotal : mTotal > 0) && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)
                                             : (bbHoleLastSettlement && wTotal && <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>)}
                                         </span>
                                       </td>
