@@ -329,7 +329,7 @@ function bbStrokeContribLabel(
   }
   if (played.length === 0) return 'No stroke holes played yet.'
   if (contributed.length === 0) return "No strokes have factored into the team's low ball yet."
-  return `Stroke counted in the team low ball on hole${contributed.length > 1 ? 's' : ''}: ${contributed.sort((a, b) => a - b).join(', ')}`
+  return `Hole(s) affected: ${contributed.sort((a, b) => a - b).join(', ')}`
 }
 
 // ── Payout types ─────────────────────────────────────────────────────────────
