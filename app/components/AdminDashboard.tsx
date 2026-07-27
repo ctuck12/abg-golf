@@ -950,6 +950,25 @@ export default function AdminDashboard({
     setMixedGroups(value)
   }
 
+  // One-tap Mixed Groups answer at the top of Teams / Groups — persists immediately
+  async function chooseMixedGroups(value: boolean) {
+    if (!round || mixedGroupsPending) return
+    setMixedGroups(value)
+    setMixedGroupsPending(true)
+    setMixedGroupsAnswered(true)
+    setSetupLS(round.id, 'mixedGroupsAnswered', true)
+    if (value) {
+      setLivePlayingGroups([])
+      setLiveGroupPlayers([])
+      setTargetGroupCount(0)
+      setGroupCountSaved(false)
+      setSetupLS(round.id, 'groupCountSaved', false)
+    }
+    await toggleMixedGroups(round.id, value)
+    router.refresh()
+    setMixedGroupsPending(false)
+  }
+
   async function saveMixedGroupsChoice() {
     if (!round || mixedGroups === null) return
     setMixedGroupsPending(true)
@@ -1164,7 +1183,7 @@ export default function AdminDashboard({
   if (roundIsSettingUp) {
     if (!effectivePayoutSaved) activateMissingItems.push('Save Payout Value')
     if (!skinsSaved) activateMissingItems.push('Save Skins Settings')
-    if (isStandard && !mixedGroupsSaved) activateMissingItems.push('Save Mixed Groups setting')
+    if (isStandard && !mixedGroupsSaved) activateMissingItems.push(!mixedGroupsAnswered ? 'Answer the Mixed Groups question (top of Teams / Groups)' : 'Finish creating the playing groups')
     if (!teamsSaved) activateMissingItems.push((isDaytona || isTraditional) ? 'Save Group(s)' : 'Save Teams')
     if (mixedGroups === true && !allGroupsMeetMinimum) activateMissingItems.push('Each playing group needs at least 3 players')
     if (teamsSaved && !allTeamsMeetRequirement) {
@@ -2486,6 +2505,26 @@ export default function AdminDashboard({
             {/* ── Teams / Groups section ── */}
             {round && (
               <div className={`bg-white rounded-2xl border border-gray-200 overflow-hidden ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {/* Mixed Groups question — must be answered before team building (3/4 ball only) */}
+                {isStandard && roundIsSettingUp && (
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <label className="block text-xs font-medium text-gray-600 mb-2">Are you playing Mixed Groups? (playing groups different from ball-game teams)</label>
+                    <div className="flex gap-2">
+                      <button type="button" disabled={mixedGroupsPending} onClick={() => chooseMixedGroups(true)}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition disabled:opacity-60 ${mixedGroupsAnswered && mixedGroups === true ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
+                        Yes
+                      </button>
+                      <button type="button" disabled={mixedGroupsPending} onClick={() => chooseMixedGroups(false)}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition disabled:opacity-60 ${mixedGroupsAnswered && mixedGroups === false ? 'border-gray-700 bg-gray-100 text-gray-800' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
+                        No
+                      </button>
+                    </div>
+                    {!mixedGroupsAnswered && (
+                      <p className="text-xs text-amber-700 mt-1.5">Choose Yes or No to unlock team building below.</p>
+                    )}
+                  </div>
+                )}
+                <div className={isStandard && roundIsSettingUp && !mixedGroupsAnswered ? 'opacity-40 pointer-events-none select-none' : ''}>
                 {/* Header */}
                 <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
                   <div className="flex items-center gap-3">
@@ -3512,10 +3551,10 @@ export default function AdminDashboard({
                         if (skinsEnabled === true && skinsParticipants.length < 2 && roundIsSettingUp) {
                           setSkinsFewParticipantsWarning(true)
                         }
-                        // 3/4 ball: the Mixed Groups question is the next step below — take the admin there
-                        if (isStandard && roundIsSettingUp) {
+                        // Mixed groups: the Playing Groups section below is the next step — take the admin there
+                        if (isStandard && mixedGroups === true && roundIsSettingUp) {
                           setShowAssignGroupsNotice(true)
-                          setTimeout(() => mixedGroupsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+                          setTimeout(() => mixedGroupsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
                         }
                       }}
                       disabled={teams.length === 0 || !allTeamsMeetRequirement}
@@ -3544,64 +3583,28 @@ export default function AdminDashboard({
                     )}
                   </div>
                 )}
+                </div>
               </div>
             )}
 
-            {/* ── Mixed Groups (standard format only) ── */}
-            {round && round.format === 'standard' && (
+            {/* ── Playing Groups (standard format, mixed groups = Yes only) ── */}
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && (
               <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
                 {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    {creatingNewRound ? 'Save the new round above to unlock' : `Save ${isStandard ? 'Teams' : 'Group(s)'} above to unlock`}
+                    {creatingNewRound ? 'Save the new round above to unlock' : 'Save Teams above to unlock'}
                   </p>
                 )}
                 {showAssignGroupsNotice && roundIsSettingUp && (
                   <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5">
                     <span className="text-amber-500 text-base leading-none mt-0.5 flex-shrink-0">⚠</span>
                     <p className="text-xs text-amber-800">
-                      {mixedGroups === true ? (
-                        <><span className="font-semibold">Teams saved — now set the playing groups.</span> Assign every player to the group they&apos;re actually playing with below before you can activate the round.</>
-                      ) : (
-                        <><span className="font-semibold">Teams saved — one more step.</span> Choose whether the playing groups are different from your teams. Select <span className="font-semibold">No</span> and save to finish setup, or <span className="font-semibold">Yes</span> to set up the playing groups before activating the round.</>
-                      )}
+                      <span className="font-semibold">Teams saved — now set the playing groups.</span> Assign every player to the group they&apos;re actually playing with below, set each group&apos;s PIN, and add any side games before you can activate the round.
                     </p>
                   </div>
                 )}
-                <h3 className="font-semibold text-gray-900 text-sm">Mixed Groups</h3>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Are playing groups different from ball-game teams?</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleMixedGroups(true)}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
-                        mixedGroups === true
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                      }`}>
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleMixedGroups(false)}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
-                        mixedGroups === false
-                          ? 'border-gray-700 bg-gray-100 text-gray-800'
-                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                      }`}>
-                      No
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1.5">Each playing group gets its own scorekeeper PIN, separate from ball-game teams.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={saveMixedGroupsChoice}
-                  disabled={mixedGroupsPending || mixedGroups === null}
-                  className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
-                  style={{ background: navy }}>
-                  {mixedGroupsPending ? 'Saving…' : 'Save Mixed Groups'}
-                </button>
+                <h3 className="font-semibold text-gray-900 text-sm">Playing Groups</h3>
+                <p className="text-xs text-gray-400 -mt-2">Each playing group gets its own scorekeeper PIN, separate from ball-game teams. Side games (Daytona / Banker) are set per group here.</p>
 
                 {mixedGroups && mixedGroupsAnswered && (
                   <div className="space-y-3 border-t border-gray-100 pt-3">
