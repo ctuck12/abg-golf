@@ -1173,7 +1173,7 @@ export async function saveDaytonaAssignments(
 
 export async function bulkCreateTeams(
   roundId: string,
-  teams: { name: string; pin: string; players: { name: string; handicap: number | null }[] }[]
+  teams: { name: string; pin: string; players: { name: string; handicap: number | null; skins?: boolean }[] }[]
 ) {
   if (!roundId || !teams.length) return { error: 'Invalid input.' }
   const supabase = createServerClient()
@@ -1193,7 +1193,7 @@ export async function bulkCreateTeams(
       const { error: playersErr } = await supabase.from('players').insert(
         team.players.map((p, i) => ({
           name: p.name, team_id: teamRow.id, position: i,
-          skins_participant: false, handicap: p.handicap ?? null,
+          skins_participant: p.skins ?? false, handicap: p.handicap ?? null,
         }))
       )
       if (playersErr) return { error: playersErr.message }

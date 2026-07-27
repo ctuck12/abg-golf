@@ -382,6 +382,10 @@ export default function AdminDashboard({
   const [genHistory, setGenHistory] = useState<{ teams: GeneratedTeam[]; names: string[]; pins: string[] }[]>([])
   const [genHistoryIdx, setGenHistoryIdx] = useState(0)
   const [genAtStartNotice, setGenAtStartNotice] = useState(false)
+  // Skins participants picked in the generator preview (by generated-player id)
+  const [genSkinsIds, setGenSkinsIds] = useState<Set<string>>(new Set())
+  // Players picked while creating a new playing group (assigned on create)
+  const [newGroupPlayerIds, setNewGroupPlayerIds] = useState<Set<string>>(new Set())
   const [genEditNames, setGenEditNames] = useState<string[]>([])
   const [genEditPins, setGenEditPins] = useState<string[]>([])
   const [genPending, setGenPending] = useState(false)
@@ -857,7 +861,7 @@ export default function AdminDashboard({
     const teamsToCreate = generatedTeams.map((t, i) => ({
       name: genEditNames[i] || t.name,
       pin: genEditPins[i] || t.pin,
-      players: t.players.map(p => ({ name: p.name, handicap: p.handicap })),
+      players: t.players.map(p => ({ name: p.name, handicap: p.handicap, skins: skinsEnabled === true && genSkinsIds.has(p.id) })),
     }))
     const result = await bulkCreateTeams(round.id, teamsToCreate)
     setGenPending(false)
@@ -866,6 +870,7 @@ export default function AdminDashboard({
     setShowTeamGenerator(false)
     setGeneratedTeams(null)
     setGenSelectedRosterIds(new Set())
+    setGenSkinsIds(new Set())
     setGenManualPlayers([])
     setConfirmGenUse(false)
     setGenEditNames([])
@@ -1006,11 +1011,21 @@ export default function AdminDashboard({
     }
     setGroupError(''); setNewGroupPending(true)
     const res = await createPlayingGroup(round.id, newGroupName.trim(), newGroupPin.trim())
-    setNewGroupPending(false)
-    if (res.error) { setGroupError(res.error); return }
+    if (res.error) { setNewGroupPending(false); setGroupError(res.error); return }
     const newGroup: PlayingGroup = { id: res.id!, name: newGroupName.trim(), pin: newGroupPin.trim() }
     setLivePlayingGroups((prev) => [...prev, newGroup])
     setGroupSideGames(prev => ({ ...prev, [res.id!]: initGroupSideGame(newGroup) }))
+    // Assign any players picked in the create form
+    const pickedIds = Array.from(newGroupPlayerIds)
+    if (pickedIds.length > 0) {
+      setLiveGroupPlayers((prev) => [
+        ...prev.filter((gp) => !pickedIds.includes(gp.player_id)),
+        ...pickedIds.map((pid) => ({ playing_group_id: res.id!, player_id: pid })),
+      ])
+      await Promise.all(pickedIds.map((pid) => setPlayerGroup(pid, res.id!)))
+    }
+    setNewGroupPlayerIds(new Set())
+    setNewGroupPending(false)
     setNewGroupName(''); setNewGroupPin('')
   }
   async function handleDeleteGroup(groupId: string) {
@@ -3007,6 +3022,13 @@ export default function AdminDashboard({
                                         : `HCP ${p.handicap}`
                                       : '—'}
                                   </span>
+                                  {skinsEnabled === true && (
+                                    <button type="button"
+                                      onClick={() => setGenSkinsIds(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n })}
+                                      className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition flex-shrink-0 ${genSkinsIds.has(p.id) ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-400 border-gray-300'}`}>
+                                      Skins{genSkinsIds.has(p.id) ? ' ✓' : ''}
+                                    </button>
+                                  )}
                                   {p.source === 'manual' && (
                                     <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-medium">manual</span>
                                   )}
@@ -3827,9 +3849,33 @@ export default function AdminDashboard({
                                 {showNewGroupPin ? '🙈' : '👁'}
                               </button>
                             </div>
+                            {/* Pick this group's players up front (optional — assignable later too) */}
+                            {(() => {
+                              const allAssigned = new Set(liveGroupPlayers.map(gp => gp.player_id))
+                              const avail = players.filter(p => p.team_id !== null && !allAssigned.has(p.id))
+                              if (avail.length === 0) return null
+                              return (
+                                <div className="w-full">
+                                  <p className="text-xs text-gray-500 mb-1">Tap the players in this group (optional — you can also add them after creating):</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {avail.map(p => {
+                                      const sel = newGroupPlayerIds.has(p.id)
+                                      return (
+                                        <button key={p.id} type="button"
+                                          onClick={() => setNewGroupPlayerIds(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else if (n.size < 5) n.add(p.id); return n })}
+                                          className={`text-xs px-2 py-1 rounded-full border font-medium transition ${sel ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300'}`}>
+                                          {p.name}{sel ? ' ✓' : ''}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                  {newGroupPlayerIds.size >= 5 && <p className="text-[10px] text-amber-600 mt-1">5 players max per group</p>}
+                                </div>
+                              )
+                            })()}
                             <button type="button" onClick={handleCreateGroup} disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim()}
                               className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
-                              + Add
+                              {newGroupPlayerIds.size > 0 ? `+ Add with ${newGroupPlayerIds.size} player${newGroupPlayerIds.size !== 1 ? 's' : ''}` : '+ Add'}
                             </button>
                           </div>
                         ) : (
@@ -3871,14 +3917,25 @@ export default function AdminDashboard({
 
                           {/* Assigned player chips — always visible */}
                           <div className="flex flex-wrap gap-1.5">
-                            {assignedPlayers.map((p) => (
-                              <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
-                                {p.name}
-                                <button type="button"
-                                  onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
-                                  className="ml-0.5 hover:text-red-600 leading-none">×</button>
-                              </span>
-                            ))}
+                            {assignedPlayers.map((p) => {
+                              const inSkins = skinsOverrides[p.id] ?? ((p as { skins_participant?: boolean }).skins_participant ?? false)
+                              return (
+                                <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
+                                  {p.name}
+                                  {skinsEnabled === true && (
+                                    <button type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
+                                      className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                      title="Toggle skins participation">
+                                      Skins{inSkins ? ' ✓' : ''}
+                                    </button>
+                                  )}
+                                  <button type="button"
+                                    onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
+                                    className="ml-0.5 hover:text-red-600 leading-none">×</button>
+                                </span>
+                              )
+                            })}
                             {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned yet</p>}
                           </div>
 
