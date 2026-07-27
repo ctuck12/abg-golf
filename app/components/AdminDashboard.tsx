@@ -3552,22 +3552,23 @@ export default function AdminDashboard({
                                 })()}
                               </p>
                               {teamPlayers.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1.5 items-center">
+                                <div className="flex flex-wrap gap-1.5 mt-1.5">
                                   {teamPlayers.map((p) => {
-                                    const inSkins = skinsEnabled === true && (skinsOverrides[p.id] ?? p.skins_participant)
+                                    const inSkins = skinsOverrides[p.id] ?? p.skins_participant
                                     return (
-                                      <span key={p.id}
-                                        className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium inline-flex items-center gap-1">
-                                        {inSkins && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
+                                      <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: '#dbeafe', color: '#1e40af' }}>
                                         {p.name.split(' ')[0]}
+                                        {skinsEnabled === true && (
+                                          <button type="button"
+                                            onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
+                                            className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                            title="Toggle skins participation">
+                                            Skins{inSkins ? ' ✓' : ''}
+                                          </button>
+                                        )}
                                       </span>
                                     )
                                   })}
-                                  {skinsEnabled === true && teamPlayers.some((p) => skinsOverrides[p.id] ?? p.skins_participant) && (
-                                    <span className="text-[10px] text-gray-400 inline-flex items-center gap-1 ml-0.5">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> = skins
-                                    </span>
-                                  )}
                                 </div>
                               )}
                             </div>
