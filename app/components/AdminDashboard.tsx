@@ -285,6 +285,7 @@ export default function AdminDashboard({
   const createFormRef = useRef<HTMLFormElement>(null)
   const mixedGroupsSectionRef = useRef<HTMLDivElement | null>(null)
   const [showAssignGroupsNotice, setShowAssignGroupsNotice] = useState(false)
+  const [skinsFewParticipantsWarning, setSkinsFewParticipantsWarning] = useState(false)
   const [selectedBallsCount, setSelectedBallsCount] = useState('3')
   const [createIncludeTotal, setCreateIncludeTotal] = useState(false)
   const [selectedHoleCount, setSelectedHoleCount] = useState('18')
@@ -1058,10 +1059,10 @@ export default function AdminDashboard({
   const payoutSectionEnabled = !creatingNewRound && (live || (setupBase && roundSaved))
   // Step 2 — Skins: unlocks after payout saved
   const skinsSectionEnabled = !creatingNewRound && (live || (setupBase && effectivePayoutSaved))
-  // Step 3 — Mixed Groups (standard only): unlocks after skins saved
-  const mixedGroupsSectionEnabled = !creatingNewRound && (live || (setupBase && skinsSaved))
-  // Step 4 — Teams: unlocks after payout + skins + mixed groups all saved
-  const teamsAddEnabled = !creatingNewRound && (live || (setupBase && skinsSaved && effectivePayoutSaved && mixedGroupsSaved))
+  // Step 3 — Teams: unlocks after payout + skins saved (teams come BEFORE mixed groups)
+  const teamsAddEnabled = !creatingNewRound && (live || (setupBase && skinsSaved && effectivePayoutSaved))
+  // Step 4 — Mixed Groups (standard only): unlocks after teams saved
+  const mixedGroupsSectionEnabled = !creatingNewRound && (live || (setupBase && skinsSaved && teamsSaved))
   // Legacy alias used in a few spots below
   const skinsAndPayoutEnabled = payoutSectionEnabled
 
@@ -1084,8 +1085,8 @@ export default function AdminDashboard({
   const allGroupsMeetMinimum = mixedGroups !== true || livePlayingGroups.every(g =>
     liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).length >= 3
   )
-  // Skins enabled but nobody marked as a participant → block activation
-  const skinsNeedsParticipants = skinsEnabled === true && skinsParticipants.length === 0
+  // Skins enabled but fewer than 2 participants marked → block activation
+  const skinsNeedsParticipants = skinsEnabled === true && skinsParticipants.length < 2
   const canActivate = roundIsSettingUp && skinsSaved && effectivePayoutSaved && mixedGroupsSaved && teamsSaved && allTeamsMeetRequirement && allGroupsMeetMinimum && !skinsNeedsParticipants
   const activateMissingItems: string[] = []
   if (roundIsSettingUp) {
@@ -1103,7 +1104,7 @@ export default function AdminDashboard({
         activateMissingItems.push(`Each team needs at least ${round?.balls_count ?? 3} and no more than 5 players`)
       }
     }
-    if (skinsNeedsParticipants) activateMissingItems.push('Skins Game is enabled but no skins participants are selected — mark players with the Skins button in the Teams / Groups → Players section, or disable the Skins Game')
+    if (skinsNeedsParticipants) activateMissingItems.push('Skins Game is enabled but fewer than 2 skins participants are selected — mark at least 2 players with the Skins button in the Teams / Groups → Players section, or disable the Skins Game')
   }
 
   useEffect(() => {
@@ -1126,6 +1127,26 @@ export default function AdminDashboard({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+
+      {/* ── Skins participants warning modal ── */}
+      {skinsFewParticipantsWarning && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setSkinsFewParticipantsWarning(false)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-2">⚠ Skins Game Needs Players</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              The Skins Game is enabled but fewer than 2 players are marked as skins participants.
+              Mark at least 2 players with the <span className="font-semibold text-amber-700 bg-amber-100 px-1 rounded">Skins</span> button
+              in each team&apos;s Players section, or disable the Skins Game.
+              The round can&apos;t be activated until then.
+            </p>
+            <button onClick={() => setSkinsFewParticipantsWarning(false)}
+              className="w-full py-2 rounded-lg text-sm font-bold text-white" style={{ background: navy }}>
+              Got It
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Roster picker modal ── */}
       {rosterPickerTeamId && (
@@ -2372,471 +2393,6 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Mixed Groups (standard format only) ── */}
-            {round && round.format === 'standard' && (
-              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
-                {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    {creatingNewRound ? 'Save the new round above to unlock' : 'Save Skins Settings above to unlock'}
-                  </p>
-                )}
-                {showAssignGroupsNotice && roundIsSettingUp && mixedGroups === true && (
-                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5">
-                    <span className="text-amber-500 text-base leading-none mt-0.5 flex-shrink-0">⚠</span>
-                    <p className="text-xs text-amber-800">
-                      <span className="font-semibold">Teams saved — now set the playing groups.</span> Assign every player to the group they&apos;re actually playing with below before you can activate the round.
-                    </p>
-                  </div>
-                )}
-                <h3 className="font-semibold text-gray-900 text-sm">Mixed Groups</h3>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Are playing groups different from ball-game teams?</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleMixedGroups(true)}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
-                        mixedGroups === true
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                      }`}>
-                      Yes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleMixedGroups(false)}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
-                        mixedGroups === false
-                          ? 'border-gray-700 bg-gray-100 text-gray-800'
-                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                      }`}>
-                      No
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1.5">Each playing group gets its own scorekeeper PIN, separate from ball-game teams.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={saveMixedGroupsChoice}
-                  disabled={mixedGroupsPending || mixedGroups === null}
-                  className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
-                  style={{ background: navy }}>
-                  {mixedGroupsPending ? 'Saving…' : 'Save Mixed Groups'}
-                </button>
-
-                {mixedGroups && mixedGroupsAnswered && (
-                  <div className="space-y-3 border-t border-gray-100 pt-3">
-                    {/* Step 1: set number of groups */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Number of Playing Groups</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number" min="1" max="20"
-                          value={targetGroupCount || ''}
-                          placeholder="e.g. 4"
-                          onChange={e => {
-                            setTargetGroupCount(Math.max(0, parseInt(e.target.value) || 0))
-                            setGroupCountSaved(false)
-                          }}
-                          className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          disabled={targetGroupCount === 0}
-                          onClick={async () => {
-                            if (round && targetGroupCount > 0) {
-                              await setPlayingGroupCount(round.id, targetGroupCount)
-                              setGroupCountSaved(true)
-                              setSetupLS(round.id, 'groupCountSaved', true)
-                            }
-                          }}
-                          className="px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition"
-                          style={{ background: navy }}>
-                          Set
-                        </button>
-                        {groupCountSaved && targetGroupCount > 0 && (
-                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${livePlayingGroups.length === targetGroupCount ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {livePlayingGroups.length} / {targetGroupCount} added
-                          </span>
-                        )}
-                      </div>
-                      {!groupCountSaved && (
-                        <p className="text-xs text-amber-700 mt-1.5">Enter the number of groups then click <strong>Set</strong> to continue.</p>
-                      )}
-                    </div>
-
-                    {/* Step 2: add groups (only after Set is clicked) */}
-                    {groupCountSaved && targetGroupCount > 0 && (
-                      <>
-                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Playing Groups</p>
-                        {groupError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1.5">{groupError}</p>}
-
-                        {/* Create group form — hidden when at capacity */}
-                        {livePlayingGroups.length < targetGroupCount ? (
-                          <div className="flex gap-2 flex-wrap">
-                            <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-                              placeholder="Group name" className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                            <div className="relative">
-                              <input type={showNewGroupPin ? 'text' : 'password'} value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
-                                placeholder="4-digit PIN" maxLength={4} inputMode="numeric"
-                                className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 pr-8 text-sm focus:outline-none" />
-                              <button type="button" tabIndex={-1} onClick={() => setShowNewGroupPin(v => !v)}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-                                {showNewGroupPin ? '🙈' : '👁'}
-                              </button>
-                            </div>
-                            <button type="button" onClick={handleCreateGroup} disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim()}
-                              className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
-                              + Add
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-green-700 bg-green-50 rounded px-3 py-2 font-medium">All {targetGroupCount} groups added ✓</p>
-                        )}
-                      </>
-                    )}
-
-                    {/* Group cards — each has inline player assignment */}
-                    {groupCountSaved && livePlayingGroups.map((g) => {
-                      const allKnownPlayers = [...players, ...liveManualPlayers]
-                      const assignedPlayerIds = new Set(liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).map(gp => gp.player_id))
-                      const assignedPlayers = allKnownPlayers.filter(p => assignedPlayerIds.has(p.id))
-                      const allAssignedIds = new Set(liveGroupPlayers.map(gp => gp.player_id))
-                      // Only show team players (non-null team_id) in the "assign from team" list
-                      const unassignedTeamPlayers = players.filter(p => p.team_id !== null && !allAssignedIds.has(p.id))
-                      const groupFull = assignedPlayers.length >= 5
-                      const isExpanded = expandedGroupAssign === g.id
-                      const isCardExpanded = expandedGroupCards.has(g.id)
-                      const toggleCard = () => setExpandedGroupCards(prev => {
-                        const next = new Set(prev)
-                        next.has(g.id) ? next.delete(g.id) : next.add(g.id)
-                        return next
-                      })
-                      return (
-                        <div key={g.id} className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-2.5">
-                          {/* Header — always visible, clickable to expand */}
-                          <div className="flex items-center justify-between cursor-pointer select-none" onClick={toggleCard}>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-sm font-semibold text-gray-800">{g.name}</p>
-                                <span className="text-gray-400 text-xs">{isCardExpanded ? '▲' : '▼'}</span>
-                              </div>
-                              <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
-                            </div>
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupId(g.id) }}
-                              className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
-                          </div>
-
-                          {/* Assigned player chips — always visible */}
-                          <div className="flex flex-wrap gap-1.5">
-                            {assignedPlayers.map((p) => (
-                              <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
-                                {p.name}
-                                <button type="button"
-                                  onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
-                                  className="ml-0.5 hover:text-red-600 leading-none">×</button>
-                              </span>
-                            ))}
-                            {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned yet</p>}
-                          </div>
-
-                          {/* Expanded body — add-player panel + side game */}
-                          {isCardExpanded && <>
-
-                          {/* Inline add-player panel */}
-                          {!groupFull && (
-                            isExpanded ? (
-                              <div className="border border-gray-200 rounded-lg bg-white p-2.5 space-y-2">
-                                {/* Team players search */}
-                                <input
-                                  type="text"
-                                  placeholder="Search team players…"
-                                  value={groupAssignSearch}
-                                  onChange={e => setGroupAssignSearch(e.target.value)}
-                                  autoFocus
-                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
-                                />
-                                <div className="max-h-36 overflow-y-auto space-y-0.5">
-                                  {unassignedTeamPlayers
-                                    .filter(p => p.name.toLowerCase().includes(groupAssignSearch.toLowerCase()))
-                                    .map(p => {
-                                      const teamName = teams.find(t => t.id === p.team_id)?.name
-                                      return (
-                                        <button key={p.id} type="button"
-                                          onClick={() => handleSetPlayerGroup(p.id, g.id)}
-                                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-blue-50 text-left transition">
-                                          <div>
-                                            <span className="text-sm text-gray-800">{p.name}</span>
-                                            {teamName && <span className="text-xs text-gray-400 ml-1.5">{teamName}</span>}
-                                          </div>
-                                          <span className="text-xs text-blue-600 font-semibold flex-shrink-0">+ Add</span>
-                                        </button>
-                                      )
-                                    })}
-                                  {unassignedTeamPlayers.filter(p => p.name.toLowerCase().includes(groupAssignSearch.toLowerCase())).length === 0 && (
-                                    <p className="text-xs text-gray-400 text-center py-2">
-                                      {unassignedTeamPlayers.length === 0 ? 'All team players are assigned' : 'No matches'}
-                                    </p>
-                                  )}
-                                </div>
-
-                                {/* Manual add */}
-                                <div className="border-t border-gray-100 pt-2">
-                                  <p className="text-xs text-gray-500 mb-1.5">Or add guest manually:</p>
-                                  <div className="flex gap-2">
-                                    <input
-                                      type="text"
-                                      placeholder="Guest name"
-                                      value={manualGroupName}
-                                      onChange={e => setManualGroupName(e.target.value)}
-                                      onKeyDown={async e => {
-                                        if (e.key === 'Enter' && manualGroupName.trim()) {
-                                          setManualGroupPending(true)
-                                          const hcp = manualGroupHandicap.trim() !== '' ? parseFloat(manualGroupHandicap) : null
-                                          const res = await addManualPlayerToGroup(g.id, manualGroupName.trim(), isNaN(hcp as number) ? null : hcp)
-                                          setManualGroupPending(false)
-                                          if (!res.error && res.id) {
-                                            const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false, handicap: isNaN(hcp as number) ? null : hcp }
-                                            setLiveManualPlayers(prev => [...prev, newP])
-                                            setLiveGroupPlayers(prev => [...prev, { playing_group_id: g.id, player_id: res.id! }])
-                                            setManualGroupName('')
-                                            setManualGroupHandicap('')
-                                          }
-                                        }
-                                      }}
-                                      className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
-                                    />
-                                    <input
-                                      type="number"
-                                      placeholder="HCP"
-                                      value={manualGroupHandicap}
-                                      onChange={e => setManualGroupHandicap(e.target.value)}
-                                      step="0.1"
-                                      className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none text-center"
-                                    />
-                                    <button
-                                      type="button"
-                                      disabled={!manualGroupName.trim() || manualGroupPending}
-                                      onClick={async () => {
-                                        if (!manualGroupName.trim()) return
-                                        setManualGroupPending(true)
-                                        const hcp = manualGroupHandicap.trim() !== '' ? parseFloat(manualGroupHandicap) : null
-                                        const res = await addManualPlayerToGroup(g.id, manualGroupName.trim(), isNaN(hcp as number) ? null : hcp)
-                                        setManualGroupPending(false)
-                                        if (!res.error && res.id) {
-                                          const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false, handicap: isNaN(hcp as number) ? null : hcp }
-                                          setLiveManualPlayers(prev => [...prev, newP])
-                                          setLiveGroupPlayers(prev => [...prev, { playing_group_id: g.id, player_id: res.id! }])
-                                          setManualGroupName('')
-                                          setManualGroupHandicap('')
-                                        }
-                                      }}
-                                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition"
-                                      style={{ background: navy }}>
-                                      {manualGroupPending ? '…' : 'Add'}
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <button type="button"
-                                  onClick={() => { setExpandedGroupAssign(null); setGroupAssignSearch(''); setManualGroupName(''); setManualGroupHandicap('') }}
-                                  className="text-xs text-gray-400 hover:text-gray-600">
-                                  Done
-                                </button>
-                              </div>
-                            ) : (
-                              <button type="button"
-                                onClick={() => { setExpandedGroupAssign(g.id); setGroupAssignSearch(''); setManualGroupName(''); setManualGroupHandicap('') }}
-                                className="text-xs text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 font-medium transition">
-                                + Add Player
-                              </button>
-                            )
-                          )}
-                          {groupFull && (
-                            <p className="text-xs text-gray-400 italic">Group is full (5 players max)</p>
-                          )}
-
-                          {/* ── Side Game settings (only when group has players) ── */}
-                          {assignedPlayers.length > 0 && (() => {
-                            const sg = groupSideGames[g.id] ?? initGroupSideGame(g)
-                            const hasSideGame = sg.daytonaEnabled || sg.bankerEnabled
-                            const isOpen = expandedGroupSideGame === g.id || hasSideGame
-                            return (
-                              <div className="border-t border-gray-100 pt-2.5 space-y-2">
-                                {!isOpen ? (
-                                  <button type="button"
-                                    onClick={() => setExpandedGroupSideGame(g.id)}
-                                    className="text-xs text-purple-600 border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-50 font-medium transition">
-                                    + Add Side Game
-                                  </button>
-                                ) : (
-                                <><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center justify-between">
-                                  Side Game
-                                  {!hasSideGame && (
-                                    <button type="button" onClick={() => setExpandedGroupSideGame(null)}
-                                      className="text-gray-400 hover:text-gray-600 text-xs font-normal normal-case">✕ Cancel</button>
-                                  )}
-                                </p>
-
-                                {/* Daytona — hidden when Banker On */}
-                                {!sg.bankerEnabled && (
-                                  <>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
-                                      <button type="button"
-                                        onClick={() => {
-                                          const doIt = () => updateGroupSG(g.id, { daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: !sg.daytonaEnabled })
-                                          if (sg.daytonaEnabled && round?.is_started) {
-                                            const captured = sg
-                                            setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: async () => {
-                                              updateGroupSG(g.id, { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', autoStrokes: false, saving: true })
-                                              await updatePlayingGroupSettings(g.id, {
-                                                daytona_variant: null,
-                                                banker_side_game: captured.bankerEnabled,
-                                                banker_side_game_min_bet: captured.bankerEnabled ? (parseFloat(captured.bankerMinBet) || 2) : null,
-                                                auto_strokes: false,
-                                              })
-                                              updateGroupSG(g.id, { saving: false, saved: true })
-                                            }})
-                                          } else { doIt() }
-                                        }}
-                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.daytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                                        {sg.daytonaEnabled ? 'On' : 'Off'}
-                                      </button>
-                                    </div>
-                                    {sg.daytonaEnabled && (
-                                      <div className="space-y-1.5 pl-1">
-                                        <div className="flex gap-2">
-                                          <select value={sg.daytonaType} onChange={e => updateGroupSG(g.id, { daytonaType: e.target.value, daytonaSubVariant: '' })}
-                                            className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none">
-                                            <option value="" disabled>Type…</option>
-                                            <option value="4">4-Man</option>
-                                            <option value="5">5-Man</option>
-                                          </select>
-                                          {sg.daytonaType === '5' && (
-                                            <select value={sg.daytonaSubVariant} onChange={e => updateGroupSG(g.id, { daytonaSubVariant: e.target.value })}
-                                              className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none">
-                                              <option value="" disabled>Variant…</option>
-                                              <option value="normal">Normal</option>
-                                              <option value="flares">Flares</option>
-                                            </select>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
-                                          <input type="number" min="0.1" step="0.01" placeholder="e.g. 0.25"
-                                            value={sg.daytonaPayout} onChange={e => updateGroupSG(g.id, { daytonaPayout: e.target.value })}
-                                            className="w-24 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
-                                        </div>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-
-                                {/* Banker — hidden when Daytona On */}
-                                {!sg.daytonaEnabled && (
-                                  <>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
-                                      <button type="button"
-                                        onClick={() => {
-                                          const doIt = () => updateGroupSG(g.id, { bankerEnabled: !sg.bankerEnabled, autoStrokes: !sg.bankerEnabled })
-                                          if (sg.bankerEnabled && round?.is_started) {
-                                            const captured = sg
-                                            setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: async () => {
-                                              updateGroupSG(g.id, { bankerEnabled: false, autoStrokes: false, saving: true })
-                                              const daytonaVariant = captured.daytonaEnabled
-                                                ? captured.daytonaType === '4' ? `4man|${captured.daytonaPayout || '0'}` : captured.daytonaType === '5' ? `5man-${captured.daytonaSubVariant || 'normal'}|${captured.daytonaPayout || '0'}` : null
-                                                : null
-                                              await updatePlayingGroupSettings(g.id, {
-                                                daytona_variant: daytonaVariant,
-                                                banker_side_game: false,
-                                                banker_side_game_min_bet: null,
-                                                auto_strokes: false,
-                                              })
-                                              updateGroupSG(g.id, { saving: false, saved: true })
-                                            }})
-                                          } else { doIt() }
-                                        }}
-                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.bankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                                        {sg.bankerEnabled ? 'On' : 'Off'}
-                                      </button>
-                                    </div>
-                                    {sg.bankerEnabled && (
-                                      <div className="flex items-center gap-2 pl-1">
-                                        <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
-                                        <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
-                                          value={sg.bankerMinBet} onChange={e => updateGroupSG(g.id, { bankerMinBet: e.target.value })}
-                                          className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-
-                                {/* Auto Strokes — only when a side game is On */}
-                                {(sg.daytonaEnabled || sg.bankerEnabled) && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium text-gray-600">Auto Strokes</span>
-                                    <button type="button"
-                                      onClick={() => updateGroupSG(g.id, { autoStrokes: !sg.autoStrokes })}
-                                      className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.autoStrokes ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                                      {sg.autoStrokes ? 'On' : 'Off'}
-                                    </button>
-                                    <span className="text-xs text-gray-400">Based on handicaps</span>
-                                  </div>
-                                )}
-                                {/* Stroke rounding — round-level, surfaced here for non-Daytona/Banker formats */}
-                                {round?.format !== 'daytona' && round?.format !== 'banker' && (sg.daytonaEnabled || sg.bankerEnabled) && sg.autoStrokes && (
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
-                                    {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
-                                      <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
-                                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full border transition"
-                                        style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
-                                        {mlabel}
-                                      </button>
-                                    ))}
-                                    <span className="text-xs text-gray-400 w-full">Round Down: 7.9 → 7 · Round Up: 7.5 → 8. Applies to the whole round.</span>
-                                  </div>
-                                )}
-
-                                {/* Save button */}
-                                <div className="flex items-center gap-2 pt-0.5">
-                                  <button type="button"
-                                    disabled={sg.saving || (sg.daytonaEnabled && !sg.daytonaType)}
-                                    onClick={async () => {
-                                      updateGroupSG(g.id, { saving: true, saved: false })
-                                      const daytonaVariant = sg.daytonaEnabled
-                                        ? sg.daytonaType === '4' ? `4man|${sg.daytonaPayout || '0'}` : sg.daytonaType === '5' ? `5man-${sg.daytonaSubVariant || 'normal'}|${sg.daytonaPayout || '0'}` : null
-                                        : null
-                                      await updatePlayingGroupSettings(g.id, {
-                                        daytona_variant: daytonaVariant,
-                                        banker_side_game: sg.bankerEnabled,
-                                        banker_side_game_min_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMinBet) || 2) : null,
-                                        auto_strokes: (sg.daytonaEnabled || sg.bankerEnabled) ? sg.autoStrokes : false,
-                                      })
-                                      updateGroupSG(g.id, { saving: false, saved: true })
-                                      if (!sg.daytonaEnabled && !sg.bankerEnabled) setExpandedGroupSideGame(null)
-                                    }}
-                                    className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white disabled:opacity-40 transition"
-                                    style={{ background: navy }}>
-                                    {sg.saving ? 'Saving…' : 'Save'}
-                                  </button>
-                                  {sg.saved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
-                                </div>
-                                </>)}
-                              </div>
-                            )
-                          })()}
-                          </>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* ── Teams / Groups section ── */}
             {round && (
               <div className={`bg-white rounded-2xl border border-gray-200 overflow-hidden ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
@@ -3839,8 +3395,12 @@ export default function AdminDashboard({
                       type="button"
                       onClick={() => {
                         setTeamsSaved(true); setSetupLS(round?.id, 'teamsSaved', true)
-                        // Mixed groups: playing groups still need player assignments — send the admin back up
-                        if (mixedGroups === true && roundIsSettingUp) {
+                        // Skins enabled with fewer than 2 participants marked — warn now (activation stays gated too)
+                        if (skinsEnabled === true && skinsParticipants.length < 2 && roundIsSettingUp) {
+                          setSkinsFewParticipantsWarning(true)
+                        }
+                        // 3/4 ball: the Mixed Groups question is the next step below — take the admin there
+                        if (isStandard && roundIsSettingUp) {
                           setShowAssignGroupsNotice(true)
                           setTimeout(() => mixedGroupsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
                         }
@@ -3869,6 +3429,475 @@ export default function AdminDashboard({
                         </p>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Mixed Groups (standard format only) ── */}
+            {round && round.format === 'standard' && (
+              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
+                {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
+                  <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
+                    {creatingNewRound ? 'Save the new round above to unlock' : `Save ${isStandard ? 'Teams' : 'Group(s)'} above to unlock`}
+                  </p>
+                )}
+                {showAssignGroupsNotice && roundIsSettingUp && (
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5">
+                    <span className="text-amber-500 text-base leading-none mt-0.5 flex-shrink-0">⚠</span>
+                    <p className="text-xs text-amber-800">
+                      {mixedGroups === true ? (
+                        <><span className="font-semibold">Teams saved — now set the playing groups.</span> Assign every player to the group they&apos;re actually playing with below before you can activate the round.</>
+                      ) : (
+                        <><span className="font-semibold">Teams saved — one more step.</span> Choose whether the playing groups are different from your teams. Select <span className="font-semibold">No</span> and save to finish setup, or <span className="font-semibold">Yes</span> to set up the playing groups before activating the round.</>
+                      )}
+                    </p>
+                  </div>
+                )}
+                <h3 className="font-semibold text-gray-900 text-sm">Mixed Groups</h3>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Are playing groups different from ball-game teams?</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleMixedGroups(true)}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
+                        mixedGroups === true
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }`}>
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleMixedGroups(false)}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition ${
+                        mixedGroups === false
+                          ? 'border-gray-700 bg-gray-100 text-gray-800'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }`}>
+                      No
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">Each playing group gets its own scorekeeper PIN, separate from ball-game teams.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={saveMixedGroupsChoice}
+                  disabled={mixedGroupsPending || mixedGroups === null}
+                  className="w-full text-white py-2 rounded-xl font-semibold text-sm disabled:opacity-60 transition"
+                  style={{ background: navy }}>
+                  {mixedGroupsPending ? 'Saving…' : 'Save Mixed Groups'}
+                </button>
+
+                {mixedGroups && mixedGroupsAnswered && (
+                  <div className="space-y-3 border-t border-gray-100 pt-3">
+                    {/* Step 1: set number of groups */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Number of Playing Groups</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" min="1" max="20"
+                          value={targetGroupCount || ''}
+                          placeholder="e.g. 4"
+                          onChange={e => {
+                            setTargetGroupCount(Math.max(0, parseInt(e.target.value) || 0))
+                            setGroupCountSaved(false)
+                          }}
+                          className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          disabled={targetGroupCount === 0}
+                          onClick={async () => {
+                            if (round && targetGroupCount > 0) {
+                              await setPlayingGroupCount(round.id, targetGroupCount)
+                              setGroupCountSaved(true)
+                              setSetupLS(round.id, 'groupCountSaved', true)
+                            }
+                          }}
+                          className="px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition"
+                          style={{ background: navy }}>
+                          Set
+                        </button>
+                        {groupCountSaved && targetGroupCount > 0 && (
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${livePlayingGroups.length === targetGroupCount ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {livePlayingGroups.length} / {targetGroupCount} added
+                          </span>
+                        )}
+                      </div>
+                      {!groupCountSaved && (
+                        <p className="text-xs text-amber-700 mt-1.5">Enter the number of groups then click <strong>Set</strong> to continue.</p>
+                      )}
+                    </div>
+
+                    {/* Step 2: add groups (only after Set is clicked) */}
+                    {groupCountSaved && targetGroupCount > 0 && (
+                      <>
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Playing Groups</p>
+                        {groupError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1.5">{groupError}</p>}
+
+                        {/* Create group form — hidden when at capacity */}
+                        {livePlayingGroups.length < targetGroupCount ? (
+                          <div className="flex gap-2 flex-wrap">
+                            <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
+                              placeholder="Group name" className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                            <div className="relative">
+                              <input type={showNewGroupPin ? 'text' : 'password'} value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
+                                placeholder="4-digit PIN" maxLength={4} inputMode="numeric"
+                                className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 pr-8 text-sm focus:outline-none" />
+                              <button type="button" tabIndex={-1} onClick={() => setShowNewGroupPin(v => !v)}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                                {showNewGroupPin ? '🙈' : '👁'}
+                              </button>
+                            </div>
+                            <button type="button" onClick={handleCreateGroup} disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim()}
+                              className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
+                              + Add
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-green-700 bg-green-50 rounded px-3 py-2 font-medium">All {targetGroupCount} groups added ✓</p>
+                        )}
+                      </>
+                    )}
+
+                    {/* Group cards — each has inline player assignment */}
+                    {groupCountSaved && livePlayingGroups.map((g) => {
+                      const allKnownPlayers = [...players, ...liveManualPlayers]
+                      const assignedPlayerIds = new Set(liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).map(gp => gp.player_id))
+                      const assignedPlayers = allKnownPlayers.filter(p => assignedPlayerIds.has(p.id))
+                      const allAssignedIds = new Set(liveGroupPlayers.map(gp => gp.player_id))
+                      // Only show team players (non-null team_id) in the "assign from team" list
+                      const unassignedTeamPlayers = players.filter(p => p.team_id !== null && !allAssignedIds.has(p.id))
+                      const groupFull = assignedPlayers.length >= 5
+                      const isExpanded = expandedGroupAssign === g.id
+                      const isCardExpanded = expandedGroupCards.has(g.id)
+                      const toggleCard = () => setExpandedGroupCards(prev => {
+                        const next = new Set(prev)
+                        next.has(g.id) ? next.delete(g.id) : next.add(g.id)
+                        return next
+                      })
+                      return (
+                        <div key={g.id} className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-2.5">
+                          {/* Header — always visible, clickable to expand */}
+                          <div className="flex items-center justify-between cursor-pointer select-none" onClick={toggleCard}>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-semibold text-gray-800">{g.name}</p>
+                                <span className="text-gray-400 text-xs">{isCardExpanded ? '▲' : '▼'}</span>
+                              </div>
+                              <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
+                            </div>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupId(g.id) }}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+                          </div>
+
+                          {/* Assigned player chips — always visible */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {assignedPlayers.map((p) => (
+                              <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
+                                {p.name}
+                                <button type="button"
+                                  onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
+                                  className="ml-0.5 hover:text-red-600 leading-none">×</button>
+                              </span>
+                            ))}
+                            {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned yet</p>}
+                          </div>
+
+                          {/* Expanded body — add-player panel + side game */}
+                          {isCardExpanded && <>
+
+                          {/* Inline add-player panel */}
+                          {!groupFull && (
+                            isExpanded ? (
+                              <div className="border border-gray-200 rounded-lg bg-white p-2.5 space-y-2">
+                                {/* Team players search */}
+                                <input
+                                  type="text"
+                                  placeholder="Search team players…"
+                                  value={groupAssignSearch}
+                                  onChange={e => setGroupAssignSearch(e.target.value)}
+                                  autoFocus
+                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                                />
+                                <div className="max-h-36 overflow-y-auto space-y-0.5">
+                                  {unassignedTeamPlayers
+                                    .filter(p => p.name.toLowerCase().includes(groupAssignSearch.toLowerCase()))
+                                    .map(p => {
+                                      const teamName = teams.find(t => t.id === p.team_id)?.name
+                                      return (
+                                        <button key={p.id} type="button"
+                                          onClick={() => handleSetPlayerGroup(p.id, g.id)}
+                                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-blue-50 text-left transition">
+                                          <div>
+                                            <span className="text-sm text-gray-800">{p.name}</span>
+                                            {teamName && <span className="text-xs text-gray-400 ml-1.5">{teamName}</span>}
+                                          </div>
+                                          <span className="text-xs text-blue-600 font-semibold flex-shrink-0">+ Add</span>
+                                        </button>
+                                      )
+                                    })}
+                                  {unassignedTeamPlayers.filter(p => p.name.toLowerCase().includes(groupAssignSearch.toLowerCase())).length === 0 && (
+                                    <p className="text-xs text-gray-400 text-center py-2">
+                                      {unassignedTeamPlayers.length === 0 ? 'All team players are assigned' : 'No matches'}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Manual add */}
+                                <div className="border-t border-gray-100 pt-2">
+                                  <p className="text-xs text-gray-500 mb-1.5">Or add guest manually:</p>
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Guest name"
+                                      value={manualGroupName}
+                                      onChange={e => setManualGroupName(e.target.value)}
+                                      onKeyDown={async e => {
+                                        if (e.key === 'Enter' && manualGroupName.trim()) {
+                                          setManualGroupPending(true)
+                                          const hcp = manualGroupHandicap.trim() !== '' ? parseFloat(manualGroupHandicap) : null
+                                          const res = await addManualPlayerToGroup(g.id, manualGroupName.trim(), isNaN(hcp as number) ? null : hcp)
+                                          setManualGroupPending(false)
+                                          if (!res.error && res.id) {
+                                            const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false, handicap: isNaN(hcp as number) ? null : hcp }
+                                            setLiveManualPlayers(prev => [...prev, newP])
+                                            setLiveGroupPlayers(prev => [...prev, { playing_group_id: g.id, player_id: res.id! }])
+                                            setManualGroupName('')
+                                            setManualGroupHandicap('')
+                                          }
+                                        }
+                                      }}
+                                      className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
+                                    />
+                                    <input
+                                      type="number"
+                                      placeholder="HCP"
+                                      value={manualGroupHandicap}
+                                      onChange={e => setManualGroupHandicap(e.target.value)}
+                                      step="0.1"
+                                      className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none text-center"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={!manualGroupName.trim() || manualGroupPending}
+                                      onClick={async () => {
+                                        if (!manualGroupName.trim()) return
+                                        setManualGroupPending(true)
+                                        const hcp = manualGroupHandicap.trim() !== '' ? parseFloat(manualGroupHandicap) : null
+                                        const res = await addManualPlayerToGroup(g.id, manualGroupName.trim(), isNaN(hcp as number) ? null : hcp)
+                                        setManualGroupPending(false)
+                                        if (!res.error && res.id) {
+                                          const newP: Player = { id: res.id, team_id: null, name: manualGroupName.trim(), position: null, skins_participant: false, handicap: isNaN(hcp as number) ? null : hcp }
+                                          setLiveManualPlayers(prev => [...prev, newP])
+                                          setLiveGroupPlayers(prev => [...prev, { playing_group_id: g.id, player_id: res.id! }])
+                                          setManualGroupName('')
+                                          setManualGroupHandicap('')
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition"
+                                      style={{ background: navy }}>
+                                      {manualGroupPending ? '…' : 'Add'}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <button type="button"
+                                  onClick={() => { setExpandedGroupAssign(null); setGroupAssignSearch(''); setManualGroupName(''); setManualGroupHandicap('') }}
+                                  className="text-xs text-gray-400 hover:text-gray-600">
+                                  Done
+                                </button>
+                              </div>
+                            ) : (
+                              <button type="button"
+                                onClick={() => { setExpandedGroupAssign(g.id); setGroupAssignSearch(''); setManualGroupName(''); setManualGroupHandicap('') }}
+                                className="text-xs text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 font-medium transition">
+                                + Add Player
+                              </button>
+                            )
+                          )}
+                          {groupFull && (
+                            <p className="text-xs text-gray-400 italic">Group is full (5 players max)</p>
+                          )}
+
+                          {/* ── Side Game settings (only when group has players) ── */}
+                          {assignedPlayers.length > 0 && (() => {
+                            const sg = groupSideGames[g.id] ?? initGroupSideGame(g)
+                            const hasSideGame = sg.daytonaEnabled || sg.bankerEnabled
+                            const isOpen = expandedGroupSideGame === g.id || hasSideGame
+                            return (
+                              <div className="border-t border-gray-100 pt-2.5 space-y-2">
+                                {!isOpen ? (
+                                  <button type="button"
+                                    onClick={() => setExpandedGroupSideGame(g.id)}
+                                    className="text-xs text-purple-600 border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-50 font-medium transition">
+                                    + Add Side Game
+                                  </button>
+                                ) : (
+                                <><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center justify-between">
+                                  Side Game
+                                  {!hasSideGame && (
+                                    <button type="button" onClick={() => setExpandedGroupSideGame(null)}
+                                      className="text-gray-400 hover:text-gray-600 text-xs font-normal normal-case">✕ Cancel</button>
+                                  )}
+                                </p>
+
+                                {/* Daytona — hidden when Banker On */}
+                                {!sg.bankerEnabled && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
+                                      <button type="button"
+                                        onClick={() => {
+                                          const doIt = () => updateGroupSG(g.id, { daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: !sg.daytonaEnabled })
+                                          if (sg.daytonaEnabled && round?.is_started) {
+                                            const captured = sg
+                                            setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: async () => {
+                                              updateGroupSG(g.id, { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', autoStrokes: false, saving: true })
+                                              await updatePlayingGroupSettings(g.id, {
+                                                daytona_variant: null,
+                                                banker_side_game: captured.bankerEnabled,
+                                                banker_side_game_min_bet: captured.bankerEnabled ? (parseFloat(captured.bankerMinBet) || 2) : null,
+                                                auto_strokes: false,
+                                              })
+                                              updateGroupSG(g.id, { saving: false, saved: true })
+                                            }})
+                                          } else { doIt() }
+                                        }}
+                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.daytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                        {sg.daytonaEnabled ? 'On' : 'Off'}
+                                      </button>
+                                    </div>
+                                    {sg.daytonaEnabled && (
+                                      <div className="space-y-1.5 pl-1">
+                                        <div className="flex gap-2">
+                                          <select value={sg.daytonaType} onChange={e => updateGroupSG(g.id, { daytonaType: e.target.value, daytonaSubVariant: '' })}
+                                            className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none">
+                                            <option value="" disabled>Type…</option>
+                                            <option value="4">4-Man</option>
+                                            <option value="5">5-Man</option>
+                                          </select>
+                                          {sg.daytonaType === '5' && (
+                                            <select value={sg.daytonaSubVariant} onChange={e => updateGroupSG(g.id, { daytonaSubVariant: e.target.value })}
+                                              className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none">
+                                              <option value="" disabled>Variant…</option>
+                                              <option value="normal">Normal</option>
+                                              <option value="flares">Flares</option>
+                                            </select>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
+                                          <input type="number" min="0.1" step="0.01" placeholder="e.g. 0.25"
+                                            value={sg.daytonaPayout} onChange={e => updateGroupSG(g.id, { daytonaPayout: e.target.value })}
+                                            className="w-24 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+
+                                {/* Banker — hidden when Daytona On */}
+                                {!sg.daytonaEnabled && (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
+                                      <button type="button"
+                                        onClick={() => {
+                                          const doIt = () => updateGroupSG(g.id, { bankerEnabled: !sg.bankerEnabled, autoStrokes: !sg.bankerEnabled })
+                                          if (sg.bankerEnabled && round?.is_started) {
+                                            const captured = sg
+                                            setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: async () => {
+                                              updateGroupSG(g.id, { bankerEnabled: false, autoStrokes: false, saving: true })
+                                              const daytonaVariant = captured.daytonaEnabled
+                                                ? captured.daytonaType === '4' ? `4man|${captured.daytonaPayout || '0'}` : captured.daytonaType === '5' ? `5man-${captured.daytonaSubVariant || 'normal'}|${captured.daytonaPayout || '0'}` : null
+                                                : null
+                                              await updatePlayingGroupSettings(g.id, {
+                                                daytona_variant: daytonaVariant,
+                                                banker_side_game: false,
+                                                banker_side_game_min_bet: null,
+                                                auto_strokes: false,
+                                              })
+                                              updateGroupSG(g.id, { saving: false, saved: true })
+                                            }})
+                                          } else { doIt() }
+                                        }}
+                                        className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.bankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                        {sg.bankerEnabled ? 'On' : 'Off'}
+                                      </button>
+                                    </div>
+                                    {sg.bankerEnabled && (
+                                      <div className="flex items-center gap-2 pl-1">
+                                        <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
+                                        <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
+                                          value={sg.bankerMinBet} onChange={e => updateGroupSG(g.id, { bankerMinBet: e.target.value })}
+                                          className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+
+                                {/* Auto Strokes — only when a side game is On */}
+                                {(sg.daytonaEnabled || sg.bankerEnabled) && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-gray-600">Auto Strokes</span>
+                                    <button type="button"
+                                      onClick={() => updateGroupSG(g.id, { autoStrokes: !sg.autoStrokes })}
+                                      className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${sg.autoStrokes ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                      {sg.autoStrokes ? 'On' : 'Off'}
+                                    </button>
+                                    <span className="text-xs text-gray-400">Based on handicaps</span>
+                                  </div>
+                                )}
+                                {/* Stroke rounding — round-level, surfaced here for non-Daytona/Banker formats */}
+                                {round?.format !== 'daytona' && round?.format !== 'banker' && (sg.daytonaEnabled || sg.bankerEnabled) && sg.autoStrokes && (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
+                                    {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
+                                      <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
+                                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full border transition"
+                                        style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                                        {mlabel}
+                                      </button>
+                                    ))}
+                                    <span className="text-xs text-gray-400 w-full">Round Down: 7.9 → 7 · Round Up: 7.5 → 8. Applies to the whole round.</span>
+                                  </div>
+                                )}
+
+                                {/* Save button */}
+                                <div className="flex items-center gap-2 pt-0.5">
+                                  <button type="button"
+                                    disabled={sg.saving || (sg.daytonaEnabled && !sg.daytonaType)}
+                                    onClick={async () => {
+                                      updateGroupSG(g.id, { saving: true, saved: false })
+                                      const daytonaVariant = sg.daytonaEnabled
+                                        ? sg.daytonaType === '4' ? `4man|${sg.daytonaPayout || '0'}` : sg.daytonaType === '5' ? `5man-${sg.daytonaSubVariant || 'normal'}|${sg.daytonaPayout || '0'}` : null
+                                        : null
+                                      await updatePlayingGroupSettings(g.id, {
+                                        daytona_variant: daytonaVariant,
+                                        banker_side_game: sg.bankerEnabled,
+                                        banker_side_game_min_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMinBet) || 2) : null,
+                                        auto_strokes: (sg.daytonaEnabled || sg.bankerEnabled) ? sg.autoStrokes : false,
+                                      })
+                                      updateGroupSG(g.id, { saving: false, saved: true })
+                                      if (!sg.daytonaEnabled && !sg.bankerEnabled) setExpandedGroupSideGame(null)
+                                    }}
+                                    className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white disabled:opacity-40 transition"
+                                    style={{ background: navy }}>
+                                    {sg.saving ? 'Saving…' : 'Save'}
+                                  </button>
+                                  {sg.saved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
+                                </div>
+                                </>)}
+                              </div>
+                            )
+                          })()}
+                          </>}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
