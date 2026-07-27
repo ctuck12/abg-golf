@@ -787,8 +787,10 @@ export default function PlayingGroupScoreEntry({
               )
             })()}
 
-            {/* Handicap stroke transparency — spells out if/where/why strokes apply */}
+            {/* Handicap stroke transparency — spells out if/where/why strokes apply.
+                Only shown for games where handicap strokes come into play. */}
             {(() => {
+              if (!isDaytonaMode && !isBanker && !autoStrokes) return null
               const p = popupPlayer
               const fmtH = (h: number) => h < 0 ? `+${Math.abs(h)}` : `${h}`
               const roundingLabel = handicapRounding === 'nearest' ? 'Round Up (7.4 → 7, 7.5 → 8)' : 'Round Down (7.9 → 7)'
