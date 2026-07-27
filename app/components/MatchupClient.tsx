@@ -3245,9 +3245,9 @@ export default function MatchupClient({
                                         </span>
                                       </td>}
                                       <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: vpColor(line.total) }}>
+                                        {/* Winner checkmark lives by the name only — marking the score too is redundant */}
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           <VsParDisplay n={line.total} />
-                                          {tSeg?.settled && !tSeg.tied && tSeg.winnerId === line.id && chk}
                                         </span>
                                       </td>
                                       {medPressResults.map((pres, pi) => {
