@@ -2219,9 +2219,9 @@ export default function AdminDashboard({
                     <label className="block text-xs font-medium text-gray-600 mb-1">{skinsMode === 'pot' ? 'Buy-In Per Player ($)' : 'Amount Per Skin ($)'}</label>
                     <input
                       type="number" name="skins_amount" min="0" step="1"
-                      value={skinsAmount}
+                      value={skinsAmount === 0 ? '' : skinsAmount}
+                      placeholder={skinsMode === 'pot' ? 'e.g. 10' : 'e.g. 5'}
                       onChange={(e) => setSkinsAmount(parseFloat(e.target.value) || 0)}
-                      onFocus={(e) => { if (skinsAmount === 0) e.target.value = '' }}
                       disabled={!skinsEnabled}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none disabled:opacity-40 disabled:bg-gray-50" />
                     <p className="text-xs text-gray-400 mt-1">
