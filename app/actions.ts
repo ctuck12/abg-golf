@@ -365,9 +365,9 @@ export async function updateBallValues(_prev: unknown, formData: FormData) {
 export async function addTeam(_prev: unknown, formData: FormData) {
   const name = (formData.get('name') as string)?.trim()
   const roundId = formData.get('roundId') as string
-  // PIN is hidden when mixed groups is enabled — auto-generate a random one
+  // PIN is hidden when mixed groups is enabled — default to 1234
   const rawPin = (formData.get('pin') as string)?.trim()
-  const pin = rawPin || String(Math.floor(1000 + Math.random() * 9000))
+  const pin = rawPin || '1234'
   if (!name || !roundId) return { error: 'All fields required.' }
   if (!/^\d{4}$/.test(pin)) return { error: 'PIN must be exactly 4 digits.' }
 

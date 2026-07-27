@@ -49,8 +49,9 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
+// Auto-generated PINs always default to 1234 — admins change them if they want
 function randomPin(): string {
-  return String(Math.floor(1000 + Math.random() * 9000))
+  return '1234'
 }
 
 function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number, rng?: () => number): GeneratedTeam[] {
