@@ -346,11 +346,15 @@ export default function PlayingGroupScoreEntry({
   function getAutoStrokes(holeNumber: number): string[] {
     const hole = holes.find((h) => h.hole_number === holeNumber)
     if (!hole?.stroke_index) return []
+    // Each player's handicap is rounded to a whole playing handicap first,
+    // then strokes = difference from the group's lowest playing handicap
+    const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
     const groupHcps = players.map((p) => p.handicap).filter((h): h is number => h != null)
-    const minHcp = groupHcps.length ? Math.min(...groupHcps) : 0
+    if (!groupHcps.length) return []
+    const minEff = Math.min(...groupHcps.map(effHcp))
     return players.filter((p) => {
       if (p.handicap == null) return false
-      const relStrokes = Math.max(0, roundHcp(p.handicap - minHcp, handicapRounding))
+      const relStrokes = Math.max(0, effHcp(p.handicap) - minEff)
       return relStrokes > 0 && hole.stroke_index! <= relStrokes
     }).map((p) => p.id)
   }
@@ -857,14 +861,16 @@ export default function PlayingGroupScoreEntry({
                 )
               }
 
-              // Standard auto-strokes: relative to the lowest handicap in the group
+              // Standard auto-strokes: each handicap rounds to a whole playing
+              // handicap first, then strokes = difference from the group's lowest
+              const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
               const groupWithHcp = players.filter((pl) => pl.handicap != null)
-              const minHcp = Math.min(...groupWithHcp.map((pl) => pl.handicap!))
-              const lowPlayers = groupWithHcp.filter((pl) => pl.handicap === minHcp)
+              const minEff = Math.min(...groupWithHcp.map((pl) => effHcp(pl.handicap!)))
+              const lowPlayers = groupWithHcp.filter((pl) => effHcp(pl.handicap!) === minEff)
               const lowNames = lowPlayers.map((pl) => pl.name.split(' ')[0]).join(' & ')
-              const isLow = p.handicap === minHcp
-              const rawDiff = p.handicap - minHcp
-              const rel = Math.max(0, roundHcp(rawDiff, handicapRounding))
+              const pEff = effHcp(p.handicap)
+              const isLow = pEff === minEff
+              const rel = Math.max(0, pEff - minEff)
               const autoHoleNums = holes
                 .filter((h) => h.stroke_index != null && h.stroke_index <= rel)
                 .map((h) => h.hole_number)
@@ -879,7 +885,6 @@ export default function PlayingGroupScoreEntry({
                 if (manHas && !autoHas) addedByKeeper.push(h.hole_number)
                 if (!manHas && autoHas) removedByKeeper.push(h.hole_number)
               }
-              const fmtDiff = parseFloat(rawDiff.toFixed(1))
 
               return section(
                 <div className="space-y-2">
@@ -902,17 +907,17 @@ export default function PlayingGroupScoreEntry({
                   <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
                     <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">How this was calculated</p>
                     <p className="text-xs text-gray-600">
-                      Strokes are given off the lowest handicap in the group: <span className="font-semibold text-gray-800">{lowNames} ({fmtH(minHcp)} HCP)</span>.
+                      Rounding for this round: <span className="font-semibold text-gray-800">{roundingLabel}</span> — each player&apos;s handicap becomes a whole playing handicap first.
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Strokes are given off the lowest playing handicap in the group: <span className="font-semibold text-gray-800">{lowNames} ({lowPlayers.length === 1 ? `${fmtH(lowPlayers[0].handicap!)} → plays as ${fmtH(minEff)}` : `plays as ${fmtH(minEff)}`})</span>.
                       {isLow && ' That’s you — the low player never receives strokes; everyone else plays off you.'}
                     </p>
                     {!isLow && (
                       <p className="text-xs text-gray-600">
-                        {p.name.split(' ')[0]} ({fmtH(p.handicap)}) − {lowNames} ({fmtH(minHcp)}) = <span className="font-semibold text-gray-800">{fmtDiff}</span>, rounded to <span className="font-semibold text-gray-800">{rel} stroke{rel !== 1 ? 's' : ''}</span>.
+                        {p.name.split(' ')[0]} ({fmtH(p.handicap)} → plays as {fmtH(pEff)}) − {lowNames} ({fmtH(minEff)}) = <span className="font-semibold text-gray-800">{rel} stroke{rel !== 1 ? 's' : ''}</span>.
                       </p>
                     )}
-                    <p className="text-xs text-gray-600">
-                      Rounding for this round: <span className="font-semibold text-gray-800">{roundingLabel}</span>.
-                    </p>
                     {rel > 0 && (
                       <p className="text-xs text-gray-600">
                         The {rel === 1 ? 'stroke lands on the #1 ranked' : `${rel} strokes land on the ${rel} hardest`} hole{rel !== 1 ? 's' : ''} by stroke index (1–{rel}).

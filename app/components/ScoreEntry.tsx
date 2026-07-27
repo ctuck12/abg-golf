@@ -325,12 +325,16 @@ export default function ScoreEntry({
     if (!hole?.stroke_index) return []
     // Compute min handicap from the whole playing group (all group players for side game, team players for pure Daytona)
     const groupIds = isDaytonaSideGame && sideGameGroupPlayerIds?.length ? sideGameGroupPlayerIds : players.map((p) => p.id)
+    // Each player's handicap is rounded to a whole playing handicap first,
+    // then strokes = difference from the group's lowest playing handicap
+    const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
     const groupHcps = groupIds.map((id) => allRoundPlayerHandicaps[id]).filter((h): h is number => h != null)
-    const minHcp = groupHcps.length ? Math.min(...groupHcps) : 0
+    if (!groupHcps.length) return []
+    const minEff = Math.min(...groupHcps.map(effHcp))
     return players.filter((p) => {
       const hcp = allRoundPlayerHandicaps[p.id] ?? null
       if (hcp == null) return false
-      const relStrokes = Math.max(0, roundHcp(hcp - minHcp, handicapRounding))
+      const relStrokes = Math.max(0, effHcp(hcp) - minEff)
       return relStrokes > 0 && hole.stroke_index! <= relStrokes
     }).map((p) => p.id)
   }

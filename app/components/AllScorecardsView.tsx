@@ -100,12 +100,14 @@ export default function AllScorecardsView({
     return () => { clearInterval(interval) }
   }, [roundId, allPlayerIds])
 
-  // Build per-team min handicap for fallback stroke computation
+  // Build per-team min playing handicap (each handicap rounded to a whole
+  // number first) for fallback stroke computation
+  const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
   const teamMinHcpMap = new Map<string, number>()
   for (const p of initialPlayers) {
     if (p.teamId == null || p.handicap == null) continue
     const cur = teamMinHcpMap.get(p.teamId) ?? Infinity
-    if (p.handicap < cur) teamMinHcpMap.set(p.teamId, p.handicap)
+    if (effHcp(p.handicap) < cur) teamMinHcpMap.set(p.teamId, effHcp(p.handicap))
   }
 
   // Flip initialHoleStrokes (player→holes) into holeToPlayerIds (hole→players)
@@ -118,14 +120,14 @@ export default function AllScorecardsView({
   }
 
   // Returns true if this player gets a stroke on this hole.
-  // Prefers DB hole_strokes data; falls back to Math.floor(hcp - minHcp) formula.
+  // Prefers DB hole_strokes data; falls back to whole-playing-handicap difference.
   const playerGetsStroke = (player: PlayerInfo, holeNumber: number, strokeIndex: number | null | undefined): boolean => {
     const dbHoleData = holeToPlayerIds[holeNumber]
     if (dbHoleData !== undefined) return dbHoleData.includes(player.id)
     if (player.handicap == null || player.teamId == null || !strokeIndex) return false
     const minHcp = teamMinHcpMap.get(player.teamId) ?? null
     if (minHcp === null) return false
-    const rel = Math.max(0, roundHcp(player.handicap - minHcp, handicapRounding))
+    const rel = Math.max(0, effHcp(player.handicap) - minHcp)
     return rel > 0 && strokeIndex <= rel
   }
 
