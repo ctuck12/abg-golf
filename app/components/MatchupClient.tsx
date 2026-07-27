@@ -2853,7 +2853,7 @@ export default function MatchupClient({
                             return (
                               <option key={p.id} value={p.id}
                                 disabled={inOtherMedley || (p.id !== slot && medSlots.includes(p.id))}>
-                                {p.name}{inOtherMedley ? ' — already in a medley' : ''}
+                                {p.name}
                               </option>
                             )
                           })}
