@@ -459,6 +459,15 @@ export default function AdminDashboard({
   const [groupSideGames, setGroupSideGames] = useState<Record<string, GroupSideGame>>(() =>
     Object.fromEntries(playingGroups.map(g => [g.id, initGroupSideGame(g)]))
   )
+  // Human label for a playing group's side game state (null = none)
+  const groupSideGameLabel = (sg: GroupSideGame): string | null => {
+    if (sg.daytonaEnabled) {
+      const v = sg.daytonaType === '5' ? (sg.daytonaSubVariant === 'flares' ? 'Daytona 5-Man Flares' : 'Daytona 5-Man Normal') : 'Daytona 4-Man'
+      return `${v}${sg.daytonaPayout && sg.daytonaPayout !== '0' ? ` · $${sg.daytonaPayout}/pt` : ''}`
+    }
+    if (sg.bankerEnabled) return `Banker · $${sg.bankerMinBet || 2} min`
+    return null
+  }
   function updateGroupSG(groupId: string, patch: Partial<GroupSideGame>) {
     setGroupSideGames(prev => ({ ...prev, [groupId]: { ...prev[groupId], ...patch } }))
   }
@@ -1284,7 +1293,7 @@ export default function AdminDashboard({
                 </p>
                 <p className="text-xs text-gray-500">
                   Format: <span className="font-semibold text-gray-700">
-                    {isDaytona ? 'Daytona' : isTraditional ? 'Traditional' : isBanker ? `Banker (min bet $${round.banker_min_bet ?? 2})` : isHammerRound ? 'Hammer' : `${ballsCount}-Ball${roundIncludeTotal ? ' + Total' : ''}`}
+                    {isDaytona ? 'Daytona' : isTraditional ? 'Traditional' : isBanker ? `Banker (min bet $${round.banker_min_bet ?? 2})` : isHammerRound ? 'Hammer' : `${ballsCount}-Ball (${roundIncludeTotal ? 'Front, Back & Overall' : 'Front & Back only'})`}
                   </span>
                   {is9HoleRound ? ` · 9 Holes (${roundStartHole === 10 ? 'Back 9' : 'Front 9'})` : ' · 18 Holes'}
                 </p>
@@ -1307,6 +1316,31 @@ export default function AdminDashboard({
                   <p className="text-xs text-gray-500">Off</p>
                 )}
               </div>
+              {/* Side games across teams + groups */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Side Games</p>
+                {(() => {
+                  const items: { key: string; label: string }[] = []
+                  if (isStandard && mixedGroups === true) {
+                    for (const g of livePlayingGroups) {
+                      const lbl = groupSideGameLabel(groupSideGames[g.id] ?? initGroupSideGame(g))
+                      if (lbl) items.push({ key: `g-${g.id}`, label: `${g.name}: ${lbl}` })
+                    }
+                  }
+                  for (const t of teams) {
+                    const parts: string[] = []
+                    if (t.daytona_variant) {
+                      const [v, pay] = t.daytona_variant.split('|')
+                      parts.push(`Daytona ${v.startsWith('5man-flares') ? '5-Man Flares' : v.startsWith('5man') ? '5-Man Normal' : '4-Man'}${pay && pay !== '0' ? ` · $${pay}/pt` : ''}`)
+                    }
+                    if (t.banker_side_game) parts.push(`Banker · $${t.banker_side_game_min_bet ?? 2} min`)
+                    if (t.hammer_side_game) parts.push(`Hammer · $${t.hammer_base_bet ?? 1} ${t.hammer_format === 'match' ? 'Match' : 'Stroke'}`)
+                    if (parts.length > 0) items.push({ key: `t-${t.id}`, label: `${t.name}: ${parts.join(' · ')}` })
+                  }
+                  if (items.length === 0) return <p className="text-xs text-gray-500">None</p>
+                  return items.map((it) => <p key={it.key} className="text-xs text-amber-700 font-medium">{it.label}</p>)
+                })()}
+              </div>
               {/* Handicap settings */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Handicaps</p>
@@ -1325,12 +1359,10 @@ export default function AdminDashboard({
                       {livePlayingGroups.map((g) => {
                         const gp = liveGroupPlayers.filter((x) => x.playing_group_id === g.id)
                         const names = gp.map((x) => players.find((p) => p.id === x.player_id)?.name.split(' ')[0] ?? '?').join(', ')
-                        const sg: string[] = []
-                        if (g.daytona_variant) sg.push(`Daytona ${g.daytona_variant.startsWith('5man-flares') ? '5-Man Flares' : g.daytona_variant.startsWith('5man') ? '5-Man Normal' : '4-Man'}`)
-                        if (g.banker_side_game) sg.push(`Banker (min $${g.banker_side_game_min_bet ?? 2})`)
+                        const lbl = groupSideGameLabel(groupSideGames[g.id] ?? initGroupSideGame(g))
                         return (
                           <p key={g.id} className="text-xs text-gray-600 pl-2">
-                            <span className="font-semibold text-gray-800">{g.name}</span> (PIN {g.pin}): {names || 'no players'}{sg.length > 0 ? <span className="text-amber-700"> · {sg.join(' · ')}</span> : ''}
+                            <span className="font-semibold text-gray-800">{g.name}</span> (PIN {g.pin}): {names || 'no players'}{lbl ? <span className="text-amber-700"> · {lbl}</span> : <span className="text-gray-400"> · no side game</span>}
                           </p>
                         )
                       })}
@@ -3919,6 +3951,12 @@ export default function AdminDashboard({
                                 <span className="text-gray-400 text-xs">{isCardExpanded ? '▲' : '▼'}</span>
                               </div>
                               <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
+                              {(() => {
+                                const lbl = groupSideGameLabel(groupSideGames[g.id] ?? initGroupSideGame(g))
+                                return lbl
+                                  ? <p className="text-xs font-medium text-amber-700 mt-0.5">{lbl}</p>
+                                  : <p className="text-xs text-gray-400 mt-0.5">No side game</p>
+                              })()}
                             </div>
                             <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupId(g.id) }}
                               className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
