@@ -1625,6 +1625,7 @@ export default function LeaderboardClient({
                         const prevRow = rowIdx > 0 ? matchupPayouts.rows[rowIdx - 1] : null
                         const showH2HHeader = row.type === 'h2h' && (rowIdx === 0 || prevRow?.type !== 'h2h')
                         const showBBHeader = row.type === 'bb' && (rowIdx === 0 || prevRow?.type !== 'bb')
+                        const showMedleyHeader = row.type === 'medley' && (rowIdx === 0 || prevRow?.type !== 'medley')
                         return (
                           <div key={row.id}>
                           {showH2HHeader && (
@@ -1637,12 +1638,37 @@ export default function LeaderboardClient({
                               <p className="text-xs font-bold uppercase tracking-wide text-gray-500">2v2 Best Ball</p>
                             </div>
                           )}
-                          <div className={rowIdx > 0 && !showH2HHeader && !showBBHeader ? 'border-t border-gray-100' : ''}>
+                          {showMedleyHeader && (
+                            <div className={`px-4 py-2 bg-gray-50 ${rowIdx > 0 ? 'border-t border-gray-200' : ''}`}>
+                              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Medley</p>
+                            </div>
+                          )}
+                          <div className={rowIdx > 0 && !showH2HHeader && !showBBHeader && !showMedleyHeader ? 'border-t border-gray-100' : ''}>
                             <div className="px-4 pt-3 pb-1">
                               <p className="text-sm font-bold text-gray-800 leading-snug">{row.label}</p>
                               <p className="text-xs font-medium mt-0.5" style={{ color: row.segments.length === 0 ? '#9ca3af' : gold }}>{row.betLabel}</p>
                             </div>
-                            {row.segments.length === 0 ? <p className="px-4 pb-3 text-xs text-gray-400 italic">No bet amount set</p> : (
+                            {row.segments.length === 0 ? <p className="px-4 pb-3 text-xs text-gray-400 italic">No bet amount set</p> : !nr && row.segments.length > 1 ? (
+                              <div className="px-4 pb-3 pt-2 bg-gray-50 mx-3 mb-3 rounded-lg space-y-1">
+                                {row.segments.map((seg) => (
+                                  <div key={seg.name} className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-gray-400 mr-3 w-10 flex-shrink-0">{seg.name}</span>
+                                    <span className="text-xs font-semibold flex-1">
+                                      {seg.settled
+                                        ? seg.tied
+                                          ? <span className="text-gray-400 italic">Tied — push</span>
+                                          : <span className="text-green-700">{seg.winnerLabel}</span>
+                                        : <span className="text-gray-300">Pending</span>}
+                                    </span>
+                                    <span className="text-xs font-bold whitespace-nowrap">
+                                      {seg.settled && !seg.tied
+                                        ? <span className="text-green-600">${seg.amount % 1 === 0 ? seg.amount : seg.amount.toFixed(2)}{seg.perPlayer ? <span className="font-normal text-green-500">/player</span> : ''}</span>
+                                        : null}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
                               <div className="flex items-center justify-between px-4 pb-3 pt-1 bg-gray-50 mx-3 mb-3 rounded-lg">
                                 <span className="text-xs font-bold text-gray-400 mr-3">Result</span>
                                 <span className="text-xs font-semibold flex-1">
