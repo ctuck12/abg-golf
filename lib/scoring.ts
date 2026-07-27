@@ -1625,8 +1625,9 @@ export function computeAllMatchupPayouts(
       id: mm.id, type: 'medley',
       label: names.join(' vs '),
       betLabel: amtNum > 0 ? `$${amtNum} ${mm.bet_type === 'nassau' ? 'Nassau' : 'Overall'} · Low Ball` : 'No bet configured',
+      // Display the winner's TOTAL take (amount from each other player)
       segments: amtNum > 0 ? medSegs.map((s) => ({
-        name: s.name, settled: s.settled, tied: s.tied, amount: s.amount, perPlayer: true,
+        name: s.name, settled: s.settled, tied: s.tied, amount: s.amount * (entries.length - 1), perPlayer: false,
         winnerLabel: s.winnerId ? (players.find((p) => p.id === s.winnerId)?.name ?? null) : null,
       })) : [],
     })
