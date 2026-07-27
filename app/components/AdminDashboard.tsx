@@ -3664,7 +3664,7 @@ export default function AdminDashboard({
                                     return (
                                       <div key={p.id} className="flex items-center gap-1.5">
                                         <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: '#dbeafe', color: '#1e40af' }}>
-                                          {p.name.split(' ')[0]}
+                                          {p.name}
                                           {skinsEnabled === true && (
                                             <button type="button"
                                               onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
