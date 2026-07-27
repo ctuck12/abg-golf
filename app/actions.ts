@@ -1066,7 +1066,7 @@ export async function saveMedleyMatchup(
   betType: string,
   amount: number
 ) {
-  if (players.length < 3 || players.length > 5) return { error: 'Medley needs 3–5 players.' }
+  if (players.length < 3) return { error: 'Medley needs at least 3 players.' }
   const sb = createServerClient()
   const { data, error } = await sb.from('medley_matchups').insert({
     round_id: roundId, players, bet_type: betType, amount,

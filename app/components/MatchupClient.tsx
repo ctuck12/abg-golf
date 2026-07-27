@@ -418,7 +418,7 @@ export default function MatchupClient({
   const [medleyMatchups, setMedleyMatchups] = useState<MedleyMatchup[]>(initialMedleyMatchups)
   // Medley create form
   const [showMedleyForm, setShowMedleyForm] = useState(false)
-  const [medSlots, setMedSlots] = useState<string[]>(['', '', '', '', ''])
+  const [medSlots, setMedSlots] = useState<string[]>(['', '', ''])
   const [medBetType, setMedBetType] = useState<'straight' | 'nassau'>('straight')
   const [medAmount, setMedAmount] = useState('')
   const [medStrokesEnabled, setMedStrokesEnabled] = useState(false)
@@ -753,7 +753,7 @@ export default function MatchupClient({
     const res = await saveMedleyMatchup(roundId, entries, medBetType, amt)
     if (!res.error && res.id) {
       setMedleyMatchups((prev) => [...prev, { id: res.id!, players: entries, bet_type: medBetType, amount: amt }])
-      setMedSlots(['', '', '', '', ''])
+      setMedSlots(['', '', ''])
       setMedBetType('straight'); setMedAmount('')
       setMedStrokesEnabled(false); setMedStrokesDraft({})
       setShowMedleyForm(false)
@@ -2840,17 +2840,27 @@ export default function MatchupClient({
             {showMedleyForm && (
               <div className="px-4 pt-3 pb-3 border-b border-gray-100">
                 <div className="space-y-3 bg-gray-50 rounded-xl p-3 border border-gray-200">
-                  <p className="text-xs text-gray-500">Pick 3–5 players — lowest score wins the bet from each of the others.</p>
+                  <p className="text-xs text-gray-500">Pick at least 3 players (no limit) — lowest score wins the bet from each of the others.</p>
                   <div className="space-y-1.5">
                     {medSlots.map((slot, i) => (
-                      <select key={i} value={slot}
-                        onChange={(e) => setMedSlots((prev) => prev.map((s, j) => j === i ? e.target.value : s))}
-                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
-                        <option value="">{i < 3 ? `Player ${i + 1}…` : `Player ${i + 1} (optional)…`}</option>
-                        {players.map((p) => <option key={p.id} value={p.id}
-                          disabled={p.id !== slot && medSlots.includes(p.id)}>{p.name}</option>)}
-                      </select>
+                      <div key={i} className="flex items-center gap-1.5">
+                        <select value={slot}
+                          onChange={(e) => setMedSlots((prev) => prev.map((s, j) => j === i ? e.target.value : s))}
+                          className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+                          <option value="">{`Player ${i + 1}…`}</option>
+                          {players.map((p) => <option key={p.id} value={p.id}
+                            disabled={p.id !== slot && medSlots.includes(p.id)}>{p.name}</option>)}
+                        </select>
+                        {i >= 3 && (
+                          <button type="button" onClick={() => setMedSlots((prev) => prev.filter((_, j) => j !== i))}
+                            className="text-gray-400 hover:text-red-500 text-sm px-1 flex-shrink-0">✕</button>
+                        )}
+                      </div>
                     ))}
+                    <button type="button" onClick={() => setMedSlots((prev) => [...prev, ''])}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+                      + Add Player
+                    </button>
                   </div>
                   <div className="flex gap-2 items-end">
                     <div className="flex-1">
@@ -2903,7 +2913,7 @@ export default function MatchupClient({
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-                    <button onClick={() => { setShowMedleyForm(false); setMedSlots(['', '', '', '', '']); setMedBetType('straight'); setMedAmount(''); setMedStrokesEnabled(false); setMedStrokesDraft({}) }}
+                    <button onClick={() => { setShowMedleyForm(false); setMedSlots(['', '', '']); setMedBetType('straight'); setMedAmount(''); setMedStrokesEnabled(false); setMedStrokesDraft({}) }}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">Cancel</button>
                     <button onClick={handleCreateMedley}
                       disabled={medSlots.filter(Boolean).length < 3 || new Set(medSlots.filter(Boolean)).size !== medSlots.filter(Boolean).length || !medAmount.trim() || !(parseFloat(medAmount) > 0) || savingMedley}
