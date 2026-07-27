@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitGroupHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints, playerCoversHole, roundHcp } from '@/lib/scoring'
@@ -746,7 +746,7 @@ export default function PlayingGroupScoreEntry({
       {/* Player score popup */}
       {playerPopup && popupPlayer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setPlayerPopup(null)}>
-          <div className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-8 overflow-y-auto" style={{ maxHeight: '85dvh' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-gray-900">{popupPlayer.name}</h3>
@@ -783,6 +783,148 @@ export default function PlayingGroupScoreEntry({
                       <p className="text-xl font-bold" style={{ color: vpColor(vp) }}>{fmtVp(vp)}</p>
                     </div>
                   ))}
+                </div>
+              )
+            })()}
+
+            {/* Handicap stroke transparency — spells out if/where/why strokes apply */}
+            {(() => {
+              const p = popupPlayer
+              const fmtH = (h: number) => h < 0 ? `+${Math.abs(h)}` : `${h}`
+              const roundingLabel = handicapRounding === 'nearest' ? 'Round Up (7.4 → 7, 7.5 → 8)' : 'Round Down (7.9 → 7)'
+              const hasSI = holes.some((h) => h.stroke_index != null)
+
+              const section = (body: ReactNode) => (
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Handicap Strokes</p>
+                  {body}
+                </div>
+              )
+
+              // Manual (scorekeeper-set) stroke holes for this player
+              const manualHoleNums = holes
+                .filter((h) => (holeStrokes[h.hole_number] ?? []).includes(p.id))
+                .map((h) => h.hole_number)
+
+              if (!autoStrokes) {
+                return section(
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-semibold text-gray-700">Automatic handicap strokes are OFF for this group</p>
+                    <p className="text-xs text-gray-500">Scores count as gross unless the scorekeeper manually gives a stroke on a hole.</p>
+                    {manualHoleNums.length > 0 && (
+                      <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5">
+                        The scorekeeper has given {p.name.split(' ')[0]} a stroke on hole{manualHoleNums.length !== 1 ? 's' : ''} {manualHoleNums.join(', ')}.
+                      </p>
+                    )}
+                  </div>
+                )
+              }
+
+              if (p.handicap == null) {
+                return section(
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-semibold text-gray-700">No strokes — no handicap on file</p>
+                    <p className="text-xs text-gray-500">{p.name.split(' ')[0]} has no handicap set for this round, so no automatic strokes can be assigned. An admin can set it in the Admin Hub.</p>
+                  </div>
+                )
+              }
+
+              if (!hasSI) {
+                return section(
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-semibold text-gray-700">No strokes — course has no hole rankings</p>
+                    <p className="text-xs text-gray-500">This course has no stroke index (hole difficulty ranking) data, so automatic strokes can&apos;t be assigned to specific holes.</p>
+                  </div>
+                )
+              }
+
+              if (isBanker) {
+                const effHoleNums = holes.filter((h) => effectiveStrokeIds(h.hole_number).includes(p.id)).map((h) => h.hole_number)
+                return section(
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-semibold text-gray-700">Banker game — strokes are per hole, vs. the Banker</p>
+                    <p className="text-xs text-gray-500">
+                      Each hole compares your handicap to that hole&apos;s Banker (whole strokes, decimals dropped).
+                      Whoever has the higher handicap gets a stroke on holes whose difficulty rank is within the difference — so your strokes change as the Banker changes.
+                    </p>
+                    <p className="text-xs text-gray-500">Rounding for this round: <span className="font-semibold text-gray-700">{roundingLabel}</span></p>
+                    {effHoleNums.length > 0
+                      ? <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1.5">So far {p.name.split(' ')[0]} gets a stroke on hole{effHoleNums.length !== 1 ? 's' : ''} {effHoleNums.join(', ')}.</p>
+                      : <p className="text-xs text-gray-500">So far {p.name.split(' ')[0]} has no stroke holes.</p>}
+                  </div>
+                )
+              }
+
+              // Standard auto-strokes: relative to the lowest handicap in the group
+              const groupWithHcp = players.filter((pl) => pl.handicap != null)
+              const minHcp = Math.min(...groupWithHcp.map((pl) => pl.handicap!))
+              const lowPlayers = groupWithHcp.filter((pl) => pl.handicap === minHcp)
+              const lowNames = lowPlayers.map((pl) => pl.name.split(' ')[0]).join(' & ')
+              const isLow = p.handicap === minHcp
+              const rawDiff = p.handicap - minHcp
+              const rel = Math.max(0, roundHcp(rawDiff, handicapRounding))
+              const autoHoleNums = holes
+                .filter((h) => h.stroke_index != null && h.stroke_index <= rel)
+                .map((h) => h.hole_number)
+              // Scorekeeper per-hole overrides of the automatic calculation
+              const addedByKeeper: number[] = []
+              const removedByKeeper: number[] = []
+              for (const h of holes) {
+                const manual = holeStrokes[h.hole_number]
+                if (manual === undefined) continue
+                const autoHas = h.stroke_index != null && h.stroke_index <= rel
+                const manHas = manual.includes(p.id)
+                if (manHas && !autoHas) addedByKeeper.push(h.hole_number)
+                if (!manHas && autoHas) removedByKeeper.push(h.hole_number)
+              }
+              const fmtDiff = parseFloat(rawDiff.toFixed(1))
+
+              return section(
+                <div className="space-y-2">
+                  {rel > 0 ? (
+                    <>
+                      <p className="text-sm font-semibold text-green-700">
+                        Receiving 1 stroke on {autoHoleNums.length} hole{autoHoleNums.length !== 1 ? 's' : ''}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {autoHoleNums.map((hn) => (
+                          <span key={hn} className="text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5">{hn}</span>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm font-semibold text-gray-700">
+                      {isLow ? 'No strokes — lowest handicap in the group' : 'No strokes this round'}
+                    </p>
+                  )}
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">How this was calculated</p>
+                    <p className="text-xs text-gray-600">
+                      Strokes are given off the lowest handicap in the group: <span className="font-semibold text-gray-800">{lowNames} ({fmtH(minHcp)} HCP)</span>.
+                      {isLow && ' That’s you — the low player never receives strokes; everyone else plays off you.'}
+                    </p>
+                    {!isLow && (
+                      <p className="text-xs text-gray-600">
+                        {p.name.split(' ')[0]} ({fmtH(p.handicap)}) − {lowNames} ({fmtH(minHcp)}) = <span className="font-semibold text-gray-800">{fmtDiff}</span>, rounded to <span className="font-semibold text-gray-800">{rel} stroke{rel !== 1 ? 's' : ''}</span>.
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-600">
+                      Rounding for this round: <span className="font-semibold text-gray-800">{roundingLabel}</span>.
+                    </p>
+                    {rel > 0 && (
+                      <p className="text-xs text-gray-600">
+                        The {rel === 1 ? 'stroke lands on the #1 ranked' : `${rel} strokes land on the ${rel} hardest`} hole{rel !== 1 ? 's' : ''} by stroke index (1–{rel}).
+                      </p>
+                    )}
+                  </div>
+                  {(addedByKeeper.length > 0 || removedByKeeper.length > 0) && (
+                    <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5">
+                      Scorekeeper adjustments override the automatic strokes for {p.name.split(' ')[0]}:
+                      {addedByKeeper.length > 0 && ` stroke added on hole${addedByKeeper.length !== 1 ? 's' : ''} ${addedByKeeper.join(', ')}`}
+                      {addedByKeeper.length > 0 && removedByKeeper.length > 0 && ' ·'}
+                      {removedByKeeper.length > 0 && ` stroke removed on hole${removedByKeeper.length !== 1 ? 's' : ''} ${removedByKeeper.join(', ')}`}.
+                    </p>
+                  )}
                 </div>
               )
             })()}
@@ -882,10 +1024,12 @@ export default function PlayingGroupScoreEntry({
                     color = toParColor(toPar)
                   }
                   return (
-                    <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 6px' }}>
+                    <button key={p.id} type="button"
+                      onClick={() => setPlayerPopup((prev) => prev === p.id ? null : p.id)}
+                      className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 6px' }}>
                       <span style={{ color: 'rgba(255,255,255,0.6)' }}>{p.name.split(' ')[0]}</span>
                       <span style={{ color, fontWeight: 'bold' }}>{display}</span>
-                    </span>
+                    </button>
                   )
                 })}
               </div>
@@ -896,12 +1040,14 @@ export default function PlayingGroupScoreEntry({
               {players.map((p) => {
                 const amt = bankerRunningTotals[p.id] ?? 0
                 return (
-                  <span key={p.id} className="flex items-center gap-1 text-xs">
+                  <button key={p.id} type="button"
+                    onClick={() => setPlayerPopup((prev) => prev === p.id ? null : p.id)}
+                    className="flex items-center gap-1 text-xs">
                     <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {`$${Math.abs(Math.round(amt))}`}
                     </span>
-                  </span>
+                  </button>
                 )
               })}
             </div>
