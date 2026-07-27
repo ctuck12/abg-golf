@@ -3505,7 +3505,7 @@ export default function AdminDashboard({
                         ) : (
                           <div className="flex items-start gap-2">
                             <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 text-sm">{team.name}</p>
+                              <p className="font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontSize: 'clamp(10px, 3.4vw, 14px)' }}>{team.name}</p>
                               <p className="text-xs text-gray-500">
                                 {!mixedGroups && <>PIN: <span className="font-mono font-bold text-gray-800">{team.pin}</span></>}
                                 {team.daytona_variant && (() => {
@@ -3561,9 +3561,9 @@ export default function AdminDashboard({
                                         {skinsEnabled === true && (
                                           <button type="button"
                                             onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
-                                            className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                            className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
                                             title="Toggle skins participation">
-                                            Skins{inSkins ? ' ✓' : ''}
+                                            {inSkins ? 'Skins ✓' : 'Not in Skins'}
                                           </button>
                                         )}
                                       </span>
@@ -3572,7 +3572,7 @@ export default function AdminDashboard({
                                 </div>
                               )}
                             </div>
-                            <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 flex-shrink-0">
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
                               <button onClick={() => {
                                 const v = team.daytona_variant ?? (isDaytona ? (round?.daytona_variant ?? '') : '')
                                 const [variant, payout] = v.includes('|') ? v.split('|') : [v, '']
