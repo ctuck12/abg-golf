@@ -3551,6 +3551,19 @@ export default function AdminDashboard({
                                   return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
                                 })()}
                               </p>
+                              {teamPlayers.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                  {teamPlayers.map((p) => {
+                                    const inSkins = skinsEnabled === true && (skinsOverrides[p.id] ?? p.skins_participant)
+                                    return (
+                                      <span key={p.id}
+                                        className={`text-[11px] px-1.5 py-0.5 rounded-full border font-medium ${inSkins ? 'bg-green-50 border-green-300 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                                        {p.name.split(' ')[0]}{inSkins ? ' · Skins' : ''}
+                                      </span>
+                                    )
+                                  })}
+                                </div>
+                              )}
                             </div>
                             <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 flex-shrink-0">
                               <button onClick={() => {
@@ -3755,14 +3768,6 @@ export default function AdminDashboard({
                           : `Each team needs at least ${round?.balls_count ?? 3} and no more than 5 players`}
                       </p>
                     ) : null}
-                    {skinsEnabled === true && (
-                      <div className="mt-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                        <span className="text-amber-500 text-base leading-none mt-0.5 flex-shrink-0">⚠</span>
-                        <p className="text-xs text-amber-800">
-                          <span className="font-semibold">Skins Game is enabled.</span> Open each team's Players section and tap the <span className="font-semibold text-amber-700 bg-amber-100 px-1 rounded">Skins</span> button for every player who is participating in skins.
-                        </p>
-                      </div>
-                    )}
                   </div>
                 )}
                 </div>
@@ -3778,15 +3783,12 @@ export default function AdminDashboard({
                   </p>
                 )}
                 {showAssignGroupsNotice && roundIsSettingUp && (
-                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5">
-                    <span className="text-amber-500 text-base leading-none mt-0.5 flex-shrink-0">⚠</span>
-                    <p className="text-xs text-amber-800">
-                      <span className="font-semibold">Teams saved — now set the playing groups.</span> Assign every player to the group they&apos;re actually playing with below, set each group&apos;s PIN, and add any side games before you can activate the round.
-                    </p>
-                  </div>
+                  <p className="text-xs font-medium text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+                    Teams saved — now build the playing groups and put every player in one.
+                  </p>
                 )}
                 <h3 className="font-semibold text-gray-900 text-sm">Playing Groups</h3>
-                <p className="text-xs text-gray-400 -mt-2">Each playing group gets its own scorekeeper PIN, separate from ball-game teams. Side games (Daytona / Banker) are set per group here.</p>
+                <p className="text-xs text-gray-400 -mt-2">Who actually rides together — each group has its own scorekeeper PIN and side games.</p>
 
                 {mixedGroups && mixedGroupsAnswered && (
                   <div className="space-y-3 border-t border-gray-100 pt-3">
@@ -3825,7 +3827,7 @@ export default function AdminDashboard({
                         )}
                       </div>
                       {!groupCountSaved && (
-                        <p className="text-xs text-amber-700 mt-1.5">Enter the number of groups then click <strong>Set</strong> to continue.</p>
+                        <p className="text-xs text-gray-400 mt-1.5">Enter how many groups, then tap Set.</p>
                       )}
                     </div>
 
