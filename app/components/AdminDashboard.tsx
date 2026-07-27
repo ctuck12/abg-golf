@@ -4003,7 +4003,7 @@ export default function AdminDashboard({
                                     </button>
                                     <span className="text-xs text-gray-400">Based on handicaps</span>
                                   </div>
-                                  {newGroupSG.autoStrokes && round?.format !== 'daytona' && round?.format !== 'banker' && (
+                                  {newGroupSG.autoStrokes && (
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
                                       {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
