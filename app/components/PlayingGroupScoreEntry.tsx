@@ -797,7 +797,7 @@ export default function PlayingGroupScoreEntry({
               if (!isDaytonaMode && !isBanker && !autoStrokes) return null
               const p = popupPlayer
               const fmtH = (h: number) => h < 0 ? `+${Math.abs(h)}` : `${h}`
-              const roundingLabel = handicapRounding === 'nearest' ? 'Round Up (7.4 → 7, 7.5 → 8)' : 'Round Down (7.9 → 7)'
+              const roundingLabel = handicapRounding === 'nearest' ? 'Round Up (7.5 → 8)' : 'Round Down (7.9 → 7)'
               const hasSI = holes.some((h) => h.stroke_index != null)
 
               const section = (body: ReactNode) => (
@@ -907,20 +907,16 @@ export default function PlayingGroupScoreEntry({
                   <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
                     <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">How this was calculated</p>
                     <p className="text-xs text-gray-600">
-                      Rounding for this round: <span className="font-semibold text-gray-800">{roundingLabel}</span> — each player&apos;s handicap becomes a whole playing handicap first.
+                      Handicaps round to whole numbers first: <span className="font-semibold text-gray-800">{roundingLabel}</span>.
                     </p>
-                    <p className="text-xs text-gray-600">
-                      Strokes are given off the lowest playing handicap in the group: <span className="font-semibold text-gray-800">{lowNames} ({lowPlayers.length === 1 ? `${fmtH(lowPlayers[0].handicap!)} → plays as ${fmtH(minEff)}` : `plays as ${fmtH(minEff)}`})</span>.
-                      {isLow && ' That’s you — the low player never receives strokes; everyone else plays off you.'}
-                    </p>
-                    {!isLow && (
+                    {isLow ? (
                       <p className="text-xs text-gray-600">
-                        {p.name.split(' ')[0]} ({fmtH(p.handicap)} → plays as {fmtH(pEff)}) − {lowNames} ({fmtH(minEff)}) = <span className="font-semibold text-gray-800">{rel} stroke{rel !== 1 ? 's' : ''}</span>.
+                        <span className="font-semibold text-gray-800">{p.name.split(' ')[0]} ({fmtH(p.handicap)} → {fmtH(pEff)})</span> is the group low — the low player never receives strokes.
                       </p>
-                    )}
-                    {rel > 0 && (
+                    ) : (
                       <p className="text-xs text-gray-600">
-                        The {rel === 1 ? 'stroke lands on the #1 ranked' : `${rel} strokes land on the ${rel} hardest`} hole{rel !== 1 ? 's' : ''} by stroke index (1–{rel}).
+                        {p.name.split(' ')[0]} ({fmtH(p.handicap)} → {fmtH(pEff)}) − {lowNames} ({lowPlayers.length === 1 ? `${fmtH(lowPlayers[0].handicap!)} → ` : ''}{fmtH(minEff)}, group low) = <span className="font-semibold text-gray-800">{rel} stroke{rel !== 1 ? 's' : ''}</span>
+                        {rel > 0 && <>, taken on the {rel === 1 ? 'hardest hole' : `${rel} hardest holes`} (stroke index 1–{rel})</>}.
                       </p>
                     )}
                   </div>
