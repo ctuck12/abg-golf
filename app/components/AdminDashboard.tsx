@@ -3658,21 +3658,26 @@ export default function AdminDashboard({
                                 })()}
                               </p>
                               {teamPlayers.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                <div className="flex flex-col items-start gap-1.5 mt-1.5">
                                   {teamPlayers.map((p) => {
                                     const inSkins = skinsOverrides[p.id] ?? p.skins_participant
                                     return (
-                                      <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: '#dbeafe', color: '#1e40af' }}>
-                                        {p.name.split(' ')[0]}
-                                        {skinsEnabled === true && (
-                                          <button type="button"
-                                            onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
-                                            className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
-                                            title="Toggle skins participation">
-                                            {inSkins ? 'Skins ✓' : 'Not in Skins'}
-                                          </button>
+                                      <div key={p.id} className="flex items-center gap-1.5">
+                                        <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: '#dbeafe', color: '#1e40af' }}>
+                                          {p.name.split(' ')[0]}
+                                          {skinsEnabled === true && (
+                                            <button type="button"
+                                              onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
+                                              className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                              title="Toggle skins participation">
+                                              {inSkins ? 'Skins ✓' : 'Not in Skins'}
+                                            </button>
+                                          )}
+                                        </span>
+                                        {p.handicap != null && (
+                                          <span className="text-[10px] font-semibold text-gray-500 whitespace-nowrap">HCP {p.handicap < 0 ? `+${Math.abs(p.handicap)}` : p.handicap}</span>
                                         )}
-                                      </span>
+                                      </div>
                                     )
                                   })}
                                 </div>
@@ -4127,24 +4132,29 @@ export default function AdminDashboard({
                           </div>
 
                           {/* Assigned player chips — always visible */}
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-col items-start gap-1.5">
                             {assignedPlayers.map((p) => {
                               const inSkins = skinsOverrides[p.id] ?? ((p as { skins_participant?: boolean }).skins_participant ?? false)
                               return (
-                                <span key={p.id} className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
-                                  {p.name}
-                                  {skinsEnabled === true && (
+                                <div key={p.id} className="flex items-center gap-1.5">
+                                  <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
+                                    {p.name}
+                                    {skinsEnabled === true && (
+                                      <button type="button"
+                                        onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
+                                        className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                        title="Toggle skins participation">
+                                        Skins{inSkins ? ' ✓' : ''}
+                                      </button>
+                                    )}
                                     <button type="button"
-                                      onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
-                                      className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
-                                      title="Toggle skins participation">
-                                      Skins{inSkins ? ' ✓' : ''}
-                                    </button>
+                                      onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
+                                      className="ml-0.5 hover:text-red-600 leading-none">×</button>
+                                  </span>
+                                  {p.handicap != null && (
+                                    <span className="text-[10px] font-semibold text-gray-500 whitespace-nowrap">HCP {p.handicap < 0 ? `+${Math.abs(p.handicap)}` : p.handicap}</span>
                                   )}
-                                  <button type="button"
-                                    onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
-                                    className="ml-0.5 hover:text-red-600 leading-none">×</button>
-                                </span>
+                                </div>
                               )
                             })}
                             {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned yet</p>}
