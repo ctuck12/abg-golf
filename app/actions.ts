@@ -381,7 +381,8 @@ export async function addTeam(_prev: unknown, formData: FormData) {
   const hammerFormat = (formData.get('hammer_format') as string) || 'stroke'
 
   const supabase = createServerClient()
-  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null })
+  const teamStrokeRounding = (formData.get('stroke_rounding') as string) || ''
+  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null, ...(teamStrokeRounding ? { stroke_rounding: teamStrokeRounding } : {}) })
   if (error) return { error: error.code === '23505' ? 'A team with that name already exists.' : error.message }
   return { success: true }
 }
@@ -417,6 +418,8 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
   const supabase = createServerClient()
   const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null }
   if (pin) updates.pin = pin
+  const strokeRounding = (formData.get('stroke_rounding') as string) || ''
+  if (strokeRounding) updates.stroke_rounding = strokeRounding
 
   const { error } = await supabase.from('teams').update(updates).eq('id', teamId)
   if (error) return { error: error.message }
@@ -714,6 +717,7 @@ export async function updatePlayingGroupSettings(groupId: string, settings: {
   banker_side_game: boolean
   banker_side_game_min_bet: number | null
   auto_strokes: boolean
+  stroke_rounding?: string | null
 }) {
   const supabase = createServerClient()
   const { error } = await supabase.from('playing_groups').update(settings).eq('id', groupId)

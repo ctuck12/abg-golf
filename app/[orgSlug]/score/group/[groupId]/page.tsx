@@ -24,7 +24,7 @@ export default async function PlayingGroupScorecardPage({
 
   const { data: group } = await sb
     .from('playing_groups')
-    .select('id, name, round_id, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes')
+    .select('id, name, round_id, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes, stroke_rounding')
     .eq('id', groupId)
     .single()
   if (!group) redirect(`/${orgSlug}`)
@@ -167,7 +167,7 @@ export default async function PlayingGroupScorecardPage({
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}
       autoStrokes={autoStrokes}
-      handicapRounding={(round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
+      handicapRounding={(group as { stroke_rounding?: string | null }).stroke_rounding ?? (round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
     />
   )
 }

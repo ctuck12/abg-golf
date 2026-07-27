@@ -20,7 +20,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
 
   const [{ data: orgRow }, { data: team }] = await Promise.all([
     sb.from('organizations').select('name').eq('id', orgId).single(),
-    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant, daytona_variant_back9, banker_side_game, banker_side_game_min_bet, auto_strokes').eq('id', teamId).single(),
+    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant, daytona_variant_back9, banker_side_game, banker_side_game_min_bet, auto_strokes, stroke_rounding').eq('id', teamId).single(),
   ])
 
   if (!team) redirect(`/${orgSlug}`)
@@ -121,7 +121,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       format={round.format ?? 'standard'}
       daytonaVariant={isDaytonaSideGame ? parsedDaytonaVariant : ((team as { daytona_variant?: string | null }).daytona_variant?.split('|')[0] ?? round.daytona_variant ?? '4man')}
       daytonaVariantBack9={(team as { daytona_variant_back9?: string | null }).daytona_variant_back9 ?? null}
-      handicapRounding={(round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
+      handicapRounding={(team as { stroke_rounding?: string | null }).stroke_rounding ?? (round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down'}
       isDaytonaSideGame={isDaytonaSideGame}
       isAdmin={isAdmin}
       isStarted={round.is_started ?? false}
