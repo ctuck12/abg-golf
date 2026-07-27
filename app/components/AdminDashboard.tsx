@@ -1333,6 +1333,54 @@ export default function AdminDashboard({
                   <p className="text-xs text-gray-500">Off</p>
                 )}
               </div>
+              {/* Teams / groups + players + side games */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                  {(isDaytona || isTraditional) ? `Groups (${teams.length})` : `Teams (${teams.length})`}
+                </p>
+                <div className="space-y-1">
+                  {teams.map((t) => {
+                    const tp = players.filter((p) => p.team_id === t.id)
+                    const names = tp.map((p) => p.name.split(' ')[0]).join(', ')
+                    const skinsCount = tp.filter((p) => skinsOverrides[p.id] ?? p.skins_participant).length
+                    const sg: string[] = []
+                    if (t.daytona_variant) sg.push(`Daytona ${t.daytona_variant.split('|')[0].startsWith('5man-flares') ? '5-Man Flares' : t.daytona_variant.split('|')[0].startsWith('5man') ? '5-Man Normal' : '4-Man'}`)
+                    if (t.banker_side_game) sg.push(`Banker (min $${t.banker_side_game_min_bet ?? 2})`)
+                    if (t.hammer_side_game) sg.push(`Hammer ($${t.hammer_base_bet ?? 0} ${t.hammer_format === 'match' ? 'Match' : 'Stroke'})`)
+                    return (
+                      <p key={t.id} className="text-xs text-gray-600">
+                        <span className="font-semibold text-gray-800">{t.name}</span>
+                        {mixedGroups !== true && <span className="text-gray-400"> (PIN {t.pin})</span>}: {names || 'no players'}
+                        {sg.length > 0 ? <span className="text-amber-700"> · {sg.join(' · ')}</span> : ''}
+                        {skinsEnabled && skinsCount > 0 ? <span className="text-green-700"> · {skinsCount} in skins</span> : ''}
+                      </p>
+                    )
+                  })}
+                </div>
+              </div>
+              {/* Mixed groups (standard only) */}
+              {isStandard && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Mixed Groups</p>
+                  {mixedGroups === true ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-700"><span className="font-semibold text-green-700">Yes</span> · {livePlayingGroups.length} playing group{livePlayingGroups.length !== 1 ? 's' : ''}</p>
+                      {livePlayingGroups.map((g) => {
+                        const gp = liveGroupPlayers.filter((x) => x.playing_group_id === g.id)
+                        const names = gp.map((x) => players.find((p) => p.id === x.player_id)?.name.split(' ')[0] ?? '?').join(', ')
+                        const lbl = groupSideGameLabel(groupSideGames[g.id] ?? initGroupSideGame(g))
+                        return (
+                          <p key={g.id} className="text-xs text-gray-600 pl-2">
+                            <span className="font-semibold text-gray-800">{g.name}</span> (PIN {g.pin}): {names || 'no players'}{lbl ? <span className="text-amber-700"> · {lbl}</span> : <span className="text-gray-400"> · no side game</span>}
+                          </p>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No — playing groups are the teams</p>
+                  )}
+                </div>
+              )}
               {/* Side games across teams + groups */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Side Games</p>
@@ -1365,54 +1413,6 @@ export default function AdminDashboard({
                   {(isDaytona || isBanker) && <>Auto Handicap <span className="font-semibold">{autoHandicap ? 'On' : 'Off'}</span> · </>}
                   Rounding: <span className="font-semibold">{hcpRounding === 'nearest' ? 'Round Up' : 'Round Down'}</span>
                 </p>
-              </div>
-              {/* Mixed groups (standard only) */}
-              {isStandard && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Mixed Groups</p>
-                  {mixedGroups === true ? (
-                    <div className="space-y-1">
-                      <p className="text-xs text-gray-700"><span className="font-semibold text-green-700">Yes</span> · {livePlayingGroups.length} playing group{livePlayingGroups.length !== 1 ? 's' : ''}</p>
-                      {livePlayingGroups.map((g) => {
-                        const gp = liveGroupPlayers.filter((x) => x.playing_group_id === g.id)
-                        const names = gp.map((x) => players.find((p) => p.id === x.player_id)?.name.split(' ')[0] ?? '?').join(', ')
-                        const lbl = groupSideGameLabel(groupSideGames[g.id] ?? initGroupSideGame(g))
-                        return (
-                          <p key={g.id} className="text-xs text-gray-600 pl-2">
-                            <span className="font-semibold text-gray-800">{g.name}</span> (PIN {g.pin}): {names || 'no players'}{lbl ? <span className="text-amber-700"> · {lbl}</span> : <span className="text-gray-400"> · no side game</span>}
-                          </p>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-500">No — playing groups are the teams</p>
-                  )}
-                </div>
-              )}
-              {/* Teams / groups + players + side games */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                  {(isDaytona || isTraditional) ? `Groups (${teams.length})` : `Teams (${teams.length})`}
-                </p>
-                <div className="space-y-1">
-                  {teams.map((t) => {
-                    const tp = players.filter((p) => p.team_id === t.id)
-                    const names = tp.map((p) => p.name.split(' ')[0]).join(', ')
-                    const skinsCount = tp.filter((p) => skinsOverrides[p.id] ?? p.skins_participant).length
-                    const sg: string[] = []
-                    if (t.daytona_variant) sg.push(`Daytona ${t.daytona_variant.split('|')[0].startsWith('5man-flares') ? '5-Man Flares' : t.daytona_variant.split('|')[0].startsWith('5man') ? '5-Man Normal' : '4-Man'}`)
-                    if (t.banker_side_game) sg.push(`Banker (min $${t.banker_side_game_min_bet ?? 2})`)
-                    if (t.hammer_side_game) sg.push(`Hammer ($${t.hammer_base_bet ?? 0} ${t.hammer_format === 'match' ? 'Match' : 'Stroke'})`)
-                    return (
-                      <p key={t.id} className="text-xs text-gray-600">
-                        <span className="font-semibold text-gray-800">{t.name}</span>
-                        {mixedGroups !== true && <span className="text-gray-400"> (PIN {t.pin})</span>}: {names || 'no players'}
-                        {sg.length > 0 ? <span className="text-amber-700"> · {sg.join(' · ')}</span> : ''}
-                        {skinsEnabled && skinsCount > 0 ? <span className="text-green-700"> · {skinsCount} in skins</span> : ''}
-                      </p>
-                    )
-                  })}
-                </div>
               </div>
               {roundExcludeMatchups && (
                 <p className="text-xs text-red-600">Matchup Results are excluded from Payouts &amp; Settlements.</p>
