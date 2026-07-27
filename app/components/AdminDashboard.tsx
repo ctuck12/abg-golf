@@ -283,6 +283,8 @@ export default function AdminDashboard({
   const [editRoundError, setEditRoundError] = useState('')
   const [editScoreClearConfirm, setEditScoreClearConfirm] = useState(false)
   const createFormRef = useRef<HTMLFormElement>(null)
+  const mixedGroupsSectionRef = useRef<HTMLDivElement | null>(null)
+  const [showAssignGroupsNotice, setShowAssignGroupsNotice] = useState(false)
   const [selectedBallsCount, setSelectedBallsCount] = useState('3')
   const [createIncludeTotal, setCreateIncludeTotal] = useState(false)
   const [selectedHoleCount, setSelectedHoleCount] = useState('18')
@@ -1082,7 +1084,9 @@ export default function AdminDashboard({
   const allGroupsMeetMinimum = mixedGroups !== true || livePlayingGroups.every(g =>
     liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).length >= 3
   )
-  const canActivate = roundIsSettingUp && skinsSaved && effectivePayoutSaved && mixedGroupsSaved && teamsSaved && allTeamsMeetRequirement && allGroupsMeetMinimum
+  // Skins enabled but nobody marked as a participant → block activation
+  const skinsNeedsParticipants = skinsEnabled === true && skinsParticipants.length === 0
+  const canActivate = roundIsSettingUp && skinsSaved && effectivePayoutSaved && mixedGroupsSaved && teamsSaved && allTeamsMeetRequirement && allGroupsMeetMinimum && !skinsNeedsParticipants
   const activateMissingItems: string[] = []
   if (roundIsSettingUp) {
     if (!effectivePayoutSaved) activateMissingItems.push('Save Payout Value')
@@ -1099,6 +1103,7 @@ export default function AdminDashboard({
         activateMissingItems.push(`Each team needs at least ${round?.balls_count ?? 3} and no more than 5 players`)
       }
     }
+    if (skinsNeedsParticipants) activateMissingItems.push('Skins Game is enabled but no skins participants are selected — mark players with the Skins button in the Teams / Groups → Players section, or disable the Skins Game')
   }
 
   useEffect(() => {
@@ -2369,11 +2374,19 @@ export default function AdminDashboard({
 
             {/* ── Mixed Groups (standard format only) ── */}
             {round && round.format === 'standard' && (
-              <div className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
                 {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
                     {creatingNewRound ? 'Save the new round above to unlock' : 'Save Skins Settings above to unlock'}
                   </p>
+                )}
+                {showAssignGroupsNotice && roundIsSettingUp && mixedGroups === true && (
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2.5">
+                    <span className="text-amber-500 text-base leading-none mt-0.5 flex-shrink-0">⚠</span>
+                    <p className="text-xs text-amber-800">
+                      <span className="font-semibold">Teams saved — now set the playing groups.</span> Assign every player to the group they&apos;re actually playing with below before you can activate the round.
+                    </p>
+                  </div>
                 )}
                 <h3 className="font-semibold text-gray-900 text-sm">Mixed Groups</h3>
                 <div>
@@ -3824,7 +3837,14 @@ export default function AdminDashboard({
                     )}
                     <button
                       type="button"
-                      onClick={() => { setTeamsSaved(true); setSetupLS(round?.id, 'teamsSaved', true) }}
+                      onClick={() => {
+                        setTeamsSaved(true); setSetupLS(round?.id, 'teamsSaved', true)
+                        // Mixed groups: playing groups still need player assignments — send the admin back up
+                        if (mixedGroups === true && roundIsSettingUp) {
+                          setShowAssignGroupsNotice(true)
+                          setTimeout(() => mixedGroupsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+                        }
+                      }}
                       disabled={teams.length === 0 || !allTeamsMeetRequirement}
                       className="w-full py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed text-white"
                       style={{ background: navy }}>
