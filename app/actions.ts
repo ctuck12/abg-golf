@@ -502,8 +502,14 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
 
 export async function updatePlayerHandicap(playerId: string, handicap: number | null) {
   const supabase = createServerClient()
-  const { error } = await supabase.from('players').update({ handicap }).eq('id', playerId)
+  const { data: player, error } = await supabase
+    .from('players').update({ handicap }).eq('id', playerId)
+    .select('roster_player_id').single()
   if (error) return { error: error.message }
+  // Keep the org roster in sync so the change shows up in every section
+  if (player?.roster_player_id) {
+    await supabase.from('org_players').update({ handicap_index: handicap }).eq('id', player.roster_player_id)
+  }
   return { success: true }
 }
 
@@ -571,6 +577,16 @@ export async function createRosterPlayer(orgId: string, name: string, ghinNumber
     .select('id').single()
   if (error) return { error: error.code === '23505' ? `A player named "${name}" already exists in the roster.` : error.message }
   return { success: true, id: data.id }
+}
+
+export async function updateRosterPlayerHandicap(rosterPlayerId: string, handicapIndex: number | null) {
+  const supabase = createServerClient()
+  const { error } = await supabase
+    .from('org_players')
+    .update({ handicap_index: handicapIndex })
+    .eq('id', rosterPlayerId)
+  if (error) return { error: error.message }
+  return { success: true }
 }
 
 export async function updateRosterPlayer(playerId: string, name: string, ghinNumber: string | null, handicapIndex: number | null, email: string | null) {
@@ -1181,7 +1197,7 @@ export async function saveDaytonaAssignments(
 
 export async function bulkCreateTeams(
   roundId: string,
-  teams: { name: string; pin: string; players: { name: string; handicap: number | null; skins?: boolean }[] }[]
+  teams: { name: string; pin: string; players: { name: string; handicap: number | null; skins?: boolean; rosterPlayerId?: string | null }[] }[]
 ) {
   if (!roundId || !teams.length) return { error: 'Invalid input.' }
   const supabase = createServerClient()
@@ -1202,6 +1218,7 @@ export async function bulkCreateTeams(
         team.players.map((p, i) => ({
           name: p.name, team_id: teamRow.id, position: i,
           skins_participant: p.skins ?? false, handicap: p.handicap ?? null,
+          roster_player_id: p.rosterPlayerId ?? null,
         }))
       )
       if (playersErr) return { error: playersErr.message }

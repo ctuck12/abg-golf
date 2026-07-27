@@ -19,6 +19,7 @@ import {
   setPlayerGroup,
   createRosterPlayer,
   updateRosterPlayer,
+  updateRosterPlayerHandicap,
   deleteRosterPlayer,
   addRosterPlayersToTeam,
   createHammerMatchup,
@@ -48,6 +49,17 @@ import PinLoginModal from './PinLoginModal'
 const navy = '#0f172a'
 const gold = '#f59e0b'
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
+
+// Plus handicaps are stored negative (+2 → -2); accept "+2", "2", "14.5", blank
+function parseHcpInput(raw: string): number | null {
+  const s = raw.trim()
+  if (!s) return null
+  const n = s.startsWith('+') ? -parseFloat(s.slice(1)) : parseFloat(s)
+  return isNaN(n) ? null : n
+}
+function fmtHcp(h: number): string {
+  return h < 0 ? `+${Math.abs(h)}` : `${h}`
+}
 
 // Auto-generated PINs always default to 1234 — admins change them if they want
 function randomPin(): string {
@@ -158,7 +170,7 @@ type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
 type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; daytona_variant_back9?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null; stroke_rounding?: string | null }
-type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null; holes_range?: string | null }
+type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null; holes_range?: string | null; roster_player_id?: string | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -261,6 +273,12 @@ export default function AdminDashboard({
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
   const [editingHandicapId, setEditingHandicapId] = useState<string | null>(null)
   const [handicapDraft, setHandicapDraft] = useState('')
+  // Inline roster-handicap editing (team generator list, roster picker)
+  const [editingRosterHcpId, setEditingRosterHcpId] = useState<string | null>(null)
+  const [rosterHcpDraft, setRosterHcpDraft] = useState('')
+  // Inline handicap editing for generator manual (non-roster) players
+  const [editingGenManualId, setEditingGenManualId] = useState<string | null>(null)
+  const [genManualHcpDraft, setGenManualHcpDraft] = useState('')
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [confirmRemoveTeamId, setConfirmRemoveTeamId] = useState<string | null>(null)
   const [confirmRemovePlayerId, setConfirmRemovePlayerId] = useState<string | null>(null)
@@ -876,7 +894,7 @@ export default function AdminDashboard({
     const teamsToCreate = generatedTeams.map((t, i) => ({
       name: genEditNames[i] || t.name,
       pin: genEditPins[i] || t.pin,
-      players: t.players.map(p => ({ name: p.name, handicap: p.handicap, skins: skinsEnabled === true && genSkinsIds.has(p.id) })),
+      players: t.players.map(p => ({ name: p.name, handicap: p.handicap, skins: skinsEnabled === true && genSkinsIds.has(p.id), rosterPlayerId: p.source === 'roster' ? p.id : null })),
     }))
     const result = await bulkCreateTeams(round.id, teamsToCreate)
     setGenPending(false)
@@ -1086,10 +1104,28 @@ export default function AdminDashboard({
   }
 
   async function handleUpdateHandicap(playerId: string) {
-    const val = handicapDraft.trim()
-    await updatePlayerHandicap(playerId, val === '' ? null : parseFloat(val))
+    const hcp = parseHcpInput(handicapDraft)
     setEditingHandicapId(null)
+    // Server action also syncs the linked roster entry — mirror that locally
+    const rosterId = players.find(p => p.id === playerId)?.roster_player_id
+    if (rosterId) setLiveRoster(prev => prev.map(rp => rp.id === rosterId ? { ...rp, handicap_index: hcp } : rp))
+    await updatePlayerHandicap(playerId, hcp)
     router.refresh()
+  }
+  async function handleUpdateRosterHandicap(rosterPlayerId: string) {
+    const hcp = parseHcpInput(rosterHcpDraft)
+    setEditingRosterHcpId(null)
+    setLiveRoster(prev => prev.map(rp => rp.id === rosterPlayerId ? { ...rp, handicap_index: hcp } : rp))
+    // A generated-but-unused preview would carry the stale handicap
+    if (generatedTeams) setGeneratedTeams(null)
+    await updateRosterPlayerHandicap(rosterPlayerId, hcp)
+    router.refresh()
+  }
+  function handleUpdateGenManualHcp(tempId: string) {
+    const hcp = parseHcpInput(genManualHcpDraft)
+    setEditingGenManualId(null)
+    setGenManualPlayers(prev => prev.map(p => p.tempId === tempId ? { ...p, handicap: hcp == null ? '' : String(hcp) } : p))
+    if (generatedTeams) setGeneratedTeams(null)
   }
   function handleToggleSkinsParticipant(playerId: string, current: boolean) {
     const next = !current
@@ -1535,22 +1571,39 @@ export default function AdminDashboard({
                   const atMax = rosterPickerCurrentCount + rosterPickerSelectedIds.size >= rosterPickerMaxPlayers
                   const isDisabled = alreadyOnTeam || (!isSelected && atMax)
                   return (
-                    <button key={rp.id} type="button"
-                      disabled={isDisabled}
-                      onClick={() => toggleRosterPickerSelection(rp.id)}
+                    <div key={rp.id}
+                      onClick={() => { if (!isDisabled) toggleRosterPickerSelection(rp.id) }}
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition text-left ${
                         alreadyOnTeam
                           ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
                           : isSelected
-                            ? 'border-green-400 bg-green-50'
+                            ? 'border-green-400 bg-green-50 cursor-pointer'
                             : isDisabled
                               ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed'
-                              : 'border-gray-100 bg-gray-50 hover:bg-blue-50 hover:border-blue-200'
+                              : 'border-gray-100 bg-gray-50 hover:bg-blue-50 hover:border-blue-200 cursor-pointer'
                       }`}>
                       <div>
                         <p className={`text-sm font-medium ${isSelected ? 'text-green-700' : 'text-gray-800'}`}>{rp.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {rp.handicap_index != null && <span className="text-xs text-gray-500">HCP {rp.handicap_index < 0 ? `+${Math.abs(rp.handicap_index)}` : rp.handicap_index}</span>}
+                          {alreadyOnTeam ? (
+                            rp.handicap_index != null && <span className="text-xs text-gray-500">HCP {fmtHcp(rp.handicap_index)}</span>
+                          ) : editingRosterHcpId === rp.id ? (
+                            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                              <input type="text" inputMode="decimal" value={rosterHcpDraft} onChange={e => setRosterHcpDraft(e.target.value)}
+                                autoFocus placeholder="HCP"
+                                className="w-14 border border-blue-300 rounded px-1.5 py-0.5 text-xs focus:outline-none"
+                                onKeyDown={e => { if (e.key === 'Enter') handleUpdateRosterHandicap(rp.id); if (e.key === 'Escape') setEditingRosterHcpId(null) }} />
+                              <button type="button" onClick={() => handleUpdateRosterHandicap(rp.id)} className="text-xs text-blue-600 font-medium">✓</button>
+                              <button type="button" onClick={() => setEditingRosterHcpId(null)} className="text-xs text-gray-400">✕</button>
+                            </div>
+                          ) : (
+                            <button type="button"
+                              onClick={e => { e.stopPropagation(); setEditingRosterHcpId(rp.id); setRosterHcpDraft(rp.handicap_index != null ? fmtHcp(rp.handicap_index) : '') }}
+                              className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap"
+                              title="Edit handicap">
+                              {rp.handicap_index != null ? `HCP ${fmtHcp(rp.handicap_index)}` : 'HCP —'}
+                            </button>
+                          )}
                           {rp.ghin_number && <span className="text-xs font-mono text-blue-500">GHIN {rp.ghin_number}</span>}
                         </div>
                       </div>
@@ -1562,7 +1615,7 @@ export default function AdminDashboard({
                             : <span className="text-blue-500 text-sm font-semibold">+ Select</span>
                         }
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               {liveRoster.filter((rp) => rp.name.toLowerCase().includes(rosterSearch.toLowerCase())).length === 0 && (
@@ -2846,29 +2899,41 @@ export default function AdminDashboard({
                           {liveRoster
                             .filter(rp => !genRosterSearch || rp.name.toLowerCase().includes(genRosterSearch.toLowerCase()))
                             .map(rp => (
-                              <label key={rp.id} className="flex items-center gap-2 cursor-pointer py-0.5">
-                                <input
-                                  type="checkbox"
-                                  checked={genSelectedRosterIds.has(rp.id)}
-                                  onChange={e => {
-                                    setGenSelectedRosterIds(prev => {
-                                      const next = new Set(prev)
-                                      e.target.checked ? next.add(rp.id) : next.delete(rp.id)
-                                      return next
-                                    })
-                                    setGeneratedTeams(null)
-                                  }}
-                                  className="w-3.5 h-3.5 accent-indigo-600 flex-shrink-0"
-                                />
-                                <span className="text-sm text-gray-800 flex-1">{rp.name}</span>
-                                <span className="text-xs text-gray-400 whitespace-nowrap">
-                                  {rp.handicap_index != null
-                                    ? rp.handicap_index < 0
-                                      ? `+${Math.abs(rp.handicap_index)} HCP`
-                                      : `HCP ${rp.handicap_index}`
-                                    : 'No HCP'}
-                                </span>
-                              </label>
+                              <div key={rp.id} className="flex items-center gap-2 py-0.5">
+                                <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={genSelectedRosterIds.has(rp.id)}
+                                    onChange={e => {
+                                      setGenSelectedRosterIds(prev => {
+                                        const next = new Set(prev)
+                                        e.target.checked ? next.add(rp.id) : next.delete(rp.id)
+                                        return next
+                                      })
+                                      setGeneratedTeams(null)
+                                    }}
+                                    className="w-3.5 h-3.5 accent-indigo-600 flex-shrink-0"
+                                  />
+                                  <span className="text-sm text-gray-800 flex-1 truncate">{rp.name}</span>
+                                </label>
+                                {editingRosterHcpId === rp.id ? (
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    <input type="text" inputMode="decimal" value={rosterHcpDraft} onChange={e => setRosterHcpDraft(e.target.value)}
+                                      autoFocus placeholder="HCP"
+                                      className="w-14 border border-blue-300 rounded px-1.5 py-0.5 text-xs focus:outline-none"
+                                      onKeyDown={e => { if (e.key === 'Enter') handleUpdateRosterHandicap(rp.id); if (e.key === 'Escape') setEditingRosterHcpId(null) }} />
+                                    <button type="button" onClick={() => handleUpdateRosterHandicap(rp.id)} className="text-xs text-blue-600 font-medium">✓</button>
+                                    <button type="button" onClick={() => setEditingRosterHcpId(null)} className="text-xs text-gray-400">✕</button>
+                                  </div>
+                                ) : (
+                                  <button type="button"
+                                    onClick={() => { setEditingRosterHcpId(rp.id); setRosterHcpDraft(rp.handicap_index != null ? fmtHcp(rp.handicap_index) : '') }}
+                                    className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
+                                    title="Edit handicap">
+                                    {rp.handicap_index != null ? `HCP ${fmtHcp(rp.handicap_index)}` : 'HCP —'}
+                                  </button>
+                                )}
+                              </div>
                             ))}
                           {liveRoster.filter(rp => !genRosterSearch || rp.name.toLowerCase().includes(genRosterSearch.toLowerCase())).length === 0 && (
                             <p className="text-xs text-gray-400">No matches.</p>
@@ -2929,14 +2994,24 @@ export default function AdminDashboard({
                           <div className="mt-2 space-y-1">
                             {genManualPlayers.map(p => (
                               <div key={p.tempId} className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
-                                <span className="text-sm text-gray-800 flex-1">{p.name}</span>
-                                <span className="text-xs text-gray-400">
-                                  {p.handicap !== ''
-                                    ? parseFloat(p.handicap) < 0
-                                      ? `+${Math.abs(parseFloat(p.handicap))} HCP`
-                                      : `HCP ${p.handicap}`
-                                    : 'No HCP'}
-                                </span>
+                                <span className="text-sm text-gray-800 flex-1 truncate">{p.name}</span>
+                                {editingGenManualId === p.tempId ? (
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    <input type="text" inputMode="decimal" value={genManualHcpDraft} onChange={e => setGenManualHcpDraft(e.target.value)}
+                                      autoFocus placeholder="HCP"
+                                      className="w-14 border border-blue-300 rounded px-1.5 py-0.5 text-xs focus:outline-none"
+                                      onKeyDown={e => { if (e.key === 'Enter') handleUpdateGenManualHcp(p.tempId); if (e.key === 'Escape') setEditingGenManualId(null) }} />
+                                    <button type="button" onClick={() => handleUpdateGenManualHcp(p.tempId)} className="text-xs text-blue-600 font-medium">✓</button>
+                                    <button type="button" onClick={() => setEditingGenManualId(null)} className="text-xs text-gray-400">✕</button>
+                                  </div>
+                                ) : (
+                                  <button type="button"
+                                    onClick={() => { setEditingGenManualId(p.tempId); setGenManualHcpDraft(p.handicap !== '' ? fmtHcp(parseFloat(p.handicap)) : '') }}
+                                    className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
+                                    title="Edit handicap">
+                                    {p.handicap !== '' ? `HCP ${fmtHcp(parseFloat(p.handicap))}` : 'HCP —'}
+                                  </button>
+                                )}
                                 <button type="button"
                                   onClick={() => { setGenManualPlayers(prev => prev.filter(x => x.tempId !== p.tempId)); setGeneratedTeams(null) }}
                                   className="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
@@ -3755,17 +3830,17 @@ export default function AdminDashboard({
                                     <span className="flex-1 min-w-0 text-sm text-gray-800 font-medium truncate">{p.name}</span>
                                     {editingHandicapId === p.id ? (
                                       <div className="flex items-center gap-1 flex-shrink-0">
-                                        <input type="number" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
-                                          autoFocus min="0" max="54" step="0.1" placeholder="HCP"
+                                        <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
+                                          autoFocus placeholder="HCP"
                                           className="w-14 border border-blue-300 rounded px-1.5 py-0.5 text-xs focus:outline-none"
                                           onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateHandicap(p.id); if (e.key === 'Escape') setEditingHandicapId(null) }} />
                                         <button type="button" onClick={() => handleUpdateHandicap(p.id)} className="text-xs text-blue-600 font-medium">✓</button>
                                         <button type="button" onClick={() => setEditingHandicapId(null)} className="text-xs text-gray-400">✕</button>
                                       </div>
                                     ) : (
-                                      <button type="button" onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? String(p.handicap) : '') }}
+                                      <button type="button" onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '') }}
                                         className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition w-16 text-center flex-shrink-0">
-                                        {p.handicap != null ? (p.handicap < 0 ? `HCP +${Math.abs(p.handicap)}` : `HCP ${p.handicap}`) : 'HCP —'}
+                                        {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
                                       </button>
                                     )}
                                     </div>
@@ -3982,11 +4057,31 @@ export default function AdminDashboard({
                                     {avail.map(p => {
                                       const sel = newGroupPlayerIds.has(p.id)
                                       return (
-                                        <button key={p.id} type="button"
-                                          onClick={() => setNewGroupPlayerIds(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else if (n.size < 5) n.add(p.id); return n })}
-                                          className={`text-xs px-2 py-1 rounded-full border font-medium transition ${sel ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300'}`}>
-                                          {p.name}{sel ? ' ✓' : ''}
-                                        </button>
+                                        <div key={p.id}
+                                          className={`inline-flex items-center text-xs rounded-full border font-medium transition ${sel ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300'}`}>
+                                          <button type="button"
+                                            onClick={() => setNewGroupPlayerIds(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else if (n.size < 5) n.add(p.id); return n })}
+                                            className="px-2 py-1">
+                                            {p.name}{sel ? ' ✓' : ''}
+                                          </button>
+                                          {editingHandicapId === p.id ? (
+                                            <span className="flex items-center gap-1 pr-1.5">
+                                              <input type="text" inputMode="decimal" value={handicapDraft} onChange={e => setHandicapDraft(e.target.value)}
+                                                autoFocus placeholder="HCP"
+                                                className="w-12 border border-blue-300 rounded px-1 py-0.5 text-[10px] focus:outline-none bg-white text-gray-800"
+                                                onKeyDown={e => { if (e.key === 'Enter') handleUpdateHandicap(p.id); if (e.key === 'Escape') setEditingHandicapId(null) }} />
+                                              <button type="button" onClick={() => handleUpdateHandicap(p.id)} className="text-[10px] text-blue-600 font-bold">✓</button>
+                                              <button type="button" onClick={() => setEditingHandicapId(null)} className="text-[10px] text-gray-400">✕</button>
+                                            </span>
+                                          ) : (
+                                            <button type="button"
+                                              onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '') }}
+                                              className="pl-1 pr-2 py-1 text-[10px] text-gray-500 border-l border-gray-200 hover:text-blue-600"
+                                              title="Edit handicap">
+                                              {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
+                                            </button>
+                                          )}
+                                        </div>
                                       )
                                     })}
                                   </div>
@@ -4182,15 +4277,34 @@ export default function AdminDashboard({
                                     .map(p => {
                                       const teamName = teams.find(t => t.id === p.team_id)?.name
                                       return (
-                                        <button key={p.id} type="button"
-                                          onClick={() => handleSetPlayerGroup(p.id, g.id)}
-                                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-blue-50 text-left transition">
-                                          <div>
+                                        <div key={p.id} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition">
+                                          <button type="button"
+                                            onClick={() => handleSetPlayerGroup(p.id, g.id)}
+                                            className="flex-1 min-w-0 text-left">
                                             <span className="text-sm text-gray-800">{p.name}</span>
                                             {teamName && <span className="text-xs text-gray-400 ml-1.5">{teamName}</span>}
-                                          </div>
-                                          <span className="text-xs text-blue-600 font-semibold flex-shrink-0">+ Add</span>
-                                        </button>
+                                          </button>
+                                          {editingHandicapId === p.id ? (
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                              <input type="text" inputMode="decimal" value={handicapDraft} onChange={e => setHandicapDraft(e.target.value)}
+                                                autoFocus placeholder="HCP"
+                                                className="w-14 border border-blue-300 rounded px-1.5 py-0.5 text-xs focus:outline-none"
+                                                onKeyDown={e => { if (e.key === 'Enter') handleUpdateHandicap(p.id); if (e.key === 'Escape') setEditingHandicapId(null) }} />
+                                              <button type="button" onClick={() => handleUpdateHandicap(p.id)} className="text-xs text-blue-600 font-medium">✓</button>
+                                              <button type="button" onClick={() => setEditingHandicapId(null)} className="text-xs text-gray-400">✕</button>
+                                            </div>
+                                          ) : (
+                                            <button type="button"
+                                              onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '') }}
+                                              className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
+                                              title="Edit handicap">
+                                              {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
+                                            </button>
+                                          )}
+                                          <button type="button"
+                                            onClick={() => handleSetPlayerGroup(p.id, g.id)}
+                                            className="text-xs text-blue-600 font-semibold flex-shrink-0">+ Add</button>
+                                        </div>
                                       )
                                     })}
                                   {unassignedTeamPlayers.filter(p => p.name.toLowerCase().includes(groupAssignSearch.toLowerCase())).length === 0 && (

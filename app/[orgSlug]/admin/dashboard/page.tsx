@@ -57,7 +57,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
 
   // Wave 3: needs team / group ids from wave 2
   const [playersRes, playingGroupPlayersRes] = await Promise.all([
-    teamIds.length ? sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range').in('team_id', teamIds).order('position', { ascending: true }) : Promise.resolve({ data: [] as { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap: number | null; holes_range: string | null }[] }),
+    teamIds.length ? sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range, roster_player_id').in('team_id', teamIds).order('position', { ascending: true }) : Promise.resolve({ data: [] as { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap: number | null; holes_range: string | null; roster_player_id: string | null }[] }),
     groupIds.length ? sb.from('playing_group_players').select('playing_group_id, player_id').in('playing_group_id', groupIds) : Promise.resolve({ data: [] as { playing_group_id: string; player_id: string }[] }),
   ])
   const playingGroupPlayersRaw = playingGroupPlayersRes.data ?? []
@@ -82,7 +82,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const teamPlayerIdSet = new Set(teamPlayers.map((p) => p.id))
   const pgPlayerIds = playingGroupPlayersRaw.map((gp) => gp.player_id).filter((id) => !teamPlayerIdSet.has(id))
   const { data: manualGroupPlayersRaw } = pgPlayerIds.length
-    ? await sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range').in('id', pgPlayerIds)
+    ? await sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range, roster_player_id').in('id', pgPlayerIds)
     : { data: [] as typeof teamPlayers }
   const allPlayers = [...teamPlayers, ...(manualGroupPlayersRaw ?? [])]
 
