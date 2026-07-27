@@ -2772,6 +2772,20 @@ export default function AdminDashboard({
                                     <span className="text-xs text-gray-400">Based on handicaps</span>
                                   </div>
                                 )}
+                                {/* Stroke rounding — round-level, surfaced here for non-Daytona/Banker formats */}
+                                {round?.format !== 'daytona' && round?.format !== 'banker' && (sg.daytonaEnabled || sg.bankerEnabled) && sg.autoStrokes && (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
+                                    {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
+                                      <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
+                                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full border transition"
+                                        style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                                        {mlabel}
+                                      </button>
+                                    ))}
+                                    <span className="text-xs text-gray-400 w-full">Round Down: 7.9 → 7 · Round Up: 7.5 → 8. Applies to the whole round.</span>
+                                  </div>
+                                )}
 
                                 {/* Save button */}
                                 <div className="flex items-center gap-2 pt-0.5">
@@ -3295,6 +3309,20 @@ export default function AdminDashboard({
                             </div>
                           )}
                           <input type="hidden" name="auto_strokes" value={(newTeamDaytonaEnabled || newTeamBankerEnabled) && newTeamAutoStrokes ? 'true' : 'false'} />
+                          {/* Stroke rounding — round-level, surfaced here for non-Daytona/Banker formats */}
+                          {round?.format !== 'daytona' && round?.format !== 'banker' && (((newTeamDaytonaEnabled || newTeamBankerEnabled) && newTeamAutoStrokes) || newTeamHammerEnabled) && (
+                            <div className="flex items-center gap-2 pt-1 flex-wrap">
+                              <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
+                              {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
+                                <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
+                                  className="text-xs font-semibold px-2.5 py-0.5 rounded-full border transition"
+                                  style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                                  {mlabel}
+                                </button>
+                              ))}
+                              <span className="text-xs text-gray-400 w-full">Round Down: 7.9 → 7 · Round Up: 7.5 → 8. Applies to the whole round.</span>
+                            </div>
+                          )}
                           {/* Hammer Side Game — hidden when Daytona or Banker On */}
                           {!newTeamDaytonaEnabled && !newTeamBankerEnabled && (
                             <>
@@ -3512,6 +3540,20 @@ export default function AdminDashboard({
                                   </div>
                                 )}
                                 <input type="hidden" name="auto_strokes" value={(editDaytonaEnabled || editBankerEnabled) && editAutoStrokes ? 'true' : 'false'} />
+                                {/* Stroke rounding — round-level, surfaced here for non-Daytona/Banker formats */}
+                                {round?.format !== 'daytona' && round?.format !== 'banker' && (((editDaytonaEnabled || editBankerEnabled) && editAutoStrokes) || editHammerEnabled) && (
+                                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                    <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
+                                    {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
+                                      <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
+                                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full border transition"
+                                        style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                                        {mlabel}
+                                      </button>
+                                    ))}
+                                    <span className="text-xs text-gray-400 w-full">Round Down: 7.9 → 7 · Round Up: 7.5 → 8. Applies to the whole round.</span>
+                                  </div>
+                                )}
                                 {/* Hammer Side Game — hidden when Daytona or Banker On */}
                                 {!editDaytonaEnabled && !editBankerEnabled && (
                                   <>
