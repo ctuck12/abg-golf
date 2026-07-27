@@ -2848,8 +2848,15 @@ export default function MatchupClient({
                           onChange={(e) => setMedSlots((prev) => prev.map((s, j) => j === i ? e.target.value : s))}
                           className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
                           <option value="">{`Player ${i + 1}…`}</option>
-                          {players.map((p) => <option key={p.id} value={p.id}
-                            disabled={p.id !== slot && medSlots.includes(p.id)}>{p.name}</option>)}
+                          {players.map((p) => {
+                            const inOtherMedley = medleyMatchups.some((mm) => (mm.players ?? []).some((e) => e.id === p.id))
+                            return (
+                              <option key={p.id} value={p.id}
+                                disabled={inOtherMedley || (p.id !== slot && medSlots.includes(p.id))}>
+                                {p.name}{inOtherMedley ? ' — already in a medley' : ''}
+                              </option>
+                            )
+                          })}
                         </select>
                         {i >= 3 && (
                           <button type="button" onClick={() => setMedSlots((prev) => prev.filter((_, j) => j !== i))}

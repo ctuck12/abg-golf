@@ -1068,6 +1068,10 @@ export async function saveMedleyMatchup(
 ) {
   if (players.length < 3) return { error: 'Medley needs at least 3 players.' }
   const sb = createServerClient()
+  // A player can only be in one medley at a time
+  const { data: existing } = await sb.from('medley_matchups').select('players').eq('round_id', roundId)
+  const taken = new Set((existing ?? []).flatMap((m) => ((m.players ?? []) as { id: string }[]).map((e) => e.id)))
+  if (players.some((p) => taken.has(p.id))) return { error: 'A player can only be in one medley at a time.' }
   const { data, error } = await sb.from('medley_matchups').insert({
     round_id: roundId, players, bet_type: betType, amount,
   }).select('id').single()
