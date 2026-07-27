@@ -660,6 +660,20 @@ export async function toggleMixedGroups(roundId: string, value: boolean) {
     // Clear any existing playing groups and reset count so each enable starts fresh
     await supabase.from('playing_groups').delete().eq('round_id', roundId)
     update.playing_group_count = 0
+    // Team-level side games don't apply in mixed mode — clear them so nothing sits
+    // configured-but-inert (side games move to the playing groups)
+    await supabase.from('teams').update({
+      daytona_variant: null,
+      daytona_variant_back9: null,
+      banker_side_game: false,
+      banker_side_game_min_bet: null,
+      hammer_side_game: false,
+      auto_strokes: false,
+    }).eq('round_id', roundId)
+  } else {
+    // Leaving mixed mode: playing groups are meaningless — remove them
+    await supabase.from('playing_groups').delete().eq('round_id', roundId)
+    update.playing_group_count = 0
   }
   const { error } = await supabase.from('rounds').update(update).eq('id', roundId)
   if (error) return { error: error.message }

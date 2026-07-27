@@ -288,6 +288,7 @@ export default function AdminDashboard({
   const mixedGroupsSectionRef = useRef<HTMLDivElement | null>(null)
   const [showAssignGroupsNotice, setShowAssignGroupsNotice] = useState(false)
   const [skinsFewParticipantsWarning, setSkinsFewParticipantsWarning] = useState(false)
+  const [confirmMixedSwitch, setConfirmMixedSwitch] = useState<{ to: boolean } | null>(null)
   const [selectedBallsCount, setSelectedBallsCount] = useState('3')
   const [createIncludeTotal, setCreateIncludeTotal] = useState(false)
   const [selectedHoleCount, setSelectedHoleCount] = useState('18')
@@ -950,20 +951,31 @@ export default function AdminDashboard({
     setMixedGroups(value)
   }
 
-  // One-tap Mixed Groups answer at the top of Teams / Groups — persists immediately
+  // One-tap Mixed Groups answer at the top of Teams / Groups — persists immediately.
+  // Changing an already-made answer with teams/groups in place asks for confirmation
+  // first (switching cleans up config that no longer applies).
   async function chooseMixedGroups(value: boolean) {
     if (!round || mixedGroupsPending) return
+    if (mixedGroupsAnswered && mixedGroups === value) return
+    if (mixedGroupsAnswered && (teams.length > 0 || livePlayingGroups.length > 0)) {
+      setConfirmMixedSwitch({ to: value })
+      return
+    }
+    await performMixedGroupsChoice(value)
+  }
+
+  async function performMixedGroupsChoice(value: boolean) {
+    if (!round) return
     setMixedGroups(value)
     setMixedGroupsPending(true)
     setMixedGroupsAnswered(true)
     setSetupLS(round.id, 'mixedGroupsAnswered', true)
-    if (value) {
-      setLivePlayingGroups([])
-      setLiveGroupPlayers([])
-      setTargetGroupCount(0)
-      setGroupCountSaved(false)
-      setSetupLS(round.id, 'groupCountSaved', false)
-    }
+    // Playing groups are cleared on any switch (server deletes them both directions)
+    setLivePlayingGroups([])
+    setLiveGroupPlayers([])
+    setTargetGroupCount(0)
+    setGroupCountSaved(false)
+    setSetupLS(round.id, 'groupCountSaved', false)
     await toggleMixedGroups(round.id, value)
     router.refresh()
     setMixedGroupsPending(false)
@@ -1233,6 +1245,33 @@ export default function AdminDashboard({
               className="w-full py-2 rounded-lg text-sm font-bold text-white" style={{ background: navy }}>
               Got It
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mixed Groups switch confirmation modal ── */}
+      {confirmMixedSwitch && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setConfirmMixedSwitch(null)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-2">
+              {confirmMixedSwitch.to ? 'Switch to Mixed Groups?' : 'Turn off Mixed Groups?'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {confirmMixedSwitch.to
+                ? 'Your teams and players are kept. Any side games currently set on your teams will be removed — side games and scorekeeper PINs are set on the playing groups instead, which you’ll build after saving teams.'
+                : 'Your teams and players are kept. The playing groups you created will be deleted, and side games and scorekeeper PINs go back to being set on each team.'}
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => { const to = confirmMixedSwitch.to; setConfirmMixedSwitch(null); performMixedGroupsChoice(to) }}
+                className="flex-1 py-2 rounded-lg text-sm font-bold text-white" style={{ background: navy }}>
+                Switch
+              </button>
+              <button onClick={() => setConfirmMixedSwitch(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
