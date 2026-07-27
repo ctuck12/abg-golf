@@ -289,6 +289,7 @@ export default function AdminDashboard({
   const [showAssignGroupsNotice, setShowAssignGroupsNotice] = useState(false)
   const [skinsFewParticipantsWarning, setSkinsFewParticipantsWarning] = useState(false)
   const [confirmMixedSwitch, setConfirmMixedSwitch] = useState<{ to: boolean } | null>(null)
+  const [showActivateConfirm, setShowActivateConfirm] = useState(false)
   const [selectedBallsCount, setSelectedBallsCount] = useState('3')
   const [createIncludeTotal, setCreateIncludeTotal] = useState(false)
   const [selectedHoleCount, setSelectedHoleCount] = useState('18')
@@ -1245,6 +1246,126 @@ export default function AdminDashboard({
               className="w-full py-2 rounded-lg text-sm font-bold text-white" style={{ background: navy }}>
               Got It
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Activate Round confirmation modal — full setup summary ── */}
+      {showActivateConfirm && round && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setShowActivateConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 flex flex-col" style={{ maxHeight: '85vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 pt-4 pb-3 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-base">Ready to Activate?</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Review everything below, then confirm or go back and edit.</p>
+            </div>
+            <div className="px-5 py-3 overflow-y-auto space-y-3 text-sm">
+              {/* Round */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Round</p>
+                <p className="font-semibold text-gray-900">{round.name}</p>
+                <p className="text-xs text-gray-500">
+                  {round.course} · {new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Format: <span className="font-semibold text-gray-700">
+                    {isDaytona ? 'Daytona' : isTraditional ? 'Traditional' : isBanker ? `Banker (min bet $${round.banker_min_bet ?? 2})` : isHammerRound ? 'Hammer' : `${ballsCount}-Ball${roundIncludeTotal ? ' + Total' : ''}`}
+                  </span>
+                  {is9HoleRound ? ` · 9 Holes (${roundStartHole === 10 ? 'Back 9' : 'Front 9'})` : ' · 18 Holes'}
+                </p>
+              </div>
+              {/* Payout value */}
+              {!hasNoBallPool && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{isDaytona ? 'Per Point Value' : 'Per Ball Value'}</p>
+                  <p className="text-xs text-gray-700 font-semibold">${ballVals[1] ?? 0}{isDaytona ? ' per point' : ' per ball'}</p>
+                </div>
+              )}
+              {/* Skins */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Skins Game</p>
+                {skinsEnabled ? (
+                  <p className="text-xs text-gray-700">
+                    <span className="font-semibold text-green-700">On</span> · {skinsMode === 'pot' ? `Winner Takes Pot · $${skinsAmount} buy-in` : `Per Skin · $${skinsAmount}/skin`} · {skinsParticipants.length} participant{skinsParticipants.length !== 1 ? 's' : ''}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500">Off</p>
+                )}
+              </div>
+              {/* Handicap settings */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Handicaps</p>
+                <p className="text-xs text-gray-700">
+                  {(isDaytona || isBanker) && <>Auto Handicap <span className="font-semibold">{autoHandicap ? 'On' : 'Off'}</span> · </>}
+                  Rounding: <span className="font-semibold">{hcpRounding === 'nearest' ? 'Round Up' : 'Round Down'}</span>
+                </p>
+              </div>
+              {/* Mixed groups (standard only) */}
+              {isStandard && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Mixed Groups</p>
+                  {mixedGroups === true ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-700"><span className="font-semibold text-green-700">Yes</span> · {livePlayingGroups.length} playing group{livePlayingGroups.length !== 1 ? 's' : ''}</p>
+                      {livePlayingGroups.map((g) => {
+                        const gp = liveGroupPlayers.filter((x) => x.playing_group_id === g.id)
+                        const names = gp.map((x) => players.find((p) => p.id === x.player_id)?.name.split(' ')[0] ?? '?').join(', ')
+                        const sg: string[] = []
+                        if (g.daytona_variant) sg.push(`Daytona ${g.daytona_variant.startsWith('5man-flares') ? '5-Man Flares' : g.daytona_variant.startsWith('5man') ? '5-Man Normal' : '4-Man'}`)
+                        if (g.banker_side_game) sg.push(`Banker (min $${g.banker_side_game_min_bet ?? 2})`)
+                        return (
+                          <p key={g.id} className="text-xs text-gray-600 pl-2">
+                            <span className="font-semibold text-gray-800">{g.name}</span> (PIN {g.pin}): {names || 'no players'}{sg.length > 0 ? <span className="text-amber-700"> · {sg.join(' · ')}</span> : ''}
+                          </p>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No — playing groups are the teams</p>
+                  )}
+                </div>
+              )}
+              {/* Teams / groups + players + side games */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                  {(isDaytona || isTraditional) ? `Groups (${teams.length})` : `Teams (${teams.length})`}
+                </p>
+                <div className="space-y-1">
+                  {teams.map((t) => {
+                    const tp = players.filter((p) => p.team_id === t.id)
+                    const names = tp.map((p) => p.name.split(' ')[0]).join(', ')
+                    const skinsCount = tp.filter((p) => skinsOverrides[p.id] ?? p.skins_participant).length
+                    const sg: string[] = []
+                    if (t.daytona_variant) sg.push(`Daytona ${t.daytona_variant.split('|')[0].startsWith('5man-flares') ? '5-Man Flares' : t.daytona_variant.split('|')[0].startsWith('5man') ? '5-Man Normal' : '4-Man'}`)
+                    if (t.banker_side_game) sg.push(`Banker (min $${t.banker_side_game_min_bet ?? 2})`)
+                    if (t.hammer_side_game) sg.push(`Hammer ($${t.hammer_base_bet ?? 0} ${t.hammer_format === 'match' ? 'Match' : 'Stroke'})`)
+                    return (
+                      <p key={t.id} className="text-xs text-gray-600">
+                        <span className="font-semibold text-gray-800">{t.name}</span>
+                        {mixedGroups !== true && <span className="text-gray-400"> (PIN {t.pin})</span>}: {names || 'no players'}
+                        {sg.length > 0 ? <span className="text-amber-700"> · {sg.join(' · ')}</span> : ''}
+                        {skinsEnabled && skinsCount > 0 ? <span className="text-green-700"> · {skinsCount} in skins</span> : ''}
+                      </p>
+                    )
+                  })}
+                </div>
+              </div>
+              {roundExcludeMatchups && (
+                <p className="text-xs text-red-600">Matchup Results are excluded from Payouts &amp; Settlements.</p>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
+              <form action={activateRound.bind(null, round.id, orgSlug)} className="flex-1">
+                <button type="submit"
+                  className="w-full py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: '#16a34a' }}>
+                  Confirm &amp; Activate
+                </button>
+              </form>
+              <button onClick={() => setShowActivateConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
+                Go Back &amp; Edit
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -4139,14 +4260,13 @@ export default function AdminDashboard({
                       </ul>
                     </div>
                   )}
-                  <form action={activateRound.bind(null, round.id, orgSlug)}>
-                    <button type="submit"
-                      disabled={!canActivate}
-                      className="w-full text-white py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{ background: '#16a34a' }}>
-                      Activate Round
-                    </button>
-                  </form>
+                  <button type="button"
+                    onClick={() => setShowActivateConfirm(true)}
+                    disabled={!canActivate}
+                    className="w-full text-white py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: '#16a34a' }}>
+                    Activate Round
+                  </button>
                 </div>
               </div>
             )}
