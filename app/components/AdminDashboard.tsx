@@ -4237,9 +4237,9 @@ export default function AdminDashboard({
                                     {skinsEnabled === true && (
                                       <button type="button"
                                         onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
-                                        className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                        className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
                                         title="Toggle skins participation">
-                                        Skins{inSkins ? ' ✓' : ''}
+                                        {inSkins ? 'Skins ✓' : 'Not in Skins'}
                                       </button>
                                     )}
                                     <button type="button"
