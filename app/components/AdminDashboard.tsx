@@ -2750,10 +2750,18 @@ export default function AdminDashboard({
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Preview — edit names</p>
                           <div className="flex items-center gap-1.5">
-                            <button type="button" onClick={() => gotoGeneration(genHistoryIdx - 1)}
-                              className="text-xs text-gray-600 border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
-                              ← Previous
-                            </button>
+                            {genHistory.length >= 3 && genHistoryIdx > 0 && (
+                              <button type="button" onClick={() => gotoGeneration(0)}
+                                className="text-xs text-gray-600 border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
+                                ⇤ First
+                              </button>
+                            )}
+                            {genHistory.length > 1 && (
+                              <button type="button" onClick={() => gotoGeneration(genHistoryIdx - 1)}
+                                className="text-xs text-gray-600 border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
+                                ← Previous
+                              </button>
+                            )}
                             {genHistory.length > 1 && (
                               <span className="text-[10px] text-gray-400 font-semibold whitespace-nowrap">{genHistoryIdx + 1}/{genHistory.length}</span>
                             )}
