@@ -3552,16 +3552,22 @@ export default function AdminDashboard({
                                 })()}
                               </p>
                               {teamPlayers.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                <div className="flex flex-wrap gap-1 mt-1.5 items-center">
                                   {teamPlayers.map((p) => {
                                     const inSkins = skinsEnabled === true && (skinsOverrides[p.id] ?? p.skins_participant)
                                     return (
                                       <span key={p.id}
-                                        className={`text-[11px] px-1.5 py-0.5 rounded-full border font-medium ${inSkins ? 'bg-green-50 border-green-300 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
-                                        {p.name.split(' ')[0]}{inSkins ? ' · Skins' : ''}
+                                        className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium inline-flex items-center gap-1">
+                                        {inSkins && <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />}
+                                        {p.name.split(' ')[0]}
                                       </span>
                                     )
                                   })}
+                                  {skinsEnabled === true && teamPlayers.some((p) => skinsOverrides[p.id] ?? p.skins_participant) && (
+                                    <span className="text-[10px] text-gray-400 inline-flex items-center gap-1 ml-0.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> = skins
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
