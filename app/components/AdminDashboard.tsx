@@ -386,6 +386,9 @@ export default function AdminDashboard({
   const [genSkinsIds, setGenSkinsIds] = useState<Set<string>>(new Set())
   // Players picked while creating a new playing group (assigned on create)
   const [newGroupPlayerIds, setNewGroupPlayerIds] = useState<Set<string>>(new Set())
+  // Side game configured while creating a new playing group (saved on create)
+  const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', autoStrokes: false }
+  const [newGroupSG, setNewGroupSG] = useState(emptyNewGroupSG)
   const [genEditNames, setGenEditNames] = useState<string[]>([])
   const [genEditPins, setGenEditPins] = useState<string[]>([])
   const [genPending, setGenPending] = useState(false)
@@ -1033,6 +1036,20 @@ export default function AdminDashboard({
       ])
       await Promise.all(pickedIds.map((pid) => setPlayerGroup(pid, res.id!)))
     }
+    // Save any side game configured in the create form
+    if (newGroupSG.daytonaEnabled || newGroupSG.bankerEnabled) {
+      const daytonaVariant = newGroupSG.daytonaEnabled
+        ? newGroupSG.daytonaType === '4' ? `4man|${newGroupSG.daytonaPayout || '0'}` : newGroupSG.daytonaType === '5' ? `5man-${newGroupSG.daytonaSubVariant || 'normal'}|${newGroupSG.daytonaPayout || '0'}` : null
+        : null
+      await updatePlayingGroupSettings(res.id!, {
+        daytona_variant: daytonaVariant,
+        banker_side_game: newGroupSG.bankerEnabled,
+        banker_side_game_min_bet: newGroupSG.bankerEnabled ? (parseFloat(newGroupSG.bankerMinBet) || 2) : null,
+        auto_strokes: newGroupSG.autoStrokes,
+      })
+      setGroupSideGames(prev => ({ ...prev, [res.id!]: { ...newGroupSG, saving: false, saved: false } }))
+    }
+    setNewGroupSG(emptyNewGroupSG)
     setNewGroupPlayerIds(new Set())
     setNewGroupPending(false)
     setNewGroupName(''); setNewGroupPin('')
@@ -3914,7 +3931,95 @@ export default function AdminDashboard({
                                 </div>
                               )
                             })()}
-                            <button type="button" onClick={handleCreateGroup} disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim()}
+                            {/* Side game — configured up front, saved with the group */}
+                            <div className="w-full border-t border-gray-100 pt-2 space-y-2">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Side Game (optional)</p>
+                              {!newGroupSG.bankerEnabled && (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
+                                    <button type="button"
+                                      onClick={() => setNewGroupSG(sg => ({ ...sg, daytonaEnabled: !sg.daytonaEnabled, daytonaType: '', daytonaSubVariant: '', autoStrokes: !sg.daytonaEnabled }))}
+                                      className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newGroupSG.daytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                      {newGroupSG.daytonaEnabled ? 'On' : 'Off'}
+                                    </button>
+                                  </div>
+                                  {newGroupSG.daytonaEnabled && (
+                                    <div className="space-y-1.5 pl-1">
+                                      <div className="flex gap-2">
+                                        <select value={newGroupSG.daytonaType} onChange={e => setNewGroupSG(sg => ({ ...sg, daytonaType: e.target.value, daytonaSubVariant: '' }))}
+                                          className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none bg-white">
+                                          <option value="" disabled>Type…</option>
+                                          <option value="4">4-Man</option>
+                                          <option value="5">5-Man</option>
+                                        </select>
+                                        {newGroupSG.daytonaType === '5' && (
+                                          <select value={newGroupSG.daytonaSubVariant} onChange={e => setNewGroupSG(sg => ({ ...sg, daytonaSubVariant: e.target.value }))}
+                                            className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none bg-white">
+                                            <option value="" disabled>Variant…</option>
+                                            <option value="normal">Normal</option>
+                                            <option value="flares">Flares</option>
+                                          </select>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <label className="text-xs text-gray-500 whitespace-nowrap">Amt./point ($)</label>
+                                        <input type="number" min="0.1" step="0.01" placeholder="e.g. 0.25"
+                                          value={newGroupSG.daytonaPayout} onChange={e => setNewGroupSG(sg => ({ ...sg, daytonaPayout: e.target.value }))}
+                                          className="w-24 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              {!newGroupSG.daytonaEnabled && (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
+                                    <button type="button"
+                                      onClick={() => setNewGroupSG(sg => ({ ...sg, bankerEnabled: !sg.bankerEnabled, autoStrokes: !sg.bankerEnabled }))}
+                                      className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newGroupSG.bankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                      {newGroupSG.bankerEnabled ? 'On' : 'Off'}
+                                    </button>
+                                  </div>
+                                  {newGroupSG.bankerEnabled && (
+                                    <div className="flex items-center gap-2 pl-1">
+                                      <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
+                                      <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
+                                        value={newGroupSG.bankerMinBet} onChange={e => setNewGroupSG(sg => ({ ...sg, bankerMinBet: e.target.value }))}
+                                        className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              {(newGroupSG.daytonaEnabled || newGroupSG.bankerEnabled) && (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-gray-600">Auto Strokes</span>
+                                    <button type="button"
+                                      onClick={() => setNewGroupSG(sg => ({ ...sg, autoStrokes: !sg.autoStrokes }))}
+                                      className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newGroupSG.autoStrokes ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                      {newGroupSG.autoStrokes ? 'On' : 'Off'}
+                                    </button>
+                                    <span className="text-xs text-gray-400">Based on handicaps</span>
+                                  </div>
+                                  {newGroupSG.autoStrokes && round?.format !== 'daytona' && round?.format !== 'banker' && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
+                                      {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
+                                        <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
+                                          className="text-xs font-semibold px-2.5 py-0.5 rounded-full border transition"
+                                          style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                                          {mlabel}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                            <button type="button" onClick={handleCreateGroup}
+                              disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim() || (newGroupSG.daytonaEnabled && (!newGroupSG.daytonaType || (newGroupSG.daytonaType === '5' && !newGroupSG.daytonaSubVariant)))}
                               className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
                               {newGroupPlayerIds.size > 0 ? `+ Add with ${newGroupPlayerIds.size} player${newGroupPlayerIds.size !== 1 ? 's' : ''}` : '+ Add'}
                             </button>
