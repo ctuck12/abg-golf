@@ -1338,7 +1338,7 @@ export default function ScoreEntry({
                   const tp = payoutsData.players.filter((p) => p.team_id === t.id)
                   return [t.id, computeTeamBallSummary(holes, tp.map((p) => p.id), payoutsData.scores, ballsCount)]
                 })) : undefined
-                const poolResults = !isDaytona
+                const poolResults = (!isDaytona && format !== 'traditional' && format !== 'banker' && format !== 'hammer')
                   ? calculatePoolPayouts(payoutsData.teams, payoutsData.players, frontSummaries, backSummaries, perBallValue, ballsCount, totalSummaries)
                   : { results: [], playerNet: {} as Record<string, number>, settlements: [] }
                 const ballResults = poolResults.results
@@ -1396,7 +1396,7 @@ export default function ScoreEntry({
                 // Combined net
                 const combinedNet: Record<string, number> = {}
                 for (const p of payoutsData.players) {
-                  const ballNet = isDaytona ? 0 : (poolResults.playerNet[p.id] ?? 0)
+                  const ballNet = (isDaytona || format === 'traditional' || format === 'banker' || format === 'hammer') ? 0 : (poolResults.playerNet[p.id] ?? 0)
                   combinedNet[p.id] = ballNet + (matchupPayoutsResult.net[p.id] ?? 0) + (daytonaNetByPlayer[p.id] ?? 0) + (bankerNetByPlayer[p.id] ?? 0)
                 }
                 const combinedSettlements = minimizeSettlements(payoutsData.players, combinedNet)

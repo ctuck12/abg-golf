@@ -814,7 +814,8 @@ export default function LeaderboardClient({
     const tp = players.filter((p) => p.team_id === team.id)
     return [team.id, computeTeamBallSummary(holes, tp.map((p) => p.id), scores, ballsCount)]
   })) : undefined
-  const poolResults = (!isDaytona && !isTraditional)
+  // Banker and Hammer have no ball pool — their money comes from banker bets / hammer matchups
+  const poolResults = (!isDaytona && !isTraditional && format !== 'banker' && format !== 'hammer')
     ? calculatePoolPayouts(initialTeams, players, frontSummaries, backSummaries, perBallValue, ballsCount, totalSummaries)
     : { results: [], playerNet: {} as Record<string, number>, settlements: [], potTotal: 0, perBallResult: 0, perPlayerContribution: 0, numDecidedResults: 0, numPlayedResults: 0 }
 
@@ -856,7 +857,7 @@ export default function LeaderboardClient({
   for (const p of players) playerBreakdown[p.id] = { ball: 0, daytona: 0, banker: 0, matchups: 0, skins: 0, hammer: 0 }
   const combinedNet: Record<string, number> = {}
   for (const p of players) {
-    const ballNet = (isDaytona || isTraditional) ? 0 : (poolResults.playerNet[p.id] ?? 0)
+    const ballNet = (isDaytona || isTraditional || format === 'banker' || format === 'hammer') ? 0 : (poolResults.playerNet[p.id] ?? 0)
     const mNet = visibleMatchupPayouts.net[p.id] ?? 0
     const sNet = skinsResults.playerNet[p.id] ?? 0
     combinedNet[p.id] = ballNet + mNet + sNet
@@ -1849,7 +1850,7 @@ export default function LeaderboardClient({
                 <div className="px-4 py-3 border-b border-gray-100">
                   <h4 className="font-semibold text-gray-900 text-sm mb-1.5">Combined Settlements</h4>
                   <div className="flex flex-nowrap gap-1 overflow-x-auto">
-                    {!isDaytona && !isTraditional && (
+                    {!isDaytona && !isTraditional && format !== 'banker' && format !== 'hammer' && (
                       <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Balls</span>
                     )}
                     {isDaytona && (

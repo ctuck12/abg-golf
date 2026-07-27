@@ -322,7 +322,7 @@ export default function AdminDashboard({
     // $0 ball values are created automatically on round creation — don't count those as "saved".
     // Only treat payout as saved when a non-zero value was deliberately set, or LS confirms it.
     const hasRealBallValue = ballValues.some(bv => bv.value_dollars > 0)
-    return ls.payoutSaved ?? (hasRealBallValue || round?.format === 'traditional')
+    return ls.payoutSaved ?? (hasRealBallValue || ['traditional', 'banker', 'hammer'].includes(round?.format ?? ''))
   })
   const [teamsSaved, setTeamsSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
@@ -533,7 +533,7 @@ export default function AdminDashboard({
       (round?.is_started ?? false) || round?.format === 'traditional' || round != null
     ))
     const hasRealBallValue = ballValues.some(bv => bv.value_dollars > 0)
-    setPayoutSaved(ls.payoutSaved ?? (hasRealBallValue || round?.format === 'traditional'))
+    setPayoutSaved(ls.payoutSaved ?? (hasRealBallValue || ['traditional', 'banker', 'hammer'].includes(round?.format ?? '')))
     setSkinsSaved(ls.skinsSaved ?? false)
     setTeamsSaved(ls.teamsSaved ?? false)
     setGroupCountSaved(ls.groupCountSaved ?? !!(round?.playing_group_count && round.playing_group_count > 0))
@@ -625,6 +625,12 @@ export default function AdminDashboard({
   const isDaytona = round?.format === 'daytona'
   const isTraditional = round?.format === 'traditional'
   const isStandard = round?.format === 'standard'
+  const isBankerRound = round?.format === 'banker'
+  const isHammerRound = round?.format === 'hammer'
+  // Formats with no ball/point pool at all — the payout step is skipped and
+  // the ball-game money math never runs (banker money = per-hole bets,
+  // hammer money = hammer matchups, traditional = matchups/skins only).
+  const hasNoBallPool = isTraditional || isBankerRound || isHammerRound
   const isBanker = round?.format === 'banker'
   const roundHoleCount = holes.length  // 9 or 18
   const roundStartHole = holes.length > 0 ? holes[0].hole_number : 1
@@ -656,7 +662,7 @@ export default function AdminDashboard({
 
   const perBallValue = ballVals[1] ?? 5
   const emptyPoolResult: ReturnType<typeof calculatePoolPayouts> = { results: [] as BallHalfResult[], playerNet: {} as Record<string, number>, potTotal: 0, perBallResult: 0, perPlayerContribution: 0, numDecidedResults: 0, numPlayedResults: 0, settlements: [] }
-  const poolResults = !isDaytona
+  const poolResults = !isDaytona && !hasNoBallPool
     ? calculatePoolPayouts(teams, teamPlayers, frontSummaries, backSummaries, perBallValue, ballsCount, totalSummaries)
     : emptyPoolResult
   const ballResults = poolResults.results
@@ -1049,7 +1055,7 @@ export default function AdminDashboard({
   // When live/complete (round.is_started), everything is fully editable.
   const live = !!(round?.is_started)
   const setupBase = roundIsSettingUp && !createPending && !effectivePendingId
-  const effectivePayoutSaved = payoutSaved || isTraditional   // Traditional has no payout step
+  const effectivePayoutSaved = payoutSaved || hasNoBallPool   // Traditional/Banker/Hammer have no payout step
   // Mixed groups is "done" when: not standard, OR chose No, OR chose Yes + Set clicked + all groups created
   const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupCountSaved && targetGroupCount > 0 && livePlayingGroups.length === targetGroupCount)
   // If the new-round form is open over an existing round, lock all downstream sections
@@ -2120,8 +2126,8 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Per Ball / Per Point Payout Value ── */}
-            {round && !isTraditional && (
+            {/* ── Per Ball / Per Point Payout Value — not shown for formats with no ball pool ── */}
+            {round && !hasNoBallPool && (
               <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {!skinsAndPayoutEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
@@ -2270,8 +2276,8 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Handicap Settings (auto strokes + rounding) ── */}
-            {round && round.is_started && (
+            {/* ── Handicap Settings (auto strokes + rounding) — during setup too for Daytona/Banker, which auto-stroke by default ── */}
+            {round && (round.is_started || isDaytona || isBankerRound) && (
               <div className="bg-white rounded-2xl border border-gray-200 p-5">
                 <h3 className="font-semibold text-gray-900 text-sm mb-3">Handicap Settings</h3>
                 {(isDaytona || round.format === 'banker') && (
@@ -3938,6 +3944,9 @@ export default function AdminDashboard({
                 <div>
                   <p className="font-semibold text-green-800 text-sm">Round is now Active!</p>
                   <p className="text-xs text-green-700 mt-0.5">The leaderboard is live — players can enter scores.</p>
+                  {isHammerRound && liveHammerMatchups.length === 0 && (
+                    <p className="text-xs font-semibold text-amber-700 mt-1.5">⚠ No Hammer matchups yet — add them in the Hammer Matchups section above.</p>
+                  )}
                 </div>
               </div>
             )}
@@ -3951,6 +3960,11 @@ export default function AdminDashboard({
                     ? 'Teams and settings are configured. Click below to make the leaderboard live — players can then enter scores.'
                     : 'Complete the required steps above before activating the round.'}
                 </p>
+                {isHammerRound && (
+                  <p className="text-xs text-blue-700 bg-blue-50 rounded px-3 py-2 mb-3">
+                    Hammer matchups are set up after activation — the Hammer Matchups section appears above once the round is live.
+                  </p>
+                )}
                 {activateMissingItems.length > 0 && (
                   <div className="mb-3 bg-amber-50 rounded-lg px-3 py-2.5">
                     <p className="text-xs font-semibold text-amber-800 mb-1">Still needed:</p>
