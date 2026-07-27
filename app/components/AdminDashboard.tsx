@@ -53,15 +53,16 @@ function randomPin(): string {
   return String(Math.floor(1000 + Math.random() * 9000))
 }
 
-function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number): GeneratedTeam[] {
+function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number, rng?: () => number): GeneratedTeam[] {
   // Sort best to worst. Plus handicaps are stored as negative numbers (e.g. +2.3 = -2.3),
   // so ascending sort correctly places the best players first.
-  const sorted = [...players].sort((a, b) => {
-    if (a.handicap == null && b.handicap == null) return 0
-    if (a.handicap == null) return 1
-    if (b.handicap == null) return -1
-    return a.handicap - b.handicap
-  })
+  // With an rng, each handicap gets a small jitter before sorting — the draft starts
+  // from a different order, and the swap optimizer then lands in a different (still
+  // near-balanced) local optimum, so Re-generate produces genuinely different teams.
+  const jitter = rng ? () => (rng() - 0.5) * 4 : () => 0
+  const keyed = players.map((p) => ({ p, key: p.handicap == null ? Number.POSITIVE_INFINITY : p.handicap + jitter() }))
+  keyed.sort((a, b) => a.key - b.key)
+  const sorted = keyed.map((k) => k.p)
 
   const n = sorted.length
   const smallSize = Math.floor(n / numTeams)
@@ -374,6 +375,10 @@ export default function AdminDashboard({
   const [genManualHcp, setGenManualHcp] = useState('')
   const [genNumTeams, setGenNumTeams] = useState('2')
   const [generatedTeams, setGeneratedTeams] = useState<GeneratedTeam[] | null>(null)
+  // Generation history for Previous/Next navigation (entry 0 = initial generation)
+  const [genHistory, setGenHistory] = useState<{ teams: GeneratedTeam[]; names: string[]; pins: string[] }[]>([])
+  const [genHistoryIdx, setGenHistoryIdx] = useState(0)
+  const [genAtStartNotice, setGenAtStartNotice] = useState(false)
   const [genEditNames, setGenEditNames] = useState<string[]>([])
   const [genEditPins, setGenEditPins] = useState<string[]>([])
   const [genPending, setGenPending] = useState(false)
@@ -754,9 +759,9 @@ export default function AdminDashboard({
     router.refresh()
   }
 
-  function handleGenerateTeams() {
+  function buildGenInputs(): { allPlayers: GeneratedPlayer[]; numTeams: number } | null {
     const numTeams = parseInt(genNumTeams, 10)
-    if (isNaN(numTeams) || numTeams < 2) { setGenError('Enter at least 2 teams.'); return }
+    if (isNaN(numTeams) || numTeams < 2) { setGenError('Enter at least 2 teams.'); return null }
 
     const rosterPlayers: GeneratedPlayer[] = liveRoster
       .filter(rp => genSelectedRosterIds.has(rp.id))
@@ -771,15 +776,75 @@ export default function AdminDashboard({
     const allPlayers = [...rosterPlayers, ...manualPlayersConverted]
     if (allPlayers.length < numTeams) {
       setGenError(`Need at least ${numTeams} players to fill ${numTeams} teams.`)
-      return
+      return null
     }
+    return { allPlayers, numTeams }
+  }
 
+  // Membership fingerprint so Re-generate can guarantee a different arrangement
+  function teamsSignature(ts: GeneratedTeam[]): string {
+    return ts.map(t => t.players.map(p => p.id).sort().join(',')).sort().join('|')
+  }
+
+  function handleGenerateTeams() {
+    const inputs = buildGenInputs()
+    if (!inputs) return
     setGenError('')
     setConfirmGenUse(false)
-    const result = generateBalancedTeams(allPlayers, numTeams)
+    const result = generateBalancedTeams(inputs.allPlayers, inputs.numTeams)
+    const names = result.map(t => t.name), pins = result.map(t => t.pin)
+    setGenHistory([{ teams: result, names, pins }])
+    setGenHistoryIdx(0)
     setGeneratedTeams(result)
-    setGenEditNames(result.map(t => t.name))
-    setGenEditPins(result.map(t => t.pin))
+    setGenEditNames(names)
+    setGenEditPins(pins)
+  }
+
+  function handleRegenerateTeams() {
+    const inputs = buildGenInputs()
+    if (!inputs) return
+    setGenError('')
+    setConfirmGenUse(false)
+    const currentSig = generatedTeams ? teamsSignature(generatedTeams) : ''
+    let result: GeneratedTeam[] | null = null
+    for (let attempt = 0; attempt < 15; attempt++) {
+      const candidate = generateBalancedTeams(inputs.allPlayers, inputs.numTeams, Math.random)
+      if (teamsSignature(candidate) !== currentSig) { result = candidate; break }
+    }
+    if (!result) {
+      setGenError('This roster only has one balanced arrangement — no different teams to generate.')
+      return
+    }
+    const names = result.map(t => t.name), pins = result.map(t => t.pin)
+    const appendIdx = genHistory.length
+    // Keep any name/PIN edits made to the current generation before moving on
+    setGenHistory(prev => {
+      const copy = [...prev]
+      if (copy[genHistoryIdx]) copy[genHistoryIdx] = { ...copy[genHistoryIdx], names: genEditNames, pins: genEditPins }
+      return [...copy, { teams: result!, names, pins }]
+    })
+    setGenHistoryIdx(appendIdx)
+    setGeneratedTeams(result)
+    setGenEditNames(names)
+    setGenEditPins(pins)
+  }
+
+  function gotoGeneration(idx: number) {
+    if (idx < 0) { setGenAtStartNotice(true); return }
+    if (idx > genHistory.length - 1) return
+    const entry = genHistory[idx]
+    if (!entry) return
+    // Keep any name/PIN edits made to the current generation
+    setGenHistory(prev => {
+      const copy = [...prev]
+      if (copy[genHistoryIdx]) copy[genHistoryIdx] = { ...copy[genHistoryIdx], names: genEditNames, pins: genEditPins }
+      return copy
+    })
+    setGenHistoryIdx(idx)
+    setGeneratedTeams(entry.teams)
+    setGenEditNames(entry.names)
+    setGenEditPins(entry.pins)
+    setConfirmGenUse(false)
   }
 
   async function handleUseGeneratedTeams() {
@@ -1133,6 +1198,24 @@ export default function AdminDashboard({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+
+      {/* ── Team generator: back-at-start notice ── */}
+      {genAtStartNotice && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setGenAtStartNotice(false)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-2">At the Initial Generation</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              You&apos;re back at the first set of generated teams — there&apos;s nothing previous to see.
+              You can still go forward with <span className="font-semibold">Next</span>, or create a new variation with <span className="font-semibold">Re-generate</span>.
+            </p>
+            <button onClick={() => setGenAtStartNotice(false)}
+              className="w-full py-2 rounded-lg text-sm font-bold text-white" style={{ background: navy }}>
+              Got It
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Skins participants warning modal ── */}
       {skinsFewParticipantsWarning && (
@@ -2664,12 +2747,27 @@ export default function AdminDashboard({
                     {/* Generated preview */}
                     {generatedTeams && (
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Preview — edit names</p>
-                          <button type="button" onClick={handleGenerateTeams}
-                            className="text-xs text-indigo-600 border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50">
-                            Re-generate
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button type="button" onClick={() => gotoGeneration(genHistoryIdx - 1)}
+                              className="text-xs text-gray-600 border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
+                              ← Previous
+                            </button>
+                            {genHistory.length > 1 && (
+                              <span className="text-[10px] text-gray-400 font-semibold whitespace-nowrap">{genHistoryIdx + 1}/{genHistory.length}</span>
+                            )}
+                            {genHistoryIdx < genHistory.length - 1 && (
+                              <button type="button" onClick={() => gotoGeneration(genHistoryIdx + 1)}
+                                className="text-xs text-gray-600 border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
+                                Next →
+                              </button>
+                            )}
+                            <button type="button" onClick={handleRegenerateTeams}
+                              className="text-xs text-indigo-600 border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50">
+                              Re-generate
+                            </button>
+                          </div>
                         </div>
 
                         {generatedTeams.map((team, i) => (
