@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase-server'
 import { sendEmailNotification, sendPushToAll } from '@/lib/notify'
 import { logRoundEvent, playerAuditContext, playerNames, firstName, fmtHcp, matchupLabel, bestBallLabel } from '@/lib/audit'
+import { requireAdminAuth, requireAnyLogin } from '@/lib/org-auth'
 
 const FORMAT_LABELS: Record<string, string> = {
   daytona: 'Daytona', banker: 'Banker', traditional: 'Traditional', hammer: 'Hammer',
@@ -249,6 +250,8 @@ export async function submitHoleScores(
 // ── Admin: round management ───────────────────────────────────────────────────
 
 export async function createRound(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   try {
     const name = (formData.get('name') as string)?.trim()
     const date = formData.get('date') as string
@@ -332,6 +335,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
 }
 
 export async function activateRound(roundId: string, orgSlug: string) {
+  if (await requireAdminAuth()) return
   const supabase = createServerClient()
   await supabase.from('rounds').update({ is_started: true }).eq('id', roundId)
   await logRoundEvent(supabase, roundId, 'Round activated', 'Leaderboard is live')
@@ -339,6 +343,8 @@ export async function activateRound(roundId: string, orgSlug: string) {
 }
 
 export async function updateHolePars(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const roundId = formData.get('roundId') as string
   const supabase = createServerClient()
 
@@ -355,6 +361,8 @@ export async function updateHolePars(_prev: unknown, formData: FormData) {
 }
 
 export async function updateBallValues(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const roundId = formData.get('roundId') as string
   const ballsCount = parseInt(formData.get('ballsCount') as string) || 3
   const supabase = createServerClient()
@@ -373,6 +381,8 @@ export async function updateBallValues(_prev: unknown, formData: FormData) {
 // ── Admin: team management ────────────────────────────────────────────────────
 
 export async function addTeam(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const name = (formData.get('name') as string)?.trim()
   const roundId = formData.get('roundId') as string
   // PIN is hidden when mixed groups is enabled — default to 1234
@@ -398,6 +408,8 @@ export async function addTeam(_prev: unknown, formData: FormData) {
 }
 
 export async function renameTeam(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const teamId = formData.get('teamId') as string
   const name = (formData.get('name') as string)?.trim()
   if (!teamId || !name) return { error: 'Team name required.' }
@@ -413,6 +425,8 @@ export async function renameTeam(_prev: unknown, formData: FormData) {
 }
 
 export async function updateTeamSettings(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const teamId = formData.get('teamId') as string
   const name = (formData.get('name') as string)?.trim()
   const pin = (formData.get('pin') as string)?.trim()
@@ -456,6 +470,8 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
 }
 
 export async function renamePlayer(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const playerId = formData.get('playerId') as string
   const name = (formData.get('name') as string)?.trim()
   if (!playerId || !name) return { error: 'Player name required.' }
@@ -471,6 +487,7 @@ export async function renamePlayer(_prev: unknown, formData: FormData) {
 }
 
 export async function deleteTeam(teamId: string) {
+  if (await requireAdminAuth()) return
   const supabase = createServerClient()
   const { data: before } = await supabase.from('teams').select('name, round_id').eq('id', teamId).single()
   await supabase.from('teams').delete().eq('id', teamId)
@@ -478,11 +495,13 @@ export async function deleteTeam(teamId: string) {
 }
 
 export async function toggleTeamAdmin(teamId: string, isAdmin: boolean) {
+  if (await requireAdminAuth()) return
   const supabase = createServerClient()
   await supabase.from('teams').update({ is_admin: isAdmin }).eq('id', teamId)
 }
 
 export async function resetTeamScores(teamId: string) {
+  if (await requireAdminAuth()) return
   const supabase = createServerClient()
   const [{ data: players }, { data: teamRow }] = await Promise.all([
     supabase.from('players').select('id').eq('team_id', teamId),
@@ -504,6 +523,8 @@ export async function resetTeamScores(teamId: string) {
 // ── Admin: player management ──────────────────────────────────────────────────
 
 export async function addPlayer(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const name = (formData.get('name') as string)?.trim()
   const teamId = formData.get('teamId') as string
   const skinsParticipant = formData.get('skins_participant') === 'true'
@@ -538,6 +559,8 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
 }
 
 export async function updatePlayerDetails(playerId: string, name: string, handicap: number | null) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const trimmed = name.trim()
   if (!trimmed) return { error: 'Player name required.' }
   const supabase = createServerClient()
@@ -560,6 +583,8 @@ export async function updatePlayerDetails(playerId: string, name: string, handic
 }
 
 export async function updatePlayerHandicap(playerId: string, handicap: number | null) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const before = await playerAuditContext(supabase, playerId)
   const { data: player, error } = await supabase
@@ -586,6 +611,8 @@ async function hammerLabel(sb: ReturnType<typeof createServerClient>, team1Id: s
 }
 
 export async function createHammerMatchup(roundId: string, team1Id: string, team2Id: string, baseBet: number, autoHandicap: boolean) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { data, error } = await supabase.from('hammer_matchups')
     .insert({ round_id: roundId, team1_id: team1Id, team2_id: team2Id, base_bet: baseBet, auto_handicap: autoHandicap })
@@ -596,6 +623,8 @@ export async function createHammerMatchup(roundId: string, team1Id: string, team
 }
 
 export async function deleteHammerMatchup(matchupId: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { data: m } = await supabase.from('hammer_matchups').select('round_id, team1_id, team2_id').eq('id', matchupId).single()
   await supabase.from('hammer_matchups').delete().eq('id', matchupId)
@@ -608,6 +637,8 @@ export async function saveHammerHole(
   holeNumber: number,
   state: { stake: number; lastHammerTeam: number | null; foldedTeam: number | null; preTeeUsed: boolean }
 ) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   await supabase.from('hammer_holes').upsert(
     { matchup_id: matchupId, hole_number: holeNumber, stake: state.stake, last_hammer_team: state.lastHammerTeam, folded_team: state.foldedTeam, pre_tee_used: state.preTeeUsed },
@@ -643,6 +674,8 @@ export async function submitHammerHoleScores(
 // ── Org Player Roster ─────────────────────────────────────────────────────────
 
 export async function createRosterPlayer(orgId: string, name: string, ghinNumber: string | null, handicapIndex: number | null, email: string | null) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { data, error } = await supabase
     .from('org_players')
@@ -659,6 +692,8 @@ export async function syncGhinHandicaps(orgId: string): Promise<
   | { error: string }
   | { updated: { id: string; name: string; oldHcp: number | null; newHcp: number | null }[]; unchanged: number; failed: { name: string; reason: string }[] }
 > {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const { fetchGhinHandicap } = await import('@/lib/ghin')
   const supabase = createServerClient()
   const { data: roster, error } = await supabase
@@ -693,6 +728,8 @@ export async function syncGhinHandicaps(orgId: string): Promise<
 }
 
 export async function updateRosterPlayerHandicap(rosterPlayerId: string, handicapIndex: number | null) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error } = await supabase
     .from('org_players')
@@ -703,6 +740,8 @@ export async function updateRosterPlayerHandicap(rosterPlayerId: string, handica
 }
 
 export async function updateRosterPlayer(playerId: string, name: string, ghinNumber: string | null, handicapIndex: number | null, email: string | null) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error } = await supabase
     .from('org_players')
@@ -713,12 +752,16 @@ export async function updateRosterPlayer(playerId: string, name: string, ghinNum
 }
 
 export async function deleteRosterPlayer(playerId: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   await supabase.from('org_players').delete().eq('id', playerId)
   return { success: true }
 }
 
 export async function addRosterPlayerToTeam(teamId: string, rosterPlayerId: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
 
   const { data: rp } = await supabase.from('org_players').select('name, handicap_index').eq('id', rosterPlayerId).single()
@@ -751,6 +794,8 @@ export async function addRosterPlayerToTeam(teamId: string, rosterPlayerId: stri
 // Bulk version of addRosterPlayerToTeam — one round of queries and a single
 // insert for the whole selection instead of N sequential server actions.
 export async function addRosterPlayersToTeam(teamId: string, rosterPlayerIds: string[]) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   if (!rosterPlayerIds.length) return { success: true }
   const supabase = createServerClient()
 
@@ -789,6 +834,8 @@ export async function addRosterPlayersToTeam(teamId: string, rosterPlayerIds: st
 }
 
 export async function toggleMixedGroups(roundId: string, value: boolean) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const update: Record<string, unknown> = { mixed_groups: value }
   if (value) {
@@ -817,6 +864,8 @@ export async function toggleMixedGroups(roundId: string, value: boolean) {
 }
 
 export async function addManualPlayerToGroup(groupId: string, name: string, handicap?: number | null) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { data: player, error: pe } = await supabase
     .from('players')
@@ -832,6 +881,8 @@ export async function addManualPlayerToGroup(groupId: string, name: string, hand
 }
 
 export async function removeManualPlayerFromGroup(playerId: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   await supabase.from('playing_group_players').delete().eq('player_id', playerId)
   await supabase.from('players').delete().eq('id', playerId).is('team_id', null)
@@ -839,6 +890,8 @@ export async function removeManualPlayerFromGroup(playerId: string) {
 }
 
 export async function setPlayingGroupCount(roundId: string, count: number) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ playing_group_count: count }).eq('id', roundId)
   if (error) return { error: error.message }
@@ -852,6 +905,8 @@ export async function updatePlayingGroupSettings(groupId: string, settings: {
   auto_strokes: boolean
   stroke_rounding?: string | null
 }) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { data: before } = await supabase
     .from('playing_groups').select('name, round_id, daytona_variant, banker_side_game, auto_strokes, stroke_rounding')
@@ -870,6 +925,8 @@ export async function updatePlayingGroupSettings(groupId: string, settings: {
 }
 
 export async function setRoundExcludeMatchups(roundId: string, exclude: boolean) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ exclude_matchups: exclude }).eq('id', roundId)
   if (error) return { error: error.message }
@@ -877,6 +934,8 @@ export async function setRoundExcludeMatchups(roundId: string, exclude: boolean)
 }
 
 export async function createPlayingGroup(roundId: string, name: string, pin: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { data, error } = await supabase.from('playing_groups').insert({ round_id: roundId, name, pin }).select('id').single()
   if (error) return { error: error.message }
@@ -884,12 +943,16 @@ export async function createPlayingGroup(roundId: string, name: string, pin: str
 }
 
 export async function deletePlayingGroup(groupId: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   await supabase.from('playing_groups').delete().eq('id', groupId)
   return { success: true }
 }
 
 export async function setPlayerGroup(playerId: string, groupId: string | null) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   await supabase.from('playing_group_players').delete().eq('player_id', playerId)
   if (groupId) {
@@ -921,6 +984,8 @@ export async function submitGroupHoleScores(
 // ── PWA push subscriptions ────────────────────────────────────────────────────
 
 export async function savePushSubscription(subscription: { endpoint: string; keys?: Record<string, string> }) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   if (!subscription?.endpoint) return { error: 'Invalid subscription.' }
   const supabase = createServerClient()
   const { error } = await supabase.from('push_subscriptions').upsert(
@@ -932,6 +997,8 @@ export async function savePushSubscription(subscription: { endpoint: string; key
 }
 
 export async function removePushSubscription(endpoint: string) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   if (!endpoint) return { error: 'Invalid subscription.' }
   const supabase = createServerClient()
   await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
@@ -939,6 +1006,8 @@ export async function removePushSubscription(endpoint: string) {
 }
 
 export async function updateRoundAutoHandicap(roundId: string, autoHandicap: boolean) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ auto_handicap: autoHandicap }).eq('id', roundId)
   if (error) return { error: error.message }
@@ -947,6 +1016,8 @@ export async function updateRoundAutoHandicap(roundId: string, autoHandicap: boo
 }
 
 export async function updateRoundHandicapRounding(roundId: string, mode: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ handicap_rounding: mode }).eq('id', roundId)
   if (error) return { error: error.message }
@@ -955,6 +1026,8 @@ export async function updateRoundHandicapRounding(roundId: string, mode: string)
 }
 
 export async function updateRoundName(roundId: string, name: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ name: name.trim() }).eq('id', roundId)
   if (error) return { error: error.message }
@@ -963,6 +1036,8 @@ export async function updateRoundName(roundId: string, name: string) {
 }
 
 export async function saveBankerHole(roundId: string, teamId: string, holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error } = await supabase.from('banker_holes').upsert(
     { round_id: roundId, team_id: teamId, hole_number: holeNumber, banker_player_id: bankerPlayerId, max_bet: maxBet },
@@ -973,6 +1048,8 @@ export async function saveBankerHole(roundId: string, teamId: string, holeNumber
 }
 
 export async function saveBankerBets(roundId: string, teamId: string, holeNumber: number, bets: { playerId: string; baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }[]) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const { error: delErr } = await supabase.from('banker_bets').delete().eq('round_id', roundId).eq('team_id', teamId).eq('hole_number', holeNumber)
   if (delErr) return { error: delErr.message }
@@ -986,6 +1063,8 @@ export async function saveBankerBets(roundId: string, teamId: string, holeNumber
 }
 
 export async function saveHoleStrokes(roundId: string, holeNumber: number, playerIds: string[], scopeToPlayerIds?: string[]) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   // Scope the delete to only the current group's players to avoid clearing strokes for other groups in the same round
   if (scopeToPlayerIds && scopeToPlayerIds.length > 0) {
@@ -1002,6 +1081,8 @@ export async function saveHoleStrokes(roundId: string, holeNumber: number, playe
 }
 
 export async function updateSkinsSettings(_prev: unknown, formData: FormData) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const roundId = formData.get('roundId') as string
   const enabled = formData.get('skins_enabled') === 'true'
   const amount = parseFloat(formData.get('skins_amount') as string) || 0
@@ -1019,6 +1100,8 @@ export async function updateSkinsSettings(_prev: unknown, formData: FormData) {
 }
 
 export async function updatePlayerSkinsParticipation(playerId: string, participates: boolean) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const before = await playerAuditContext(supabase, playerId)
   const { error } = await supabase.from('players').update({ skins_participant: participates }).eq('id', playerId)
@@ -1030,6 +1113,7 @@ export async function updatePlayerSkinsParticipation(playerId: string, participa
 }
 
 export async function deletePlayer(playerId: string) {
+  if (await requireAdminAuth()) return
   const supabase = createServerClient()
   const before = await playerAuditContext(supabase, playerId)
   await supabase.from('players').delete().eq('id', playerId)
@@ -1054,6 +1138,8 @@ function convertBetForNine(bet: string, nine: 'front9' | 'back9'): string {
 }
 
 export async function updatePlayerHolesRange(playerId: string, holesRange: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const before = await playerAuditContext(supabase, playerId)
   const { error } = await supabase.from('players').update({ holes_range: holesRange }).eq('id', playerId)
@@ -1082,6 +1168,8 @@ export async function updatePlayerHolesRange(playerId: string, holesRange: strin
 // Deletes every score in the round (team players and playing-group guests)
 // and stamps scores_cleared_at so open scorekeeper screens reload.
 export async function clearAllScores(roundId: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   if (!roundId) return { error: 'No round.' }
   const supabase = createServerClient()
 
@@ -1113,6 +1201,7 @@ export async function clearAllScores(roundId: string) {
 // Positions >= 100 mark a team as manually reordered (drag & drop); teams
 // without any such position display in handicap order by default.
 export async function reorderTeamPlayers(teamId: string, orderedIds: string[]) {
+  if (await requireAdminAuth()) return
   const supabase = createServerClient()
   await Promise.all(orderedIds.map((id, i) =>
     supabase.from('players').update({ position: 100 + i }).eq('id', id).eq('team_id', teamId)
@@ -1120,6 +1209,7 @@ export async function reorderTeamPlayers(teamId: string, orderedIds: string[]) {
 }
 
 export async function movePlayer(playerId: string, direction: 'up' | 'down') {
+  if (await requireAdminAuth()) return
   const supabase = createServerClient()
 
   const { data: player } = await supabase
@@ -1154,6 +1244,8 @@ async function h2hAuditContext(sb: ReturnType<typeof createServerClient>, id: st
 }
 
 export async function saveMatchup(roundId: string, player1Id: string, player2Id: string, bet: string, holeRange: string = 'all') {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const { data, error } = await sb.from('matchups').insert({
     round_id: roundId,
@@ -1168,6 +1260,8 @@ export async function saveMatchup(roundId: string, player1Id: string, player2Id:
 }
 
 export async function updateMatchupHoleRange(id: string, holeRange: string) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await h2hAuditContext(sb, id)
   const { error } = await sb.from('matchups').update({ hole_range: holeRange }).eq('id', id)
@@ -1177,6 +1271,8 @@ export async function updateMatchupHoleRange(id: string, holeRange: string) {
 }
 
 export async function deleteMatchup(id: string) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await h2hAuditContext(sb, id)
   const { error } = await sb.from('matchups').delete().eq('id', id)
@@ -1186,6 +1282,8 @@ export async function deleteMatchup(id: string) {
 }
 
 export async function updateMatchupBet(id: string, bet: string) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await h2hAuditContext(sb, id)
   const { error } = await sb.from('matchups').update({ bet: bet.trim() }).eq('id', id)
@@ -1195,6 +1293,8 @@ export async function updateMatchupBet(id: string, bet: string) {
 }
 
 export async function updateMatchupPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: string; strokes?: number }[]) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await h2hAuditContext(sb, id)
   const { error } = await sb.from('matchups').update({ press: presses }).eq('id', id)
@@ -1215,6 +1315,8 @@ async function bbAuditContext(sb: ReturnType<typeof createServerClient>, id: str
 }
 
 export async function updateBestBallPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: string; strokes?: number }[]) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').update({ press: presses }).eq('id', id)
@@ -1234,6 +1336,8 @@ export async function saveBestBallMatchup(
   holeRange: string = 'all',
   playerStrokes: Record<string, number> | null = null
 ) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const { data, error } = await sb.from('best_ball_matchups').insert({
     round_id: roundId,
@@ -1252,6 +1356,8 @@ export async function saveBestBallMatchup(
 }
 
 export async function updateBestBallHoleRange(id: string, holeRange: string) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').update({ hole_range: holeRange }).eq('id', id)
@@ -1261,6 +1367,8 @@ export async function updateBestBallHoleRange(id: string, holeRange: string) {
 }
 
 export async function updateBestBallPlayerStrokes(id: string, playerStrokes: Record<string, number> | null) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').update({ player_strokes: playerStrokes }).eq('id', id)
@@ -1277,6 +1385,8 @@ export async function saveMedleyMatchup(
   betType: string,
   amount: number
 ) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   if (players.length < 3) return { error: 'Medley needs at least 3 players.' }
   const sb = createServerClient()
   // A player can only be in one medley at a time
@@ -1310,6 +1420,8 @@ export async function updateMedleyMatchup(
   betType: string,
   amount: number
 ) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await medleyAuditContext(sb, id)
   const { error } = await sb.from('medley_matchups').update({ players, bet_type: betType, amount }).eq('id', id)
@@ -1319,6 +1431,8 @@ export async function updateMedleyMatchup(
 }
 
 export async function updateMedleyPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokes?: Record<string, number> | null }[]) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await medleyAuditContext(sb, id)
   const { error } = await sb.from('medley_matchups').update({ press: presses }).eq('id', id)
@@ -1331,6 +1445,8 @@ export async function updateMedleyPresses(id: string, presses: { id: string; hol
 }
 
 export async function deleteMedleyMatchup(id: string) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await medleyAuditContext(sb, id)
   const { error } = await sb.from('medley_matchups').delete().eq('id', id)
@@ -1340,6 +1456,8 @@ export async function deleteMedleyMatchup(id: string) {
 }
 
 export async function deleteBestBallMatchup(id: string) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').delete().eq('id', id)
@@ -1349,6 +1467,8 @@ export async function deleteBestBallMatchup(id: string) {
 }
 
 export async function updateBestBallBet(id: string, bet: string) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const sb = createServerClient()
   const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').update({ bet: bet.trim() }).eq('id', id)
@@ -1364,6 +1484,8 @@ export async function saveDaytonaHoleValues(
   teamId: string,
   entries: { holeNumber: number; valuePerPoint: number | null }[]
 ) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   const toDelete = entries.filter((e) => e.valuePerPoint === null).map((e) => e.holeNumber)
   const toUpsert = entries.filter((e) => e.valuePerPoint !== null) as { holeNumber: number; valuePerPoint: number }[]
@@ -1407,6 +1529,8 @@ export async function saveDaytonaAssignments(
   holeNumber: number,
   assignments: { playerId: string; side: 'left' | 'right' }[]
 ) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
   const supabase = createServerClient()
   // Scope the delete to only this group's players — other groups share the same
   // round_id + hole_number, so a round-wide delete would wipe their assignments.
@@ -1433,6 +1557,8 @@ export async function bulkCreateTeams(
   roundId: string,
   teams: { name: string; pin: string; players: { name: string; handicap: number | null; skins?: boolean; rosterPlayerId?: string | null }[] }[]
 ) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
   if (!roundId || !teams.length) return { error: 'Invalid input.' }
   const supabase = createServerClient()
 
