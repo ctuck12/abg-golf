@@ -45,7 +45,7 @@ import {
   computeAllMatchupPayouts,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -289,7 +289,10 @@ export default function AdminDashboard({
   const [showPinModal, setShowPinModal] = useState(false)
   const [addPlayerTeamId, setAddPlayerTeamId] = useState<string | null>(null)
   const [playerOrderOverrides, setPlayerOrderOverrides] = useState<Record<string, string[]>>({})
-  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const dndSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  )
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
   const [editingHandicapId, setEditingHandicapId] = useState<string | null>(null)
@@ -3857,9 +3860,9 @@ export default function AdminDashboard({
                                                 </form>
                                               ) : (
                                                 <>
-                                                  <button type="button" onClick={() => setRenamingPlayer(p.id)} title="Tap to rename"
-                                                    className="text-sm font-medium text-gray-800 truncate min-w-0 text-left"
-                                                    style={{ flex: `0 1 calc(${nameColCh}ch + 1rem)`, maxWidth: '10rem' }}>{p.name}</button>
+                                                  <span {...dragProps} title="Drag to reorder"
+                                                    className="text-sm font-medium text-gray-800 truncate min-w-0 text-left select-none cursor-grab active:cursor-grabbing"
+                                                    style={{ flex: `0 1 calc(${nameColCh}ch + 1rem)`, maxWidth: '10rem', WebkitTouchCallout: 'none' }}>{p.name}</span>
                                                   {editingHandicapId === p.id ? (
                                                     <span className="flex items-center gap-1 flex-shrink-0">
                                                       <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
@@ -3890,6 +3893,9 @@ export default function AdminDashboard({
                                                     className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${holesRange !== 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-400 border-gray-300'}`}>
                                                     {holesRange === 'all' ? '18 Holes' : holesRange === 'front9' ? 'Front 9' : 'Back 9'}
                                                   </button>
+                                                  <button type="button" onClick={() => setRenamingPlayer(p.id)}
+                                                    className="text-gray-400 hover:text-blue-600 text-[11px] leading-none px-0.5 flex-shrink-0"
+                                                    title="Rename player">✎</button>
                                                   <button type="button" onClick={() => setConfirmRemovePlayerId(p.id)}
                                                     className="text-gray-400 hover:text-red-600 text-sm leading-none px-0.5 flex-shrink-0"
                                                     title="Remove player">×</button>
