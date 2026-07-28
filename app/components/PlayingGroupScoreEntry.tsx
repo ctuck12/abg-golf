@@ -1003,7 +1003,16 @@ export default function PlayingGroupScoreEntry({
                     </ul>
                   </div>
                   <p className="text-xs text-gray-500 mt-1.5 mb-1">* Strokes count in the {isDaytonaMode ? 'Daytona' : 'side'} game only</p>
-                  {players.map((p) => {
+                  {[...players].sort((a, b) => {
+                    // Group low first (alphabetical), then least → most strokes; no-HCP last
+                    if (a.handicap == null && b.handicap == null) return a.name.localeCompare(b.name)
+                    if (a.handicap == null) return 1
+                    if (b.handicap == null) return -1
+                    const aRel = Math.max(0, effHcpF(a.handicap) - minEff)
+                    const bRel = Math.max(0, effHcpF(b.handicap) - minEff)
+                    if (aRel !== bRel) return aRel - bRel
+                    return a.name.localeCompare(b.name)
+                  }).map((p) => {
                     if (p.handicap == null) {
                       return (
                         <div key={p.id} className="flex items-center justify-between py-2 border-t border-gray-100">
