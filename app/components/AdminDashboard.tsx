@@ -419,15 +419,24 @@ export default function AdminDashboard({
   const [rosterForm, setRosterForm] = useState({ name: '', ghin: '', handicap: '', email: '' })
   const [ghinSyncing, setGhinSyncing] = useState(false)
   const [ghinSyncMsg, setGhinSyncMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  // Result of the post-create auto-sync, shown under the (collapsed) Player
+  // Roster header so the round setup below stays in view.
+  const [ghinAutoSync, setGhinAutoSync] = useState<{
+    running: boolean
+    ok: boolean
+    summary: string
+    updated: { name: string; oldHcp: number | null; newHcp: number | null }[]
+    failed: { name: string; reason: string }[]
+  } | null>(null)
   // Auto-sync GHIN handicaps once after a new round is created (flag set just
-  // before the post-create reload). Opens the roster so the result is visible.
+  // before the post-create reload). Leaves the roster collapsed — the result
+  // reports itself under the roster header.
   useEffect(() => {
     try {
       if (localStorage.getItem('abg_ghin_autosync')) {
         localStorage.removeItem('abg_ghin_autosync')
         if (roster.some(rp => (rp.ghin_number ?? '').trim() !== '')) {
-          setShowRoster(true)
-          void handleGhinSync()
+          void handleGhinSync(true)
         }
       }
     } catch {}
@@ -1306,12 +1315,19 @@ export default function AdminDashboard({
     await updatePlayerHandicap(playerId, hcp)
     router.refresh()
   }
-  async function handleGhinSync() {
+  // auto = the once-per-new-round sync; it reports under the collapsed roster
+  // header instead of inside the (unopened) roster section.
+  async function handleGhinSync(auto = false) {
     setGhinSyncing(true)
     setGhinSyncMsg(null)
+    setGhinAutoSync(auto ? { running: true, ok: true, summary: '', updated: [], failed: [] } : null)
     const res = await syncGhinHandicaps(orgId)
     setGhinSyncing(false)
-    if ('error' in res) { setGhinSyncMsg({ ok: false, text: res.error }); return }
+    if ('error' in res) {
+      if (auto) setGhinAutoSync({ running: false, ok: false, summary: res.error, updated: [], failed: [] })
+      else setGhinSyncMsg({ ok: false, text: res.error })
+      return
+    }
 
     // Mirror roster changes locally
     if (res.updated.length > 0) {
@@ -1325,8 +1341,20 @@ export default function AdminDashboard({
     const parts: string[] = []
     if (res.updated.length > 0) parts.push(`${res.updated.length} updated`)
     if (res.unchanged > 0) parts.push(`${res.unchanged} already current`)
-    if (res.failed.length > 0) parts.push(`${res.failed.length} failed — ${res.failed.map(f => `${f.name}: ${f.reason}`).join(' · ')}`)
-    setGhinSyncMsg({ ok: res.failed.length === 0, text: parts.length ? `GHIN sync: ${parts.join(' · ')}` : 'GHIN sync: everything already current' })
+    if (auto) {
+      // Failures get their own lines below the summary, so keep them out of it
+      if (res.failed.length > 0) parts.push(`${res.failed.length} failed`)
+      setGhinAutoSync({
+        running: false,
+        ok: res.failed.length === 0,
+        summary: parts.length ? parts.join(' · ') : 'everything already current',
+        updated: res.updated.map(u => ({ name: u.name, oldHcp: u.oldHcp, newHcp: u.newHcp })),
+        failed: res.failed,
+      })
+    } else {
+      if (res.failed.length > 0) parts.push(`${res.failed.length} failed — ${res.failed.map(f => `${f.name}: ${f.reason}`).join(' · ')}`)
+      setGhinSyncMsg({ ok: res.failed.length === 0, text: parts.length ? `GHIN sync: ${parts.join(' · ')}` : 'GHIN sync: everything already current' })
+    }
 
     // Sync linked players in the current round — confirm first if it's live
     const liveLinked = res.updated
@@ -2506,13 +2534,49 @@ export default function AdminDashboard({
               <span className="text-gray-400 text-sm">{showRoster ? '▲' : '▼'}</span>
             </button>
 
+            {/* Post-create GHIN auto-sync result — reported here so the roster
+                stays collapsed and the round setup below stays in view */}
+            {ghinAutoSync && (
+              <div className={`border-t px-5 py-3 ${ghinAutoSync.running ? 'border-gray-100 bg-gray-50' : ghinAutoSync.ok ? 'border-green-100 bg-green-50' : 'border-red-100 bg-red-50'}`}>
+                {ghinAutoSync.running ? (
+                  <p className="text-xs font-medium text-gray-500">Syncing GHIN handicaps…</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className={`text-xs font-semibold ${ghinAutoSync.ok ? 'text-green-800' : 'text-red-700'}`}>
+                        GHIN sync: {ghinAutoSync.summary}
+                      </p>
+                      <button type="button" onClick={() => setGhinAutoSync(null)}
+                        className={`text-sm leading-none flex-shrink-0 ${ghinAutoSync.ok ? 'text-green-400 hover:text-green-700' : 'text-red-400 hover:text-red-700'}`}>✕</button>
+                    </div>
+                    {ghinAutoSync.updated.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {ghinAutoSync.updated.map((u) => (
+                          <li key={u.name} className="text-xs text-green-800">
+                            • {u.name}: {u.oldHcp != null ? fmtHcp(u.oldHcp) : '—'} → <span className="font-semibold">{u.newHcp != null ? fmtHcp(u.newHcp) : '—'}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {ghinAutoSync.failed.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {ghinAutoSync.failed.map((f) => (
+                          <li key={f.name} className="text-xs text-red-600">• {f.name}: {f.reason}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {showRoster && (
               <div className="border-t border-gray-100 px-5 pb-5 space-y-4">
 
                 {/* GHIN handicap sync */}
                 <div className="mt-3 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <button type="button" onClick={handleGhinSync} disabled={ghinSyncing}
+                    <button type="button" onClick={() => handleGhinSync()} disabled={ghinSyncing}
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition disabled:opacity-50">
                       {ghinSyncing ? 'Syncing GHIN…' : 'Sync GHIN Handicaps'}
                     </button>
