@@ -3839,6 +3839,7 @@ export default function AdminDashboard({
                                     {teamPlayers.map((p) => {
                                       const inSkins = skinsOverrides[p.id] ?? p.skins_participant
                                       const holesRange = holesRangeOverrides[p.id] ?? p.holes_range ?? 'all'
+                                      const nameColCh = Math.max(4, ...teamPlayers.map(tp => tp.name.length))
                                       return (
                                         <SortablePlayerRow key={p.id} id={p.id}>
                                           {(dragProps) => (
@@ -3857,7 +3858,8 @@ export default function AdminDashboard({
                                               ) : (
                                                 <>
                                                   <button type="button" onClick={() => setRenamingPlayer(p.id)} title="Tap to rename"
-                                                    className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0 text-left">{p.name}</button>
+                                                    className="text-sm font-medium text-gray-800 truncate min-w-0 text-left"
+                                                    style={{ flex: `0 1 calc(${nameColCh}ch + 1rem)`, maxWidth: '10rem' }}>{p.name}</button>
                                                   {editingHandicapId === p.id ? (
                                                     <span className="flex items-center gap-1 flex-shrink-0">
                                                       <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
@@ -4266,10 +4268,12 @@ export default function AdminDashboard({
                             {assignedPlayers.map((p) => {
                               const inSkins = skinsOverrides[p.id] ?? ((p as { skins_participant?: boolean }).skins_participant ?? false)
                               const isManual = p.team_id === null
+                              const nameColCh = Math.max(4, ...assignedPlayers.map(ap => ap.name.length))
                               return (
-                                <div key={p.id} className="flex items-center gap-2">
+                                <div key={p.id} className="flex items-center gap-1.5 w-full">
                                   <span className={`w-1 h-4 rounded-full flex-shrink-0 ${isManual ? 'bg-purple-500' : 'bg-blue-500'}`} />
-                                  <span className="text-sm font-medium text-gray-800 truncate">{p.name}</span>
+                                  <span className="text-sm font-medium text-gray-800 truncate min-w-0"
+                                    style={{ flex: `0 1 calc(${nameColCh}ch + 1rem)`, maxWidth: '10rem' }}>{p.name}</span>
                                   {p.handicap != null && (
                                     <span className={`text-[10px] font-bold px-1 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 w-16 text-center ${isManual ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                                       HCP {fmtHcp(p.handicap)}
