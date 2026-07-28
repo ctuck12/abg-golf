@@ -857,7 +857,10 @@ export default function PlayingGroupScoreEntry({
                     {effHoleNums.length > 0
                       ? <>
                           <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1.5">So far {p.name.split(' ')[0]} gets a stroke on hole{effHoleNums.length !== 1 ? 's' : ''} {effHoleNums.join(', ')}.</p>
-                          <p className="text-xs text-gray-500">Strokes count in the Banker game only — the scores to par shown above are gross.</p>
+                          <div className="text-xs text-gray-500 space-y-0.5">
+                            <p>* Strokes count in the Banker game only</p>
+                            <p className="pl-2.5">* Scores to par shown above are gross totals</p>
+                          </div>
                         </>
                       : <p className="text-xs text-gray-500">So far {p.name.split(' ')[0]} has no stroke holes.</p>}
                   </div>
@@ -901,9 +904,10 @@ export default function PlayingGroupScoreEntry({
                           <span key={hn} className="text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5">{hn}</span>
                         ))}
                       </div>
-                      <p className="text-xs text-gray-500">
-                        Strokes count in the {isDaytonaMode ? 'Daytona' : 'side'} game only — the scores to par shown above are gross.
-                      </p>
+                      <div className="text-xs text-gray-500 space-y-0.5">
+                        <p>* Strokes count in the {isDaytonaMode ? 'Daytona' : 'side'} game only</p>
+                        <p className="pl-2.5">* Scores to par shown above are gross totals</p>
+                      </div>
                     </>
                   ) : (
                     <p className="text-sm font-semibold text-gray-700">
@@ -914,7 +918,7 @@ export default function PlayingGroupScoreEntry({
                     <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">How this was calculated</p>
                     <ul className="text-xs text-gray-600 space-y-1 list-disc pl-4">
                       <li>Rounding: <span className="font-semibold text-gray-800">{roundingLabel}</span></li>
-                      <li>Strokes are set off the group&apos;s lowest handicap: <span className="font-semibold text-gray-800">{lowNames} ({fmtH(minEff)})</span></li>
+                      <li>Strokes set by lowest hcp: <span className="font-semibold text-gray-800">{lowNames} ({fmtH(minEff)})</span></li>
                       {isLow ? (
                         <li><span className="font-semibold text-gray-800">{p.name.split(' ')[0]}</span> is the low player — receives no strokes</li>
                       ) : (
