@@ -1156,11 +1156,12 @@ export default function AdminDashboard({
     router.refresh()
   }
 
-  // First holes-range change for a player each round gets a confirm dialog;
-  // once confirmed, the flag in round-scoped localStorage skips future warnings.
+  // Once the round is live, a player's first holes-range change gets a confirm
+  // dialog; confirming stores a flag in round-scoped localStorage that skips
+  // future warnings. During setup, changes apply directly with no dialog.
   function handleHolesChipTap(playerId: string, playerName: string, current: string) {
     const next = current === 'all' ? 'front9' : current === 'front9' ? 'back9' : 'all'
-    if (getSetupLS(round?.id)[`holesWarn_${playerId}`]) {
+    if (!round?.is_started || getSetupLS(round?.id)[`holesWarn_${playerId}`]) {
       handleUpdateHolesRange(playerId, next)
     } else {
       setHolesRangeConfirm({ playerId, playerName, next })
@@ -2802,9 +2803,9 @@ export default function AdminDashboard({
                 <form action={skinsAction} ref={skinsFormRef} className="space-y-4"
                   onSubmit={(e) => {
                     if (skinsConfirmBypass.current) { skinsConfirmBypass.current = false; return }
-                    // Only confirm when overwriting previously saved settings — the
-                    // very first save (nothing stored yet) applies directly.
-                    if (round.skins_enabled == null) return
+                    // Only confirm changes to a live round — during setup (and on the
+                    // first save, when nothing is stored yet) saves apply directly.
+                    if (!round.is_started || round.skins_enabled == null) return
                     const changes: string[] = []
                     const storedMode = round.skins_mode ?? 'per_hole'
                     const storedAmount = round.skins_amount ?? 0
