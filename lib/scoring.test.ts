@@ -288,3 +288,18 @@ describe('computeSkinsPotResults', () => {
     expect(res.playerNet).toEqual({ a: 6, b: 6, c: -12 })
   })
 })
+
+// ── GHIN index parsing ───────────────────────────────────────────────────────
+
+import { parseGhinIndex } from './ghin'
+
+describe('parseGhinIndex', () => {
+  it('parses plain and plus handicaps, treats NH/blank as null', () => {
+    expect(parseGhinIndex('5.2')).toBe(5.2)
+    expect(parseGhinIndex('+1.4')).toBe(-1.4)
+    expect(parseGhinIndex('NH')).toBeNull()
+    expect(parseGhinIndex('')).toBeNull()
+    expect(parseGhinIndex(null)).toBeNull()
+    expect(parseGhinIndex(3)).toBe(3)
+  })
+})
