@@ -1015,11 +1015,13 @@ export type SkinResult = {
  *  - 2+ tied for the lowest ≤ par score → washed, no skin.
  *  - All scores > par → no skin.
  *  - Skin payout: winner collects amountPerSkin from every other participant.
+ *  - A participant only competes on holes their holes_range covers — stale
+ *    scores left on excluded holes (range changed mid-round) never count.
  */
 export function computeSkinsResults(
   holes: { hole_number: number; par: number }[],
   scores: { player_id: string; hole_number: number; strokes: number }[],
-  participants: { id: string; name: string }[],
+  participants: { id: string; name: string; holes_range?: string | null }[],
   amountPerSkin: number
 ): {
   skins: SkinResult[]
@@ -1037,7 +1039,9 @@ export function computeSkinsResults(
       .map((p) => ({
         id: p.id,
         name: p.name,
-        score: scores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes ?? null,
+        score: playerCoversHole(p.holes_range, hole.hole_number)
+          ? scores.find((s) => s.player_id === p.id && s.hole_number === hole.hole_number)?.strokes ?? null
+          : null,
       }))
       .filter((s): s is typeof s & { score: number } => s.score !== null)
 
