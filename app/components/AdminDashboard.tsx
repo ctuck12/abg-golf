@@ -302,6 +302,13 @@ export default function AdminDashboard({
   const skinsFormRef = useRef<HTMLFormElement>(null)
   const skinsConfirmBypass = useRef(false)
   const [confirmRemoveHammerId, setConfirmRemoveHammerId] = useState<string | null>(null)
+  // Generic "this changes live-round calculations" confirm — reused by every
+  // post-activation edit path (HCP, skins participation, team/group settings…)
+  const [liveChangeConfirm, setLiveChangeConfirm] = useState<{ title: string; changes: string[]; onConfirm: () => void } | null>(null)
+  const teamEditFormRef = useRef<HTMLFormElement>(null)
+  const teamEditBypass = useRef(false)
+  const ballFormRef = useRef<HTMLFormElement>(null)
+  const ballConfirmBypass = useRef(false)
   const [editingHandicapId, setEditingHandicapId] = useState<string | null>(null)
   const [handicapDraft, setHandicapDraft] = useState('')
   // Inline roster-handicap editing (team generator list, roster picker)
@@ -1144,16 +1151,39 @@ export default function AdminDashboard({
 
   async function handleSetHcpRounding(mode: string) {
     if (!round || mode === hcpRounding) return
-    setHcpRounding(mode)
-    await updateRoundHandicapRounding(round.id, mode)
-    router.refresh()
+    const apply = async () => {
+      setHcpRounding(mode)
+      await updateRoundHandicapRounding(round.id, mode)
+      router.refresh()
+    }
+    if (round.is_started) {
+      const label = (m: string) => m === 'down' ? 'Round Down' : 'Round Up'
+      setLiveChangeConfirm({
+        title: 'Change stroke rounding?',
+        changes: [`Rounding: ${label(hcpRounding)} → ${label(mode)}`, 'Strokes recalculate for every player in the round.'],
+        onConfirm: () => { void apply() },
+      })
+      return
+    }
+    await apply()
   }
   async function handleToggleAutoHandicap() {
     if (!round) return
     const next = !autoHandicap
-    setAutoHandicap(next)
-    await updateRoundAutoHandicap(round.id, next)
-    router.refresh()
+    const apply = async () => {
+      setAutoHandicap(next)
+      await updateRoundAutoHandicap(round.id, next)
+      router.refresh()
+    }
+    if (round.is_started) {
+      setLiveChangeConfirm({
+        title: `Turn auto handicaps ${next ? 'on' : 'off'}?`,
+        changes: [`Auto Handicaps: ${autoHandicap ? 'On' : 'Off'} → ${next ? 'On' : 'Off'}`, 'Strokes recalculate for every player in the round.'],
+        onConfirm: () => { void apply() },
+      })
+      return
+    }
+    await apply()
   }
 
   // Once the round is live, a player's first holes-range change gets a confirm
@@ -1167,6 +1197,26 @@ export default function AdminDashboard({
       setHolesRangeConfirm({ playerId, playerName, next })
     }
   }
+  // Live round: first skins toggle per player confirms, then the stored flag
+  // lets later taps apply directly. During setup, taps always apply directly.
+  function handleSkinsChipTap(p: { id: string; name: string }, current: boolean) {
+    if (!round?.is_started || getSetupLS(round?.id)[`skinsWarn_${p.id}`]) {
+      handleToggleSkinsParticipant(p.id, current)
+      return
+    }
+    setLiveChangeConfirm({
+      title: current ? `Remove ${p.name} from the skins game?` : `Add ${p.name} to the skins game?`,
+      changes: [
+        `${p.name}: ${current ? 'In Skins → Not in Skins' : 'Not in Skins → In Skins'}`,
+        'Skins results and payouts recalculate immediately.',
+        "You won't be asked again for this player this round.",
+      ],
+      onConfirm: () => {
+        setSetupLS(round?.id, `skinsWarn_${p.id}`, true)
+        handleToggleSkinsParticipant(p.id, current)
+      },
+    })
+  }
   function openPlayerEdit(p: { id: string; name: string; handicap?: number | null }) {
     setRenamingPlayer(p.id)
     setRenameDraft(p.name)
@@ -1176,13 +1226,30 @@ export default function AdminDashboard({
     const name = renameDraft.trim()
     if (!name) return
     const hcp = parseHcpInput(handicapDraft)
+    const existing = players.find(p => p.id === playerId) ?? liveManualPlayers.find(p => p.id === playerId)
+    const oldHcp = existing?.handicap ?? null
+    const commit = async () => {
+      // Server action also syncs the linked roster entry — mirror that locally
+      const rosterId = players.find(p => p.id === playerId)?.roster_player_id
+      if (rosterId) setLiveRoster(prev => prev.map(rp => rp.id === rosterId ? { ...rp, name, handicap_index: hcp } : rp))
+      setLiveManualPlayers(prev => prev.map(mp => mp.id === playerId ? { ...mp, name, handicap: hcp } : mp))
+      await updatePlayerDetails(playerId, name, hcp)
+      router.refresh()
+    }
     setRenamingPlayer(null)
-    // Server action also syncs the linked roster entry — mirror that locally
-    const rosterId = players.find(p => p.id === playerId)?.roster_player_id
-    if (rosterId) setLiveRoster(prev => prev.map(rp => rp.id === rosterId ? { ...rp, name, handicap_index: hcp } : rp))
-    setLiveManualPlayers(prev => prev.map(mp => mp.id === playerId ? { ...mp, name, handicap: hcp } : mp))
-    await updatePlayerDetails(playerId, name, hcp)
-    router.refresh()
+    // A live-round handicap change moves strokes — confirm it first
+    if (round?.is_started && oldHcp !== hcp) {
+      setLiveChangeConfirm({
+        title: `Change ${existing?.name ?? name}'s handicap?`,
+        changes: [
+          `HCP: ${oldHcp != null ? fmtHcp(oldHcp) : '—'} → ${hcp != null ? fmtHcp(hcp) : '—'}`,
+          'Strokes and game results recalculate immediately.',
+        ],
+        onConfirm: () => { void commit() },
+      })
+      return
+    }
+    await commit()
   }
   async function handleUpdateHandicap(playerId: string) {
     const hcp = parseHcpInput(handicapDraft)
@@ -1396,10 +1463,10 @@ export default function AdminDashboard({
   }
 
   useEffect(() => {
-    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId
+    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm, skinsSaveConfirm, confirmRemoveHammerId])
+  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm, skinsSaveConfirm, confirmRemoveHammerId, liveChangeConfirm])
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -1896,6 +1963,38 @@ export default function AdminDashboard({
           </div>
         )
       })()}
+
+      {/* ── Generic live-round change confirmation modal ── */}
+      {liveChangeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg font-bold">!</div>
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base leading-snug">{liveChangeConfirm.title}</h2>
+                <ul className="text-sm text-gray-600 mt-2 space-y-1">
+                  {liveChangeConfirm.changes.map((c) => (
+                    <li key={c} className="flex gap-1.5"><span className="text-amber-500">•</span><span>{c}</span></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="border-t border-gray-100" />
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setLiveChangeConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button type="button"
+                onClick={() => { const c = liveChangeConfirm; setLiveChangeConfirm(null); c.onConfirm() }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                style={{ background: navy }}>
+                Confirm Change
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Skins settings change confirmation modal ── */}
       {skinsSaveConfirm && (
@@ -2757,7 +2856,16 @@ export default function AdminDashboard({
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">
                   {isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value'}
                 </h3>
-                <form action={ballAction} className="space-y-3">
+                <form action={ballAction} ref={ballFormRef} className="space-y-3"
+                  onSubmit={(e) => {
+                    if (ballConfirmBypass.current || !round.is_started) { ballConfirmBypass.current = false; return }
+                    e.preventDefault()
+                    setLiveChangeConfirm({
+                      title: isDaytona ? 'Change the point payout value?' : 'Change the ball payout values?',
+                      changes: ['The round is live — payouts recalculate immediately with the new values.'],
+                      onConfirm: () => { ballConfirmBypass.current = true; ballFormRef.current?.requestSubmit() },
+                    })
+                  }}>
                   <input type="hidden" name="roundId" value={round.id} />
                   <input type="hidden" name="ballsCount" value={isDaytona ? 1 : round.balls_count} />
                   {payoutSaved && roundIsSettingUp && <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2">Values saved!</p>}
@@ -3015,15 +3123,27 @@ export default function AdminDashboard({
                   <span className="text-xs text-gray-600">Exclude from Payouts &amp; Settlements</span>
                   <button type="button"
                     disabled={roundExcludeMatchupsSaving}
-                    onClick={async () => {
+                    onClick={() => {
                       const newVal = !roundExcludeMatchups
-                      setRoundExcludeMatchupsState(newVal)
-                      setRoundExcludeMatchupsSaving(true)
-                      setRoundExcludeMatchupsSaved(false)
-                      await setRoundExcludeMatchups(round.id, newVal)
-                      setRoundExcludeMatchupsSaving(false)
-                      setRoundExcludeMatchupsSaved(true)
-                      setTimeout(() => setRoundExcludeMatchupsSaved(false), 3000)
+                      const apply = async () => {
+                        setRoundExcludeMatchupsState(newVal)
+                        setRoundExcludeMatchupsSaving(true)
+                        setRoundExcludeMatchupsSaved(false)
+                        await setRoundExcludeMatchups(round.id, newVal)
+                        setRoundExcludeMatchupsSaving(false)
+                        setRoundExcludeMatchupsSaved(true)
+                        setTimeout(() => setRoundExcludeMatchupsSaved(false), 3000)
+                      }
+                      if (round.is_started) {
+                        setLiveChangeConfirm({
+                          title: newVal ? 'Exclude matchups from payouts?' : 'Include matchups in payouts?',
+                          changes: [
+                            `Matchup results: ${newVal ? 'Included → Excluded' : 'Excluded → Included'}`,
+                            'Payouts and settlements recalculate immediately.',
+                          ],
+                          onConfirm: () => { void apply() },
+                        })
+                      } else { void apply() }
                     }}
                     className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition disabled:opacity-40 ${roundExcludeMatchups ? 'bg-red-100 text-red-800 border-red-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                     {roundExcludeMatchupsSaving ? '…' : roundExcludeMatchups ? 'On' : 'Off'}
@@ -3691,7 +3811,24 @@ export default function AdminDashboard({
                     <div key={team.id} className="border-2 border-gray-300 rounded-xl overflow-hidden">
                       <div className="px-4 py-3">
                         {editingTeamId === team.id ? (
-                          <form action={updateTeamAction} className="space-y-2" onSubmit={() => setEditingTeamId(null)}>
+                          <form action={updateTeamAction} ref={teamEditFormRef} className="space-y-2"
+                            onSubmit={(e) => {
+                              // Live round: confirm before applying team-setting changes
+                              if (teamEditBypass.current || !round?.is_started) {
+                                teamEditBypass.current = false
+                                setEditingTeamId(null)
+                                return
+                              }
+                              e.preventDefault()
+                              setLiveChangeConfirm({
+                                title: `Save changes to ${team.name}?`,
+                                changes: [
+                                  'The round is live — the updated settings apply immediately.',
+                                  'Strokes, side games, and results recalculate for this team.',
+                                ],
+                                onConfirm: () => { teamEditBypass.current = true; teamEditFormRef.current?.requestSubmit() },
+                              })
+                            }}>
                             <input type="hidden" name="teamId" value={team.id} />
                             <input type="hidden" name="stroke_rounding" value={editTeamStrokeRounding} />
                             {updateTeamState?.error && <p className="text-xs text-red-500">{updateTeamState.error}</p>}
@@ -3760,10 +3897,8 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Daytona Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = async () => { setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditDaytonaBack9(''); setEditAutoStrokes(!editDaytonaEnabled) }
-                                          if (editDaytonaEnabled && round?.is_started) {
-                                            setConfirmDisableSideGame({ label: 'Daytona Side Game', onConfirm: doIt })
-                                          } else { doIt() }
+                                          // Save-time confirm covers live-round changes now
+                                          setEditDaytonaEnabled(v => !v); setEditDaytonaType(''); setEditDaytonaSubVariant(''); setEditDaytonaPayout(''); setEditDaytonaBack9(''); setEditAutoStrokes(!editDaytonaEnabled)
                                         }}
                                         className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editDaytonaEnabled ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                         {editDaytonaEnabled ? 'On' : 'Off'}
@@ -3820,10 +3955,8 @@ export default function AdminDashboard({
                                       <span className="text-xs font-medium text-gray-600">Banker Side Game</span>
                                       <button type="button"
                                         onClick={() => {
-                                          const doIt = async () => { setEditBankerEnabled(v => !v); setEditAutoStrokes(!editBankerEnabled) }
-                                          if (editBankerEnabled && round?.is_started) {
-                                            setConfirmDisableSideGame({ label: 'Banker Side Game', onConfirm: doIt })
-                                          } else { doIt() }
+                                          // Save-time confirm covers live-round changes now
+                                          setEditBankerEnabled(v => !v); setEditAutoStrokes(!editBankerEnabled)
                                         }}
                                         className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editBankerEnabled ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
                                         {editBankerEnabled ? 'On' : 'Off'}
@@ -4029,7 +4162,7 @@ export default function AdminDashboard({
                                                   </span>
                                                   {skinsEnabled === true && (
                                                     <button type="button"
-                                                      onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
+                                                      onClick={() => handleSkinsChipTap(p, inSkins)}
                                                       className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
                                                       title="Toggle skins participation">
                                                       {inSkins ? 'Skins ✓' : 'Skins'}
@@ -4447,7 +4580,7 @@ export default function AdminDashboard({
                                       )}
                                       {skinsEnabled === true && (
                                         <button type="button"
-                                          onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
+                                          onClick={(e) => { e.stopPropagation(); handleSkinsChipTap(p, inSkins) }}
                                           className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
                                           title="Toggle skins participation">
                                           {inSkins ? 'Skins ✓' : 'Skins'}
@@ -4756,20 +4889,32 @@ export default function AdminDashboard({
                                 <div className="flex items-center gap-2 pt-0.5">
                                   <button type="button"
                                     disabled={sg.saving || (sg.daytonaEnabled && !sg.daytonaType)}
-                                    onClick={async () => {
-                                      updateGroupSG(g.id, { saving: true, saved: false })
-                                      const daytonaVariant = sg.daytonaEnabled
-                                        ? sg.daytonaType === '4' ? `4man|${sg.daytonaPayout || '0'}` : sg.daytonaType === '5' ? `5man-${sg.daytonaSubVariant || 'normal'}|${sg.daytonaPayout || '0'}` : null
-                                        : null
-                                      await updatePlayingGroupSettings(g.id, {
-                                        daytona_variant: daytonaVariant,
-                                        banker_side_game: sg.bankerEnabled,
-                                        banker_side_game_min_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMinBet) || 2) : null,
-                                        auto_strokes: (sg.daytonaEnabled || sg.bankerEnabled) ? sg.autoStrokes : false,
-                                        stroke_rounding: sg.strokeRounding,
-                                      })
-                                      updateGroupSG(g.id, { saving: false, saved: true })
-                                      if (!sg.daytonaEnabled && !sg.bankerEnabled) setExpandedGroupSideGame(null)
+                                    onClick={() => {
+                                      const doSave = async () => {
+                                        updateGroupSG(g.id, { saving: true, saved: false })
+                                        const daytonaVariant = sg.daytonaEnabled
+                                          ? sg.daytonaType === '4' ? `4man|${sg.daytonaPayout || '0'}` : sg.daytonaType === '5' ? `5man-${sg.daytonaSubVariant || 'normal'}|${sg.daytonaPayout || '0'}` : null
+                                          : null
+                                        await updatePlayingGroupSettings(g.id, {
+                                          daytona_variant: daytonaVariant,
+                                          banker_side_game: sg.bankerEnabled,
+                                          banker_side_game_min_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMinBet) || 2) : null,
+                                          auto_strokes: (sg.daytonaEnabled || sg.bankerEnabled) ? sg.autoStrokes : false,
+                                          stroke_rounding: sg.strokeRounding,
+                                        })
+                                        updateGroupSG(g.id, { saving: false, saved: true })
+                                        if (!sg.daytonaEnabled && !sg.bankerEnabled) setExpandedGroupSideGame(null)
+                                      }
+                                      if (round?.is_started) {
+                                        setLiveChangeConfirm({
+                                          title: `Save ${g.name}'s side game settings?`,
+                                          changes: [
+                                            'The round is live — the updated settings apply immediately.',
+                                            'Strokes and side-game results recalculate for this group.',
+                                          ],
+                                          onConfirm: () => { void doSave() },
+                                        })
+                                      } else { void doSave() }
                                     }}
                                     className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white disabled:opacity-40 transition"
                                     style={{ background: navy }}>

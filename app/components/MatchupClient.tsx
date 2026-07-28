@@ -578,6 +578,10 @@ export default function MatchupClient({
   const [showPayouts, setShowPayouts] = useState(false)
   const [showNetPositions, setShowNetPositions] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string; type: 'h2h' | 'bb' | 'medley' } | null>(null)
+  // This page is only reachable once the round is live, so matchup edits always
+  // confirm before saving — bets, presses, and results recalculate immediately.
+  const [confirmSaveEdit, setConfirmSaveEdit] = useState<{ run: () => void } | null>(null)
+  const saveEditConfirmed = useRef(false)
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false)
   const [strokesPopover, setStrokesPopover] = useState<{ recipientName: string; front: number; back: number; total: number } | { playerStrokes: { name: string; strokes: number; holesLabel: string; contribLabel?: string }[] } | null>(null)
 
@@ -663,6 +667,11 @@ export default function MatchupClient({
 
 
   async function handleSaveH2HBet(id: string) {
+    if (!saveEditConfirmed.current) {
+      setConfirmSaveEdit({ run: () => { saveEditConfirmed.current = true; void handleSaveH2HBet(id) } })
+      return
+    }
+    saveEditConfirmed.current = false
     const amtStr = editH2HBetType === 'nassau'
       ? `${editH2HFrontAmount.trim() || '0'}|${editH2HBackAmount.trim() || '0'}|${editH2HTotalAmount.trim() || '0'}`
       : editH2HBetAmount
@@ -761,6 +770,11 @@ export default function MatchupClient({
     setSavingMedley(false)
   }
   async function handleSaveMedley(id: string) {
+    if (!saveEditConfirmed.current) {
+      setConfirmSaveEdit({ run: () => { saveEditConfirmed.current = true; void handleSaveMedley(id) } })
+      return
+    }
+    saveEditConfirmed.current = false
     const m = medleyMatchups.find((x) => x.id === id)
     if (!m) return
     const ids = (m.players ?? []).map((e) => e.id)
@@ -778,6 +792,11 @@ export default function MatchupClient({
   }
 
   async function handleSaveBBBet(id: string) {
+    if (!saveEditConfirmed.current) {
+      setConfirmSaveEdit({ run: () => { saveEditConfirmed.current = true; void handleSaveBBBet(id) } })
+      return
+    }
+    saveEditConfirmed.current = false
     const amtStr = editBBBetType === 'nassau'
       ? `${editBBFrontAmount.trim() || '0'}|${editBBBackAmount.trim() || '0'}|${editBBTotalAmount.trim() || '0'}`
       : editBBBetAmount
@@ -920,10 +939,10 @@ export default function MatchupClient({
     : payouts.rows
 
   useEffect(() => {
-    const locked = showOptions || !!confirmDelete || !!strokesPopover || !!pressPopoverInfo || showDuplicateAlert || !!showScorecardFor || showPinLogin
+    const locked = showOptions || !!confirmDelete || !!confirmSaveEdit || !!strokesPopover || !!pressPopoverInfo || showDuplicateAlert || !!showScorecardFor || showPinLogin
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, confirmDelete, strokesPopover, pressPopoverInfo, showDuplicateAlert, showScorecardFor, showPinLogin])
+  }, [showOptions, confirmDelete, confirmSaveEdit, strokesPopover, pressPopoverInfo, showDuplicateAlert, showScorecardFor, showPinLogin])
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -1017,6 +1036,31 @@ export default function MatchupClient({
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
                 style={{ background: '#ef4444' }}>
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Save Edit Confirmation Modal ── */}
+      {confirmSaveEdit && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setConfirmSaveEdit(null)}>
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900 text-base mb-1">Save matchup changes?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              The round is live — the updated bet, presses, and settings apply immediately and results recalculate.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setConfirmSaveEdit(null)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200">
+                Cancel
+              </button>
+              <button
+                onClick={() => { const c = confirmSaveEdit; setConfirmSaveEdit(null); c.run() }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ background: '#0f172a' }}>
+                Confirm Change
               </button>
             </div>
           </div>
