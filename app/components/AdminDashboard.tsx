@@ -3870,23 +3870,23 @@ export default function AdminDashboard({
                                                   ) : (
                                                     <button type="button" title="Tap to edit handicap"
                                                       onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '') }}
-                                                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 bg-blue-50 text-blue-700 border-blue-200">
+                                                      className="text-[10px] font-bold px-1 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 w-16 text-center bg-blue-50 text-blue-700 border-blue-200">
                                                       {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
                                                     </button>
                                                   )}
                                                   {skinsEnabled === true && (
                                                     <button type="button"
                                                       onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
-                                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-white text-gray-400 border-gray-300'}`}
+                                                      className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
                                                       title="Toggle skins participation">
-                                                      {inSkins ? 'Skins ✓' : 'Not in Skins'}
+                                                      {inSkins ? 'Skins ✓' : 'Skins'}
                                                     </button>
                                                   )}
                                                   <button type="button"
                                                     onClick={() => handleUpdateHolesRange(p.id, holesRange === 'all' ? 'front9' : holesRange === 'front9' ? 'back9' : 'all')}
-                                                    title="Holes played — tap to cycle 18 / Front 9 / Back 9"
-                                                    className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-7 text-center transition ${holesRange !== 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-400 border-gray-300'}`}>
-                                                    {holesRange === 'all' ? '18' : holesRange === 'front9' ? 'F9' : 'B9'}
+                                                    title="Holes played — tap to cycle 18 Holes / Front 9 / Back 9"
+                                                    className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${holesRange !== 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-400 border-gray-300'}`}>
+                                                    {holesRange === 'all' ? '18 Holes' : holesRange === 'front9' ? 'Front 9' : 'Back 9'}
                                                   </button>
                                                   <button type="button" onClick={() => setConfirmRemovePlayerId(p.id)}
                                                     className="text-gray-400 hover:text-red-600 text-sm leading-none px-0.5 flex-shrink-0"
@@ -4271,16 +4271,16 @@ export default function AdminDashboard({
                                   <span className={`w-1 h-4 rounded-full flex-shrink-0 ${isManual ? 'bg-purple-500' : 'bg-blue-500'}`} />
                                   <span className="text-sm font-medium text-gray-800 truncate">{p.name}</span>
                                   {p.handicap != null && (
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 ${isManual ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                    <span className={`text-[10px] font-bold px-1 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 w-16 text-center ${isManual ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                                       HCP {fmtHcp(p.handicap)}
                                     </span>
                                   )}
                                   {skinsEnabled === true && (
                                     <button type="button"
                                       onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
-                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-white text-gray-400 border-gray-300'}`}
+                                      className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
                                       title="Toggle skins participation">
-                                      {inSkins ? 'Skins ✓' : 'Not in Skins'}
+                                      {inSkins ? 'Skins ✓' : 'Skins'}
                                     </button>
                                   )}
                                   <button type="button"
