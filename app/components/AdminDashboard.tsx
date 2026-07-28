@@ -4198,10 +4198,16 @@ export default function AdminDashboard({
                                                 style={{ touchAction: 'none' }}>⠿</button>
                                               {renamingPlayer === p.id ? (
                                                 <form onSubmit={(e) => { e.preventDefault(); handleSavePlayerEdit(p.id) }} className="flex items-center gap-1.5 min-w-0">
+                                                  {/* 16px font — anything smaller makes iOS zoom-jolt on focus */}
                                                   <input type="text" value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} required autoFocus placeholder="Name"
-                                                    className="w-28 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
-                                                  <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="HCP"
-                                                    className="w-14 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                                    className="w-32 min-w-0 border border-gray-300 rounded px-2 py-0.5 focus:outline-none"
+                                                    style={{ fontSize: '16px' }} />
+                                                  <span className="flex items-center gap-1 border border-gray-300 rounded px-1.5 py-0.5 flex-shrink-0 bg-white">
+                                                    <span className="text-[10px] font-bold text-blue-700">HCP</span>
+                                                    <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="—"
+                                                      className="w-9 min-w-0 focus:outline-none"
+                                                      style={{ fontSize: '16px' }} />
+                                                  </span>
                                                   <button type="submit" className="text-xs text-blue-600 font-semibold">Save</button>
                                                   <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-500">Cancel</button>
                                                 </form>
@@ -4615,10 +4621,16 @@ export default function AdminDashboard({
                                   <span className={`w-1 h-4 rounded-full flex-shrink-0 ${isManual ? 'bg-purple-500' : 'bg-blue-500'}`} />
                                   {renamingPlayer === p.id ? (
                                     <form onSubmit={(e) => { e.preventDefault(); handleSavePlayerEdit(p.id) }} className="flex items-center gap-1.5 min-w-0">
+                                      {/* 16px font — anything smaller makes iOS zoom-jolt on focus */}
                                       <input type="text" value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} required autoFocus placeholder="Name"
-                                        className="w-28 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
-                                      <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="HCP"
-                                        className="w-14 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                        className="w-32 min-w-0 border border-gray-300 rounded px-2 py-0.5 focus:outline-none"
+                                        style={{ fontSize: '16px' }} />
+                                      <span className="flex items-center gap-1 border border-gray-300 rounded px-1.5 py-0.5 flex-shrink-0 bg-white">
+                                        <span className="text-[10px] font-bold text-blue-700">HCP</span>
+                                        <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="—"
+                                          className="w-9 min-w-0 focus:outline-none"
+                                          style={{ fontSize: '16px' }} />
+                                      </span>
                                       <button type="submit" className="text-xs text-blue-600 font-semibold">Save</button>
                                       <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-500">Cancel</button>
                                     </form>
