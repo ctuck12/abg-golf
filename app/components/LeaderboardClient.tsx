@@ -2545,20 +2545,20 @@ export default function LeaderboardClient({
         {(!isMixedGroups || mixedTab === 'team') && <>
         {/* Leaderboard view toggles + action buttons */}
         {hasStandardGroupView ? (
-          // 3/4 ball with group view has 3 tabs (Team+Group+Individual) — split into 2 rows so nothing gets cut off
-          <>
-            <div className="flex items-center gap-1 mb-1.5">
-              {[{ view: 'team', label: 'Team' }, { view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }].map(({ view, label }) => (
-                <button
-                  key={view}
-                  onClick={() => { const v = view as 'group' | 'team' | 'individual'; setLeaderboardView(v); sessionStorage.setItem('leaderboardView', v) }}
-                  className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition"
-                  style={leaderboardView === view ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5 mb-3">
+          // 3/4 ball with group view: toggles left, Matchups/Payouts right on the
+          // same row — the action pair wraps to its own right-aligned line only
+          // when the screen is too narrow to fit everything.
+          <div className="flex items-center flex-wrap gap-1 gap-y-1.5 mb-3">
+            {[{ view: 'team', label: 'Team' }, { view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }].map(({ view, label }) => (
+              <button
+                key={view}
+                onClick={() => { const v = view as 'group' | 'team' | 'individual'; setLeaderboardView(v); sessionStorage.setItem('leaderboardView', v) }}
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition"
+                style={leaderboardView === view ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+                {label}
+              </button>
+            ))}
+            <div className="flex items-center gap-1.5 ml-auto">
               <a href={`/${orgSlug}/matchup`} className="font-semibold px-2.5 py-1 rounded-full"
                 style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: '11px' }}>
                 Matchups
@@ -2570,7 +2570,7 @@ export default function LeaderboardClient({
                 Payouts
               </button>
             </div>
-          </>
+          </div>
         ) : (
           // Daytona, Traditional, Standard-without-group: 2 tabs max → fits on one row
           <div className="flex items-center gap-1 mb-3" style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
@@ -2583,8 +2583,7 @@ export default function LeaderboardClient({
                 {label}
               </button>
             ))}
-            {leaderboardViewTabs.length > 1 && <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 2px' }} />}
-            <a href={`/${orgSlug}/matchup`} className="font-semibold px-2 py-1 rounded-full flex-shrink-0"
+            <a href={`/${orgSlug}/matchup`} className="font-semibold px-2 py-1 rounded-full flex-shrink-0 ml-auto"
               style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: 'clamp(9px, 2.4vw, 11px)' }}>
               Matchups
             </a>
