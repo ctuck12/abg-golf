@@ -594,6 +594,46 @@ export async function createRosterPlayer(orgId: string, name: string, ghinNumber
   return { success: true, id: data.id }
 }
 
+// Pull each rostered player's current Handicap Index from GHIN by their GHIN
+// number and update the roster. Returns what changed so the client can mirror
+// state and (with confirmation, if live) sync the current round's players.
+export async function syncGhinHandicaps(orgId: string): Promise<
+  | { error: string }
+  | { updated: { id: string; name: string; oldHcp: number | null; newHcp: number | null }[]; unchanged: number; failed: { name: string; reason: string }[] }
+> {
+  const { fetchGhinHandicap } = await import('@/lib/ghin')
+  const supabase = createServerClient()
+  const { data: roster, error } = await supabase
+    .from('org_players').select('id, name, ghin_number, handicap_index')
+    .eq('org_id', orgId).not('ghin_number', 'is', null)
+  if (error) return { error: error.message }
+  const withGhin = (roster ?? []).filter((r) => (r.ghin_number ?? '').trim() !== '')
+  if (withGhin.length === 0) return { error: 'No roster players have a GHIN number on file.' }
+
+  const updated: { id: string; name: string; oldHcp: number | null; newHcp: number | null }[] = []
+  const failed: { name: string; reason: string }[] = []
+  let unchanged = 0
+
+  // Small batches — enough parallelism to be quick without hammering GHIN
+  const CHUNK = 4
+  for (let i = 0; i < withGhin.length; i += CHUNK) {
+    await Promise.all(withGhin.slice(i, i + CHUNK).map(async (r) => {
+      try {
+        const newHcp = await fetchGhinHandicap(r.ghin_number!)
+        const oldHcp = r.handicap_index ?? null
+        if (newHcp === null) { failed.push({ name: r.name, reason: 'GHIN returned no index (NH?)' }); return }
+        if (oldHcp !== null && Math.abs(oldHcp - newHcp) < 0.05) { unchanged++; return }
+        const { error: upErr } = await supabase.from('org_players').update({ handicap_index: newHcp }).eq('id', r.id)
+        if (upErr) { failed.push({ name: r.name, reason: upErr.message }); return }
+        updated.push({ id: r.id, name: r.name, oldHcp, newHcp })
+      } catch (e) {
+        failed.push({ name: r.name, reason: e instanceof Error ? e.message : 'lookup failed' })
+      }
+    }))
+  }
+  return { updated, unchanged, failed }
+}
+
 export async function updateRosterPlayerHandicap(rosterPlayerId: string, handicapIndex: number | null) {
   const supabase = createServerClient()
   const { error } = await supabase

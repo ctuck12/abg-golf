@@ -21,6 +21,7 @@ import {
   createRosterPlayer,
   updateRosterPlayer,
   updateRosterPlayerHandicap,
+  syncGhinHandicaps,
   deleteRosterPlayer,
   addRosterPlayersToTeam,
   createHammerMatchup,
@@ -415,6 +416,8 @@ export default function AdminDashboard({
   const [showRoster, setShowRoster] = useState(false)
   const [editingRosterId, setEditingRosterId] = useState<string | null>(null)
   const [rosterForm, setRosterForm] = useState({ name: '', ghin: '', handicap: '', email: '' })
+  const [ghinSyncing, setGhinSyncing] = useState(false)
+  const [ghinSyncMsg, setGhinSyncMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [rosterPending, setRosterPending] = useState(false)
   const [rosterError, setRosterError] = useState('')
   const [rosterPickerTeamId, setRosterPickerTeamId] = useState<string | null>(null)
@@ -1287,6 +1290,51 @@ export default function AdminDashboard({
     if (rosterId) setLiveRoster(prev => prev.map(rp => rp.id === rosterId ? { ...rp, handicap_index: hcp } : rp))
     await updatePlayerHandicap(playerId, hcp)
     router.refresh()
+  }
+  async function handleGhinSync() {
+    setGhinSyncing(true)
+    setGhinSyncMsg(null)
+    const res = await syncGhinHandicaps(orgId)
+    setGhinSyncing(false)
+    if ('error' in res) { setGhinSyncMsg({ ok: false, text: res.error }); return }
+
+    // Mirror roster changes locally
+    if (res.updated.length > 0) {
+      setLiveRoster(prev => prev.map(rp => {
+        const u = res.updated.find(x => x.id === rp.id)
+        return u ? { ...rp, handicap_index: u.newHcp } : rp
+      }))
+      if (generatedTeams) setGeneratedTeams(null)
+    }
+
+    const parts: string[] = []
+    if (res.updated.length > 0) parts.push(`${res.updated.length} updated`)
+    if (res.unchanged > 0) parts.push(`${res.unchanged} already current`)
+    if (res.failed.length > 0) parts.push(`${res.failed.length} failed (${res.failed.map(f => f.name).join(', ')})`)
+    setGhinSyncMsg({ ok: res.failed.length === 0, text: parts.length ? `GHIN sync: ${parts.join(' · ')}` : 'GHIN sync: everything already current' })
+
+    // Sync linked players in the current round — confirm first if it's live
+    const liveLinked = res.updated
+      .map(u => ({ u, p: players.find(pl => pl.roster_player_id === u.id) }))
+      .filter((x): x is { u: typeof x.u; p: Player } => !!x.p && ((x.p.handicap ?? null) !== x.u.newHcp))
+    const applyDown = async () => {
+      await Promise.all(liveLinked.map(({ u, p }) => updatePlayerHandicap(p.id, u.newHcp)))
+      router.refresh()
+    }
+    if (liveLinked.length > 0 && round?.is_started) {
+      setLiveChangeConfirm({
+        title: 'Apply updated handicaps to the live round?',
+        changes: [
+          ...liveLinked.map(({ u, p }) => `${p.name}: HCP ${p.handicap != null ? fmtHcp(p.handicap) : '—'} → ${u.newHcp != null ? fmtHcp(u.newHcp) : '—'}`),
+          'Strokes and game results recalculate immediately.',
+        ],
+        onConfirm: () => { void applyDown() },
+      })
+    } else if (liveLinked.length > 0) {
+      await applyDown()
+    } else {
+      router.refresh()
+    }
   }
   async function handleUpdateRosterHandicap(rosterPlayerId: string) {
     const hcp = parseHcpInput(rosterHcpDraft)
@@ -2445,6 +2493,22 @@ export default function AdminDashboard({
 
             {showRoster && (
               <div className="border-t border-gray-100 px-5 pb-5 space-y-4">
+
+                {/* GHIN handicap sync */}
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button type="button" onClick={handleGhinSync} disabled={ghinSyncing}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition disabled:opacity-50">
+                      {ghinSyncing ? 'Syncing GHIN…' : 'Sync GHIN Handicaps'}
+                    </button>
+                    <span className="text-[11px] text-gray-400">Pulls the current Handicap Index for every player with a GHIN #</span>
+                  </div>
+                  {ghinSyncMsg && (
+                    <p className={`text-xs rounded px-2 py-1.5 ${ghinSyncMsg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                      {ghinSyncMsg.text}
+                    </p>
+                  )}
+                </div>
 
                 {/* Add new roster player — top of section */}
                 {editingRosterId === null && (
