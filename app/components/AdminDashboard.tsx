@@ -418,6 +418,20 @@ export default function AdminDashboard({
   const [rosterForm, setRosterForm] = useState({ name: '', ghin: '', handicap: '', email: '' })
   const [ghinSyncing, setGhinSyncing] = useState(false)
   const [ghinSyncMsg, setGhinSyncMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  // Auto-sync GHIN handicaps once after a new round is created (flag set just
+  // before the post-create reload). Opens the roster so the result is visible.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('abg_ghin_autosync')) {
+        localStorage.removeItem('abg_ghin_autosync')
+        if (roster.some(rp => (rp.ghin_number ?? '').trim() !== '')) {
+          setShowRoster(true)
+          void handleGhinSync()
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [rosterPending, setRosterPending] = useState(false)
   const [rosterError, setRosterError] = useState('')
   const [rosterPickerTeamId, setRosterPickerTeamId] = useState<string | null>(null)
@@ -2875,6 +2889,8 @@ export default function AdminDashboard({
                             } else {
                               const savedRoundId = data.roundId ?? round?.id
                               if (savedRoundId) setSetupLS(savedRoundId, 'roundSaved', true)
+                              // New round → auto-refresh roster handicaps from GHIN after the reload
+                              try { localStorage.setItem('abg_ghin_autosync', '1') } catch {}
                               window.location.href = `/${orgSlug}/admin/dashboard`
                             }
                           } catch (e) {
