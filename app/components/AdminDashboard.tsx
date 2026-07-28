@@ -3851,12 +3851,12 @@ export default function AdminDashboard({
                                                 className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-sm leading-none pr-0.5 flex-shrink-0"
                                                 style={{ touchAction: 'none' }}>⠿</button>
                                               {renamingPlayer === p.id ? (
-                                                <form action={renamePlayerAction} className="flex items-center gap-1.5 flex-1 min-w-0" onSubmit={() => setRenamingPlayer(null)}>
+                                                <form action={renamePlayerAction} className="flex items-center gap-2 min-w-0" onSubmit={() => setRenamingPlayer(null)}>
                                                   <input type="hidden" name="playerId" value={p.id} />
                                                   <input type="text" name="name" defaultValue={p.name} required autoFocus
-                                                    className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                                    className="w-36 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
                                                   <button type="submit" disabled={renamePlayerPending} className="text-xs text-blue-600 font-semibold">Save</button>
-                                                  <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-400">✕</button>
+                                                  <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-500">Cancel</button>
                                                 </form>
                                               ) : (
                                                 <>
