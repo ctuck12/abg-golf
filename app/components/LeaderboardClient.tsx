@@ -2545,9 +2545,8 @@ export default function LeaderboardClient({
         {(!isMixedGroups || mixedTab === 'team') && <>
         {/* Leaderboard view toggles + action buttons */}
         {hasStandardGroupView ? (
-          // 3/4 ball with group view: toggles left, Matchups/Payouts right on the
-          // same row — the action pair wraps to its own right-aligned line only
-          // when the screen is too narrow to fit everything.
+          // 3/4 ball with group view: toggles, a divider, then Matchups/Payouts —
+          // one row, wrapping the action pair below only when space runs out.
           <div className="flex items-center flex-wrap gap-1 gap-y-1.5 mb-3">
             {[{ view: 'team', label: 'Team' }, { view: 'group', label: 'Group' }, { view: 'individual', label: 'Individual' }].map(({ view, label }) => (
               <button
@@ -2558,7 +2557,8 @@ export default function LeaderboardClient({
                 {label}
               </button>
             ))}
-            <div className="flex items-center gap-1.5 ml-auto">
+            <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 2px' }} />
+            <div className="flex items-center gap-1.5">
               <a href={`/${orgSlug}/matchup`} className="font-semibold px-2.5 py-1 rounded-full"
                 style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: '11px' }}>
                 Matchups
@@ -2583,7 +2583,8 @@ export default function LeaderboardClient({
                 {label}
               </button>
             ))}
-            <a href={`/${orgSlug}/matchup`} className="font-semibold px-2 py-1 rounded-full flex-shrink-0 ml-auto"
+            {leaderboardViewTabs.length > 1 && <div style={{ width: '1.5px', height: '1.25rem', background: '#94a3b8', flexShrink: 0, margin: '0 2px' }} />}
+            <a href={`/${orgSlug}/matchup`} className="font-semibold px-2 py-1 rounded-full flex-shrink-0"
               style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: 'clamp(9px, 2.4vw, 11px)' }}>
               Matchups
             </a>
