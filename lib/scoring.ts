@@ -396,6 +396,31 @@ export function pressForfeitMap(
   return out
 }
 
+// ── Player display order ──────────────────────────────────────────────────────
+// Positions >= MANUAL_ORDER_BASE mean the admin dragged the team into a custom
+// order (see reorderTeamPlayers); otherwise lists display in handicap order.
+export const MANUAL_ORDER_BASE = 100
+
+export function sortPlayersForDisplay<T extends { position?: number | null; handicap?: number | null }>(list: T[]): T[] {
+  if (list.some((p) => (p.position ?? 0) >= MANUAL_ORDER_BASE)) {
+    return [...list].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  }
+  return [...list].sort((a, b) => ((a.handicap ?? 999) - (b.handicap ?? 999)) || ((a.position ?? 0) - (b.position ?? 0)))
+}
+
+// Same rule applied per team across a whole round's flat player list, so
+// consumers that filter by team_id see each team in its own display order.
+export function sortRoundPlayersByTeam<T extends { team_id?: string | null; position?: number | null; handicap?: number | null }>(list: T[]): T[] {
+  const byTeam = new Map<string, T[]>()
+  for (const p of list) {
+    const key = p.team_id ?? ''
+    const bucket = byTeam.get(key)
+    if (bucket) bucket.push(p)
+    else byTeam.set(key, [p])
+  }
+  return [...byTeam.values()].flatMap((bucket) => sortPlayersForDisplay(bucket))
+}
+
 // Whether a player with the given holes_range plays the given hole.
 export function playerCoversHole(range: string | null | undefined, holeNumber: number): boolean {
   if (range === 'front9') return holeNumber <= 9

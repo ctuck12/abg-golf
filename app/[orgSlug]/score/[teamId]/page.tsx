@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { getOrgAuth } from '@/lib/org-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import ScoreEntry from '@/app/components/ScoreEntry'
+import { sortPlayersForDisplay } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,8 +31,9 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
     .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap, handicap_rounding, banker_min_bet').eq('id', team.round_id).single()
   if (!round || !round.is_active || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
-  const { data: players } = await sb.from('players').select('id, name, handicap, holes_range').eq('team_id', teamId).order('position', { ascending: true })
-  const playerIds = (players ?? []).map((p) => p.id)
+  const { data: playersRaw } = await sb.from('players').select('id, name, handicap, holes_range, position').eq('team_id', teamId).order('position', { ascending: true })
+  const players = sortPlayersForDisplay(playersRaw ?? [])
+  const playerIds = players.map((p) => p.id)
 
   const isDaytona = (round.format ?? 'standard') === 'daytona'
   const isTraditional = (round.format ?? 'standard') === 'traditional'

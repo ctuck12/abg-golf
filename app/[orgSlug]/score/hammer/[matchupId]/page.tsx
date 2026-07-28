@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { getOrgAuth } from '@/lib/org-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import HammerScoreEntry from '@/app/components/HammerScoreEntry'
+import { sortPlayersForDisplay } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +46,7 @@ export default async function HammerScorecardPage({
     sb.from('players').select('id, name, team_id, position, handicap').eq('team_id', matchup.team1_id).order('position'),
     sb.from('players').select('id, name, team_id, position, handicap').eq('team_id', matchup.team2_id).order('position'),
   ])
-  const allPlayers = [...(team1Players ?? []), ...(team2Players ?? [])]
+  const allPlayers = [...sortPlayersForDisplay(team1Players ?? []), ...sortPlayersForDisplay(team2Players ?? [])]
   const allPlayerIds = allPlayers.map((p) => p.id)
 
   const allPlayerHandicaps: Record<string, number | null> = {}
