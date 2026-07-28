@@ -3200,7 +3200,7 @@ export default function AdminDashboard({
                                   {skinsEnabled === true && (
                                     <button type="button"
                                       onClick={() => setGenSkinsIds(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n })}
-                                      className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition flex-shrink-0 ${genSkinsIds.has(p.id) ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-400 border-gray-300'}`}>
+                                      className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition flex-shrink-0 ${genSkinsIds.has(p.id) ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}>
                                       Skins{genSkinsIds.has(p.id) ? ' ✓' : ''}
                                     </button>
                                   )}
@@ -3755,21 +3755,22 @@ export default function AdminDashboard({
                                 })()}
                               </p>
                               {teamPlayers.length > 0 && (
-                                <div className="flex flex-col items-start gap-1.5 mt-1.5">
+                                <div className="flex flex-col items-start gap-1.5 mt-2">
                                   {teamPlayers.map((p) => {
                                     const inSkins = skinsOverrides[p.id] ?? p.skins_participant
                                     return (
-                                      <div key={p.id} className="flex items-center gap-1.5">
-                                        <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: '#dbeafe', color: '#1e40af' }}>
-                                          {p.name}
-                                          {p.handicap != null && (
-                                            <span className="text-[10px] font-semibold opacity-75 whitespace-nowrap">HCP {fmtHcp(p.handicap)}</span>
-                                          )}
-                                        </span>
+                                      <div key={p.id} className="flex items-center gap-2">
+                                        <span className="w-1 h-4 rounded-full flex-shrink-0 bg-blue-500" />
+                                        <span className="text-sm font-medium text-gray-800 truncate">{p.name}</span>
+                                        {p.handicap != null && (
+                                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 bg-blue-50 text-blue-700 border-blue-200">
+                                            HCP {fmtHcp(p.handicap)}
+                                          </span>
+                                        )}
                                         {skinsEnabled === true && (
                                           <button type="button"
                                             onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
-                                            className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-white text-gray-400 border-gray-300'}`}
                                             title="Toggle skins participation">
                                             {inSkins ? 'Skins ✓' : 'Not in Skins'}
                                           </button>
@@ -4252,25 +4253,27 @@ export default function AdminDashboard({
                           <div className="flex flex-col items-start gap-1.5">
                             {assignedPlayers.map((p) => {
                               const inSkins = skinsOverrides[p.id] ?? ((p as { skins_participant?: boolean }).skins_participant ?? false)
+                              const isManual = p.team_id === null
                               return (
-                                <div key={p.id} className="flex items-center gap-1.5">
-                                  <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
-                                    {p.name}
-                                    {p.handicap != null && (
-                                      <span className="text-[10px] font-semibold opacity-75 whitespace-nowrap">HCP {fmtHcp(p.handicap)}</span>
-                                    )}
-                                    <button type="button"
-                                      onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
-                                      className="ml-0.5 hover:text-red-600 leading-none">×</button>
-                                  </span>
+                                <div key={p.id} className="flex items-center gap-2">
+                                  <span className={`w-1 h-4 rounded-full flex-shrink-0 ${isManual ? 'bg-purple-500' : 'bg-blue-500'}`} />
+                                  <span className="text-sm font-medium text-gray-800 truncate">{p.name}</span>
+                                  {p.handicap != null && (
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 ${isManual ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                      HCP {fmtHcp(p.handicap)}
+                                    </span>
+                                  )}
                                   {skinsEnabled === true && (
                                     <button type="button"
                                       onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
-                                      className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-white text-gray-400 border-gray-300'}`}
                                       title="Toggle skins participation">
                                       {inSkins ? 'Skins ✓' : 'Not in Skins'}
                                     </button>
                                   )}
+                                  <button type="button"
+                                    onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual }) }}
+                                    className="text-gray-400 hover:text-red-600 text-sm leading-none px-0.5 flex-shrink-0">×</button>
                                 </div>
                               )
                             })}
