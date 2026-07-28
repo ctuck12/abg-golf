@@ -641,7 +641,23 @@ export default function AdminDashboard({
 
     refetchAll() // immediately — the round status badge must not wait for the first tick
     const interval = setInterval(refetchAll, 5000)
-    return () => { clearInterval(interval) }
+    // Returning to the app (tab refocus / PWA resume) doesn't remount the page,
+    // and background tabs throttle the poll — refetch the moment we're visible again
+    const onWake = () => {
+      if (document.visibilityState !== 'visible') return
+      refetchAll()
+      router.refresh()
+    }
+    document.addEventListener('visibilitychange', onWake)
+    window.addEventListener('pageshow', onWake)
+    window.addEventListener('focus', onWake)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onWake)
+      window.removeEventListener('pageshow', onWake)
+      window.removeEventListener('focus', onWake)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round?.id])
 
   // The client router can serve a stale cached payload on navigation, which
