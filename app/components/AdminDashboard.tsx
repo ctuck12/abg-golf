@@ -4202,12 +4202,10 @@ export default function AdminDashboard({
                                                   <input type="text" value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} required autoFocus placeholder="Name"
                                                     className="w-32 min-w-0 border border-gray-300 rounded px-2 py-0.5 focus:outline-none"
                                                     style={{ fontSize: '16px' }} />
-                                                  <span className="flex items-center gap-1 border border-gray-300 rounded px-1.5 py-0.5 flex-shrink-0 bg-white">
-                                                    <span className="text-[10px] font-bold text-blue-700">HCP</span>
-                                                    <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="—"
-                                                      className="w-9 min-w-0 focus:outline-none"
-                                                      style={{ fontSize: '16px' }} />
-                                                  </span>
+                                                  <span className="text-[10px] font-bold text-blue-700 flex-shrink-0">HCP</span>
+                                                  <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="—"
+                                                    className="w-12 min-w-0 border border-gray-300 rounded px-1.5 py-0.5 flex-shrink-0 focus:outline-none"
+                                                    style={{ fontSize: '16px' }} />
                                                   <button type="submit" className="text-xs text-blue-600 font-semibold">Save</button>
                                                   <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-500">Cancel</button>
                                                 </form>
@@ -4625,12 +4623,10 @@ export default function AdminDashboard({
                                       <input type="text" value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} required autoFocus placeholder="Name"
                                         className="w-32 min-w-0 border border-gray-300 rounded px-2 py-0.5 focus:outline-none"
                                         style={{ fontSize: '16px' }} />
-                                      <span className="flex items-center gap-1 border border-gray-300 rounded px-1.5 py-0.5 flex-shrink-0 bg-white">
-                                        <span className="text-[10px] font-bold text-blue-700">HCP</span>
-                                        <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="—"
-                                          className="w-9 min-w-0 focus:outline-none"
-                                          style={{ fontSize: '16px' }} />
-                                      </span>
+                                      <span className="text-[10px] font-bold text-blue-700 flex-shrink-0">HCP</span>
+                                      <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="—"
+                                        className="w-12 min-w-0 border border-gray-300 rounded px-1.5 py-0.5 flex-shrink-0 focus:outline-none"
+                                        style={{ fontSize: '16px' }} />
                                       <button type="submit" className="text-xs text-blue-600 font-semibold">Save</button>
                                       <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-500">Cancel</button>
                                     </form>
