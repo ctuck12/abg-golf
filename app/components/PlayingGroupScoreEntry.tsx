@@ -859,7 +859,7 @@ export default function PlayingGroupScoreEntry({
                           <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1.5">So far {p.name.split(' ')[0]} gets a stroke on hole{effHoleNums.length !== 1 ? 's' : ''} {effHoleNums.join(', ')}.</p>
                           <div className="text-xs text-gray-500 space-y-0.5">
                             <p>* Strokes count in the Banker game only</p>
-                            <p className="pl-2.5">* Scores to par shown above are gross totals</p>
+                            <p className="pl-2.5 text-[11px]">– Scores to par shown above are gross totals</p>
                           </div>
                         </>
                       : <p className="text-xs text-gray-500">So far {p.name.split(' ')[0]} has no stroke holes.</p>}
@@ -906,7 +906,7 @@ export default function PlayingGroupScoreEntry({
                       </div>
                       <div className="text-xs text-gray-500 space-y-0.5">
                         <p>* Strokes count in the {isDaytonaMode ? 'Daytona' : 'side'} game only</p>
-                        <p className="pl-2.5">* Scores to par shown above are gross totals</p>
+                        <p className="pl-2.5 text-[11px]">– Scores to par shown above are gross totals</p>
                       </div>
                     </>
                   ) : (
