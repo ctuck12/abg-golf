@@ -1310,7 +1310,7 @@ export default function AdminDashboard({
     const parts: string[] = []
     if (res.updated.length > 0) parts.push(`${res.updated.length} updated`)
     if (res.unchanged > 0) parts.push(`${res.unchanged} already current`)
-    if (res.failed.length > 0) parts.push(`${res.failed.length} failed (${res.failed.map(f => f.name).join(', ')})`)
+    if (res.failed.length > 0) parts.push(`${res.failed.length} failed — ${res.failed.map(f => `${f.name}: ${f.reason}`).join(' · ')}`)
     setGhinSyncMsg({ ok: res.failed.length === 0, text: parts.length ? `GHIN sync: ${parts.join(' · ')}` : 'GHIN sync: everything already current' })
 
     // Sync linked players in the current round — confirm first if it's live
