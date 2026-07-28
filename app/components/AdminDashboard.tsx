@@ -298,6 +298,10 @@ export default function AdminDashboard({
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const [holesRangeConfirm, setHolesRangeConfirm] = useState<{ playerId: string; playerName: string; next: string } | null>(null)
+  const [skinsSaveConfirm, setSkinsSaveConfirm] = useState<{ changes: string[] } | null>(null)
+  const skinsFormRef = useRef<HTMLFormElement>(null)
+  const skinsConfirmBypass = useRef(false)
+  const [confirmRemoveHammerId, setConfirmRemoveHammerId] = useState<string | null>(null)
   const [editingHandicapId, setEditingHandicapId] = useState<string | null>(null)
   const [handicapDraft, setHandicapDraft] = useState('')
   // Inline roster-handicap editing (team generator list, roster picker)
@@ -1391,10 +1395,10 @@ export default function AdminDashboard({
   }
 
   useEffect(() => {
-    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm
+    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm])
+  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm, skinsSaveConfirm, confirmRemoveHammerId])
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -1891,6 +1895,73 @@ export default function AdminDashboard({
           </div>
         )
       })()}
+
+      {/* ── Skins settings change confirmation modal ── */}
+      {skinsSaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg font-bold">!</div>
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base leading-snug">Change skins settings?</h2>
+                <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">This replaces the saved skins settings and recalculates skins results and payouts for the round:</p>
+                <ul className="text-sm text-gray-700 mt-2 space-y-1">
+                  {skinsSaveConfirm.changes.map((c) => (
+                    <li key={c} className="flex gap-1.5"><span className="text-amber-500">•</span><span className="font-medium">{c}</span></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="border-t border-gray-100" />
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setSkinsSaveConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button type="button"
+                onClick={() => {
+                  setSkinsSaveConfirm(null)
+                  skinsConfirmBypass.current = true
+                  skinsFormRef.current?.requestSubmit()
+                }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                style={{ background: navy }}>
+                Confirm Change
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Remove Hammer matchup confirmation modal ── */}
+      {confirmRemoveHammerId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg font-bold">!</div>
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base leading-snug">Remove this Hammer matchup?</h2>
+                <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+                  This removes the Hammer matchup and its results from the round. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="border-t border-gray-100" />
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setConfirmRemoveHammerId(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+              <button type="button"
+                onClick={async () => { const id = confirmRemoveHammerId; setConfirmRemoveHammerId(null); await handleDeleteHammerMatchup(id) }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                style={{ background: '#dc2626' }}>
+                Yes, Remove Matchup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Holes-range first-change confirmation modal ── */}
       {holesRangeConfirm && (() => {
@@ -2728,7 +2799,24 @@ export default function AdminDashboard({
                   </p>
                 )}
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
-                <form action={skinsAction} className="space-y-4">
+                <form action={skinsAction} ref={skinsFormRef} className="space-y-4"
+                  onSubmit={(e) => {
+                    if (skinsConfirmBypass.current) { skinsConfirmBypass.current = false; return }
+                    // Only confirm when overwriting previously saved settings — the
+                    // very first save (nothing stored yet) applies directly.
+                    if (round.skins_enabled == null) return
+                    const changes: string[] = []
+                    const storedMode = round.skins_mode ?? 'per_hole'
+                    const storedAmount = round.skins_amount ?? 0
+                    const nextEnabled = skinsEnabled ?? false
+                    const fmtMode = (m: string) => m === 'pot' ? 'Winner Takes Pot' : 'Per Skin'
+                    if ((round.skins_enabled ?? false) !== nextEnabled) changes.push(nextEnabled ? 'Skins game: Off → On' : 'Skins game: On → Off')
+                    if (nextEnabled && storedMode !== skinsMode) changes.push(`Payout format: ${fmtMode(storedMode)} → ${fmtMode(skinsMode)}`)
+                    if (nextEnabled && storedAmount !== skinsAmount) changes.push(`${skinsMode === 'pot' ? 'Buy-in per player' : 'Amount per skin'}: $${storedAmount} → $${skinsAmount}`)
+                    if (changes.length === 0) return
+                    e.preventDefault()
+                    setSkinsSaveConfirm({ changes })
+                  }}>
                   <input type="hidden" name="roundId" value={round.id} />
                   <input type="hidden" name="skins_enabled" value={String(skinsEnabled ?? false)} />
                   <input type="hidden" name="skins_mode" value={skinsMode} />
@@ -2872,7 +2960,7 @@ export default function AdminDashboard({
                       </div>
                       <div className="flex items-center gap-2">
                         <a href={`/${orgSlug}/score/hammer/${m.id}`} className="text-xs px-2.5 py-1 rounded-lg font-semibold text-white" style={{ background: '#ea580c' }}>Open</a>
-                        <button type="button" onClick={() => handleDeleteHammerMatchup(m.id)} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                        <button type="button" onClick={() => setConfirmRemoveHammerId(m.id)} className="text-xs text-red-500 hover:text-red-700">Remove</button>
                       </div>
                     </div>
                   )
