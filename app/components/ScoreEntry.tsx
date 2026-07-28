@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, Fragment, useMemo } from 'react'
-import { submitHoleScores, saveDaytonaAssignments, saveDaytonaHoleValues, saveHoleStrokes, saveBankerHole, saveBankerBets } from '@/app/actions'
+import { runOrQueue, getOfflineQueueCount } from '@/lib/offline-queue'
+import OfflineSyncBanner from './OfflineSyncBanner'
 import {
   computeHoleBallScores, computeTeamBallSummary,
   computeHoleDaytonaWithSides, computeDaytonaSidesSummary, playerCoversHole,
@@ -295,16 +296,16 @@ export default function ScoreEntry({
   async function handleSaveBankerHole(holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
     const prevBankerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
     setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId, maxBet } }))
-    await saveBankerHole(roundId, team.id, holeNumber, bankerPlayerId, maxBet)
+    await runOrQueue('saveBankerHole', [roundId, team.id, holeNumber, bankerPlayerId, maxBet])
     if (bankerPlayerId !== prevBankerId) {
       setHoleStrokes((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
-      await saveHoleStrokes(roundId, holeNumber, [], players.map((p) => p.id))
+      await runOrQueue('saveHoleStrokes', [roundId, holeNumber, [], players.map((p) => p.id)])
     }
   }
   async function handleSaveBankerBets(holeNumber: number, bets: Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>) {
     setBankerBets((prev) => ({ ...prev, [holeNumber]: bets }))
     const arr = Object.entries(bets).map(([pid, b]) => ({ playerId: pid, baseBet: b.baseBet, playerDoubled: b.playerDoubled, bankerDoubled: b.bankerDoubled }))
-    await saveBankerBets(roundId, team.id, holeNumber, arr)
+    await runOrQueue('saveBankerBets', [roundId, team.id, holeNumber, arr])
   }
 
   async function handleBankerDoubleAll(holeNumber: number, currentlyDoubled: boolean) {
@@ -397,7 +398,7 @@ export default function ScoreEntry({
     const updated = { ...holeStrokes, [holeNumber]: next }
     setHoleStrokes(updated)
     setStrokesPending(true)
-    await saveHoleStrokes(roundId, holeNumber, next, players.map((p) => p.id))
+    await runOrQueue('saveHoleStrokes', [roundId, holeNumber, next, players.map((p) => p.id)])
     setStrokesPending(false)
   }
   const [showEnterPinModal, setShowEnterPinModal] = useState(false)
@@ -488,6 +489,9 @@ export default function ScoreEntry({
     const playerIds = players.map((p) => p.id)
 
     async function refetchAll() {
+      // Never let server state overwrite local state while offline or while
+      // queued saves are waiting to sync — the server hasn't seen them yet.
+      if ((typeof navigator !== 'undefined' && navigator.onLine === false) || getOfflineQueueCount() > 0) return
       const [scoresData, assignData] = await Promise.all([
         playerIds.length ? fetch('/api/scores?playerIds=' + playerIds.join(',')).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
         isDaytonaMode && roundId && playerIds.length
@@ -572,7 +576,7 @@ export default function ScoreEntry({
     if (!autoHandicap || !roundId || savedHoles.size === 0) return
     const pIds = players.map((p) => p.id)
     savedHoles.forEach((hn) => {
-      saveHoleStrokes(roundId, hn, effectiveStrokeIds(hn), pIds)
+      void runOrQueue('saveHoleStrokes', [roundId, hn, effectiveStrokeIds(hn), pIds])
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -719,25 +723,25 @@ export default function ScoreEntry({
     }
 
     const [result, , pressRes] = await Promise.all([
-      submitHoleScores(team.id, holeNumber, playerScores),
+      runOrQueue('submitHoleScores', [team.id, holeNumber, playerScores]),
       isDaytonaMode && roundId
-        ? saveDaytonaAssignments(
+        ? runOrQueue('saveDaytonaAssignments', [
             roundId,
             holeNumber,
-            Object.entries(holeAssignments).map(([playerId, side]) => ({ playerId, side }))
-          )
+            Object.entries(holeAssignments).map(([playerId, side]) => ({ playerId, side })),
+          ])
         : Promise.resolve(),
       isDaytonaMode && roundId && pressEntries.length > 0
-        ? saveDaytonaHoleValues(roundId, team.id, pressEntries)
+        ? runOrQueue('saveDaytonaHoleValues', [roundId, team.id, pressEntries])
         : Promise.resolve(null),
       autoHandicap && roundId
-        ? saveHoleStrokes(roundId, holeNumber, effectiveStrokeIds(holeNumber), players.map((p) => p.id))
+        ? runOrQueue('saveHoleStrokes', [roundId, holeNumber, effectiveStrokeIds(holeNumber), players.map((p) => p.id)])
         : Promise.resolve(),
     ])
 
     setPendingHoles((p) => { const n = new Set(p); n.delete(holeNumber); return n })
 
-    if (result.error) {
+    if ('error' in result && result.error) {
       setErrors((e) => ({ ...e, [holeNumber]: result.error! }))
     } else if (pressRes && typeof pressRes === 'object' && 'error' in pressRes && pressRes.error) {
       setErrors((e) => ({ ...e, [holeNumber]: `Press save failed: ${pressRes.error}` }))
@@ -1107,6 +1111,7 @@ export default function ScoreEntry({
         </div>
       </header>
       <div ref={spacerRef} />
+      <OfflineSyncBanner />
 
       {playerPopup && (() => {
         const p = players.find((pl) => pl.id === playerPopup)
@@ -2206,7 +2211,7 @@ export default function ScoreEntry({
                                   type="button"
                                   onClick={async () => {
                                     if (!roundId) return
-                                    await saveDaytonaHoleValues(roundId, team.id, [{ holeNumber: hole.hole_number, valuePerPoint: null }])
+                                    await runOrQueue('saveDaytonaHoleValues', [roundId, team.id, [{ holeNumber: hole.hole_number, valuePerPoint: null }]])
                                     setHoleValues((p) => { const n = { ...p }; delete n[hole.hole_number]; return n })
                                     setPressConfirmHole(null)
                                   }}
