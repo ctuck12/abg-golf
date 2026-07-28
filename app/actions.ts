@@ -962,6 +962,15 @@ export async function clearAllScores(roundId: string) {
   return { success: true }
 }
 
+// Positions >= 100 mark a team as manually reordered (drag & drop); teams
+// without any such position display in handicap order by default.
+export async function reorderTeamPlayers(teamId: string, orderedIds: string[]) {
+  const supabase = createServerClient()
+  await Promise.all(orderedIds.map((id, i) =>
+    supabase.from('players').update({ position: 100 + i }).eq('id', id).eq('team_id', teamId)
+  ))
+}
+
 export async function movePlayer(playerId: string, direction: 'up' | 'down') {
   const supabase = createServerClient()
 

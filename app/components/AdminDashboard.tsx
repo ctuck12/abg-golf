@@ -1,11 +1,11 @@
 'use client'
 
-import { useActionState, useState, useEffect, useMemo, useRef } from 'react'
+import { useActionState, useState, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   createRound, addTeam, addPlayer, deleteTeam, deletePlayer,
   toggleTeamAdmin, resetTeamScores, activateRound, updateHolePars, updateBallValues,
-  adminLogout, renameTeam, renamePlayer, movePlayer,
+  adminLogout, renameTeam, renamePlayer, reorderTeamPlayers,
   updateSkinsSettings, updatePlayerSkinsParticipation, updateTeamSettings,
   updatePlayerHandicap,
   updatePlayerHolesRange,
@@ -45,9 +45,28 @@ import {
   computeAllMatchupPayouts,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
+
+// Team positions >= this value mean the admin has dragged players into a custom
+// order; below it the team list displays in handicap order (see reorderTeamPlayers).
+const MANUAL_ORDER_BASE = 100
+
+function SortablePlayerRow({ id, children }: { id: string; children: (dragProps: Record<string, unknown>) => ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <div ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={isDragging ? 'relative z-10 opacity-75' : undefined}>
+      {children({ ...attributes, ...listeners })}
+    </div>
+  )
+}
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
 // Plus handicaps are stored negative (+2 → -2); accept "+2", "2", "14.5", blank
@@ -268,7 +287,9 @@ export default function AdminDashboard({
   const router = useRouter()
   const [showOptions, setShowOptions] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
-  const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
+  const [addPlayerTeamId, setAddPlayerTeamId] = useState<string | null>(null)
+  const [playerOrderOverrides, setPlayerOrderOverrides] = useState<Record<string, string[]>>({})
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
   const [editingHandicapId, setEditingHandicapId] = useState<string | null>(null)
@@ -1166,9 +1187,31 @@ export default function AdminDashboard({
     setConfirmClearScores(false)
     router.refresh()
   }
-  async function handleMovePlayer(playerId: string, direction: 'up' | 'down') {
-    await movePlayer(playerId, direction)
-    router.refresh()
+  // Team-card player order: an in-flight drag override wins, then a persisted
+  // manual order (positions >= MANUAL_ORDER_BASE), else handicap low-to-high.
+  function sortedTeamPlayers(teamId: string) {
+    const list = players.filter((p): p is Player & { team_id: string } => p.team_id === teamId)
+    const override = playerOrderOverrides[teamId]
+    if (override) {
+      const pos = new Map(override.map((id, i) => [id, i] as const))
+      return [...list].sort((a, b) => (pos.get(a.id) ?? 999) - (pos.get(b.id) ?? 999))
+    }
+    if (list.some(p => (p.position ?? 0) >= MANUAL_ORDER_BASE)) {
+      return [...list].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    }
+    return [...list].sort((a, b) => ((a.handicap ?? 999) - (b.handicap ?? 999)) || ((a.position ?? 0) - (b.position ?? 0)))
+  }
+
+  function handlePlayerDragEnd(teamId: string, event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const ids = sortedTeamPlayers(teamId).map(p => p.id)
+    const from = ids.indexOf(String(active.id))
+    const to = ids.indexOf(String(over.id))
+    if (from < 0 || to < 0) return
+    const next = arrayMove(ids, from, to)
+    setPlayerOrderOverrides(prev => ({ ...prev, [teamId]: next }))
+    reorderTeamPlayers(teamId, next).then(() => router.refresh())
   }
 
   function handleCourseChange(courseKey: string) {
@@ -2879,7 +2922,7 @@ export default function AdminDashboard({
                   </div>
                   <button
                     type="button"
-                    onClick={() => { setShowAddTeamForm((v) => !v); setSelectedTeam(null); setNewTeamStrokeRounding(hcpRounding) }}
+                    onClick={() => { setShowAddTeamForm((v) => !v); setNewTeamStrokeRounding(hcpRounding) }}
                     className="px-3 py-1.5 rounded-lg text-sm font-medium transition text-white"
                     style={{ background: navy }}>
                     {(round.format === 'daytona' || round.format === 'traditional') ? 'Add Group +' : 'Add Team +'}
@@ -3476,9 +3519,11 @@ export default function AdminDashboard({
                 )}
                 <div className="p-3 space-y-2">
                 {teams.map((team) => {
-                  const teamPlayers = players.filter((p) => p.team_id === team.id)
-                  const isSelected = selectedTeam === team.id
+                  const teamPlayers = sortedTeamPlayers(team.id)
                   const isRenaming = renamingTeam === team.id
+                  const maxPlayers = (isDaytona || (isTraditional && team.daytona_variant))
+                    ? ((team.daytona_variant ?? '4man').split('|')[0].startsWith('5man') || team.daytona_variant_back9?.startsWith('5man')) ? 5 : 4
+                    : 5
                   return (
                     <div key={team.id} className="border-2 border-gray-300 rounded-xl overflow-hidden">
                       <div className="px-4 py-3">
@@ -3755,29 +3800,127 @@ export default function AdminDashboard({
                                 })()}
                               </p>
                               {teamPlayers.length > 0 && (
-                                <div className="flex flex-col items-start gap-1.5 mt-2">
-                                  {teamPlayers.map((p) => {
-                                    const inSkins = skinsOverrides[p.id] ?? p.skins_participant
-                                    return (
-                                      <div key={p.id} className="flex items-center gap-2">
-                                        <span className="w-1 h-4 rounded-full flex-shrink-0 bg-blue-500" />
-                                        <span className="text-sm font-medium text-gray-800 truncate">{p.name}</span>
-                                        {p.handicap != null && (
-                                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 bg-blue-50 text-blue-700 border-blue-200">
-                                            HCP {fmtHcp(p.handicap)}
-                                          </span>
-                                        )}
-                                        {skinsEnabled === true && (
-                                          <button type="button"
-                                            onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
-                                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-white text-gray-400 border-gray-300'}`}
-                                            title="Toggle skins participation">
-                                            {inSkins ? 'Skins ✓' : 'Not in Skins'}
-                                          </button>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
+                                <DndContext sensors={dndSensors} collisionDetection={closestCenter}
+                                  modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                                  onDragEnd={(e) => handlePlayerDragEnd(team.id, e)}>
+                                  <SortableContext items={teamPlayers.map(p => p.id)} strategy={verticalListSortingStrategy}>
+                                    <div className="flex flex-col gap-1.5 mt-2">
+                                      {teamPlayers.map((p) => {
+                                        const inSkins = skinsOverrides[p.id] ?? p.skins_participant
+                                        const holesRange = holesRangeOverrides[p.id] ?? p.holes_range ?? 'all'
+                                        return (
+                                          <SortablePlayerRow key={p.id} id={p.id}>
+                                            {(dragProps) => (
+                                              <div className="flex items-center gap-1.5">
+                                                <button type="button" {...dragProps} aria-label="Drag to reorder"
+                                                  className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-sm leading-none pr-0.5 flex-shrink-0"
+                                                  style={{ touchAction: 'none' }}>⠿</button>
+                                                {renamingPlayer === p.id ? (
+                                                  <form action={renamePlayerAction} className="flex items-center gap-1.5 flex-1 min-w-0" onSubmit={() => setRenamingPlayer(null)}>
+                                                    <input type="hidden" name="playerId" value={p.id} />
+                                                    <input type="text" name="name" defaultValue={p.name} required autoFocus
+                                                      className="flex-1 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                                    <button type="submit" disabled={renamePlayerPending} className="text-xs text-blue-600 font-semibold">Save</button>
+                                                    <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-400">✕</button>
+                                                  </form>
+                                                ) : (
+                                                  <>
+                                                    <button type="button" onClick={() => setRenamingPlayer(p.id)} title="Tap to rename"
+                                                      className="text-sm font-medium text-gray-800 truncate min-w-0 text-left">{p.name}</button>
+                                                    {editingHandicapId === p.id ? (
+                                                      <span className="flex items-center gap-1 flex-shrink-0">
+                                                        <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
+                                                          autoFocus placeholder="HCP"
+                                                          className="w-12 border border-blue-300 rounded px-1 py-0.5 text-xs focus:outline-none"
+                                                          onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateHandicap(p.id); if (e.key === 'Escape') setEditingHandicapId(null) }} />
+                                                        <button type="button" onClick={() => handleUpdateHandicap(p.id)} className="text-xs text-blue-600 font-medium">✓</button>
+                                                        <button type="button" onClick={() => setEditingHandicapId(null)} className="text-xs text-gray-400">✕</button>
+                                                      </span>
+                                                    ) : (
+                                                      <button type="button" title="Tap to edit handicap"
+                                                        onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '') }}
+                                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 bg-blue-50 text-blue-700 border-blue-200">
+                                                        {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
+                                                      </button>
+                                                    )}
+                                                    {skinsEnabled === true && (
+                                                      <button type="button"
+                                                        onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
+                                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-white text-gray-400 border-gray-300'}`}
+                                                        title="Toggle skins participation">
+                                                        {inSkins ? 'Skins ✓' : 'Not in Skins'}
+                                                      </button>
+                                                    )}
+                                                    <select value={holesRange}
+                                                      onChange={(e) => handleUpdateHolesRange(p.id, e.target.value)}
+                                                      className={`text-[10px] px-1 py-0.5 rounded border focus:outline-none flex-shrink-0 ${holesRange !== 'all' ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold' : 'border-gray-300 text-gray-500'}`}>
+                                                      <option value="all">18 Holes</option>
+                                                      <option value="front9">Front 9</option>
+                                                      <option value="back9">Back 9</option>
+                                                    </select>
+                                                    <button type="button" onClick={() => setConfirmRemovePlayerId(p.id)}
+                                                      className="text-gray-400 hover:text-red-600 text-sm leading-none px-0.5 flex-shrink-0 ml-auto"
+                                                      title="Remove player">×</button>
+                                                  </>
+                                                )}
+                                              </div>
+                                            )}
+                                          </SortablePlayerRow>
+                                        )
+                                      })}
+                                    </div>
+                                  </SortableContext>
+                                </DndContext>
+                              )}
+                              {/* Add player + reset — lived in the old expandable Players panel */}
+                              <div className="flex items-center gap-2 mt-2.5">
+                                {teamPlayers.length < maxPlayers && (
+                                  <button type="button"
+                                    onClick={() => setAddPlayerTeamId(addPlayerTeamId === team.id ? null : team.id)}
+                                    className="text-xs px-2.5 py-1 rounded-lg border border-blue-200 text-blue-600 font-medium hover:bg-blue-50 transition">
+                                    {addPlayerTeamId === team.id ? 'Close' : '+ Add Player'}
+                                  </button>
+                                )}
+                                <button type="button" onClick={() => setResetConfirmTeamId(team.id)}
+                                  className="text-xs text-orange-600 border border-orange-200 px-2.5 py-1 rounded-lg hover:bg-orange-50">
+                                  Reset All Scores
+                                </button>
+                              </div>
+                              {addPlayerTeamId === team.id && teamPlayers.length < maxPlayers && (
+                                <div className="mt-2 space-y-2">
+                                  {liveRoster.length > 0 && (
+                                    <button type="button" onClick={() => {
+                                      setRosterPickerTeamId(team.id)
+                                      setRosterSearch('')
+                                      setRosterPickerMaxPlayers(maxPlayers)
+                                      setRosterPickerCurrentCount(teamPlayers.length)
+                                      setRosterPickerAlreadyNames(new Set(teamPlayers.map((p) => p.name.toLowerCase())))
+                                      setRosterPickerSelectedIds(new Set())
+                                    }}
+                                      className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 font-medium hover:bg-blue-50 transition">
+                                      Pick from Roster
+                                    </button>
+                                  )}
+                                  <form action={addPlayerAction} className="flex flex-col gap-2">
+                                    <input type="hidden" name="teamId" value={team.id} />
+                                    {addPlayerState?.error && <p className="text-xs text-red-500">{addPlayerState.error}</p>}
+                                    <input type="text" name="name" placeholder="Or enter name manually" required
+                                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                    <div className="flex items-center gap-2">
+                                      <input type="number" name="handicap" placeholder="HCP" min="0" max="54" step="0.1"
+                                        className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
+                                      {skinsEnabled && (
+                                        <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer flex-1">
+                                          <input type="checkbox" name="skins_participant" value="true"
+                                            className="w-3.5 h-3.5 accent-amber-500" />
+                                          In Skins
+                                        </label>
+                                      )}
+                                      <button type="submit" disabled={addPlayerPending}
+                                        className="text-white px-4 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60 ml-auto"
+                                        style={{ background: navy }}>Add</button>
+                                    </div>
+                                  </form>
                                 </div>
                               )}
                             </div>
@@ -3804,11 +3947,6 @@ export default function AdminDashboard({
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
                                 Edit
                               </button>
-                              <button onClick={() => setSelectedTeam(isSelected ? null : team.id)}
-                                className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
-                                {isSelected ? 'Close' : 'Players'}
-                              </button>
-
                               <button type="button" onClick={() => setConfirmRemoveTeamId(team.id)}
                                 className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
                                 Remove
@@ -3816,131 +3954,6 @@ export default function AdminDashboard({
                             </div>
                           </div>
                         )}
-                      </div>
-                      {/* Animated expand/collapse via grid-template-rows */}
-                      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${isSelected ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                        <div className="overflow-hidden">
-                          <div className="border-t border-gray-100 px-4 py-3 space-y-2 bg-gray-50">
-                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Players on {team.name}</p>
-                            {teamPlayers.length === 0 && (
-                              <p className="text-xs text-gray-400">No players added yet.</p>
-                            )}
-                            {teamPlayers.map((p, pi) => (
-                              <div key={p.id} className="bg-white rounded-lg border border-gray-100">
-                                {renamingPlayer === p.id ? (
-                                  <form action={renamePlayerAction} className="flex gap-2 px-3 py-2" onSubmit={() => setRenamingPlayer(null)}>
-                                    <input type="hidden" name="playerId" value={p.id} />
-                                    <input type="text" name="name" defaultValue={p.name} required autoFocus
-                                      className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                                    <button type="submit" disabled={renamePlayerPending}
-                                      className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60"
-                                      style={{ background: navy }}>Save</button>
-                                    <button type="button" onClick={() => setRenamingPlayer(null)}
-                                      className="text-xs text-gray-500 hover:text-gray-700 px-2">Cancel</button>
-                                  </form>
-                                ) : (
-                                  <div className="flex flex-col px-3 py-2 gap-1">
-                                    <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-semibold text-gray-400 w-4 text-right flex-shrink-0">{pi + 1}</span>
-                                    <div className="flex flex-col gap-0.5 mr-1">
-                                      <button type="button" disabled={pi === 0}
-                                        onClick={() => handleMovePlayer(p.id, 'up')}
-                                        className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none">▲</button>
-                                      <button type="button" disabled={pi === teamPlayers.length - 1}
-                                        onClick={() => handleMovePlayer(p.id, 'down')}
-                                        className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-default transition text-xs leading-none">▼</button>
-                                    </div>
-                                    <span className="flex-1 min-w-0 text-sm text-gray-800 font-medium truncate">{p.name}</span>
-                                    {editingHandicapId === p.id ? (
-                                      <div className="flex items-center gap-1 flex-shrink-0">
-                                        <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
-                                          autoFocus placeholder="HCP"
-                                          className="w-14 border border-blue-300 rounded px-1.5 py-0.5 text-xs focus:outline-none"
-                                          onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateHandicap(p.id); if (e.key === 'Escape') setEditingHandicapId(null) }} />
-                                        <button type="button" onClick={() => handleUpdateHandicap(p.id)} className="text-xs text-blue-600 font-medium">✓</button>
-                                        <button type="button" onClick={() => setEditingHandicapId(null)} className="text-xs text-gray-400">✕</button>
-                                      </div>
-                                    ) : (
-                                      <button type="button" onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '') }}
-                                        className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition w-16 text-center flex-shrink-0">
-                                        {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
-                                      </button>
-                                    )}
-                                    </div>
-                                    <div className="flex items-center gap-2 pl-10">
-                                    {skinsEnabled && (
-                                      <button type="button"
-                                        onClick={() => handleToggleSkinsParticipant(p.id, skinsOverrides[p.id] ?? p.skins_participant)}
-                                        className={`text-xs px-2 py-0.5 rounded border transition ${(skinsOverrides[p.id] ?? p.skins_participant) ? 'bg-amber-100 border-amber-400 text-amber-800 font-semibold' : 'border-gray-300 text-gray-400 hover:border-amber-300 hover:text-amber-600'}`}>
-                                        Skins
-                                      </button>
-                                    )}
-                                    <select
-                                      value={holesRangeOverrides[p.id] ?? p.holes_range ?? 'all'}
-                                      onChange={(e) => handleUpdateHolesRange(p.id, e.target.value)}
-                                      className={`text-xs px-1 py-0.5 rounded border focus:outline-none ${(holesRangeOverrides[p.id] ?? p.holes_range ?? 'all') !== 'all' ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold' : 'border-gray-300 text-gray-400'}`}>
-                                      <option value="all">18 Holes</option>
-                                      <option value="front9">Front 9</option>
-                                      <option value="back9">Back 9</option>
-                                    </select>
-                                    <button type="button" onClick={() => setRenamingPlayer(p.id)}
-                                      className="text-xs text-blue-500 hover:text-blue-700">Rename</button>
-                                    <button type="button" onClick={() => setConfirmRemovePlayerId(p.id)}
-                                      className="text-xs text-red-500 hover:text-red-700">Remove</button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            {(() => {
-                              const maxPlayers = (isDaytona || (isTraditional && team.daytona_variant))
-                                ? ((team.daytona_variant ?? '4man').split('|')[0].startsWith('5man') || team.daytona_variant_back9?.startsWith('5man')) ? 5 : 4
-                                : 5
-                              if (teamPlayers.length >= maxPlayers) return null
-                              return (
-                                <>
-                                {liveRoster.length > 0 && (
-                                  <button type="button" onClick={() => {
-                                    setRosterPickerTeamId(team.id)
-                                    setRosterSearch('')
-                                    setRosterPickerMaxPlayers(maxPlayers)
-                                    setRosterPickerCurrentCount(teamPlayers.length)
-                                    setRosterPickerAlreadyNames(new Set(teamPlayers.map((p) => p.name.toLowerCase())))
-                                    setRosterPickerSelectedIds(new Set())
-                                  }}
-                                    className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 font-medium mt-2 hover:bg-blue-50 transition">
-                                    Pick from Roster
-                                  </button>
-                                )}
-                                <form action={addPlayerAction} className="flex flex-col gap-2 mt-1">
-                                  <input type="hidden" name="teamId" value={team.id} />
-                                  {addPlayerState?.error && <p className="text-xs text-red-500">{addPlayerState.error}</p>}
-                                  <input type="text" name="name" placeholder="Or enter name manually" required
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                                  <div className="flex items-center gap-2">
-                                    <input type="number" name="handicap" placeholder="HCP" min="0" max="54" step="0.1"
-                                      className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
-                                    {skinsEnabled && (
-                                      <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer flex-1">
-                                        <input type="checkbox" name="skins_participant" value="true"
-                                          className="w-3.5 h-3.5 accent-amber-500" />
-                                        In Skins
-                                      </label>
-                                    )}
-                                    <button type="submit" disabled={addPlayerPending}
-                                      className="text-white px-4 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60 ml-auto"
-                                      style={{ background: navy }}>Add</button>
-                                  </div>
-                                </form>
-                                </>
-                              )
-                            })()}
-                            <button type="button" onClick={() => setResetConfirmTeamId(team.id)}
-                              className="text-xs text-orange-600 border border-orange-200 px-2 py-1 rounded hover:bg-orange-50 mt-1">
-                              Reset All Scores
-                            </button>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )
