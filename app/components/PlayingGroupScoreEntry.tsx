@@ -125,6 +125,7 @@ export default function PlayingGroupScoreEntry({
   const [pendingHoles, setPendingHoles] = useState<Set<number>>(new Set())
   const [errors, setErrors] = useState<Record<number, string>>({})
   const [playerPopup, setPlayerPopup] = useState<string | null>(null)
+  const [showGroupStrokes, setShowGroupStrokes] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [showScorecards, setShowScorecards] = useState(false)
@@ -693,10 +694,10 @@ export default function PlayingGroupScoreEntry({
   }
 
   useEffect(() => {
-    const locked = showOptions || showScorecards || !!playerPopup
+    const locked = showOptions || showScorecards || !!playerPopup || showGroupStrokes
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showScorecards, playerPopup])
+  }, [showOptions, showScorecards, playerPopup, showGroupStrokes])
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc', opacity: scrollReady ? 1 : 0 }}>
@@ -944,6 +945,103 @@ export default function PlayingGroupScoreEntry({
         </div>
       )}
 
+      {/* Group handicap strokes popup — tap the group name in the header */}
+      {showGroupStrokes && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowGroupStrokes(false)}>
+          <div className="bg-white rounded-t-3xl w-full max-w-lg p-5 pb-8 overflow-y-auto" style={{ maxHeight: '85dvh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold text-gray-900">{groupName} — Handicap Strokes</h3>
+              <button onClick={() => setShowGroupStrokes(false)} className="text-gray-400 text-xl leading-none">✕</button>
+            </div>
+            {(() => {
+              const fmtH = (h: number) => h < 0 ? `+${Math.abs(h)}` : `${h}`
+              const roundingLabel = handicapRounding === 'nearest' ? 'Round Up (7.5 → 8)' : 'Round Down (7.9 → 7)'
+              const hasSI = holes.some((h) => h.stroke_index != null)
+
+              if (!hasSI) {
+                return <p className="text-sm text-gray-500 py-3">This course has no stroke index (hole difficulty) data, so automatic strokes can&apos;t be assigned.</p>
+              }
+
+              if (isBanker) {
+                return (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-500 mb-2">
+                      Banker game — strokes are per hole, vs. that hole&apos;s Banker. Rounding: <span className="font-semibold text-gray-700">{roundingLabel}</span>.
+                    </p>
+                    {players.map((p) => {
+                      const effHoleNums = holes.filter((h) => effectiveStrokeIds(h.hole_number).includes(p.id)).map((h) => h.hole_number)
+                      return (
+                        <div key={p.id} className="flex items-start justify-between py-2 border-t border-gray-100 gap-2">
+                          <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">
+                            {p.name.split(' ')[0]} {p.handicap != null && <span className="text-xs font-normal text-gray-400">{fmtH(p.handicap)} HCP</span>}
+                          </p>
+                          {effHoleNums.length > 0
+                            ? <div className="flex flex-wrap gap-1 justify-end">{effHoleNums.map((hn) => <span key={hn} className="text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5">{hn}</span>)}</div>
+                            : <p className="text-xs text-gray-400 pt-0.5">No stroke holes yet</p>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              }
+
+              const effHcpF = (h: number) => roundHcp(h, handicapRounding, 'trunc')
+              const withHcp = players.filter((pl) => pl.handicap != null)
+              if (withHcp.length === 0) {
+                return <p className="text-sm text-gray-500 py-3">No handicaps on file for this group, so no automatic strokes can be assigned.</p>
+              }
+              const minEff = Math.min(...withHcp.map((pl) => effHcpF(pl.handicap!)))
+              const lowNames = withHcp.filter((pl) => effHcpF(pl.handicap!) === minEff).map((pl) => pl.name.split(' ')[0]).join(' & ')
+              return (
+                <div className="mt-2">
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">How this was calculated</p>
+                    <ul className="text-xs text-gray-600 space-y-1 list-disc pl-4">
+                      <li>Rounding: <span className="font-semibold text-gray-800">{roundingLabel}</span></li>
+                      <li>Strokes set by lowest hcp: <span className="font-semibold text-gray-800">{lowNames} ({fmtH(minEff)})</span></li>
+                      <li>Playing hcp − {fmtH(minEff)} = strokes, taken on the hardest holes</li>
+                    </ul>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1.5 mb-1">* Strokes count in the {isDaytonaMode ? 'Daytona' : 'side'} game only</p>
+                  {players.map((p) => {
+                    if (p.handicap == null) {
+                      return (
+                        <div key={p.id} className="flex items-center justify-between py-2 border-t border-gray-100">
+                          <p className="text-sm font-semibold text-gray-800">{p.name.split(' ')[0]}</p>
+                          <p className="text-xs text-gray-400">No handicap on file</p>
+                        </div>
+                      )
+                    }
+                    const pEff = effHcpF(p.handicap)
+                    const rel = Math.max(0, pEff - minEff)
+                    const holeNums = holes.filter((h) => h.stroke_index != null && h.stroke_index <= rel).map((h) => h.hole_number)
+                    return (
+                      <div key={p.id} className="py-2 border-t border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-gray-800">
+                            {p.name.split(' ')[0]} <span className="text-xs font-normal text-gray-400">{fmtH(p.handicap)} → {fmtH(pEff)}</span>
+                          </p>
+                          <p className={`text-sm font-semibold ${rel > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+                            {rel > 0 ? `${rel} stroke${rel !== 1 ? 's' : ''}` : 'Group low'}
+                          </p>
+                        </div>
+                        {rel > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {holeNums.map((hn) => (
+                              <span key={hn} className="text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5">{hn}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
       {showScorecards && (
         <ScorecardBottomSheet
           title={groupName}
@@ -973,7 +1071,8 @@ export default function PlayingGroupScoreEntry({
               <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
                 <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
               </div>
-              <div className="min-w-0">
+              <div className={`min-w-0 ${(isDaytonaMode || isBanker || autoStrokes) ? 'cursor-pointer select-none' : ''}`}
+                onClick={() => { if (isDaytonaMode || isBanker || autoStrokes) setShowGroupStrokes(true) }}>
                 <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Score Entry</p>
                 <h1 className="font-bold text-lg leading-tight">{groupName}</h1>
                 <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.5)' }}>{roundCourse}</p>
