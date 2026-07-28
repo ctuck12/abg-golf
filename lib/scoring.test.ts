@@ -1,0 +1,294 @@
+import { describe, it, expect } from 'vitest'
+import {
+  computeHoleDaytona,
+  computeTeamDaytonaSummary,
+  computeHoleBallScores,
+  roundHcp,
+  computeBBStrokeHoles,
+  applyPlayerStrokesToScoreMap,
+  playerCoversHole,
+  sortPlayersForDisplay,
+  sortRoundPlayersByTeam,
+  MANUAL_ORDER_BASE,
+  computeSkinsResults,
+  computeSkinsPotResults,
+} from './scoring'
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const hole = (hole_number: number, par = 4) => ({ hole_number, par })
+const score = (player_id: string, hole_number: number, strokes: number) => ({ player_id, hole_number, strokes })
+
+// ── Daytona hole math ────────────────────────────────────────────────────────
+
+describe('computeHoleDaytona', () => {
+  it('returns null with fewer than two scores', () => {
+    expect(computeHoleDaytona([4], 4)).toBeNull()
+    expect(computeHoleDaytona([], 4)).toBeNull()
+  })
+
+  // NOTE: these pin the implementation as it stands — the leading ball × 10,
+  // with the second ball influencing only the flip. The function's own doc
+  // comment describes two-digit concatenation instead (5+7 → 75, not 70).
+  // See the it.todo below; confirm with the owner which is the real game.
+  it('uses the low ball × 10 when best score is par or better', () => {
+    expect(computeHoleDaytona([4, 5], 4)).toBe(40)
+    expect(computeHoleDaytona([3, 6], 4)).toBe(30)
+  })
+
+  it('rule 1: uses the high ball × 10 when best score is over par', () => {
+    expect(computeHoleDaytona([5, 7], 4)).toBe(70)
+    expect(computeHoleDaytona([5, 5], 4)).toBe(50)
+  })
+
+  it('rule 2: another team with a strictly better under-par score forces a flip', () => {
+    expect(computeHoleDaytona([4, 5], 4, [3])).toBe(50)
+  })
+
+  it.todo('confirm with owner: should 4+5 combine to 45 (both digits, per the doc comment) instead of 40?')
+
+  it('rule 2: tied under-par levels cancel — no flip', () => {
+    expect(computeHoleDaytona([3, 5], 4, [3])).toBe(30)
+  })
+
+  it('picks the two lowest of more than two scores', () => {
+    expect(computeHoleDaytona([6, 4, 5], 4)).toBe(40)
+  })
+})
+
+describe('computeTeamDaytonaSummary', () => {
+  it('splits front and back totals and counts holes played', () => {
+    const holes = [hole(1), hole(10)]
+    const scores = [
+      score('a', 1, 4), score('b', 1, 5),
+      score('a', 10, 5), score('b', 10, 6),
+    ]
+    const s = computeTeamDaytonaSummary(holes, ['a', 'b'], scores)
+    expect(s.frontTotal).toBe(40)
+    expect(s.backTotal).toBe(60) // 5,6 on par 4 → over-par flip, high ball × 10
+    expect(s.total).toBe(100)
+    expect(s.holesPlayed).toBe(2)
+  })
+
+  it('skips holes where fewer than two players have scores', () => {
+    const s = computeTeamDaytonaSummary([hole(1)], ['a', 'b'], [score('a', 1, 4)])
+    expect(s.total).toBeNull()
+    expect(s.holesPlayed).toBe(0)
+  })
+})
+
+// ── Ball scores ──────────────────────────────────────────────────────────────
+
+describe('computeHoleBallScores', () => {
+  it('returns the N lowest strokes as balls, nulls when short of players', () => {
+    expect(computeHoleBallScores([5, 3, 4, 6], 3)).toEqual([3, 4, 5])
+    expect(computeHoleBallScores([5, 3], 3)).toEqual([3, 5, null])
+  })
+})
+
+// ── Handicap rounding ────────────────────────────────────────────────────────
+
+describe('roundHcp', () => {
+  it('nearest rounds half-up', () => {
+    expect(roundHcp(7.5, 'nearest')).toBe(8)
+    expect(roundHcp(7.4, 'nearest')).toBe(7)
+  })
+
+  it('default mode floors', () => {
+    expect(roundHcp(7.9, 'down')).toBe(7)
+    expect(roundHcp(7.9, null)).toBe(7)
+  })
+
+  it('trunc fallback truncates', () => {
+    expect(roundHcp(7.9, null, 'trunc')).toBe(7)
+  })
+})
+
+// ── Best Ball stroke allocation ──────────────────────────────────────────────
+
+describe('computeBBStrokeHoles', () => {
+  const holes = Array.from({ length: 18 }, (_, i) => ({ hole_number: i + 1, stroke_index: i + 1 }))
+
+  it('allocates strokes to the hardest holes first', () => {
+    const out = computeBBStrokeHoles({ p1: 2 }, holes)
+    expect(out.p1).toEqual({ 1: 1, 2: 1 })
+  })
+
+  it('wraps past 18 strokes onto the hardest holes again', () => {
+    const out = computeBBStrokeHoles({ p1: 20 }, holes)
+    expect(out.p1[1]).toBe(2)
+    expect(out.p1[2]).toBe(2)
+    expect(out.p1[3]).toBe(1)
+    expect(Object.values(out.p1).reduce((a, b) => a + b, 0)).toBe(20)
+  })
+
+  it('rounds fractional strokes per the rounding mode and skips zero', () => {
+    expect(computeBBStrokeHoles({ p1: 0.9 }, holes)).toEqual({})
+    expect(computeBBStrokeHoles({ p1: 0.9 }, holes, 'nearest').p1).toEqual({ 1: 1 })
+  })
+})
+
+describe('applyPlayerStrokesToScoreMap', () => {
+  it('subtracts strokes only on stroke holes for players who have them', () => {
+    const adjusted = applyPlayerStrokesToScoreMap(
+      { p1: { 1: 5, 2: 4 }, p2: { 1: 4 } },
+      { p1: { 1: 1 } },
+    )
+    expect(adjusted.p1).toEqual({ 1: 4, 2: 4 })
+    expect(adjusted.p2).toEqual({ 1: 4 })
+  })
+})
+
+// ── Holes range ──────────────────────────────────────────────────────────────
+
+describe('playerCoversHole', () => {
+  it('front9 covers 1-9 only, back9 covers 10-18 only, anything else covers all', () => {
+    expect(playerCoversHole('front9', 9)).toBe(true)
+    expect(playerCoversHole('front9', 10)).toBe(false)
+    expect(playerCoversHole('back9', 9)).toBe(false)
+    expect(playerCoversHole('back9', 10)).toBe(true)
+    expect(playerCoversHole('all', 18)).toBe(true)
+    expect(playerCoversHole(null, 1)).toBe(true)
+  })
+})
+
+// ── Display ordering ─────────────────────────────────────────────────────────
+
+describe('sortPlayersForDisplay', () => {
+  it('defaults to handicap low-to-high with nulls last', () => {
+    const out = sortPlayersForDisplay([
+      { position: 0, handicap: 12.3 },
+      { position: 1, handicap: 3 },
+      { position: 2, handicap: null },
+      { position: 3, handicap: 4.8 },
+    ])
+    expect(out.map((p) => p.handicap)).toEqual([3, 4.8, 12.3, null])
+  })
+
+  it('uses position order once any position marks a manual drag', () => {
+    const out = sortPlayersForDisplay([
+      { position: MANUAL_ORDER_BASE + 1, handicap: 3 },
+      { position: MANUAL_ORDER_BASE, handicap: 12.3 },
+    ])
+    expect(out.map((p) => p.handicap)).toEqual([12.3, 3])
+  })
+})
+
+describe('sortRoundPlayersByTeam', () => {
+  it('applies the rule per team, so one dragged team does not affect another', () => {
+    const out = sortRoundPlayersByTeam([
+      { team_id: 't1', position: 0, handicap: 9 },
+      { team_id: 't1', position: 1, handicap: 3 },
+      { team_id: 't2', position: MANUAL_ORDER_BASE + 1, handicap: 2 },
+      { team_id: 't2', position: MANUAL_ORDER_BASE, handicap: 8 },
+    ])
+    const t1 = out.filter((p) => p.team_id === 't1').map((p) => p.handicap)
+    const t2 = out.filter((p) => p.team_id === 't2').map((p) => p.handicap)
+    expect(t1).toEqual([3, 9])   // HCP order (no manual positions)
+    expect(t2).toEqual([8, 2])   // dragged order wins
+  })
+})
+
+// ── Skins: per-hole mode ─────────────────────────────────────────────────────
+
+describe('computeSkinsResults', () => {
+  const players = [
+    { id: 'a', name: 'A' },
+    { id: 'b', name: 'B' },
+    { id: 'c', name: 'C' },
+  ]
+
+  it('sole lowest at or under par wins the skin', () => {
+    const res = computeSkinsResults([hole(1)], [score('a', 1, 3), score('b', 1, 4), score('c', 1, 5)], players, 0)
+    expect(res.skins[0]).toMatchObject({ status: 'won', winnerId: 'a', winnerScore: 3 })
+    expect(res.skinsWon).toBe(1)
+  })
+
+  it('a tie for lowest washes the hole', () => {
+    const res = computeSkinsResults([hole(1)], [score('a', 1, 3), score('b', 1, 3)], players, 0)
+    expect(res.skins[0].status).toBe('tied')
+    expect(res.skinsWon).toBe(0)
+  })
+
+  it('no skin when every score is over par', () => {
+    const res = computeSkinsResults([hole(1)], [score('a', 1, 5), score('b', 1, 6)], players, 0)
+    expect(res.skins[0].status).toBe('no_qualifier')
+  })
+
+  it('holes with no scores are pending', () => {
+    const res = computeSkinsResults([hole(1)], [], players, 0)
+    expect(res.skins[0].status).toBe('pending')
+  })
+
+  it('winner collects the amount from every other participant', () => {
+    const res = computeSkinsResults([hole(1)], [score('a', 1, 3), score('b', 1, 4), score('c', 1, 5)], players, 5)
+    expect(res.playerNet).toEqual({ a: 10, b: -5, c: -5 })
+    expect(res.settlements).toHaveLength(2)
+    expect(res.settlements.every((s) => s.toId === 'a' && s.amount === 5)).toBe(true)
+  })
+
+  it('ignores scores on holes outside a participant\'s holes range', () => {
+    // A was flipped to front9 after posting a 3 on hole 10 — the stale score
+    // must not win (or block) the back-nine skin. Regression for the
+    // holes_range filter added to skins.
+    const ranged = [
+      { id: 'a', name: 'A', holes_range: 'front9' },
+      { id: 'b', name: 'B', holes_range: 'all' },
+    ]
+    const res = computeSkinsResults([hole(10)], [score('a', 10, 3), score('b', 10, 4)], ranged, 0)
+    expect(res.skins[0]).toMatchObject({ status: 'won', winnerId: 'b' })
+  })
+})
+
+// ── Skins: winner-take-pot mode ──────────────────────────────────────────────
+
+describe('computeSkinsPotResults', () => {
+  const players = [
+    { id: 'a', name: 'A' },
+    { id: 'b', name: 'B' },
+    { id: 'c', name: 'C' },
+  ]
+
+  it('holds the money until every participant has completed their holes', () => {
+    const res = computeSkinsPotResults([hole(1), hole(10)],
+      [score('a', 1, 3), score('b', 1, 4), score('c', 1, 4), score('a', 10, 4), score('b', 10, 5)],
+      players, 10)
+    expect(res.complete).toBe(false)
+    expect(res.playerNet).toEqual({ a: 0, b: 0, c: 0 })
+  })
+
+  it('a front9 participant only needs the front nine to count as complete', () => {
+    const ranged = [
+      { id: 'a', name: 'A', holes_range: 'front9' },
+      { id: 'b', name: 'B', holes_range: 'all' },
+    ]
+    const res = computeSkinsPotResults([hole(1), hole(10)],
+      [score('a', 1, 3), score('b', 1, 4), score('b', 10, 4)],
+      ranged, 10)
+    expect(res.complete).toBe(true)
+  })
+
+  it('most skins takes the whole pot once complete', () => {
+    const res = computeSkinsPotResults([hole(1), hole(10)],
+      [
+        score('a', 1, 3), score('b', 1, 4), score('c', 1, 4),
+        score('a', 10, 3), score('b', 10, 4), score('c', 10, 4),
+      ],
+      players, 10)
+    expect(res.complete).toBe(true)
+    expect(res.potTotal).toBe(30)
+    expect(res.playerNet).toEqual({ a: 20, b: -10, c: -10 })
+    expect(res.settlements.every((s) => s.toId === 'a' && s.amount === 10)).toBe(true)
+  })
+
+  it('a tie for most skins splits the pot evenly', () => {
+    const res = computeSkinsPotResults([hole(1), hole(10)],
+      [
+        score('a', 1, 3), score('b', 1, 4), score('c', 1, 4),
+        score('a', 10, 4), score('b', 10, 3), score('c', 10, 4),
+      ],
+      players, 12)
+    expect(res.leaders.map((l) => l.id).sort()).toEqual(['a', 'b'])
+    expect(res.playerNet).toEqual({ a: 6, b: 6, c: -12 })
+  })
+})
