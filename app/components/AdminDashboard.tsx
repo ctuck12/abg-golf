@@ -8,6 +8,7 @@ import {
   adminLogout, renameTeam, renamePlayer, reorderTeamPlayers,
   updateSkinsSettings, updatePlayerSkinsParticipation, updateTeamSettings,
   updatePlayerHandicap,
+  updatePlayerDetails,
   updatePlayerHolesRange,
   clearAllScores,
   updateRoundAutoHandicap,
@@ -295,6 +296,7 @@ export default function AdminDashboard({
   )
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
   const [editingHandicapId, setEditingHandicapId] = useState<string | null>(null)
   const [handicapDraft, setHandicapDraft] = useState('')
   // Inline roster-handicap editing (team generator list, roster picker)
@@ -1149,6 +1151,23 @@ export default function AdminDashboard({
     router.refresh()
   }
 
+  function openPlayerEdit(p: { id: string; name: string; handicap?: number | null }) {
+    setRenamingPlayer(p.id)
+    setRenameDraft(p.name)
+    setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '')
+  }
+  async function handleSavePlayerEdit(playerId: string) {
+    const name = renameDraft.trim()
+    if (!name) return
+    const hcp = parseHcpInput(handicapDraft)
+    setRenamingPlayer(null)
+    // Server action also syncs the linked roster entry — mirror that locally
+    const rosterId = players.find(p => p.id === playerId)?.roster_player_id
+    if (rosterId) setLiveRoster(prev => prev.map(rp => rp.id === rosterId ? { ...rp, name, handicap_index: hcp } : rp))
+    setLiveManualPlayers(prev => prev.map(mp => mp.id === playerId ? { ...mp, name, handicap: hcp } : mp))
+    await updatePlayerDetails(playerId, name, hcp)
+    router.refresh()
+  }
   async function handleUpdateHandicap(playerId: string) {
     const hcp = parseHcpInput(handicapDraft)
     setEditingHandicapId(null)
@@ -3851,11 +3870,12 @@ export default function AdminDashboard({
                                                 className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-sm leading-none pr-0.5 flex-shrink-0"
                                                 style={{ touchAction: 'none' }}>⠿</button>
                                               {renamingPlayer === p.id ? (
-                                                <form action={renamePlayerAction} className="flex items-center gap-2 min-w-0" onSubmit={() => setRenamingPlayer(null)}>
-                                                  <input type="hidden" name="playerId" value={p.id} />
-                                                  <input type="text" name="name" defaultValue={p.name} required autoFocus
-                                                    className="w-36 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
-                                                  <button type="submit" disabled={renamePlayerPending} className="text-xs text-blue-600 font-semibold">Save</button>
+                                                <form onSubmit={(e) => { e.preventDefault(); handleSavePlayerEdit(p.id) }} className="flex items-center gap-1.5 min-w-0">
+                                                  <input type="text" value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} required autoFocus placeholder="Name"
+                                                    className="w-28 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                                  <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="HCP"
+                                                    className="w-14 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                                  <button type="submit" className="text-xs text-blue-600 font-semibold">Save</button>
                                                   <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-500">Cancel</button>
                                                 </form>
                                               ) : (
@@ -3863,22 +3883,9 @@ export default function AdminDashboard({
                                                   <span {...dragProps} title="Drag to reorder"
                                                     className="text-sm font-medium text-gray-800 truncate min-w-0 text-left select-none cursor-grab active:cursor-grabbing"
                                                     style={{ flex: `0 1 calc(${nameColCh}ch + 1rem)`, maxWidth: '10rem', WebkitTouchCallout: 'none' }}>{p.name}</span>
-                                                  {editingHandicapId === p.id ? (
-                                                    <span className="flex items-center gap-1 flex-shrink-0">
-                                                      <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)}
-                                                        autoFocus placeholder="HCP"
-                                                        className="w-12 border border-blue-300 rounded px-1 py-0.5 text-xs focus:outline-none"
-                                                        onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateHandicap(p.id); if (e.key === 'Escape') setEditingHandicapId(null) }} />
-                                                      <button type="button" onClick={() => handleUpdateHandicap(p.id)} className="text-xs text-blue-600 font-medium">✓</button>
-                                                      <button type="button" onClick={() => setEditingHandicapId(null)} className="text-xs text-gray-400">✕</button>
-                                                    </span>
-                                                  ) : (
-                                                    <button type="button" title="Tap to edit handicap"
-                                                      onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '') }}
-                                                      className="text-[10px] font-bold px-1 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 w-16 text-center bg-blue-50 text-blue-700 border-blue-200">
-                                                      {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
-                                                    </button>
-                                                  )}
+                                                  <span className="text-[10px] font-bold px-1 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 w-16 text-center bg-blue-50 text-blue-700 border-blue-200">
+                                                    {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
+                                                  </span>
                                                   {skinsEnabled === true && (
                                                     <button type="button"
                                                       onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
@@ -3893,9 +3900,9 @@ export default function AdminDashboard({
                                                     className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${holesRange !== 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-400 border-gray-300'}`}>
                                                     {holesRange === 'all' ? '18 Holes' : holesRange === 'front9' ? 'Front 9' : 'Back 9'}
                                                   </button>
-                                                  <button type="button" onClick={() => setRenamingPlayer(p.id)}
+                                                  <button type="button" onClick={() => openPlayerEdit(p)}
                                                     className="text-gray-400 hover:text-blue-600 text-[11px] leading-none px-0.5 flex-shrink-0"
-                                                    title="Rename player">✎</button>
+                                                    title="Edit name / handicap">✎</button>
                                                   <button type="button" onClick={() => setConfirmRemovePlayerId(p.id)}
                                                     className="text-gray-400 hover:text-red-600 text-sm leading-none px-0.5 flex-shrink-0"
                                                     title="Remove player">×</button>
@@ -4280,11 +4287,12 @@ export default function AdminDashboard({
                                 <div key={p.id} className="flex items-center gap-1.5 w-full">
                                   <span className={`w-1 h-4 rounded-full flex-shrink-0 ${isManual ? 'bg-purple-500' : 'bg-blue-500'}`} />
                                   {renamingPlayer === p.id ? (
-                                    <form action={renamePlayerAction} className="flex items-center gap-2 min-w-0" onSubmit={() => setRenamingPlayer(null)}>
-                                      <input type="hidden" name="playerId" value={p.id} />
-                                      <input type="text" name="name" defaultValue={p.name} required autoFocus
-                                        className="w-36 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
-                                      <button type="submit" disabled={renamePlayerPending} className="text-xs text-blue-600 font-semibold">Save</button>
+                                    <form onSubmit={(e) => { e.preventDefault(); handleSavePlayerEdit(p.id) }} className="flex items-center gap-1.5 min-w-0">
+                                      <input type="text" value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} required autoFocus placeholder="Name"
+                                        className="w-28 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                      <input type="text" inputMode="decimal" value={handicapDraft} onChange={(e) => setHandicapDraft(e.target.value)} placeholder="HCP"
+                                        className="w-14 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                      <button type="submit" className="text-xs text-blue-600 font-semibold">Save</button>
                                       <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-500">Cancel</button>
                                     </form>
                                   ) : (
@@ -4310,9 +4318,9 @@ export default function AdminDashboard({
                                         className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${holesRange !== 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-400 border-gray-300'}`}>
                                         {holesRange === 'all' ? '18 Holes' : holesRange === 'front9' ? 'Front 9' : 'Back 9'}
                                       </button>
-                                      <button type="button" onClick={(e) => { e.stopPropagation(); setRenamingPlayer(p.id) }}
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); openPlayerEdit(p) }}
                                         className="text-gray-400 hover:text-blue-600 text-[11px] leading-none px-0.5 flex-shrink-0"
-                                        title="Rename player">✎</button>
+                                        title="Edit name / handicap">✎</button>
                                       <button type="button"
                                         onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual }) }}
                                         className="text-gray-400 hover:text-red-600 text-sm leading-none px-0.5 flex-shrink-0">×</button>

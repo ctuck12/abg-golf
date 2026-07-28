@@ -500,6 +500,21 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
   return { success: true }
 }
 
+export async function updatePlayerDetails(playerId: string, name: string, handicap: number | null) {
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Player name required.' }
+  const supabase = createServerClient()
+  const { data: player, error } = await supabase
+    .from('players').update({ name: trimmed, handicap }).eq('id', playerId)
+    .select('roster_player_id').single()
+  if (error) return { error: error.message }
+  // Keep the org roster in sync so the change shows up in every section
+  if (player?.roster_player_id) {
+    await supabase.from('org_players').update({ name: trimmed, handicap_index: handicap }).eq('id', player.roster_player_id)
+  }
+  return { success: true }
+}
+
 export async function updatePlayerHandicap(playerId: string, handicap: number | null) {
   const supabase = createServerClient()
   const { data: player, error } = await supabase
