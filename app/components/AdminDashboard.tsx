@@ -3760,19 +3760,20 @@ export default function AdminDashboard({
                                     const inSkins = skinsOverrides[p.id] ?? p.skins_participant
                                     return (
                                       <div key={p.id} className="flex items-center gap-2">
-                                        {skinsEnabled === true && (
-                                          <button type="button"
-                                            onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
-                                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
-                                            title="Toggle skins participation">
-                                            {inSkins ? 'Skins ✓' : 'Skins'}
-                                          </button>
-                                        )}
+                                        <span className="w-1 h-4 rounded-full flex-shrink-0 bg-blue-500" />
                                         <span className="text-sm font-medium text-gray-800 truncate">{p.name}</span>
                                         {p.handicap != null && (
                                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 bg-blue-50 text-blue-700 border-blue-200">
                                             HCP {fmtHcp(p.handicap)}
                                           </span>
+                                        )}
+                                        {skinsEnabled === true && (
+                                          <button type="button"
+                                            onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
+                                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-white text-gray-400 border-gray-300'}`}
+                                            title="Toggle skins participation">
+                                            {inSkins ? 'Skins ✓' : 'Not in Skins'}
+                                          </button>
                                         )}
                                       </div>
                                     )
@@ -4255,19 +4256,20 @@ export default function AdminDashboard({
                               const isManual = p.team_id === null
                               return (
                                 <div key={p.id} className="flex items-center gap-2">
-                                  {skinsEnabled === true && (
-                                    <button type="button"
-                                      onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
-                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
-                                      title="Toggle skins participation">
-                                      {inSkins ? 'Skins ✓' : 'Skins'}
-                                    </button>
-                                  )}
+                                  <span className={`w-1 h-4 rounded-full flex-shrink-0 ${isManual ? 'bg-purple-500' : 'bg-blue-500'}`} />
                                   <span className="text-sm font-medium text-gray-800 truncate">{p.name}</span>
                                   {p.handicap != null && (
                                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 ${isManual ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                                       HCP {fmtHcp(p.handicap)}
                                     </span>
+                                  )}
+                                  {skinsEnabled === true && (
+                                    <button type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
+                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-white text-gray-400 border-gray-300'}`}
+                                      title="Toggle skins participation">
+                                      {inSkins ? 'Skins ✓' : 'Not in Skins'}
+                                    </button>
                                   )}
                                   <button type="button"
                                     onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual }) }}
