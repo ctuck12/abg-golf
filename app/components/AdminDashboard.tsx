@@ -48,6 +48,7 @@ import {
   computeAllMatchupPayouts,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
+import RoundHistory from './RoundHistory'
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -5103,6 +5104,9 @@ export default function AdminDashboard({
                 )}
               </div>
             )}
+
+            {/* ── Round History — audit trail of mid-round changes ── */}
+            {round && <RoundHistory roundId={round.id} />}
 
             {/* ── Round Active banner — shown after activation ── */}
             {round && round.is_started && (

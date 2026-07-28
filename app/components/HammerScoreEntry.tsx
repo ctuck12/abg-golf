@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, Fragment, useEffect, useRef } from 'react'
-import { saveHammerHole, submitHammerHoleScores, saveHoleStrokes } from '@/app/actions'
+import { runOrQueue } from '@/lib/offline-queue'
+import OfflineSyncBanner from './OfflineSyncBanner'
 import { roundHcp } from '@/lib/scoring'
 
 const navy = '#0f172a'
@@ -154,7 +155,7 @@ export default function HammerScoreEntry({
     const next: HammerHoleState = { ...hs, stake: hs.stake * 2, lastHammerTeam: pendingHammer.fromTeam }
     setHammerHoles((prev) => ({ ...prev, [holeNumber]: next }))
     setPendingHammer(null)
-    await saveHammerHole(matchupId, holeNumber, next)
+    await runOrQueue('saveHammerHole', [matchupId, holeNumber, next])
   }
 
   async function handleFold(holeNumber: number) {
@@ -164,21 +165,21 @@ export default function HammerScoreEntry({
     const next: HammerHoleState = { ...hs, foldedTeam }
     setHammerHoles((prev) => ({ ...prev, [holeNumber]: next }))
     setPendingHammer(null)
-    await saveHammerHole(matchupId, holeNumber, next)
+    await runOrQueue('saveHammerHole', [matchupId, holeNumber, next])
   }
 
   async function handlePreTeeHammer(fromTeam: 1 | 2, holeNumber: number) {
     const hs = holeState(holeNumber)
     const next: HammerHoleState = { ...hs, stake: hs.stake * 2, lastHammerTeam: fromTeam, preTeeUsed: true }
     setHammerHoles((prev) => ({ ...prev, [holeNumber]: next }))
-    await saveHammerHole(matchupId, holeNumber, next)
+    await runOrQueue('saveHammerHole', [matchupId, holeNumber, next])
   }
 
   async function handleStrokeToggle(holeNumber: number, playerId: string) {
     const current = holeStrokes[holeNumber] ?? []
     const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId]
     setHoleStrokes((prev) => ({ ...prev, [holeNumber]: next }))
-    await saveHoleStrokes(roundId, holeNumber, next, allPlayers.map((p) => p.id))
+    await runOrQueue('saveHoleStrokes', [roundId, holeNumber, next, allPlayers.map((p) => p.id)])
   }
 
   async function getAutoStrokes(holeNumber: number): Promise<string[]> {
@@ -203,9 +204,9 @@ export default function HammerScoreEntry({
     const playerScores = allPlayers.map((p) => ({ playerId: p.id, strokes: strokes[p.id]?.[holeNumber] ?? hole.par }))
     setPendingHoles((prev) => new Set([...prev, holeNumber]))
     setErrors((prev) => { const e = { ...prev }; delete e[holeNumber]; return e })
-    const res = await submitHammerHoleScores(matchupId, holeNumber, playerScores)
+    const res = await runOrQueue('submitHammerHoleScores', [matchupId, holeNumber, playerScores])
     setPendingHoles((prev) => { const s = new Set(prev); s.delete(holeNumber); return s })
-    if (res.error) { setErrors((prev) => ({ ...prev, [holeNumber]: res.error! })); return }
+    if ('error' in res && res.error) { setErrors((prev) => ({ ...prev, [holeNumber]: res.error! })); return }
     setSavedHoles((prev) => new Set([...prev, holeNumber]))
     const newScores = playerScores.map((ps) => ({ player_id: ps.playerId, hole_number: holeNumber, strokes: ps.strokes }))
     setSavedScores((prev) => {
@@ -350,6 +351,7 @@ export default function HammerScoreEntry({
         </div>
       </header>
       <div ref={spacerRef} />
+      <OfflineSyncBanner />
 
       {/* Hole list */}
       <div className="max-w-lg mx-auto px-4 pt-4 pb-16 space-y-2">
@@ -540,7 +542,7 @@ export default function HammerScoreEntry({
                     <button type="button" onClick={async () => {
                       const auto = await getAutoStrokes(hole.hole_number)
                       setHoleStrokes((prev) => ({ ...prev, [hole.hole_number]: auto }))
-                      saveHoleStrokes(roundId, hole.hole_number, auto, allPlayers.map((p) => p.id))
+                      void runOrQueue('saveHoleStrokes', [roundId, hole.hole_number, auto, allPlayers.map((p) => p.id)])
                     }} className="text-xs text-blue-500 hover:text-blue-700">Auto-fill handicap strokes</button>
                   )}
 

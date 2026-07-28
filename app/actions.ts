@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 
 import { createServerClient } from '@/lib/supabase-server'
 import { sendEmailNotification, sendPushToAll } from '@/lib/notify'
+import { logRoundEvent, playerAuditContext, playerNames, firstName, fmtHcp, matchupLabel, bestBallLabel } from '@/lib/audit'
 
 const FORMAT_LABELS: Record<string, string> = {
   daytona: 'Daytona', banker: 'Banker', traditional: 'Traditional', hammer: 'Hammer',
@@ -333,6 +334,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
 export async function activateRound(roundId: string, orgSlug: string) {
   const supabase = createServerClient()
   await supabase.from('rounds').update({ is_started: true }).eq('id', roundId)
+  await logRoundEvent(supabase, roundId, 'Round activated', 'Leaderboard is live')
   redirect(`/${orgSlug}/admin/dashboard`)
 }
 
@@ -340,10 +342,15 @@ export async function updateHolePars(_prev: unknown, formData: FormData) {
   const roundId = formData.get('roundId') as string
   const supabase = createServerClient()
 
+  const { data: beforeHoles } = await supabase.from('holes').select('hole_number, par').eq('round_id', roundId)
+  const beforePar = new Map((beforeHoles ?? []).map((h) => [h.hole_number as number, h.par as number]))
+  const changed: string[] = []
   for (let i = 1; i <= 18; i++) {
     const par = parseInt(formData.get(`par_${i}`) as string) || 4
     await supabase.from('holes').update({ par }).eq('round_id', roundId).eq('hole_number', i)
+    if (beforePar.has(i) && beforePar.get(i) !== par) changed.push(`H${i}: ${beforePar.get(i)} → ${par}`)
   }
+  if (changed.length) await logRoundEvent(supabase, roundId, 'Hole pars', changed.join(', '))
   return { success: true }
 }
 
@@ -352,11 +359,14 @@ export async function updateBallValues(_prev: unknown, formData: FormData) {
   const ballsCount = parseInt(formData.get('ballsCount') as string) || 3
   const supabase = createServerClient()
 
+  const values: number[] = []
   for (let i = 1; i <= ballsCount; i++) {
     const value = parseFloat(formData.get(`ball_${i}`) as string) || 0
+    values.push(value)
     await supabase.from('ball_values')
       .upsert({ round_id: roundId, ball_number: i, value_dollars: value }, { onConflict: 'round_id,ball_number' })
   }
+  await logRoundEvent(supabase, roundId, 'Ball values', values.map((v) => `$${v}`).join(' / '))
   return { success: true }
 }
 
@@ -393,8 +403,12 @@ export async function renameTeam(_prev: unknown, formData: FormData) {
   if (!teamId || !name) return { error: 'Team name required.' }
 
   const supabase = createServerClient()
+  const { data: before } = await supabase.from('teams').select('name, round_id').eq('id', teamId).single()
   const { error } = await supabase.from('teams').update({ name }).eq('id', teamId)
   if (error) return { error: error.message }
+  if (before && before.name !== name) {
+    await logRoundEvent(supabase, before.round_id, 'Team renamed', `${before.name} → ${name}`)
+  }
   return { success: true }
 }
 
@@ -416,6 +430,9 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
   const hammerFormat = (formData.get('hammer_format') as string) || 'stroke'
 
   const supabase = createServerClient()
+  const { data: before } = await supabase
+    .from('teams').select('name, round_id, pin, daytona_variant, daytona_variant_back9, banker_side_game, hammer_side_game, auto_strokes, stroke_rounding')
+    .eq('id', teamId).single()
   const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null }
   if (pin) updates.pin = pin
   const strokeRounding = (formData.get('stroke_rounding') as string) || ''
@@ -423,6 +440,18 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
 
   const { error } = await supabase.from('teams').update(updates).eq('id', teamId)
   if (error) return { error: error.message }
+  if (before) {
+    const changes: string[] = []
+    if (before.name !== name) changes.push(`renamed to ${name}`)
+    if ((before.daytona_variant ?? null) !== daytonaVariant) changes.push(`variant → ${daytonaVariant ?? 'none'}`)
+    if ((before.daytona_variant_back9 ?? null) !== daytonaVariantBack9) changes.push(`back-9 variant → ${daytonaVariantBack9 ?? 'none'}`)
+    if (!!before.banker_side_game !== bankerSideGame) changes.push(`banker side game ${bankerSideGame ? 'on' : 'off'}`)
+    if (!!before.hammer_side_game !== hammerSideGame) changes.push(`hammer side game ${hammerSideGame ? 'on' : 'off'}`)
+    if (!!before.auto_strokes !== autoStrokes) changes.push(`auto strokes ${autoStrokes ? 'on' : 'off'}`)
+    if (strokeRounding && strokeRounding !== (before.stroke_rounding ?? '')) changes.push(`stroke rounding → ${strokeRounding}`)
+    if (pin && pin !== before.pin) changes.push('PIN changed')
+    if (changes.length) await logRoundEvent(supabase, before.round_id, 'Group settings', `${before.name}: ${changes.join(', ')}`)
+  }
   return { success: true }
 }
 
@@ -432,14 +461,20 @@ export async function renamePlayer(_prev: unknown, formData: FormData) {
   if (!playerId || !name) return { error: 'Player name required.' }
 
   const supabase = createServerClient()
+  const before = await playerAuditContext(supabase, playerId)
   const { error } = await supabase.from('players').update({ name }).eq('id', playerId)
   if (error) return { error: error.message }
+  if (before && before.name !== name) {
+    await logRoundEvent(supabase, before.roundId, 'Player edit', `${before.name}: renamed to ${name}`)
+  }
   return { success: true }
 }
 
 export async function deleteTeam(teamId: string) {
   const supabase = createServerClient()
+  const { data: before } = await supabase.from('teams').select('name, round_id').eq('id', teamId).single()
   await supabase.from('teams').delete().eq('id', teamId)
+  if (before) await logRoundEvent(supabase, before.round_id, 'Team removed', before.name)
 }
 
 export async function toggleTeamAdmin(teamId: string, isAdmin: boolean) {
@@ -451,7 +486,7 @@ export async function resetTeamScores(teamId: string) {
   const supabase = createServerClient()
   const [{ data: players }, { data: teamRow }] = await Promise.all([
     supabase.from('players').select('id').eq('team_id', teamId),
-    supabase.from('teams').select('round_id').eq('id', teamId).single(),
+    supabase.from('teams').select('round_id, name').eq('id', teamId).single(),
   ])
   const playerIds = (players ?? []).map((p) => p.id)
   if (playerIds.length) {
@@ -462,6 +497,7 @@ export async function resetTeamScores(teamId: string) {
         ? supabase.from('daytona_hole_assignments').delete().eq('round_id', roundId).in('player_id', playerIds)
         : Promise.resolve(),
     ])
+    await logRoundEvent(supabase, teamRow?.round_id, 'Scores reset', `All scores deleted for ${teamRow?.name ?? 'a team'}`)
   }
 }
 
@@ -478,7 +514,7 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
   const supabase = createServerClient()
 
   // Get the round for this team so we can check all players in the round
-  const { data: teamRow } = await supabase.from('teams').select('round_id').eq('id', teamId).single()
+  const { data: teamRow } = await supabase.from('teams').select('round_id, name').eq('id', teamId).single()
   if (teamRow?.round_id) {
     const { data: allTeams } = await supabase.from('teams').select('id').eq('round_id', teamRow.round_id)
     const allTeamIds = (allTeams ?? []).map((t: { id: string }) => t.id)
@@ -497,6 +533,7 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
   const nextPosition = existing?.[0]?.position != null ? existing[0].position + 1 : 0
   const { error } = await supabase.from('players').insert({ name, team_id: teamId, position: nextPosition, skins_participant: skinsParticipant, handicap: handicap ?? null })
   if (error) return { error: error.message }
+  await logRoundEvent(supabase, teamRow?.round_id, 'Player added', `${name} (HCP ${fmtHcp(handicap)}) → ${teamRow?.name ?? 'team'}`)
   return { success: true }
 }
 
@@ -504,6 +541,7 @@ export async function updatePlayerDetails(playerId: string, name: string, handic
   const trimmed = name.trim()
   if (!trimmed) return { error: 'Player name required.' }
   const supabase = createServerClient()
+  const before = await playerAuditContext(supabase, playerId)
   const { data: player, error } = await supabase
     .from('players').update({ name: trimmed, handicap }).eq('id', playerId)
     .select('roster_player_id').single()
@@ -512,11 +550,18 @@ export async function updatePlayerDetails(playerId: string, name: string, handic
   if (player?.roster_player_id) {
     await supabase.from('org_players').update({ name: trimmed, handicap_index: handicap }).eq('id', player.roster_player_id)
   }
+  if (before) {
+    const changes: string[] = []
+    if (before.name !== trimmed) changes.push(`renamed to ${trimmed}`)
+    if ((before.handicap ?? null) !== (handicap ?? null)) changes.push(`HCP ${fmtHcp(before.handicap)} → ${fmtHcp(handicap)}`)
+    if (changes.length) await logRoundEvent(supabase, before.roundId, 'Player edit', `${before.name}: ${changes.join(', ')}`)
+  }
   return { success: true }
 }
 
 export async function updatePlayerHandicap(playerId: string, handicap: number | null) {
   const supabase = createServerClient()
+  const before = await playerAuditContext(supabase, playerId)
   const { data: player, error } = await supabase
     .from('players').update({ handicap }).eq('id', playerId)
     .select('roster_player_id').single()
@@ -525,10 +570,20 @@ export async function updatePlayerHandicap(playerId: string, handicap: number | 
   if (player?.roster_player_id) {
     await supabase.from('org_players').update({ handicap_index: handicap }).eq('id', player.roster_player_id)
   }
+  if (before && (before.handicap ?? null) !== (handicap ?? null)) {
+    await logRoundEvent(supabase, before.roundId, 'HCP change', `${before.name}: ${fmtHcp(before.handicap)} → ${fmtHcp(handicap)}`)
+  }
   return { success: true }
 }
 
 // ── Hammer ────────────────────────────────────────────────────────────────────
+
+// "Team A vs Team B" for a hammer matchup's team ids.
+async function hammerLabel(sb: ReturnType<typeof createServerClient>, team1Id: string, team2Id: string): Promise<string> {
+  const { data } = await sb.from('teams').select('id, name').in('id', [team1Id, team2Id])
+  const byId = new Map((data ?? []).map((t) => [t.id, t.name as string]))
+  return `${byId.get(team1Id) ?? '?'} vs ${byId.get(team2Id) ?? '?'}`
+}
 
 export async function createHammerMatchup(roundId: string, team1Id: string, team2Id: string, baseBet: number, autoHandicap: boolean) {
   const supabase = createServerClient()
@@ -536,12 +591,15 @@ export async function createHammerMatchup(roundId: string, team1Id: string, team
     .insert({ round_id: roundId, team1_id: team1Id, team2_id: team2Id, base_bet: baseBet, auto_handicap: autoHandicap })
     .select('id').single()
   if (error) return { error: error.message }
+  await logRoundEvent(supabase, roundId, 'Matchup added', `Hammer: ${await hammerLabel(supabase, team1Id, team2Id)} — $${baseBet} base`)
   return { success: true, id: data.id }
 }
 
 export async function deleteHammerMatchup(matchupId: string) {
   const supabase = createServerClient()
+  const { data: m } = await supabase.from('hammer_matchups').select('round_id, team1_id, team2_id').eq('id', matchupId).single()
   await supabase.from('hammer_matchups').delete().eq('id', matchupId)
+  if (m) await logRoundEvent(supabase, m.round_id, 'Matchup removed', `Hammer: ${await hammerLabel(supabase, m.team1_id, m.team2_id)}`)
   return { success: true }
 }
 
@@ -666,7 +724,7 @@ export async function addRosterPlayerToTeam(teamId: string, rosterPlayerId: stri
   const { data: rp } = await supabase.from('org_players').select('name, handicap_index').eq('id', rosterPlayerId).single()
   if (!rp) return { error: 'Roster player not found.' }
 
-  const { data: teamRow } = await supabase.from('teams').select('round_id').eq('id', teamId).single()
+  const { data: teamRow } = await supabase.from('teams').select('round_id, name').eq('id', teamId).single()
   if (teamRow?.round_id) {
     const { data: allTeams } = await supabase.from('teams').select('id').eq('round_id', teamRow.round_id)
     const allTeamIds = (allTeams ?? []).map((t: { id: string }) => t.id)
@@ -686,6 +744,7 @@ export async function addRosterPlayerToTeam(teamId: string, rosterPlayerId: stri
     handicap: rp.handicap_index ?? null, roster_player_id: rosterPlayerId,
   })
   if (error) return { error: error.message }
+  await logRoundEvent(supabase, teamRow?.round_id, 'Player added', `${rp.name} (HCP ${fmtHcp(rp.handicap_index)}) → ${teamRow?.name ?? 'team'}`)
   return { success: true }
 }
 
@@ -697,7 +756,7 @@ export async function addRosterPlayersToTeam(teamId: string, rosterPlayerIds: st
 
   const [{ data: rps }, { data: teamRow }, { data: existing }] = await Promise.all([
     supabase.from('org_players').select('id, name, handicap_index').in('id', rosterPlayerIds),
-    supabase.from('teams').select('round_id').eq('id', teamId).single(),
+    supabase.from('teams').select('round_id, name').eq('id', teamId).single(),
     supabase.from('players').select('position').eq('team_id', teamId).order('position', { ascending: false }).limit(1),
   ])
   if (!rps || rps.length === 0) return { error: 'Roster players not found.' }
@@ -724,6 +783,8 @@ export async function addRosterPlayersToTeam(teamId: string, rosterPlayerIds: st
   }))
   const { error } = await supabase.from('players').insert(rows)
   if (error) return { error: error.message }
+  await logRoundEvent(supabase, teamRow?.round_id, 'Players added',
+    `${ordered.map((rp) => rp.name).join(', ')} → ${teamRow?.name ?? 'team'}`)
   return { success: true }
 }
 
@@ -751,6 +812,7 @@ export async function toggleMixedGroups(roundId: string, value: boolean) {
   }
   const { error } = await supabase.from('rounds').update(update).eq('id', roundId)
   if (error) return { error: error.message }
+  await logRoundEvent(supabase, roundId, 'Round settings', `Mixed groups ${value ? 'on' : 'off'}`)
   return { success: true }
 }
 
@@ -791,8 +853,19 @@ export async function updatePlayingGroupSettings(groupId: string, settings: {
   stroke_rounding?: string | null
 }) {
   const supabase = createServerClient()
+  const { data: before } = await supabase
+    .from('playing_groups').select('name, round_id, daytona_variant, banker_side_game, auto_strokes, stroke_rounding')
+    .eq('id', groupId).single()
   const { error } = await supabase.from('playing_groups').update(settings).eq('id', groupId)
   if (error) return { error: error.message }
+  if (before) {
+    const changes: string[] = []
+    if ((before.daytona_variant ?? null) !== settings.daytona_variant) changes.push(`variant → ${settings.daytona_variant ?? 'none'}`)
+    if (!!before.banker_side_game !== settings.banker_side_game) changes.push(`banker side game ${settings.banker_side_game ? 'on' : 'off'}`)
+    if (!!before.auto_strokes !== settings.auto_strokes) changes.push(`auto strokes ${settings.auto_strokes ? 'on' : 'off'}`)
+    if (settings.stroke_rounding !== undefined && (before.stroke_rounding ?? null) !== settings.stroke_rounding) changes.push(`stroke rounding → ${settings.stroke_rounding ?? 'default'}`)
+    if (changes.length) await logRoundEvent(supabase, before.round_id, 'Group settings', `${before.name}: ${changes.join(', ')}`)
+  }
   return { success: true }
 }
 
@@ -869,6 +942,7 @@ export async function updateRoundAutoHandicap(roundId: string, autoHandicap: boo
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ auto_handicap: autoHandicap }).eq('id', roundId)
   if (error) return { error: error.message }
+  await logRoundEvent(supabase, roundId, 'Handicap settings', `Auto strokes ${autoHandicap ? 'on' : 'off'}`)
   return { success: true }
 }
 
@@ -876,6 +950,7 @@ export async function updateRoundHandicapRounding(roundId: string, mode: string)
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ handicap_rounding: mode }).eq('id', roundId)
   if (error) return { error: error.message }
+  await logRoundEvent(supabase, roundId, 'Handicap settings', `Rounding → ${mode}`)
   return { success: true }
 }
 
@@ -883,6 +958,7 @@ export async function updateRoundName(roundId: string, name: string) {
   const supabase = createServerClient()
   const { error } = await supabase.from('rounds').update({ name: name.trim() }).eq('id', roundId)
   if (error) return { error: error.message }
+  await logRoundEvent(supabase, roundId, 'Round renamed', name.trim())
   return { success: true }
 }
 
@@ -931,21 +1007,33 @@ export async function updateSkinsSettings(_prev: unknown, formData: FormData) {
   const amount = parseFloat(formData.get('skins_amount') as string) || 0
   const mode = (formData.get('skins_mode') as string) === 'pot' ? 'pot' : 'per_hole'
   const supabase = createServerClient()
+  const { data: before } = await supabase.from('rounds').select('skins_enabled, skins_amount, skins_mode').eq('id', roundId).single()
   const { error } = await supabase.from('rounds').update({ skins_enabled: enabled, skins_amount: amount, skins_mode: mode }).eq('id', roundId)
   if (error) return { error: error.message }
+  const fmtSkins = (en: boolean, amt: number, m: string) => en ? `on — $${amt} ${m === 'pot' ? 'pot' : 'per hole'}` : 'off'
+  if (before && (!!before.skins_enabled !== enabled || (before.skins_amount ?? 0) !== amount || (before.skins_mode ?? 'per_hole') !== mode)) {
+    await logRoundEvent(supabase, roundId, 'Skins settings',
+      `${fmtSkins(!!before.skins_enabled, before.skins_amount ?? 0, before.skins_mode ?? 'per_hole')} → ${fmtSkins(enabled, amount, mode)}`)
+  }
   return { success: true }
 }
 
 export async function updatePlayerSkinsParticipation(playerId: string, participates: boolean) {
   const supabase = createServerClient()
+  const before = await playerAuditContext(supabase, playerId)
   const { error } = await supabase.from('players').update({ skins_participant: participates }).eq('id', playerId)
   if (error) return { error: error.message }
+  if (before && before.skinsParticipant !== participates) {
+    await logRoundEvent(supabase, before.roundId, 'Skins participants', `${before.name} ${participates ? 'added to' : 'removed from'} skins`)
+  }
   return { success: true }
 }
 
 export async function deletePlayer(playerId: string) {
   const supabase = createServerClient()
+  const before = await playerAuditContext(supabase, playerId)
   await supabase.from('players').delete().eq('id', playerId)
+  if (before) await logRoundEvent(supabase, before.roundId, 'Player removed', before.name)
 }
 
 // Convert a Nassau bet string to an Overall (straight) bet scoped to one nine:
@@ -967,8 +1055,12 @@ function convertBetForNine(bet: string, nine: 'front9' | 'back9'): string {
 
 export async function updatePlayerHolesRange(playerId: string, holesRange: string) {
   const supabase = createServerClient()
+  const before = await playerAuditContext(supabase, playerId)
   const { error } = await supabase.from('players').update({ holes_range: holesRange }).eq('id', playerId)
   if (error) return { error: error.message }
+  if (before && (before.holesRange ?? 'all') !== holesRange) {
+    await logRoundEvent(supabase, before.roundId, 'Holes range', `${before.name}: ${before.holesRange ?? 'all'} → ${holesRange}`)
+  }
 
   // Lock this player's existing matchups to their nine and auto-convert any
   // Nassau bets to Overall — a 9-hole player can't play a three-way bet.
@@ -1014,6 +1106,7 @@ export async function clearAllScores(roundId: string) {
     if (error) return { error: error.message }
   }
   await supabase.from('rounds').update({ scores_cleared_at: new Date().toISOString(), first_score_at: null, front9_notified_at: null, finished_notified_at: null }).eq('id', roundId)
+  await logRoundEvent(supabase, roundId, 'Scores cleared', 'Every score in the round deleted')
   return { success: true }
 }
 
@@ -1053,6 +1146,13 @@ export async function movePlayer(playerId: string, direction: 'up' | 'down') {
 
 // ── Matchups ──────────────────────────────────────────────────────────────────
 
+// Fetches a head-to-head matchup's round + player label for audit logging.
+async function h2hAuditContext(sb: ReturnType<typeof createServerClient>, id: string): Promise<{ roundId: string; label: string } | null> {
+  const { data: m } = await sb.from('matchups').select('round_id, player1_id, player2_id').eq('id', id).single()
+  if (!m) return null
+  return { roundId: m.round_id, label: await matchupLabel(sb, m.player1_id, m.player2_id) }
+}
+
 export async function saveMatchup(roundId: string, player1Id: string, player2Id: string, bet: string, holeRange: string = 'all') {
   const sb = createServerClient()
   const { data, error } = await sb.from('matchups').insert({
@@ -1063,41 +1163,66 @@ export async function saveMatchup(roundId: string, player1Id: string, player2Id:
     hole_range: holeRange,
   }).select('id').single()
   if (error) return { error: error.message }
+  await logRoundEvent(sb, roundId, 'Matchup added', `${await matchupLabel(sb, player1Id, player2Id)} — ${bet.trim()}`)
   return { id: data.id }
 }
 
 export async function updateMatchupHoleRange(id: string, holeRange: string) {
   const sb = createServerClient()
+  const ctx = await h2hAuditContext(sb, id)
   const { error } = await sb.from('matchups').update({ hole_range: holeRange }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup range', `${ctx.label} → ${holeRange}`)
   return {}
 }
 
 export async function deleteMatchup(id: string) {
   const sb = createServerClient()
+  const ctx = await h2hAuditContext(sb, id)
   const { error } = await sb.from('matchups').delete().eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup removed', ctx.label)
   return {}
 }
 
 export async function updateMatchupBet(id: string, bet: string) {
   const sb = createServerClient()
+  const ctx = await h2hAuditContext(sb, id)
   const { error } = await sb.from('matchups').update({ bet: bet.trim() }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup bet', `${ctx.label} → ${bet.trim()}`)
   return {}
 }
 
 export async function updateMatchupPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: string; strokes?: number }[]) {
   const sb = createServerClient()
+  const ctx = await h2hAuditContext(sb, id)
   const { error } = await sb.from('matchups').update({ press: presses }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) {
+    await logRoundEvent(sb, ctx.roundId, 'Matchup presses',
+      `${ctx.label}: ${presses.length ? presses.map((p) => `$${p.amount} H${p.holeStart}–${p.holeEnd}`).join(', ') : 'all presses removed'}`)
+  }
   return {}
+}
+
+// Fetches a best-ball matchup's round + label for audit logging.
+async function bbAuditContext(sb: ReturnType<typeof createServerClient>, id: string): Promise<{ roundId: string; label: string } | null> {
+  const { data: m } = await sb.from('best_ball_matchups')
+    .select('round_id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id').eq('id', id).single()
+  if (!m) return null
+  return { roundId: m.round_id, label: await bestBallLabel(sb, m.team1_player1_id, m.team1_player2_id, m.team2_player1_id, m.team2_player2_id) }
 }
 
 export async function updateBestBallPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: string; strokes?: number }[]) {
   const sb = createServerClient()
+  const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').update({ press: presses }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) {
+    await logRoundEvent(sb, ctx.roundId, 'Matchup presses',
+      `${ctx.label}: ${presses.length ? presses.map((p) => `$${p.amount} H${p.holeStart}–${p.holeEnd}`).join(', ') : 'all presses removed'}`)
+  }
   return {}
 }
 
@@ -1121,20 +1246,26 @@ export async function saveBestBallMatchup(
     player_strokes: playerStrokes,
   }).select('id').single()
   if (error) return { error: error.message }
+  await logRoundEvent(sb, roundId, 'Matchup added',
+    `${await bestBallLabel(sb, team1Player1Id, team1Player2Id, team2Player1Id, team2Player2Id)} — ${bet.trim()}`)
   return { id: data.id }
 }
 
 export async function updateBestBallHoleRange(id: string, holeRange: string) {
   const sb = createServerClient()
+  const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').update({ hole_range: holeRange }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup range', `${ctx.label} → ${holeRange}`)
   return {}
 }
 
 export async function updateBestBallPlayerStrokes(id: string, playerStrokes: Record<string, number> | null) {
   const sb = createServerClient()
+  const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').update({ player_strokes: playerStrokes }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup strokes', `${ctx.label}: custom strokes ${playerStrokes ? 'set' : 'cleared'}`)
   return {}
 }
 
@@ -1156,7 +1287,21 @@ export async function saveMedleyMatchup(
     round_id: roundId, players, bet_type: betType, amount,
   }).select('id').single()
   if (error) return { error: error.message }
+  await logRoundEvent(sb, roundId, 'Matchup added', `Medley: ${await medleyLabel(sb, players)} — ${betType} $${amount}`)
   return { id: data.id }
+}
+
+// "John, Bob, Steve" for a medley's players array.
+async function medleyLabel(sb: ReturnType<typeof createServerClient>, players: { id: string }[]): Promise<string> {
+  const names = await playerNames(sb, players.map((p) => p.id))
+  return players.map((p) => firstName(names.get(p.id))).join(', ')
+}
+
+// Fetches a medley matchup's round + label for audit logging.
+async function medleyAuditContext(sb: ReturnType<typeof createServerClient>, id: string): Promise<{ roundId: string; label: string } | null> {
+  const { data: m } = await sb.from('medley_matchups').select('round_id, players').eq('id', id).single()
+  if (!m) return null
+  return { roundId: m.round_id, label: await medleyLabel(sb, ((m.players ?? []) as { id: string }[])) }
 }
 
 export async function updateMedleyMatchup(
@@ -1166,36 +1311,49 @@ export async function updateMedleyMatchup(
   amount: number
 ) {
   const sb = createServerClient()
+  const ctx = await medleyAuditContext(sb, id)
   const { error } = await sb.from('medley_matchups').update({ players, bet_type: betType, amount }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup edited', `Medley: ${await medleyLabel(sb, players)} — ${betType} $${amount}`)
   return {}
 }
 
 export async function updateMedleyPresses(id: string, presses: { id: string; holeStart: number; holeEnd: number; amount: number; strokes?: Record<string, number> | null }[]) {
   const sb = createServerClient()
+  const ctx = await medleyAuditContext(sb, id)
   const { error } = await sb.from('medley_matchups').update({ press: presses }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) {
+    await logRoundEvent(sb, ctx.roundId, 'Matchup presses',
+      `Medley ${ctx.label}: ${presses.length ? presses.map((p) => `$${p.amount} H${p.holeStart}–${p.holeEnd}`).join(', ') : 'all presses removed'}`)
+  }
   return {}
 }
 
 export async function deleteMedleyMatchup(id: string) {
   const sb = createServerClient()
+  const ctx = await medleyAuditContext(sb, id)
   const { error } = await sb.from('medley_matchups').delete().eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup removed', `Medley: ${ctx.label}`)
   return {}
 }
 
 export async function deleteBestBallMatchup(id: string) {
   const sb = createServerClient()
+  const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').delete().eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup removed', ctx.label)
   return {}
 }
 
 export async function updateBestBallBet(id: string, bet: string) {
   const sb = createServerClient()
+  const ctx = await bbAuditContext(sb, id)
   const { error } = await sb.from('best_ball_matchups').update({ bet: bet.trim() }).eq('id', id)
   if (error) return { error: error.message }
+  if (ctx) await logRoundEvent(sb, ctx.roundId, 'Matchup bet', `${ctx.label} → ${bet.trim()}`)
   return {}
 }
 
@@ -1228,6 +1386,18 @@ export async function saveDaytonaHoleValues(
       toUpsert.map((e) => ({ round_id: roundId, team_id: teamId, hole_number: e.holeNumber, value_per_point: e.valuePerPoint }))
     )
     if (error) return { error: error.message }
+  }
+  // A press changes the money — record it. teamId is a team OR playing-group id.
+  if (entries.length > 0) {
+    const [{ data: team }, { data: group }] = await Promise.all([
+      supabase.from('teams').select('name').eq('id', teamId).maybeSingle(),
+      supabase.from('playing_groups').select('name').eq('id', teamId).maybeSingle(),
+    ])
+    const who = team?.name ?? group?.name ?? 'a group'
+    const nums = entries.map((e) => e.holeNumber).sort((a, b) => a - b)
+    const span = nums.length === 1 ? `H${nums[0]}` : `H${nums[0]}–${nums[nums.length - 1]}`
+    const rate = entries[0].valuePerPoint
+    await logRoundEvent(supabase, roundId, 'Daytona press', `${who}: ${span} → ${rate === null ? 'default rate' : `$${rate}/pt`}`)
   }
   return { success: true }
 }
@@ -1288,5 +1458,6 @@ export async function bulkCreateTeams(
       if (playersErr) return { error: playersErr.message }
     }
   }
+  await logRoundEvent(supabase, roundId, 'Teams regenerated', `${teams.length} team(s): ${teams.map((t) => t.name).join(', ')}`)
   return { success: true }
 }
