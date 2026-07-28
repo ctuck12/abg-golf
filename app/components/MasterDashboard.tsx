@@ -146,6 +146,7 @@ export default function MasterDashboard({
   const [confirmOrgModal, setConfirmOrgModal] = useState<{ action: 'delete' | 'deactivate'; org: Org } | null>(null)
   const [confirmCourseModal, setConfirmCourseModal] = useState<Course | null>(null)
   const [confirmRoundModal, setConfirmRoundModal] = useState<ActiveRound | null>(null)
+  const [confirmRosterModal, setConfirmRosterModal] = useState<{ id: string; name: string } | null>(null)
   const [actionPending, setActionPending] = useState(false)
   const [actionError, setActionError] = useState('')
 
@@ -284,10 +285,10 @@ export default function MasterDashboard({
   const orgMap = Object.fromEntries(orgs.map((o) => [o.id, o]))
 
   useEffect(() => {
-    const locked = !!confirmOrgModal || !!confirmCourseModal || !!confirmRoundModal
+    const locked = !!confirmOrgModal || !!confirmCourseModal || !!confirmRoundModal || !!confirmRosterModal
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [confirmOrgModal, confirmCourseModal, confirmRoundModal])
+  }, [confirmOrgModal, confirmCourseModal, confirmRoundModal, confirmRosterModal])
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -661,6 +662,25 @@ export default function MasterDashboard({
           </div>
         )}
 
+        {/* ── CONFIRM ROSTER PLAYER REMOVE MODAL ── */}
+        {confirmRosterModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setConfirmRosterModal(null)}>
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-bold text-gray-900 text-base mb-2">Remove Roster Player</h3>
+              <p className="text-sm text-gray-600 mb-5">
+                Are you sure you want to remove <span className="font-semibold">{confirmRosterModal.name}</span> from this group&apos;s roster? This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmRosterModal(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-600">Cancel</button>
+                <button onClick={async () => { const id = confirmRosterModal.id; setConfirmRosterModal(null); await handleDeleteMasterRosterPlayer(id) }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: '#dc2626' }}>
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── CONFIRM ROUND MODAL ── */}
         {confirmRoundModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => !actionPending && setConfirmRoundModal(null)}>
@@ -810,7 +830,7 @@ export default function MasterDashboard({
                               </div>
                               <button type="button" onClick={() => { setEditingRosterId(rp.id); setRosterForm({ name: rp.name, ghin: rp.ghin_number ?? '', handicap: rp.handicap_index != null ? String(rp.handicap_index) : '', email: rp.email ?? '' }) }}
                                 className="text-xs text-blue-500 hover:text-blue-700">Edit</button>
-                              <button type="button" onClick={() => handleDeleteMasterRosterPlayer(rp.id)}
+                              <button type="button" onClick={() => setConfirmRosterModal({ id: rp.id, name: rp.name })}
                                 className="text-xs text-red-500 hover:text-red-700">Remove</button>
                             </div>
                           )}
