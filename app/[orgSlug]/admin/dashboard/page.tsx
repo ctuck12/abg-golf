@@ -32,11 +32,10 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const isDaytona = (round?.format ?? 'standard') === 'daytona'
 
   // Wave 2: everything that only needs the round id
-  const [teamsRes, holesRes, ballValuesRes, scoresRes, assignmentsRes, matchupsRaw, bestBallRes, holeValuesRes, coursesRes, playingGroupsRes, rosterRes, hammerRes, medleyRes] = await Promise.all([
+  const [teamsRes, holesRes, ballValuesRes, assignmentsRes, matchupsRaw, bestBallRes, holeValuesRes, coursesRes, playingGroupsRes, rosterRes, hammerRes, medleyRes] = await Promise.all([
     roundId ? sb.from('teams').select('id, name, pin, is_admin, daytona_variant, daytona_variant_back9, banker_side_game, banker_side_game_min_bet, auto_strokes, hammer_side_game, hammer_base_bet, hammer_format, stroke_rounding').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
     roundId ? sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', roundId).order('hole_number') : Promise.resolve({ data: [] }),
     roundId ? sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number') : Promise.resolve({ data: [] }),
-    roundId ? sb.from('scores').select('player_id, hole_number, strokes') : Promise.resolve({ data: [] }),
     roundId && isDaytona ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId) : Promise.resolve({ data: [] }),
     roundId ? sb.from('matchups').select('id, player1_id, player2_id, bet, press, hole_range').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [], error: null }),
     roundId ? sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press, hole_range, player_strokes').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
@@ -77,13 +76,22 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
     matchups = (fallback.data ?? []).map((m) => ({ ...m, press: [] }))
   }
 
-  // Wave 4 (only when needed): non-team (manual) players assigned to playing groups
+  // Wave 4: manual (team-less) group players + scores for this round's players.
+  // Scores MUST be filtered by player id — an unfiltered select hits Supabase's
+  // 1000-row cap once the table grows and silently drops this round's scores.
   const teamPlayers = playersRes.data ?? []
   const teamPlayerIdSet = new Set(teamPlayers.map((p) => p.id))
   const pgPlayerIds = playingGroupPlayersRaw.map((gp) => gp.player_id).filter((id) => !teamPlayerIdSet.has(id))
-  const { data: manualGroupPlayersRaw } = pgPlayerIds.length
-    ? await sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range, roster_player_id').in('id', pgPlayerIds)
-    : { data: [] as typeof teamPlayers }
+  const scorePlayerIds = [...teamPlayers.map((p) => p.id), ...pgPlayerIds]
+  const [manualRes, scoresRes] = await Promise.all([
+    pgPlayerIds.length
+      ? sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range, roster_player_id').in('id', pgPlayerIds)
+      : Promise.resolve({ data: [] as typeof teamPlayers }),
+    scorePlayerIds.length
+      ? sb.from('scores').select('player_id, hole_number, strokes').in('player_id', scorePlayerIds)
+      : Promise.resolve({ data: [] as { player_id: string; hole_number: number; strokes: number }[] }),
+  ])
+  const manualGroupPlayersRaw = manualRes.data
   const allPlayers = [...teamPlayers, ...(manualGroupPlayersRaw ?? [])]
 
   return (

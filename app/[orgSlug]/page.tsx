@@ -97,10 +97,9 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   const isTraditional = (round.format ?? 'standard') === 'traditional'
   const isHammer = (round.format ?? 'standard') === 'hammer'
 
-  const [{ data: players }, { data: holes }, { data: scores }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }, { data: holeStrokesRaw }, medleyRes] = await Promise.all([
+  const [{ data: players }, { data: holes }, { data: assignments }, matchupsRes, { data: bestBallMatchups }, { data: holeValuesRaw }, { data: ballValuesRaw }, { data: lbPlayingGroupsRaw }, { data: lbGroupPlayersRaw }, { data: holeStrokesRaw }, medleyRes] = await Promise.all([
     sb.from('players').select('id, team_id, name, position, skins_participant, handicap, holes_range').in('team_id', teamIds.length ? teamIds : ['']).order('position', { ascending: true }),
     sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', round.id).order('hole_number'),
-    sb.from('scores').select('player_id, hole_number, strokes'),
     sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', round.id),
     sb.from('matchups').select('id, player1_id, player2_id, bet, press, hole_range').eq('round_id', round.id).order('created_at'),
     sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press, hole_range, player_strokes').eq('round_id', round.id).order('created_at'),
@@ -119,6 +118,13 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
     if (!lbGroupPlayerMap[gp.playing_group_id]) lbGroupPlayerMap[gp.playing_group_id] = []
     lbGroupPlayerMap[gp.playing_group_id].push(gp.player_id)
   }
+
+  // Scores filtered to this round's players (team players + group guests) — an
+  // unfiltered select hits Supabase's 1000-row cap and silently drops rows
+  const scorePlayerIds = [...new Set([...(players ?? []).map((p) => p.id), ...Object.values(lbGroupPlayerMap).flat()])]
+  const { data: scores } = scorePlayerIds.length
+    ? await sb.from('scores').select('player_id, hole_number, strokes').in('player_id', scorePlayerIds)
+    : { data: [] as { player_id: string; hole_number: number; strokes: number }[] }
 
   // Fetch banker data for groups that have banker side game enabled
   const bankerGroupIds = (lbPlayingGroupsRaw ?? [])
