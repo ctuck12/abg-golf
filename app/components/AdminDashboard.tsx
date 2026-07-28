@@ -730,6 +730,9 @@ export default function AdminDashboard({
   const isDaytona = round?.format === 'daytona'
   const isTraditional = round?.format === 'traditional'
   const isStandard = round?.format === 'standard'
+  // 3/4 Ball builds competing teams; every other format builds playing groups
+  const genNoun = isStandard ? 'team' : 'group'
+  const genNounCap = isStandard ? 'Team' : 'Group'
   const isBankerRound = round?.format === 'banker'
   const isHammerRound = round?.format === 'hammer'
   // Formats with no ball/point pool at all — the payout step is skipped and
@@ -3182,7 +3185,7 @@ export default function AdminDashboard({
                 {/* Header */}
                 <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
                   <div className="flex items-center gap-3">
-                    <h3 className="font-semibold text-gray-900 text-sm">Teams / Groups</h3>
+                    <h3 className="font-semibold text-gray-900 text-sm">{isStandard ? `${ballsCount} Ball Teams` : 'Groups'}</h3>
                     <label className="flex items-center gap-1.5 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -3200,7 +3203,7 @@ export default function AdminDashboard({
                         }}
                         className="w-3.5 h-3.5 accent-indigo-600"
                       />
-                      <span className="text-xs font-medium text-indigo-700">Team Generator</span>
+                      <span className="text-xs font-medium text-indigo-700">{genNounCap} Generator</span>
                     </label>
                   </div>
                   <button
@@ -3222,7 +3225,7 @@ export default function AdminDashboard({
                 {/* ── Team Generator panel ── */}
                 {showTeamGenerator && (
                   <div className="border-b border-indigo-100 bg-indigo-50 px-4 py-4 space-y-4">
-                    <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">Team Generator</p>
+                    <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">{genNounCap} Generator</p>
 
                     {/* Player pool */}
                     <div className="space-y-2">
@@ -3382,7 +3385,7 @@ export default function AdminDashboard({
                     <div className="space-y-3">
                       <div className="flex flex-wrap gap-4 items-end">
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Number of Teams</label>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Number of {genNounCap}s</label>
                           <input
                             type="number"
                             min="2" max="20"
@@ -3506,7 +3509,7 @@ export default function AdminDashboard({
                                   return next
                                 })}
                                 className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold focus:outline-none"
-                                placeholder="Team name"
+                                placeholder={`${genNounCap} name`}
                               />
                               {team.avgHandicap != null && (
                                 <span className="text-xs text-gray-400 flex-shrink-0">avg {team.avgHandicap < 0 ? `+${Math.abs(team.avgHandicap)}` : team.avgHandicap} HCP</span>
@@ -3542,18 +3545,18 @@ export default function AdminDashboard({
                         {teams.length > 0 && (
                           <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                             <p className="text-xs text-amber-700 font-medium">
-                              Warning: this will replace the {teams.length} existing team{teams.length !== 1 ? 's' : ''} and all their players.
+                              Warning: this will replace the {teams.length} existing {genNoun}{teams.length !== 1 ? 's' : ''} and all their players.
                             </p>
                           </div>
                         )}
 
                         {confirmGenUse ? (
                           <div className="flex gap-2 items-center">
-                            <span className="text-sm text-gray-600 flex-1">Replace existing teams?</span>
+                            <span className="text-sm text-gray-600 flex-1">Replace existing {genNoun}s?</span>
                             <button type="button" onClick={handleUseGeneratedTeams} disabled={genPending}
                               className="text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
                               style={{ background: '#059669' }}>
-                              {genPending ? 'Creating…' : 'Yes, use these teams'}
+                              {genPending ? 'Creating…' : `Yes, use these ${genNoun}s`}
                             </button>
                             <button type="button" onClick={() => setConfirmGenUse(false)}
                               className="text-gray-500 px-3 py-2 rounded-lg text-sm border border-gray-300">
@@ -3567,7 +3570,7 @@ export default function AdminDashboard({
                             disabled={genPending}
                             className="w-full py-2.5 rounded-xl font-bold text-sm text-white transition disabled:opacity-60"
                             style={{ background: '#059669' }}>
-                            {genPending ? 'Creating teams…' : 'Use These Teams'}
+                            {genPending ? `Creating ${genNoun}s…` : `Use These ${genNounCap}s`}
                           </button>
                         )}
 
