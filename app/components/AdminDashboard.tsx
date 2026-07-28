@@ -4275,27 +4275,49 @@ export default function AdminDashboard({
                               const inSkins = skinsOverrides[p.id] ?? ((p as { skins_participant?: boolean }).skins_participant ?? false)
                               const isManual = p.team_id === null
                               const nameColCh = Math.max(4, ...assignedPlayers.map(ap => ap.name.length))
+                              const holesRange = holesRangeOverrides[p.id] ?? (p as { holes_range?: string | null }).holes_range ?? 'all'
                               return (
                                 <div key={p.id} className="flex items-center gap-1.5 w-full">
                                   <span className={`w-1 h-4 rounded-full flex-shrink-0 ${isManual ? 'bg-purple-500' : 'bg-blue-500'}`} />
-                                  <span className="text-sm font-medium text-gray-800 truncate min-w-0"
-                                    style={{ flex: `0 1 calc(${nameColCh}ch + 1rem)`, maxWidth: '10rem' }}>{p.name}</span>
-                                  {p.handicap != null && (
-                                    <span className={`text-[10px] font-bold px-1 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 w-16 text-center ${isManual ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
-                                      HCP {fmtHcp(p.handicap)}
-                                    </span>
+                                  {renamingPlayer === p.id ? (
+                                    <form action={renamePlayerAction} className="flex items-center gap-2 min-w-0" onSubmit={() => setRenamingPlayer(null)}>
+                                      <input type="hidden" name="playerId" value={p.id} />
+                                      <input type="text" name="name" defaultValue={p.name} required autoFocus
+                                        className="w-36 min-w-0 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none" />
+                                      <button type="submit" disabled={renamePlayerPending} className="text-xs text-blue-600 font-semibold">Save</button>
+                                      <button type="button" onClick={() => setRenamingPlayer(null)} className="text-xs text-gray-500">Cancel</button>
+                                    </form>
+                                  ) : (
+                                    <>
+                                      <span className="text-sm font-medium text-gray-800 truncate min-w-0"
+                                        style={{ flex: `0 1 calc(${nameColCh}ch + 1rem)`, maxWidth: '10rem' }}>{p.name}</span>
+                                      {p.handicap != null && (
+                                        <span className={`text-[10px] font-bold px-1 py-0.5 rounded-md border whitespace-nowrap flex-shrink-0 w-16 text-center ${isManual ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                          HCP {fmtHcp(p.handicap)}
+                                        </span>
+                                      )}
+                                      {skinsEnabled === true && (
+                                        <button type="button"
+                                          onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
+                                          className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
+                                          title="Toggle skins participation">
+                                          {inSkins ? 'Skins ✓' : 'Skins'}
+                                        </button>
+                                      )}
+                                      <button type="button"
+                                        onClick={(e) => { e.stopPropagation(); handleUpdateHolesRange(p.id, holesRange === 'all' ? 'front9' : holesRange === 'front9' ? 'back9' : 'all') }}
+                                        title="Holes played — tap to cycle 18 Holes / Front 9 / Back 9"
+                                        className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${holesRange !== 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-400 border-gray-300'}`}>
+                                        {holesRange === 'all' ? '18 Holes' : holesRange === 'front9' ? 'Front 9' : 'Back 9'}
+                                      </button>
+                                      <button type="button" onClick={(e) => { e.stopPropagation(); setRenamingPlayer(p.id) }}
+                                        className="text-gray-400 hover:text-blue-600 text-[11px] leading-none px-0.5 flex-shrink-0"
+                                        title="Rename player">✎</button>
+                                      <button type="button"
+                                        onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual }) }}
+                                        className="text-gray-400 hover:text-red-600 text-sm leading-none px-0.5 flex-shrink-0">×</button>
+                                    </>
                                   )}
-                                  {skinsEnabled === true && (
-                                    <button type="button"
-                                      onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
-                                      className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
-                                      title="Toggle skins participation">
-                                      {inSkins ? 'Skins ✓' : 'Skins'}
-                                    </button>
-                                  )}
-                                  <button type="button"
-                                    onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual }) }}
-                                    className="text-gray-400 hover:text-red-600 text-sm leading-none px-0.5 flex-shrink-0">×</button>
                                 </div>
                               )
                             })}
