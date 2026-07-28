@@ -855,7 +855,10 @@ export default function PlayingGroupScoreEntry({
                     </p>
                     <p className="text-xs text-gray-500">Rounding for this round: <span className="font-semibold text-gray-700">{roundingLabel}</span></p>
                     {effHoleNums.length > 0
-                      ? <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1.5">So far {p.name.split(' ')[0]} gets a stroke on hole{effHoleNums.length !== 1 ? 's' : ''} {effHoleNums.join(', ')}.</p>
+                      ? <>
+                          <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1.5">So far {p.name.split(' ')[0]} gets a stroke on hole{effHoleNums.length !== 1 ? 's' : ''} {effHoleNums.join(', ')}.</p>
+                          <p className="text-xs text-gray-500">Strokes count in the Banker game only — the scores to par shown above are gross.</p>
+                        </>
                       : <p className="text-xs text-gray-500">So far {p.name.split(' ')[0]} has no stroke holes.</p>}
                   </div>
                 )
@@ -891,13 +894,16 @@ export default function PlayingGroupScoreEntry({
                   {rel > 0 ? (
                     <>
                       <p className="text-sm font-semibold text-green-700">
-                        Receiving 1 stroke on {autoHoleNums.length} hole{autoHoleNums.length !== 1 ? 's' : ''}
+                        Receiving a stroke on {autoHoleNums.length} hole{autoHoleNums.length !== 1 ? 's' : ''}
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {autoHoleNums.map((hn) => (
                           <span key={hn} className="text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5">{hn}</span>
                         ))}
                       </div>
+                      <p className="text-xs text-gray-500">
+                        Strokes count in the {isDaytonaMode ? 'Daytona' : 'side'} game only — the scores to par shown above are gross.
+                      </p>
                     </>
                   ) : (
                     <p className="text-sm font-semibold text-gray-700">
