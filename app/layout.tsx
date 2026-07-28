@@ -23,6 +23,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: '#0f172a',
   viewportFit: 'cover',
+  // Stops iOS auto-zooming into focused inputs (the screen "jolt" when a
+  // keyboard opens). Deliberate pinch-zoom still works — Safari ignores the
+  // cap for user-initiated gestures.
+  maximumScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
