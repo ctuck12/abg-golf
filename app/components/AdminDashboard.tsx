@@ -297,6 +297,7 @@ export default function AdminDashboard({
   const [renamingTeam, setRenamingTeam] = useState<string | null>(null)
   const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
+  const [holesRangeConfirm, setHolesRangeConfirm] = useState<{ playerId: string; playerName: string; next: string } | null>(null)
   const [editingHandicapId, setEditingHandicapId] = useState<string | null>(null)
   const [handicapDraft, setHandicapDraft] = useState('')
   // Inline roster-handicap editing (team generator list, roster picker)
@@ -1151,6 +1152,16 @@ export default function AdminDashboard({
     router.refresh()
   }
 
+  // First holes-range change for a player each round gets a confirm dialog;
+  // once confirmed, the flag in round-scoped localStorage skips future warnings.
+  function handleHolesChipTap(playerId: string, playerName: string, current: string) {
+    const next = current === 'all' ? 'front9' : current === 'front9' ? 'back9' : 'all'
+    if (getSetupLS(round?.id)[`holesWarn_${playerId}`]) {
+      handleUpdateHolesRange(playerId, next)
+    } else {
+      setHolesRangeConfirm({ playerId, playerName, next })
+    }
+  }
   function openPlayerEdit(p: { id: string; name: string; handicap?: number | null }) {
     setRenamingPlayer(p.id)
     setRenameDraft(p.name)
@@ -1380,10 +1391,10 @@ export default function AdminDashboard({
   }
 
   useEffect(() => {
-    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm
+    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm])
+  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm])
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
@@ -1874,6 +1885,47 @@ export default function AdminDashboard({
                   className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
                   style={{ background: '#dc2626' }}>
                   Yes, Remove Player
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Holes-range first-change confirmation modal ── */}
+      {holesRangeConfirm && (() => {
+        const { playerId, playerName, next } = holesRangeConfirm
+        const nextLabel = next === 'all' ? '18 Holes' : next === 'front9' ? 'Front 9' : 'Back 9'
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-lg font-bold">!</div>
+                <div>
+                  <h2 className="font-semibold text-gray-900 text-base leading-snug">Change {playerName}&apos;s holes to {nextLabel}?</h2>
+                  <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+                    This controls which holes <span className="font-semibold text-gray-800">{playerName}</span> plays
+                    this round — all 18, the Front 9 only, or the Back 9 only. Scoring, games, and payouts will only
+                    count them on holes in that range. Tap the pill again anytime to cycle to the next option.
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1.5">You won&apos;t be asked again for this player this round.</p>
+                </div>
+              </div>
+              <div className="border-t border-gray-100" />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setHolesRangeConfirm(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                  Cancel
+                </button>
+                <button type="button"
+                  onClick={() => {
+                    setSetupLS(round?.id, `holesWarn_${playerId}`, true)
+                    setHolesRangeConfirm(null)
+                    handleUpdateHolesRange(playerId, next)
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
+                  style={{ background: navy }}>
+                  Confirm Change
                 </button>
               </div>
             </div>
@@ -3895,7 +3947,7 @@ export default function AdminDashboard({
                                                     </button>
                                                   )}
                                                   <button type="button"
-                                                    onClick={() => handleUpdateHolesRange(p.id, holesRange === 'all' ? 'front9' : holesRange === 'front9' ? 'back9' : 'all')}
+                                                    onClick={() => handleHolesChipTap(p.id, p.name, holesRange)}
                                                     title="Holes played — tap to cycle 18 Holes / Front 9 / Back 9"
                                                     className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${holesRange !== 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-400 border-gray-300'}`}>
                                                     {holesRange === 'all' ? '18 Holes' : holesRange === 'front9' ? 'Front 9' : 'Back 9'}
@@ -4313,7 +4365,7 @@ export default function AdminDashboard({
                                         </button>
                                       )}
                                       <button type="button"
-                                        onClick={(e) => { e.stopPropagation(); handleUpdateHolesRange(p.id, holesRange === 'all' ? 'front9' : holesRange === 'front9' ? 'back9' : 'all') }}
+                                        onClick={(e) => { e.stopPropagation(); handleHolesChipTap(p.id, p.name, holesRange) }}
                                         title="Holes played — tap to cycle 18 Holes / Front 9 / Back 9"
                                         className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${holesRange !== 'all' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-400 border-gray-300'}`}>
                                         {holesRange === 'all' ? '18 Holes' : holesRange === 'front9' ? 'Front 9' : 'Back 9'}
