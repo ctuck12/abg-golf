@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { getOrgAuth } from '@/lib/org-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import PlayingGroupScoreEntry from '@/app/components/PlayingGroupScoreEntry'
+import { sortPlayersForDisplay, sortRoundPlayersByTeam } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +55,7 @@ export default async function PlayingGroupScorecardPage({
     .select('id, name, team_id, position, handicap, holes_range')
     .in('id', groupPlayerIds)
     .order('position', { ascending: true })
-  const groupPlayers = groupPlayersRaw ?? []
+  const groupPlayers = sortPlayersForDisplay(groupPlayersRaw ?? [])
 
   const groupDaytonaRaw = (group as { daytona_variant?: string | null }).daytona_variant ?? null
   const isDaytonaSideGame = !!groupDaytonaRaw
@@ -71,10 +72,10 @@ export default async function PlayingGroupScorecardPage({
 
   const { data: allPlayersRaw } = await sb
     .from('players')
-    .select('id, name, team_id, position')
+    .select('id, name, team_id, position, handicap')
     .in('team_id', allTeamIds.length ? allTeamIds : [''])
     .order('position', { ascending: true })
-  const allPlayers = allPlayersRaw ?? []
+  const allPlayers = sortRoundPlayersByTeam(allPlayersRaw ?? [])
   const allPlayerIds = allPlayers.map((p) => p.id)
 
   // Always include this group's players in the scores query even if they are

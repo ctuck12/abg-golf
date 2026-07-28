@@ -42,6 +42,7 @@ import {
   computeSkinsResults,
   computeSkinsPotResults,
   playerCoversHole,
+  sortPlayersForDisplay,
   type DaytonaHoleAssignment, type BallHalfResult, type SkinResult,
   computeAllMatchupPayouts,
 } from '@/lib/scoring'
@@ -53,10 +54,6 @@ import { CSS } from '@dnd-kit/utilities'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
-
-// Team positions >= this value mean the admin has dragged players into a custom
-// order; below it the team list displays in handicap order (see reorderTeamPlayers).
-const MANUAL_ORDER_BASE = 100
 
 function SortablePlayerRow({ id, children }: { id: string; children: (dragProps: Record<string, unknown>) => ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
@@ -994,10 +991,38 @@ export default function AdminDashboard({
       const n = parseFloat(s); return isNaN(n) ? null : n
     })()
     if (editingRosterId) {
-      const res = await updateRosterPlayer(editingRosterId, rosterForm.name, rosterForm.ghin || null, hcp, rosterForm.email || null)
-      if (res.error) { setRosterError(res.error); setRosterPending(false); return }
-      setLiveRoster((prev) => prev.map((p) => p.id === editingRosterId ? { ...p, name: rosterForm.name, ghin_number: rosterForm.ghin || null, handicap_index: hcp, email: rosterForm.email || null } : p).sort((a, b) => a.name.localeCompare(b.name)))
-      setEditingRosterId(null)
+      const rosterId = editingRosterId
+      const name = rosterForm.name.trim()
+      const linked = players.filter(p => p.roster_player_id === rosterId)
+      const apply = async () => {
+        setRosterPending(true)
+        const res = await updateRosterPlayer(rosterId, name, rosterForm.ghin || null, hcp, rosterForm.email || null)
+        if (res.error) { setRosterError(res.error); setRosterPending(false); return }
+        // Push the change down to this round's linked players so both stay in step
+        if (linked.length > 0) {
+          await Promise.all(linked.map(p => updatePlayerDetails(p.id, name, hcp)))
+          router.refresh()
+        }
+        setLiveRoster((prev) => prev.map((p) => p.id === rosterId ? { ...p, name, ghin_number: rosterForm.ghin || null, handicap_index: hcp, email: rosterForm.email || null } : p).sort((a, b) => a.name.localeCompare(b.name)))
+        setEditingRosterId(null)
+        setRosterForm({ name: '', ghin: '', handicap: '', email: '' })
+        setRosterPending(false)
+      }
+      if (round?.is_started && linked.some(p => (p.handicap ?? null) !== hcp)) {
+        setRosterPending(false)
+        setLiveChangeConfirm({
+          title: `Update ${name} in the live round too?`,
+          changes: [
+            `${name} is playing this round — the roster edit also updates their round entry.`,
+            `HCP: ${linked[0]?.handicap != null ? fmtHcp(linked[0].handicap!) : '—'} → ${hcp != null ? fmtHcp(hcp) : '—'}`,
+            'Strokes and game results recalculate immediately.',
+          ],
+          onConfirm: () => { void apply() },
+        })
+        return
+      }
+      await apply()
+      return
     } else {
       const res = await createRosterPlayer(orgId, rosterForm.name, rosterForm.ghin || null, hcp, rosterForm.email || null)
       if (res.error) { setRosterError(res.error); setRosterPending(false); return }
@@ -1266,11 +1291,30 @@ export default function AdminDashboard({
   async function handleUpdateRosterHandicap(rosterPlayerId: string) {
     const hcp = parseHcpInput(rosterHcpDraft)
     setEditingRosterHcpId(null)
-    setLiveRoster(prev => prev.map(rp => rp.id === rosterPlayerId ? { ...rp, handicap_index: hcp } : rp))
-    // A generated-but-unused preview would carry the stale handicap
-    if (generatedTeams) setGeneratedTeams(null)
-    await updateRosterPlayerHandicap(rosterPlayerId, hcp)
-    router.refresh()
+    const linked = players.filter(p => p.roster_player_id === rosterPlayerId)
+    const apply = async () => {
+      setLiveRoster(prev => prev.map(rp => rp.id === rosterPlayerId ? { ...rp, handicap_index: hcp } : rp))
+      // A generated-but-unused preview would carry the stale handicap
+      if (generatedTeams) setGeneratedTeams(null)
+      await updateRosterPlayerHandicap(rosterPlayerId, hcp)
+      // Push the change down to this round's linked players so both stay in step
+      if (linked.length > 0) await Promise.all(linked.map(p => updatePlayerHandicap(p.id, hcp)))
+      router.refresh()
+    }
+    if (round?.is_started && linked.some(p => (p.handicap ?? null) !== hcp)) {
+      const rpName = liveRoster.find(rp => rp.id === rosterPlayerId)?.name ?? 'This player'
+      setLiveChangeConfirm({
+        title: `Change ${rpName}'s handicap?`,
+        changes: [
+          `${rpName} is playing this round — the new handicap applies now.`,
+          `HCP: ${linked[0]?.handicap != null ? fmtHcp(linked[0].handicap!) : '—'} → ${hcp != null ? fmtHcp(hcp) : '—'}`,
+          'Strokes and game results recalculate immediately.',
+        ],
+        onConfirm: () => { void apply() },
+      })
+      return
+    }
+    await apply()
   }
   function handleUpdateGenManualHcp(tempId: string) {
     const hcp = parseHcpInput(genManualHcpDraft)
@@ -1295,8 +1339,8 @@ export default function AdminDashboard({
     setConfirmClearScores(false)
     router.refresh()
   }
-  // Team-card player order: an in-flight drag override wins, then a persisted
-  // manual order (positions >= MANUAL_ORDER_BASE), else handicap low-to-high.
+  // Team-card player order: an in-flight drag override wins, then the shared
+  // display rule (manual positions if dragged, else handicap low-to-high).
   function sortedTeamPlayers(teamId: string) {
     const list = players.filter((p): p is Player & { team_id: string } => p.team_id === teamId)
     const override = playerOrderOverrides[teamId]
@@ -1304,10 +1348,7 @@ export default function AdminDashboard({
       const pos = new Map(override.map((id, i) => [id, i] as const))
       return [...list].sort((a, b) => (pos.get(a.id) ?? 999) - (pos.get(b.id) ?? 999))
     }
-    if (list.some(p => (p.position ?? 0) >= MANUAL_ORDER_BASE)) {
-      return [...list].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    }
-    return [...list].sort((a, b) => ((a.handicap ?? 999) - (b.handicap ?? 999)) || ((a.position ?? 0) - (b.position ?? 0)))
+    return sortPlayersForDisplay(list)
   }
 
   function handlePlayerDragEnd(teamId: string, event: DragEndEvent) {
@@ -2070,6 +2111,9 @@ export default function AdminDashboard({
       {holesRangeConfirm && (() => {
         const { playerId, playerName, next } = holesRangeConfirm
         const nextLabel = next === 'all' ? '18 Holes' : next === 'front9' ? 'Front 9' : 'Back 9'
+        const hrPlayer = players.find(pl => pl.id === playerId)
+        const hrTeam = teams.find(t => t.id === hrPlayer?.team_id)
+        const hrDaytonaVariant = hrTeam?.daytona_variant ?? (isDaytona ? round?.daytona_variant : null)
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
@@ -2082,6 +2126,12 @@ export default function AdminDashboard({
                     this round — all 18, the Front 9 only, or the Back 9 only. Scoring, games, and payouts will only
                     count them on holes in that range. Tap the pill again anytime to cycle to the next option.
                   </p>
+                  {next !== 'all' && hrDaytonaVariant && (
+                    <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5 mt-2">
+                      Heads up: {hrTeam?.name ?? 'this team'} plays a set-size Daytona game. If this leaves one nine short a
+                      player, update the team&apos;s variant (Edit → Back 9) so the game math matches.
+                    </p>
+                  )}
                   <p className="text-xs text-gray-400 mt-1.5">You won&apos;t be asked again for this player this round.</p>
                 </div>
               </div>

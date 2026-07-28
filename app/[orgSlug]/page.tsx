@@ -5,6 +5,7 @@ import { getOrgAuth } from '@/lib/org-auth'
 import OrgLoginGate from '@/app/components/OrgLoginGate'
 import LeaderboardClient from '@/app/components/LeaderboardClient'
 import PreRoundHome from '@/app/components/PreRoundHome'
+import { sortRoundPlayersByTeam } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -173,7 +174,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
 
   // Fetch non-team group players (org-roster players added directly to a playing group
   // whose team_id is not in this round's teams list) so they appear on the leaderboard.
-  let allPlayers = players ?? []
+  let allPlayers = sortRoundPlayersByTeam(players ?? [])
   if (isMixedGroups) {
     const teamPlayerIdSet = new Set(allPlayers.map((p) => p.id))
     const allGroupPlayerIds = Object.values(lbGroupPlayerMap).flat()
