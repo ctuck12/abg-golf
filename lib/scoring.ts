@@ -2,11 +2,13 @@ export type BallScores = (number | null)[]
 
 // ── Daytona scoring ───────────────────────────────────────────────────────────
 
-// Combine the 2 best scores on a hole into a Daytona number.
+// Combine the 2 best scores on a hole into a Daytona number: the leading ball
+// × 10. The low ball leads normally; the second ball only matters through the
+// flip rules, which put the high ball in front instead.
 //
 // Rule 1 — no par or better (self):
-//   If the team's best score is still over par, flip: high digit first.
-//   e.g. 5+7 on par-4 → 75 instead of 57.
+//   If the team's best score is still over par, flip: the high ball leads.
+//   e.g. 5+7 on par-4 → 70 instead of 50.
 //
 // Rule 2 — birdie flip (inter-team):
 //   If another team has a strictly better best score that is under par, flip.

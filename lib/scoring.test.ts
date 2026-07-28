@@ -27,10 +27,8 @@ describe('computeHoleDaytona', () => {
     expect(computeHoleDaytona([], 4)).toBeNull()
   })
 
-  // NOTE: these pin the implementation as it stands — the leading ball × 10,
-  // with the second ball influencing only the flip. The function's own doc
-  // comment describes two-digit concatenation instead (5+7 → 75, not 70).
-  // See the it.todo below; confirm with the owner which is the real game.
+  // Confirmed by the owner: the Daytona number is the leading ball × 10; the
+  // second ball matters only through the flip rules. (4+5 → 40, flipped → 50.)
   it('uses the low ball × 10 when best score is par or better', () => {
     expect(computeHoleDaytona([4, 5], 4)).toBe(40)
     expect(computeHoleDaytona([3, 6], 4)).toBe(30)
@@ -44,8 +42,6 @@ describe('computeHoleDaytona', () => {
   it('rule 2: another team with a strictly better under-par score forces a flip', () => {
     expect(computeHoleDaytona([4, 5], 4, [3])).toBe(50)
   })
-
-  it.todo('confirm with owner: should 4+5 combine to 45 (both digits, per the doc comment) instead of 40?')
 
   it('rule 2: tied under-par levels cancel — no flip', () => {
     expect(computeHoleDaytona([3, 5], 4, [3])).toBe(30)

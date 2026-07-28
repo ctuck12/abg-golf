@@ -12,8 +12,6 @@ Reminders parked from the July 2026 hardening session:
    course, score taps should queue locally and sync when coverage returns
    instead of failing. The only architecture-touching item on the list.
 
-3. **Daytona digit question** (found by the test suite) — `computeHoleDaytona`
-   returns the leading ball × 10 (4+5 → 40), but its own doc comment describes
-   two-digit concatenation (4+5 → 45, flipped 5+7 → 75). Confirm which is the
-   real game rule; if concatenation is right, fix the function and update the
-   pinned tests in `lib/scoring.test.ts`.
+~~3. Daytona digit question~~ — resolved: owner confirmed the leading-ball × 10
+   scoring is correct (4+5 → 40); the doc comment was fixed to match and the
+   tests assert the confirmed behavior.
