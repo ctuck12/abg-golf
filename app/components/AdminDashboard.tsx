@@ -639,9 +639,15 @@ export default function AdminDashboard({
       }
     }
 
+    refetchAll() // immediately — the round status badge must not wait for the first tick
     const interval = setInterval(refetchAll, 5000)
     return () => { clearInterval(interval) }
   }, [round?.id])
+
+  // The client router can serve a stale cached payload on navigation, which
+  // briefly showed an outdated round status (Active vs Complete) — pull fresh
+  // server props as soon as the page mounts.
+  useEffect(() => { router.refresh() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const [pars, setPars] = useState<Record<number, number>>(
     Object.fromEntries(holes.map((h) => [h.hole_number, h.par]))
@@ -3738,19 +3744,19 @@ export default function AdminDashboard({
                                     const inSkins = skinsOverrides[p.id] ?? p.skins_participant
                                     return (
                                       <div key={p.id} className="flex items-center gap-1.5">
-                                        <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: '#dbeafe', color: '#1e40af' }}>
+                                        <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: '#dbeafe', color: '#1e40af' }}>
                                           {p.name}
-                                          {skinsEnabled === true && (
-                                            <button type="button"
-                                              onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
-                                              className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
-                                              title="Toggle skins participation">
-                                              {inSkins ? 'Skins ✓' : 'Not in Skins'}
-                                            </button>
+                                          {p.handicap != null && (
+                                            <span className="text-[10px] font-semibold opacity-75 whitespace-nowrap">HCP {fmtHcp(p.handicap)}</span>
                                           )}
                                         </span>
-                                        {p.handicap != null && (
-                                          <span className="text-[10px] font-semibold text-gray-500 whitespace-nowrap">HCP {p.handicap < 0 ? `+${Math.abs(p.handicap)}` : p.handicap}</span>
+                                        {skinsEnabled === true && (
+                                          <button type="button"
+                                            onClick={() => handleToggleSkinsParticipant(p.id, inSkins)}
+                                            className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                            title="Toggle skins participation">
+                                            {inSkins ? 'Skins ✓' : 'Not in Skins'}
+                                          </button>
                                         )}
                                       </div>
                                     )
@@ -4232,22 +4238,22 @@ export default function AdminDashboard({
                               const inSkins = skinsOverrides[p.id] ?? ((p as { skins_participant?: boolean }).skins_participant ?? false)
                               return (
                                 <div key={p.id} className="flex items-center gap-1.5">
-                                  <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
+                                  <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: p.team_id === null ? '#f3e8ff' : '#dbeafe', color: p.team_id === null ? '#7c3aed' : '#1e40af' }}>
                                     {p.name}
-                                    {skinsEnabled === true && (
-                                      <button type="button"
-                                        onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
-                                        className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
-                                        title="Toggle skins participation">
-                                        {inSkins ? 'Skins ✓' : 'Not in Skins'}
-                                      </button>
+                                    {p.handicap != null && (
+                                      <span className="text-[10px] font-semibold opacity-75 whitespace-nowrap">HCP {fmtHcp(p.handicap)}</span>
                                     )}
                                     <button type="button"
                                       onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupPlayer({ playerId: p.id, playerName: p.name, isManual: p.team_id === null }) }}
                                       className="ml-0.5 hover:text-red-600 leading-none">×</button>
                                   </span>
-                                  {p.handicap != null && (
-                                    <span className="text-[10px] font-semibold text-gray-500 whitespace-nowrap">HCP {p.handicap < 0 ? `+${Math.abs(p.handicap)}` : p.handicap}</span>
+                                  {skinsEnabled === true && (
+                                    <button type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleToggleSkinsParticipant(p.id, inSkins) }}
+                                      className={`text-[9px] font-bold px-1 py-px rounded-full border leading-none whitespace-nowrap ${inSkins ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-400 border-gray-300'}`}
+                                      title="Toggle skins participation">
+                                      {inSkins ? 'Skins ✓' : 'Not in Skins'}
+                                    </button>
                                   )}
                                 </div>
                               )
