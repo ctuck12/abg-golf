@@ -912,19 +912,18 @@ export default function PlayingGroupScoreEntry({
                   )}
                   <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
                     <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">How this was calculated</p>
-                    <p className="text-xs text-gray-600">
-                      Handicaps round to whole numbers first: <span className="font-semibold text-gray-800">{roundingLabel}</span>.
-                    </p>
-                    {isLow ? (
-                      <p className="text-xs text-gray-600">
-                        <span className="font-semibold text-gray-800">{p.name.split(' ')[0]} ({fmtH(p.handicap)} → {fmtH(pEff)})</span> is the group low — the low player never receives strokes.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-gray-600">
-                        {p.name.split(' ')[0]} ({fmtH(p.handicap)} → {fmtH(pEff)}) − {lowNames} ({lowPlayers.length === 1 ? `${fmtH(lowPlayers[0].handicap!)} → ` : ''}{fmtH(minEff)}, group low) = <span className="font-semibold text-gray-800">{rel} stroke{rel !== 1 ? 's' : ''}</span>
-                        {rel > 0 && <>, taken on the {rel === 1 ? 'hardest hole' : `${rel} hardest holes`} (stroke index 1–{rel})</>}.
-                      </p>
-                    )}
+                    <ul className="text-xs text-gray-600 space-y-1 list-disc pl-4">
+                      <li>Rounding: <span className="font-semibold text-gray-800">{roundingLabel}</span></li>
+                      <li>Strokes are set off the group&apos;s lowest handicap: <span className="font-semibold text-gray-800">{lowNames} ({fmtH(minEff)})</span></li>
+                      {isLow ? (
+                        <li><span className="font-semibold text-gray-800">{p.name.split(' ')[0]}</span> is the low player — receives no strokes</li>
+                      ) : (
+                        <li>
+                          {p.name.split(' ')[0]}: {fmtH(p.handicap)} → {fmtH(pEff)} · {fmtH(pEff)} − {fmtH(minEff)} = <span className="font-semibold text-gray-800">{rel} stroke{rel !== 1 ? 's' : ''}</span>
+                          {rel > 0 && <> on the {rel === 1 ? 'hardest hole' : `${rel} hardest holes`}</>}
+                        </li>
+                      )}
+                    </ul>
                   </div>
                   {(addedByKeeper.length > 0 || removedByKeeper.length > 0) && (
                     <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5">
