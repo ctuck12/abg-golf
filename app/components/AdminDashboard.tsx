@@ -2487,15 +2487,25 @@ export default function AdminDashboard({
             {showRoster && (
               <div className="border-t border-gray-100 px-5 pb-5 space-y-4">
 
-                {/* GHIN handicap sync */}
+                {/* GHIN handicap sync, with the standalone generator toggle
+                    alongside it so both roster tools sit in the same row */}
                 <div className="mt-3 space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <button type="button" onClick={() => handleGhinSync()} disabled={ghinSyncing}
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition disabled:opacity-50">
                       {ghinSyncing ? 'Syncing GHIN…' : 'Sync GHIN Handicaps'}
                     </button>
-                    <span className="text-[11px] text-gray-400">Pulls the current Handicap Index for every player with a GHIN #</span>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showRosterGenerator}
+                        onChange={e => setShowRosterGenerator(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-indigo-600"
+                      />
+                      <span className="text-xs font-medium text-indigo-700">Team/Group Generator</span>
+                    </label>
                   </div>
+                  <span className="block text-[11px] text-gray-400">Pulls the current Handicap Index for every player with a GHIN #</span>
                   {/* Manual sync result — the button label covers the running
                       state, so only the finished result renders here */}
                   {ghinResult && !ghinResult.auto && !ghinResult.running && (
@@ -2504,6 +2514,18 @@ export default function AdminDashboard({
                     </div>
                   )}
                 </div>
+
+                {/* ── Standalone Team/Group Generator — preview only, never
+                    writes to the round (the round's own generator does that) ── */}
+                {showRosterGenerator && (
+                  <div className="border-t border-gray-100 pt-4">
+                    <TeamGeneratorPanel
+                      roster={liveRoster}
+                      nounCap={round ? genNounCap : 'Team'}
+                      onUpdateRosterHandicap={handleRosterGeneratorHandicap}
+                    />
+                  </div>
+                )}
 
                 {/* Add new roster player — top of section */}
                 {editingRosterId === null && (
@@ -2621,27 +2643,6 @@ export default function AdminDashboard({
                 {liveRoster.length === 0 && editingRosterId === null && (
                   <p className="text-xs text-gray-400 text-center py-1">No players in roster yet — add them above</p>
                 )}
-
-                {/* ── Standalone Team/Group Generator — preview only, never
-                    writes to the round (the round's own generator does that) ── */}
-                <div className="border-t border-gray-100 pt-4 space-y-3">
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={showRosterGenerator}
-                      onChange={e => setShowRosterGenerator(e.target.checked)}
-                      className="w-3.5 h-3.5 accent-indigo-600"
-                    />
-                    <span className="text-xs font-medium text-indigo-700">Team/Group Generator</span>
-                  </label>
-                  {showRosterGenerator && (
-                    <TeamGeneratorPanel
-                      roster={liveRoster}
-                      nounCap={round ? genNounCap : 'Team'}
-                      onUpdateRosterHandicap={handleRosterGeneratorHandicap}
-                    />
-                  )}
-                </div>
               </div>
             )}
           </div>
