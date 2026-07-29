@@ -88,6 +88,19 @@ const SPINE = {
   activate: 'border-green-200 border-l-4 border-l-green-500',
 } as const
 
+// One line per format, shown under the picker. Format drives every section
+// below it, so a first-timer shouldn't have to guess from the name alone.
+const FORMAT_BLURB: Record<string, string> = {
+  standard: 'Teams play the best 3 or 4 balls on each hole.',
+  daytona: 'Groups of 4–5; the two best scores combine into points.',
+  traditional: 'No ball pool — head-to-head matchups and skins only.',
+  banker: 'One player banks each hole; the rest bet against them.',
+  hammer: '2 or 4 players; the hammer doubles the stake.',
+}
+
+// Clears the fixed header when the setup strip jumps to a section
+const JUMP_OFFSET = { scrollMarginTop: '100px' } as const
+
 function SortablePlayerRow({ id, children }: { id: string; children: (dragProps: Record<string, unknown>) => ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
@@ -279,6 +292,15 @@ export default function AdminDashboard({
   const [editScoreClearConfirm, setEditScoreClearConfirm] = useState(false)
   const createFormRef = useRef<HTMLFormElement>(null)
   const mixedGroupsSectionRef = useRef<HTMLDivElement | null>(null)
+  // Setup-strip jump targets — one per step in the progress strip
+  const roundSectionRef = useRef<HTMLDivElement | null>(null)
+  const payoutSectionRef = useRef<HTMLDivElement | null>(null)
+  const skinsSectionRef = useRef<HTMLDivElement | null>(null)
+  const teamsSectionRef = useRef<HTMLDivElement | null>(null)
+  const activateSectionRef = useRef<HTMLDivElement | null>(null)
+  // Tapping a locked section explains itself here instead of doing nothing
+  const [lockedNudge, setLockedNudge] = useState('')
+  const lockedNudgeTimer = useRef<number | undefined>(undefined)
   const [showAssignGroupsNotice, setShowAssignGroupsNotice] = useState(false)
   const [skinsFewParticipantsWarning, setSkinsFewParticipantsWarning] = useState(false)
   const [confirmMixedSwitch, setConfirmMixedSwitch] = useState<{ to: boolean } | null>(null)
@@ -1529,6 +1551,30 @@ export default function AdminDashboard({
   // Legacy alias used in a few spots below
   const skinsAndPayoutEnabled = payoutSectionEnabled
 
+  // ── Setup progress strip ──────────────────────────────────────────────────
+  // The lock states above already describe the wizard; this just makes it
+  // visible. First step that isn't done is the current one, and every chip
+  // jumps to its section.
+  function jumpTo(ref: React.RefObject<HTMLDivElement | null>) {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  function nudgeLocked(msg: string) {
+    setLockedNudge(msg)
+    window.clearTimeout(lockedNudgeTimer.current)
+    lockedNudgeTimer.current = window.setTimeout(() => setLockedNudge(''), 2600)
+  }
+  const setupSteps: { key: string; label: string; done: boolean; ref: React.RefObject<HTMLDivElement | null> }[] = [
+    { key: 'round', label: 'Round', done: true, ref: roundSectionRef },
+    ...(hasNoBallPool ? [] : [{ key: 'payout', label: 'Payout', done: effectivePayoutSaved, ref: payoutSectionRef }]),
+    { key: 'skins', label: 'Skins', done: skinsSaved, ref: skinsSectionRef },
+    { key: 'teams', label: isStandard ? 'Teams' : 'Groups', done: teamsSaved, ref: teamsSectionRef },
+    ...(isStandard && mixedGroups === true
+      ? [{ key: 'groups', label: 'Groups', done: mixedGroupsSaved, ref: mixedGroupsSectionRef }]
+      : []),
+    { key: 'activate', label: 'Activate', done: false, ref: activateSectionRef },
+  ]
+  const currentStepKey = setupSteps.find(s => !s.done)?.key
+
   // ── Player count requirements per format ──────────────────────────────────
   // Daytona 4-Man: exactly 4 · Daytona 5-Man: exactly 5 (per group's own type)
   // Traditional: 2–5 players per group
@@ -1576,6 +1622,8 @@ export default function AdminDashboard({
     return () => { document.body.style.overflow = '' }
   }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm, skinsSaveConfirm, confirmRemoveHammerId, liveChangeConfirm])
 
+  useEffect(() => () => window.clearTimeout(lockedNudgeTimer.current), [])
+
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -1590,6 +1638,16 @@ export default function AdminDashboard({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+
+      {/* ── Locked-section nudge — answers the tap, then gets out of the way ── */}
+      {lockedNudge && (
+        <div className="fixed left-0 right-0 z-[80] flex justify-center px-4 pointer-events-none"
+          style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
+          <p className="text-xs font-medium text-white rounded-full px-3.5 py-2 shadow-lg" style={{ background: navy }}>
+            {lockedNudge}
+          </p>
+        </div>
+      )}
 
       {/* ── Team generator: back-at-start notice ── */}
       {genAtStartNotice && (
@@ -2681,7 +2739,7 @@ export default function AdminDashboard({
             {/* Collapse immediately on submit (createPending) or while refresh is pending (effectivePendingId) */}
             {round && ((!showNewRoundForm && !editingRoundSettings) || createPending || !!effectivePendingId) ? (
               /* Collapsed state — show "Edit Round Settings" and "New Round +" buttons */
-              <div className={`bg-white rounded-2xl border px-4 py-5 flex items-center justify-center gap-3 ${SPINE.round}`}>
+              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border px-4 py-5 flex items-center justify-center gap-3 ${SPINE.round}`}>
                 <button
                   type="button"
                   onClick={enterRoundEditMode}
@@ -2697,7 +2755,7 @@ export default function AdminDashboard({
                 </button>
               </div>
             ) : (
-              <div className={`bg-white rounded-2xl border p-5 ${SPINE.round}`}>
+              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.round}`}>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-gray-900 text-sm">
                     {editingRoundSettings ? 'Edit Round Settings' : round ? 'Start New Round' : 'Set Up Round'}
@@ -2745,6 +2803,9 @@ export default function AdminDashboard({
                         <option value="banker">Banker</option>
                         <option value="hammer">Hammer</option>
                       </select>
+                      {FORMAT_BLURB[selectedFormat] && (
+                        <p className="text-[11px] text-gray-400 mt-1">{FORMAT_BLURB[selectedFormat]}</p>
+                      )}
                     </div>
                   </div>
                   {(selectedFormat === 'daytona' || selectedFormat === 'traditional') && (
@@ -3011,17 +3072,38 @@ export default function AdminDashboard({
                     </p>
                   </div>
                 </div>
-                {isSettingUp && (
-                  <p className="text-xs text-amber-700 mt-2">
-                    Add teams and configure settings below, then click &quot;Activate Round&quot; at the bottom to make the leaderboard live.
-                  </p>
+                {/* Setup progress — replaces the old paragraph of instructions.
+                    Each chip jumps to its section. */}
+                {roundIsSettingUp && !creatingNewRound && !createPending && !effectivePendingId && (
+                  <div className="flex flex-wrap items-center gap-1 mt-2">
+                    {setupSteps.map((s) => {
+                      const current = s.key === currentStepKey
+                      return (
+                        <button key={s.key} type="button" onClick={() => jumpTo(s.ref)}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition ${
+                            s.done ? 'bg-green-50 text-green-700 border-green-200'
+                              : current ? 'text-white border-transparent'
+                              : 'bg-gray-50 text-gray-400 border-gray-200'}`}
+                          style={current ? { background: navy } : undefined}>
+                          {s.done ? '✓ ' : ''}{s.label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             )}
 
             {/* ── Per Ball / Per Point Payout Value — not shown for formats with no ball pool ── */}
             {round && !hasNoBallPool && (
-              <div className={`bg-white rounded-2xl border p-5 transition-opacity ${SPINE.payout} ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div ref={payoutSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative transition-opacity ${SPINE.payout} ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {/* Locked cards kill pointer events, so this re-enables just
+                    enough to answer "why can't I tap this?" */}
+                {!skinsAndPayoutEnabled && (roundIsSettingUp || creatingNewRound) && (
+                  <button type="button" aria-label="Locked — tap to see why"
+                    onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Fill in the round form above first')}
+                    className="absolute inset-0 z-10 pointer-events-auto rounded-2xl" />
+                )}
                 {!skinsAndPayoutEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
                     {creatingNewRound ? 'Save the new round above to unlock' : 'Complete the round form above to unlock'}
@@ -3075,7 +3157,12 @@ export default function AdminDashboard({
 
             {/* ── Skins Game ── */}
             {round && (
-              <div className={`bg-white rounded-2xl border p-5 transition-opacity ${SPINE.skins} ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div ref={skinsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative transition-opacity ${SPINE.skins} ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {!skinsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
+                  <button type="button" aria-label="Locked — tap to see why"
+                    onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save the Per Ball / Per Point Value above first')}
+                    className="absolute inset-0 z-10 pointer-events-auto rounded-2xl" />
+                )}
                 {!skinsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
                     {creatingNewRound ? 'Save the new round above to unlock' : 'Save Per Ball/Per Point Value above to unlock'}
@@ -3291,11 +3378,17 @@ export default function AdminDashboard({
 
             {/* ── Teams / Groups section ── */}
             {round && (
-              <div className={`bg-white rounded-2xl border overflow-hidden ${SPINE.teams} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div ref={teamsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden relative ${SPINE.teams} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {!teamsAddEnabled && (roundIsSettingUp || creatingNewRound) && (
+                  <button type="button" aria-label="Locked — tap to see why"
+                    onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save the Payout and Skins sections above first')}
+                    className="absolute inset-0 z-10 pointer-events-auto rounded-2xl" />
+                )}
                 {/* Mixed Groups question — must be answered before team building (3/4 ball only) */}
                 {isStandard && roundIsSettingUp && (
                   <div className="px-4 py-3 border-b border-gray-100">
-                    <label className="block text-xs font-medium text-gray-600 mb-2">Are you playing Mixed Groups? (playing groups different from ball-game teams)</label>
+                    <label className="block text-xs font-medium text-gray-600">Mixed Groups — will carts mix players from different teams?</label>
+                    <p className="text-[11px] text-gray-400 mb-2">Yes: riding groups differ from scoring teams · No: each team rides together</p>
                     <div className="flex gap-2">
                       <button type="button" disabled={mixedGroupsPending} onClick={() => chooseMixedGroups(true)}
                         className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border-2 transition disabled:opacity-60 ${mixedGroupsAnswered && mixedGroups === true ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
@@ -3307,11 +3400,16 @@ export default function AdminDashboard({
                       </button>
                     </div>
                     {!mixedGroupsAnswered && (
-                      <p className="text-xs text-amber-700 mt-1.5">Choose Yes or No to unlock team building below.</p>
+                      <p className="text-xs text-amber-700 mt-1.5">Pick one to unlock team building below.</p>
                     )}
                   </div>
                 )}
-                <div className={isStandard && roundIsSettingUp && !mixedGroupsAnswered ? 'opacity-40 pointer-events-none select-none' : ''}>
+                <div className={`relative ${isStandard && roundIsSettingUp && !mixedGroupsAnswered ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+                {isStandard && roundIsSettingUp && !mixedGroupsAnswered && (
+                  <button type="button" aria-label="Locked — tap to see why"
+                    onClick={() => nudgeLocked('Answer the Mixed Groups question above first')}
+                    className="absolute inset-0 z-10 pointer-events-auto" />
+                )}
                 {/* Header */}
                 <div className={`px-4 py-3 flex items-center justify-between border-b ${dualTeamsAndGroups ? 'border-indigo-100 bg-indigo-50/60' : 'border-gray-100'}`}>
                   <div className="flex items-center gap-3 flex-wrap">
@@ -4453,7 +4551,12 @@ export default function AdminDashboard({
 
             {/* ── Playing Groups (standard format, mixed groups = Yes only) ── */}
             {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && (
-              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 transition-opacity ${SPINE.groups} ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
+              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 relative transition-opacity ${SPINE.groups} ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={JUMP_OFFSET}>
+                {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
+                  <button type="button" aria-label="Locked — tap to see why"
+                    onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save Teams above first')}
+                    className="absolute inset-0 z-10 pointer-events-auto rounded-2xl" />
+                )}
                 {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
                     {creatingNewRound ? 'Save the new round above to unlock' : 'Save Teams above to unlock'}
@@ -5182,9 +5285,6 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Round History — audit trail of mid-round changes ── */}
-            {round && <RoundHistory roundId={round.id} />}
-
             {/* ── Round Active banner — shown after activation ── */}
             {round && round.is_started && (
               <div className="bg-green-50 border border-green-200 rounded-2xl px-5 py-4 flex items-center gap-3">
@@ -5201,7 +5301,7 @@ export default function AdminDashboard({
 
             {/* ── Activate Round (bottom) — only when round exists but not yet started ── */}
             {roundIsSettingUp && round && (
-              <div className={`bg-white rounded-2xl border p-5 ${SPINE.activate}`}>
+              <div ref={activateSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.activate}`}>
                 <h3 className="font-semibold text-gray-900 text-sm mb-2">Activate Round</h3>
                 <p className="text-xs text-gray-500 mb-3">
                   {canActivate
@@ -5248,6 +5348,10 @@ export default function AdminDashboard({
                 </div>
               </div>
             )}
+
+            {/* ── Round History — audit trail, kept below Activate so the
+                setup CTA is the last card during setup ── */}
+            {round && <RoundHistory roundId={round.id} />}
 
         </div>{/* end outer content space-y-4 */}
 
