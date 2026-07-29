@@ -49,6 +49,11 @@ import {
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 import RoundHistory from './RoundHistory'
+import TeamGeneratorPanel from './TeamGeneratorPanel'
+import {
+  generateBalancedTeams, randomPin, teamsSignature, parseHcpInput, fmtHcp,
+  type GeneratedPlayer, type GeneratedTeam,
+} from '@/lib/team-generator'
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -69,17 +74,6 @@ function SortablePlayerRow({ id, children }: { id: string; children: (dragProps:
 }
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
-// Plus handicaps are stored negative (+2 → -2); accept "+2", "2", "14.5", blank
-function parseHcpInput(raw: string): number | null {
-  const s = raw.trim()
-  if (!s) return null
-  const n = s.startsWith('+') ? -parseFloat(s.slice(1)) : parseFloat(s)
-  return isNaN(n) ? null : n
-}
-function fmtHcp(h: number): string {
-  return h < 0 ? `+${Math.abs(h)}` : `${h}`
-}
-
 // Outcome of a GHIN handicap sync. `auto` marks the once-per-new-round sync,
 // which reports under the collapsed Player Roster header; a manual sync
 // reports inside the roster section. Both list every changed handicap.
@@ -90,98 +84,6 @@ type GhinSyncResult = {
   summary: string
   updated: { name: string; oldHcp: number | null; newHcp: number | null }[]
   failed: { name: string; reason: string }[]
-}
-
-// Auto-generated PINs always default to 1234 — admins change them if they want
-function randomPin(): string {
-  return '1234'
-}
-
-function generateBalancedTeams(players: GeneratedPlayer[], numTeams: number, rng?: () => number): GeneratedTeam[] {
-  // Sort best to worst. Plus handicaps are stored as negative numbers (e.g. +2.3 = -2.3),
-  // so ascending sort correctly places the best players first.
-  // With an rng, each handicap gets a small jitter before sorting — the draft starts
-  // from a different order, and the swap optimizer then lands in a different (still
-  // near-balanced) local optimum, so Re-generate produces genuinely different teams.
-  const jitter = rng ? () => (rng() - 0.5) * 4 : () => 0
-  const keyed = players.map((p) => ({ p, key: p.handicap == null ? Number.POSITIVE_INFINITY : p.handicap + jitter() }))
-  keyed.sort((a, b) => a.key - b.key)
-  const sorted = keyed.map((k) => k.p)
-
-  const n = sorted.length
-  const smallSize = Math.floor(n / numTeams)
-  const slots: GeneratedPlayer[][] = Array.from({ length: numTeams }, () => [])
-
-  // Phase 1: snake draft fills every team to smallSize.
-  const phase1Total = smallSize * numTeams
-  for (let i = 0; i < phase1Total; i++) {
-    const round = Math.floor(i / numTeams)
-    const pos = i % numTeams
-    const teamIdx = round % 2 === 0 ? pos : numTeams - 1 - pos
-    slots[teamIdx].push(sorted[i])
-  }
-
-  // Phase 2: remaining players (worst-ranked) go to the weakest teams.
-  // Larger teams have a structural advantage in best-ball, so they should
-  // have the weakest players to compensate.
-  for (let i = phase1Total; i < n; i++) {
-    let target = 0, worstSum = -Infinity
-    for (let t = 0; t < numTeams; t++) {
-      if (slots[t].length > smallSize) continue
-      const sum = slots[t].reduce((s, p) => s + (p.handicap ?? 0), 0)
-      if (sum > worstSum) { worstSum = sum; target = t }
-    }
-    slots[target].push(sorted[i])
-  }
-
-  // Phase 3: swap optimization — find cross-team player swaps that improve balance.
-  // Metric: variance in "effective average" = average of the best smallSize players
-  // on each team. This accounts for extra-player structural advantage in best-ball:
-  // a 5-player team effectively plays their best 4 balls, so we compare on that basis.
-  const effectiveAvg = (team: GeneratedPlayer[]) => {
-    const hcps = team.map(p => p.handicap ?? 0).sort((a, b) => a - b)
-    const best = hcps.slice(0, smallSize)
-    return best.reduce((s, h) => s + h, 0) / (smallSize || 1)
-  }
-  const variance = () => {
-    const avgs = slots.map(effectiveAvg)
-    const mean = avgs.reduce((s, a) => s + a, 0) / numTeams
-    return avgs.reduce((s, a) => s + (a - mean) ** 2, 0)
-  }
-
-  let improved = true
-  while (improved) {
-    improved = false
-    outer: for (let t1 = 0; t1 < numTeams; t1++) {
-      for (let t2 = t1 + 1; t2 < numTeams; t2++) {
-        for (let i = 0; i < slots[t1].length; i++) {
-          for (let j = 0; j < slots[t2].length; j++) {
-            const before = variance()
-            ;[slots[t1][i], slots[t2][j]] = [slots[t2][j], slots[t1][i]]
-            if (variance() < before - 1e-9) {
-              improved = true
-              break outer  // restart with the improved assignment
-            }
-            ;[slots[t1][i], slots[t2][j]] = [slots[t2][j], slots[t1][i]]
-          }
-        }
-      }
-    }
-  }
-
-  return slots.map((teamPlayers, i) => {
-    const sorted = [...teamPlayers].sort((a, b) => {
-      if (a.handicap == null && b.handicap == null) return 0
-      if (a.handicap == null) return 1
-      if (b.handicap == null) return -1
-      return a.handicap - b.handicap
-    })
-    const withHcp = sorted.filter(p => p.handicap != null)
-    const avg = withHcp.length
-      ? +(withHcp.reduce((s, p) => s + p.handicap!, 0) / withHcp.length).toFixed(1)
-      : null
-    return { name: `Team ${i + 1}`, pin: randomPin(), players: sorted, avgHandicap: avg }
-  })
 }
 
 // Match the server-side constants for course par preview
@@ -216,8 +118,6 @@ type BestBallMatchup = {
   hole_range?: string | null
   player_strokes?: Record<string, number> | null
 }
-type GeneratedPlayer = { id: string; name: string; handicap: number | null; source: 'roster' | 'manual' }
-type GeneratedTeam = { name: string; pin: string; players: GeneratedPlayer[]; avgHandicap: number | null }
 
 type MatchupBetType = 'nassau' | 'straight'
 type MatchupScoringType = 'stroke' | 'match'
@@ -429,6 +329,9 @@ export default function AdminDashboard({
   // Roster state
   const [liveRoster, setLiveRoster] = useState<RosterPlayer[]>(roster)
   const [showRoster, setShowRoster] = useState(false)
+  // Standalone preview generator inside the roster section — independent of
+  // the round-building generator in the Teams/Groups section below
+  const [showRosterGenerator, setShowRosterGenerator] = useState(false)
   const [editingRosterId, setEditingRosterId] = useState<string | null>(null)
   const [rosterForm, setRosterForm] = useState({ name: '', ghin: '', handicap: '', email: '' })
   const [ghinSyncing, setGhinSyncing] = useState(false)
@@ -913,11 +816,6 @@ export default function AdminDashboard({
       return null
     }
     return { allPlayers, numTeams }
-  }
-
-  // Membership fingerprint so Re-generate can guarantee a different arrangement
-  function teamsSignature(ts: GeneratedTeam[]): string {
-    return ts.map(t => t.players.map(p => p.id).sort().join(',')).sort().join('|')
   }
 
   function handleGenerateTeams() {
@@ -1415,8 +1313,15 @@ export default function AdminDashboard({
     }
   }
   async function handleUpdateRosterHandicap(rosterPlayerId: string) {
-    const hcp = parseHcpInput(rosterHcpDraft)
     setEditingRosterHcpId(null)
+    await applyRosterHandicap(rosterPlayerId, parseHcpInput(rosterHcpDraft))
+  }
+  // Handicap edits made inside the standalone roster generator take the same
+  // path — persist to the roster, push down to this round, confirm if live.
+  async function handleRosterGeneratorHandicap(rosterPlayerId: string, hcp: number | null) {
+    await applyRosterHandicap(rosterPlayerId, hcp)
+  }
+  async function applyRosterHandicap(rosterPlayerId: string, hcp: number | null) {
     const linked = players.filter(p => p.roster_player_id === rosterPlayerId)
     const apply = async () => {
       setLiveRoster(prev => prev.map(rp => rp.id === rosterPlayerId ? { ...rp, handicap_index: hcp } : rp))
@@ -2716,6 +2621,27 @@ export default function AdminDashboard({
                 {liveRoster.length === 0 && editingRosterId === null && (
                   <p className="text-xs text-gray-400 text-center py-1">No players in roster yet — add them above</p>
                 )}
+
+                {/* ── Standalone Team/Group Generator — preview only, never
+                    writes to the round (the round's own generator does that) ── */}
+                <div className="border-t border-gray-100 pt-4 space-y-3">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={showRosterGenerator}
+                      onChange={e => setShowRosterGenerator(e.target.checked)}
+                      className="w-3.5 h-3.5 accent-indigo-600"
+                    />
+                    <span className="text-xs font-medium text-indigo-700">Team/Group Generator</span>
+                  </label>
+                  {showRosterGenerator && (
+                    <TeamGeneratorPanel
+                      roster={liveRoster}
+                      nounCap={round ? genNounCap : 'Team'}
+                      onUpdateRosterHandicap={handleRosterGeneratorHandicap}
+                    />
+                  )}
+                </div>
               </div>
             )}
           </div>
