@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!isMaster && !isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { name, date, courseSlug, format, ballsCount, includeTotal, holeCount, startHole, bankerMinBet, clearScores } = body
+  const { name, date, courseSlug, format, ballsCount, includeTotal, holeCount, startHole, bankerMinBet, bankerDefaultMaxBet, clearScores } = body
 
   const { data: dbCourse } = await sb.from('courses').select('name, pars, stroke_indexes').eq('slug', courseSlug).single()
   const courseName = dbCourse?.name ?? COURSE_NAMES[courseSlug] ?? courseSlug
@@ -58,6 +58,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     ? 1 : (Number(ballsCount) || 3)
   const actualIncludeTotal = (format !== 'daytona' && format !== 'traditional' && !isBanker) && !!(includeTotal)
   const actualBankerMinBet = isBanker ? (Number(bankerMinBet) || 2) : null
+  const actualBankerMaxBet = isBanker ? (Number(bankerDefaultMaxBet) || null) : null
 
   const updates: Record<string, unknown> = {
     name: String(name).trim(),
@@ -68,6 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     include_total: actualIncludeTotal,
   }
   if (actualBankerMinBet != null) updates.banker_min_bet = actualBankerMinBet
+  if (isBanker) updates.banker_default_max_bet = actualBankerMaxBet
   if (clearScores) {
     updates.scores_cleared_at = new Date().toISOString()
     updates.first_score_at = null
