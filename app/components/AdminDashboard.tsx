@@ -667,6 +667,11 @@ export default function AdminDashboard({
   // 3/4 Ball builds competing teams; every other format builds playing groups
   const genNoun = isStandard ? 'team' : 'group'
   const genNounCap = isStandard ? 'Team' : 'Group'
+  // 3/4 Ball with Mixed Groups is the one case where two near-identical
+  // builders stack up — the scoring teams and the on-course playing groups,
+  // often holding the same players. Color-code both so it's obvious which
+  // one is being edited: indigo = scoring, teal = on course.
+  const dualTeamsAndGroups = isStandard && mixedGroups === true && mixedGroupsAnswered
   const isBankerRound = round?.format === 'banker'
   const isHammerRound = round?.format === 'hammer'
   // Formats with no ball/point pool at all — the payout step is skipped and
@@ -3301,7 +3306,7 @@ export default function AdminDashboard({
 
             {/* ── Teams / Groups section ── */}
             {round && (
-              <div className={`bg-white rounded-2xl border border-gray-200 overflow-hidden ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div className={`bg-white rounded-2xl border overflow-hidden ${dualTeamsAndGroups ? 'border-indigo-200 border-l-4 border-l-indigo-500' : 'border-gray-200'} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {/* Mixed Groups question — must be answered before team building (3/4 ball only) */}
                 {isStandard && roundIsSettingUp && (
                   <div className="px-4 py-3 border-b border-gray-100">
@@ -3323,9 +3328,12 @@ export default function AdminDashboard({
                 )}
                 <div className={isStandard && roundIsSettingUp && !mixedGroupsAnswered ? 'opacity-40 pointer-events-none select-none' : ''}>
                 {/* Header */}
-                <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
-                  <div className="flex items-center gap-3">
+                <div className={`px-4 py-3 flex items-center justify-between border-b ${dualTeamsAndGroups ? 'border-indigo-100 bg-indigo-50/60' : 'border-gray-100'}`}>
+                  <div className="flex items-center gap-3 flex-wrap">
                     <h3 className="font-semibold text-gray-900 text-sm">{isStandard ? `${ballsCount} Ball Teams` : 'Groups'}</h3>
+                    {dualTeamsAndGroups && (
+                      <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">Scoring</span>
+                    )}
                     <label className="flex items-center gap-1.5 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -3354,6 +3362,14 @@ export default function AdminDashboard({
                     {(round.format === 'daytona' || round.format === 'traditional') ? 'Add Group +' : 'Add Team +'}
                   </button>
                 </div>
+                {/* Mixed Groups only — spells out that these are the scoring
+                    teams, not the carts, so this card can't be mistaken for
+                    the Playing Groups card below */}
+                {dualTeamsAndGroups && (
+                  <div className="px-4 py-2 border-b border-indigo-100 bg-indigo-50/60">
+                    <p className="text-[11px] text-indigo-700">Who scores together for the {ballsCount}-ball game — not who rides together.</p>
+                  </div>
+                )}
                 {!teamsAddEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
                     <p className="text-xs text-gray-400 text-center">
@@ -3956,7 +3972,7 @@ export default function AdminDashboard({
                     ? ((team.daytona_variant ?? '4man').split('|')[0].startsWith('5man') || team.daytona_variant_back9?.startsWith('5man')) ? 5 : 4
                     : 5
                   return (
-                    <div key={team.id} className="border-2 border-gray-300 rounded-xl overflow-hidden">
+                    <div key={team.id} className={`border-2 rounded-xl overflow-hidden ${dualTeamsAndGroups ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-300'}`}>
                       <div className="px-4 py-3">
                         {editingTeamId === team.id ? (
                           <form action={updateTeamAction} ref={teamEditFormRef} className="space-y-2"
@@ -4452,7 +4468,7 @@ export default function AdminDashboard({
 
             {/* ── Playing Groups (standard format, mixed groups = Yes only) ── */}
             {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && (
-              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border border-gray-200 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
+              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border border-teal-200 border-l-4 border-l-teal-500 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
                 {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
                     {creatingNewRound ? 'Save the new round above to unlock' : 'Save Teams above to unlock'}
@@ -4463,8 +4479,11 @@ export default function AdminDashboard({
                     Teams saved — now build the playing groups and put every player in one.
                   </p>
                 )}
-                <h3 className="font-semibold text-gray-900 text-sm">Playing Groups</h3>
-                <p className="text-xs text-gray-400 -mt-2">Who actually rides together — each group has its own scorekeeper PIN and side games.</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-gray-900 text-sm">Playing Groups</h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200">On Course</span>
+                </div>
+                <p className="text-xs text-teal-700 -mt-2">Who actually rides together — each group has its own scorekeeper PIN and side games.</p>
 
                 {mixedGroups && mixedGroupsAnswered && (
                   <div className="space-y-3 border-t border-gray-100 pt-3">
@@ -4510,7 +4529,7 @@ export default function AdminDashboard({
                     {/* Step 2: add groups (only after Set is clicked) */}
                     {groupCountSaved && targetGroupCount > 0 && (
                       <>
-                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Playing Groups</p>
+                        <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Playing Groups</p>
                         {groupError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1.5">{groupError}</p>}
 
                         {/* Create group form — hidden when at capacity */}
@@ -4692,7 +4711,7 @@ export default function AdminDashboard({
                         return next
                       })
                       return (
-                        <div key={g.id} className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-2.5">
+                        <div key={g.id} className="bg-teal-50/60 rounded-xl border border-teal-200 p-3 space-y-2.5">
                           {/* Header — always visible, clickable to expand */}
                           <div className="flex items-center justify-between cursor-pointer select-none" onClick={toggleCard}>
                             <div>
