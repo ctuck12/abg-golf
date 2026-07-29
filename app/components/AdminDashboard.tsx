@@ -62,6 +62,32 @@ import { CSS } from '@dnd-kit/utilities'
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
+/**
+ * Left-spine color per Admin Hub section.
+ *
+ * The hub is a long stack of near-identical white cards, so a scroll that
+ * lands mid-section left you guessing which one you were in. Each section
+ * carries its own spine instead, borrowing whatever accent the section
+ * already uses elsewhere (skins = amber, hammer = orange, money = green,
+ * destructive = red) so the colors read as meaning, not decoration.
+ *
+ * Neighbors are always different hue families — that's the property worth
+ * preserving when adding a section here.
+ */
+const SPINE = {
+  roster:   'border-sky-200 border-l-4 border-l-sky-500',
+  round:    'border-slate-300 border-l-4 border-l-slate-700',
+  payout:   'border-emerald-200 border-l-4 border-l-emerald-500',
+  skins:    'border-amber-200 border-l-4 border-l-amber-500',
+  handicap: 'border-cyan-200 border-l-4 border-l-cyan-500',
+  hammer:   'border-orange-200 border-l-4 border-l-orange-500',
+  teams:    'border-indigo-200 border-l-4 border-l-indigo-500',
+  groups:   'border-teal-200 border-l-4 border-l-teal-500',
+  matchups: 'border-purple-200 border-l-4 border-l-purple-500',
+  clear:    'border-red-200 border-l-4 border-l-red-500',
+  activate: 'border-green-200 border-l-4 border-l-green-500',
+} as const
+
 function SortablePlayerRow({ id, children }: { id: string; children: (dragProps: Record<string, unknown>) => ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
@@ -2471,7 +2497,7 @@ export default function AdminDashboard({
         <div className="space-y-4">
 
           {/* ── Player Roster ── */}
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className={`bg-white rounded-2xl border overflow-hidden ${SPINE.roster}`}>
             <button type="button" onClick={() => setShowRoster((v) => !v)}
               className="w-full flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-3">
@@ -2655,7 +2681,7 @@ export default function AdminDashboard({
             {/* Collapse immediately on submit (createPending) or while refresh is pending (effectivePendingId) */}
             {round && ((!showNewRoundForm && !editingRoundSettings) || createPending || !!effectivePendingId) ? (
               /* Collapsed state — show "Edit Round Settings" and "New Round +" buttons */
-              <div className="bg-white rounded-2xl border border-gray-200 px-4 py-5 flex items-center justify-center gap-3">
+              <div className={`bg-white rounded-2xl border px-4 py-5 flex items-center justify-center gap-3 ${SPINE.round}`}>
                 <button
                   type="button"
                   onClick={enterRoundEditMode}
@@ -2671,7 +2697,7 @@ export default function AdminDashboard({
                 </button>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className={`bg-white rounded-2xl border p-5 ${SPINE.round}`}>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-gray-900 text-sm">
                     {editingRoundSettings ? 'Edit Round Settings' : round ? 'Start New Round' : 'Set Up Round'}
@@ -2995,7 +3021,7 @@ export default function AdminDashboard({
 
             {/* ── Per Ball / Per Point Payout Value — not shown for formats with no ball pool ── */}
             {round && !hasNoBallPool && (
-              <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div className={`bg-white rounded-2xl border p-5 transition-opacity ${SPINE.payout} ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {!skinsAndPayoutEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
                     {creatingNewRound ? 'Save the new round above to unlock' : 'Complete the round form above to unlock'}
@@ -3049,7 +3075,7 @@ export default function AdminDashboard({
 
             {/* ── Skins Game ── */}
             {round && (
-              <div className={`bg-white rounded-2xl border border-gray-200 p-5 transition-opacity ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div className={`bg-white rounded-2xl border p-5 transition-opacity ${SPINE.skins} ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {!skinsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
                     {creatingNewRound ? 'Save the new round above to unlock' : 'Save Per Ball/Per Point Value above to unlock'}
@@ -3171,7 +3197,7 @@ export default function AdminDashboard({
 
             {/* ── Handicap Settings (auto strokes + rounding) — during setup too for Daytona/Banker, which auto-stroke by default ── */}
             {round && (round.is_started || isDaytona || isBankerRound) && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className={`bg-white rounded-2xl border p-5 ${SPINE.handicap}`}>
                 <h3 className="font-semibold text-gray-900 text-sm mb-3">Handicap Settings</h3>
                 {(isDaytona || round.format === 'banker') && (
                   <div className="flex items-center gap-3 cursor-pointer mb-4" onClick={handleToggleAutoHandicap}>
@@ -3202,7 +3228,7 @@ export default function AdminDashboard({
 
             {/* ── Hammer Matchups (standalone Hammer format only) ── */}
             {round && round.format === 'hammer' && round.is_started && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+              <div className={`bg-white rounded-2xl border p-5 space-y-3 ${SPINE.hammer}`}>
                 <h3 className="font-semibold text-gray-900 text-sm">Hammer Matchups</h3>
                 {hammerError && <p className="text-xs text-red-500 bg-red-50 rounded px-3 py-2">{hammerError}</p>}
 
@@ -3265,7 +3291,7 @@ export default function AdminDashboard({
 
             {/* ── Teams / Groups section ── */}
             {round && (
-              <div className={`bg-white rounded-2xl border overflow-hidden ${dualTeamsAndGroups ? 'border-indigo-200 border-l-4 border-l-indigo-500' : 'border-gray-200'} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div className={`bg-white rounded-2xl border overflow-hidden ${SPINE.teams} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {/* Mixed Groups question — must be answered before team building (3/4 ball only) */}
                 {isStandard && roundIsSettingUp && (
                   <div className="px-4 py-3 border-b border-gray-100">
@@ -4427,7 +4453,7 @@ export default function AdminDashboard({
 
             {/* ── Playing Groups (standard format, mixed groups = Yes only) ── */}
             {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && (
-              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border border-teal-200 border-l-4 border-l-teal-500 p-5 space-y-4 transition-opacity ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
+              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 transition-opacity ${SPINE.groups} ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={{ scrollMarginTop: '80px' }}>
                 {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
                     {creatingNewRound ? 'Save the new round above to unlock' : 'Save Teams above to unlock'}
@@ -5089,7 +5115,7 @@ export default function AdminDashboard({
             {/* ── Matchup Results — sits down here with the other
                 round-wide switches, after the playing groups ── */}
             {round && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className={`bg-white rounded-2xl border p-5 ${SPINE.matchups}`}>
                 <h3 className="font-semibold text-gray-900 text-sm mb-3">Matchup Results</h3>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-600">Exclude from Payouts &amp; Settlements</span>
@@ -5130,7 +5156,7 @@ export default function AdminDashboard({
 
             {/* ── Clear All Scores (any format, once started) — last card before activation/banner ── */}
             {round && round.is_started && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className={`bg-white rounded-2xl border p-5 ${SPINE.clear}`}>
                 <h3 className="font-semibold text-gray-900 text-sm mb-1">Clear All Scores</h3>
                 <p className="text-xs text-gray-400 mb-3">Deletes every saved score in this round for all teams and groups. Teams, matchups, and settings are kept.</p>
                 {confirmClearScores ? (
@@ -5175,7 +5201,7 @@ export default function AdminDashboard({
 
             {/* ── Activate Round (bottom) — only when round exists but not yet started ── */}
             {roundIsSettingUp && round && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className={`bg-white rounded-2xl border p-5 ${SPINE.activate}`}>
                 <h3 className="font-semibold text-gray-900 text-sm mb-2">Activate Round</h3>
                 <p className="text-xs text-gray-500 mb-3">
                   {canActivate
