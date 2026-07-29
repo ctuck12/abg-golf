@@ -40,8 +40,10 @@ export default function RoundHistory({ roundId }: { roundId: string }) {
     return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   }
 
+  // Slate spine — matches the Admin Hub's per-section spine scheme, kept
+  // muted because this is an audit trail rather than a setting
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-slate-400 overflow-hidden">
       <button type="button" onClick={toggle} className="w-full flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-3">
           <h3 className="font-semibold text-gray-900 text-sm">Round History</h3>
