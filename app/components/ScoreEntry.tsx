@@ -112,7 +112,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', daytonaVariantBack9 = null, isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds, handicapRounding = 'down',
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', daytonaVariantBack9 = null, isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerDefaultMaxBet = null, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds, handicapRounding = 'down',
 }: {
   orgSlug: string
   orgId: string
@@ -139,6 +139,8 @@ export default function ScoreEntry({
   allRoundPlayerHandicaps?: Record<string, number | null>
   initialHoleStrokes?: Record<number, string[]>
   bankerMinBet?: number
+  /** Admin-set starting max bet for each hole; the scorekeeper can still change it per hole. */
+  bankerDefaultMaxBet?: number | null
   bankerSideGame?: boolean
   initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
@@ -223,6 +225,9 @@ export default function ScoreEntry({
     if (net === par - 1) return 2  // birdie → 2×
     return 1
   }
+  // Starting max bet for a hole the scorekeeper hasn't set yet: the admin's
+  // Default Max Bet when configured, otherwise the minimum bet.
+  const defaultMaxBet = bankerDefaultMaxBet != null && bankerDefaultMaxBet >= bankerMinBet ? bankerDefaultMaxBet : bankerMinBet
   const [bankerHoles, setBankerHoles] = useState<Record<number, { bankerPlayerId: string | null; maxBet: number }>>(initialBankerHoles)
   const [bankerBets, setBankerBets] = useState<Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>>(initialBankerBets)
 
@@ -1881,7 +1886,7 @@ export default function ScoreEntry({
 
                   {/* ── Banker hole setup ── */}
                   {isBanker && (() => {
-                    const hd = bankerHoles[hole.hole_number] ?? { bankerPlayerId: null, maxBet: 5 }
+                    const hd = bankerHoles[hole.hole_number] ?? { bankerPlayerId: null, maxBet: defaultMaxBet }
                     const bets = bankerBets[hole.hole_number] ?? {}
                     const maxBetDraftNum = parseFloat(maxBetDraft[hole.hole_number] ?? '')
                     const effectiveMaxBet = !isNaN(maxBetDraftNum) && maxBetDraftNum >= bankerMinBet ? maxBetDraftNum : hd.maxBet
@@ -1931,14 +1936,16 @@ export default function ScoreEntry({
                                 style={{ fontSize: '16px', width: '52px', textAlign: 'center', fontWeight: 'bold' }}
                                 className={`border rounded-lg px-1 py-0.5 focus:outline-none transition ${maxBetDraft[hole.hole_number] !== undefined && !isNaN(parseFloat(maxBetDraft[hole.hole_number])) && parseFloat(maxBetDraft[hole.hole_number]) < bankerMinBet ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-blue-300'}`}
                                 onTouchStart={noScrollFocus}
+                                // Empty the box on focus so a new amount can be typed straight in
+                                onFocus={() => setMaxBetDraft(prev => ({ ...prev, [hole.hole_number]: '' }))}
                                 onChange={(e) => setMaxBetDraft(prev => ({ ...prev, [hole.hole_number]: e.target.value }))}
                                 onBlur={() => {
                                   const raw = maxBetDraft[hole.hole_number]
                                   setMaxBetDraft(prev => { const n = { ...prev }; delete n[hole.hole_number]; return n })
-                                  if (raw !== undefined) {
-                                    const v = Math.max(bankerMinBet, Math.round(parseFloat(raw) || bankerMinBet))
-                                    handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, v)
-                                  }
+                                  // Left blank — restore the amount that was there before
+                                  if (raw === undefined || raw.trim() === '') return
+                                  const v = Math.max(bankerMinBet, Math.round(parseFloat(raw) || bankerMinBet))
+                                  handleSaveBankerHole(hole.hole_number, hd.bankerPlayerId, v)
                                 }}
                               />
                               {maxBetDraft[hole.hole_number] !== undefined && !isNaN(parseFloat(maxBetDraft[hole.hole_number])) && parseFloat(maxBetDraft[hole.hole_number]) < bankerMinBet && (
@@ -1984,14 +1991,16 @@ export default function ScoreEntry({
                                           style={{ fontSize: '16px', width: '44px', textAlign: 'center', fontWeight: 'bold' }}
                                           className={`border rounded-lg px-1 py-0.5 focus:outline-none transition ${(() => { const dv = playerBetDraft[hole.hole_number]?.[p.id]; const v = dv !== undefined ? parseFloat(dv) : NaN; return (!isNaN(v) && (v < bankerMinBet || v > effectiveMaxBet)) || (isNaN(v) && pb.baseBet > effectiveMaxBet) })() ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-blue-300'}`}
                                           onTouchStart={noScrollFocus}
+                                          // Empty the box on focus so a new amount can be typed straight in
+                                          onFocus={() => setPlayerBetDraft(prev => ({ ...prev, [hole.hole_number]: { ...(prev[hole.hole_number] ?? {}), [p.id]: '' } }))}
                                           onChange={(e) => setPlayerBetDraft(prev => ({ ...prev, [hole.hole_number]: { ...(prev[hole.hole_number] ?? {}), [p.id]: e.target.value } }))}
                                           onBlur={() => {
                                             const raw = playerBetDraft[hole.hole_number]?.[p.id]
                                             setPlayerBetDraft(prev => { const n = { ...prev }; const h = { ...(n[hole.hole_number] ?? {}) }; delete h[p.id]; n[hole.hole_number] = h; return n })
-                                            if (raw !== undefined) {
-                                              const v = Math.min(hd.maxBet, Math.max(bankerMinBet, Math.round(parseFloat(raw) || bankerMinBet)))
-                                              handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
-                                            }
+                                            // Left blank — restore the amount that was there before
+                                            if (raw === undefined || raw.trim() === '') return
+                                            const v = Math.min(hd.maxBet, Math.max(bankerMinBet, Math.round(parseFloat(raw) || bankerMinBet)))
+                                            handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, baseBet: v } })
                                           }}
                                         />
                                       </div>

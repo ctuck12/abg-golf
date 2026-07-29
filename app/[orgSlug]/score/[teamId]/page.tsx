@@ -21,14 +21,14 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
 
   const [{ data: orgRow }, { data: team }] = await Promise.all([
     sb.from('organizations').select('name').eq('id', orgId).single(),
-    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant, daytona_variant_back9, banker_side_game, banker_side_game_min_bet, auto_strokes, stroke_rounding').eq('id', teamId).single(),
+    sb.from('teams').select('id, name, round_id, is_admin, daytona_variant, daytona_variant_back9, banker_side_game, banker_side_game_min_bet, banker_side_game_max_bet, auto_strokes, stroke_rounding').eq('id', teamId).single(),
   ])
 
   if (!team) redirect(`/${orgSlug}`)
   const orgName = orgRow?.name ?? orgSlug
 
   const { data: round } = await sb
-    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap, handicap_rounding, banker_min_bet').eq('id', team.round_id).single()
+    .from('rounds').select('id, balls_count, format, daytona_variant, is_active, is_started, include_total, org_id, auto_handicap, handicap_rounding, banker_min_bet, banker_default_max_bet').eq('id', team.round_id).single()
   if (!round || !round.is_active || round.org_id !== orgId) redirect(`/${orgSlug}`)
 
   const { data: playersRaw } = await sb.from('players').select('id, name, handicap, holes_range, position').eq('team_id', teamId).order('position', { ascending: true })
@@ -42,6 +42,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
   const isDaytonaSideGame = (isTraditional || isStandard) && !!teamDaytonaRaw
   const teamBankerSideGame = !!(team as { banker_side_game?: boolean }).banker_side_game
   const teamBankerMinBet = (team as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
+  const teamBankerMaxBet = (team as { banker_side_game_max_bet?: number | null }).banker_side_game_max_bet ?? null
   const teamAutoStrokes = !!(team as { auto_strokes?: boolean }).auto_strokes
   const [parsedDaytonaVariant, parsedPayoutStr] = teamDaytonaRaw?.includes('|')
     ? teamDaytonaRaw.split('|') : [teamDaytonaRaw ?? '4man', null]
@@ -155,6 +156,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       })()}
       initialHoleStrokes={initialHoleStrokes}
       bankerMinBet={teamBankerSideGame ? teamBankerMinBet : (round.banker_min_bet ?? 2)}
+      bankerDefaultMaxBet={teamBankerSideGame ? teamBankerMaxBet : ((round as { banker_default_max_bet?: number | null }).banker_default_max_bet ?? null)}
       bankerSideGame={teamBankerSideGame}
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}

@@ -25,7 +25,7 @@ export default async function PlayingGroupScorecardPage({
 
   const { data: group } = await sb
     .from('playing_groups')
-    .select('id, name, round_id, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes, stroke_rounding')
+    .select('id, name, round_id, daytona_variant, banker_side_game, banker_side_game_min_bet, banker_side_game_max_bet, auto_strokes, stroke_rounding')
     .eq('id', groupId)
     .single()
   if (!group) redirect(`/${orgSlug}`)
@@ -64,6 +64,7 @@ export default async function PlayingGroupScorecardPage({
   const defaultDtPayoutValue = parsedPayoutStr ? (parseFloat(parsedPayoutStr) || 0.25) : 0.25
   const isBankerSideGame = !!(group as { banker_side_game?: boolean }).banker_side_game
   const bankerMinBet = (group as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
+  const bankerDefaultMaxBet = (group as { banker_side_game_max_bet?: number | null }).banker_side_game_max_bet ?? null
   const autoStrokes = !!(group as { auto_strokes?: boolean }).auto_strokes
 
   // Fetch all teams in this round to get full team rosters for ball score popup
@@ -165,6 +166,7 @@ export default async function PlayingGroupScorecardPage({
       initialHoleValues={initialHoleValues}
       bankerSideGame={isBankerSideGame}
       bankerMinBet={bankerMinBet}
+      bankerDefaultMaxBet={bankerDefaultMaxBet}
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}
       autoStrokes={autoStrokes}

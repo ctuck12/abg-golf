@@ -195,12 +195,12 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; skins_mode?: string | null; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number; exclude_matchups?: boolean } | null
-type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean; stroke_rounding?: string | null }
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; skins_mode?: string | null; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; banker_default_max_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number; exclude_matchups?: boolean } | null
+type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; banker_side_game_max_bet?: number | null; auto_strokes?: boolean; stroke_rounding?: string | null }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
-type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; daytona_variant_back9?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null; stroke_rounding?: string | null }
+type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; daytona_variant_back9?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; banker_side_game_max_bet?: number | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null; stroke_rounding?: string | null }
 type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null; holes_range?: string | null; roster_player_id?: string | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -412,6 +412,7 @@ export default function AdminDashboard({
   const [newTeamDaytonaBack9, setNewTeamDaytonaBack9] = useState('')
   const [newTeamBankerEnabled, setNewTeamBankerEnabled] = useState(false)
   const [newTeamBankerMinBet, setNewTeamBankerMinBet] = useState('2')
+  const [newTeamBankerMaxBet, setNewTeamBankerMaxBet] = useState('')
   const [newTeamAutoStrokes, setNewTeamAutoStrokes] = useState(false)
   const [newTeamStrokeRounding, setNewTeamStrokeRounding] = useState('down')
   const [newTeamHammerEnabled, setNewTeamHammerEnabled] = useState(false)
@@ -419,6 +420,7 @@ export default function AdminDashboard({
   const [newTeamHammerFormat, setNewTeamHammerFormat] = useState('stroke')
   const [editBankerEnabled, setEditBankerEnabled] = useState(false)
   const [editBankerMinBet, setEditBankerMinBet] = useState('2')
+  const [editBankerMaxBet, setEditBankerMaxBet] = useState('')
   const [editAutoStrokes, setEditAutoStrokes] = useState(false)
   const [editTeamStrokeRounding, setEditTeamStrokeRounding] = useState('down')
   const [editHammerEnabled, setEditHammerEnabled] = useState(false)
@@ -472,7 +474,7 @@ export default function AdminDashboard({
   // Players picked while creating a new playing group (assigned on create)
   const [newGroupPlayerIds, setNewGroupPlayerIds] = useState<Set<string>>(new Set())
   // Side game configured while creating a new playing group (saved on create)
-  const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', autoStrokes: false, strokeRounding: round?.handicap_rounding ?? 'down' }
+  const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', bankerMaxBet: '', autoStrokes: false, strokeRounding: round?.handicap_rounding ?? 'down' }
   const [newGroupSG, setNewGroupSG] = useState(emptyNewGroupSG)
   const [genEditNames, setGenEditNames] = useState<string[]>([])
   const [genEditPins, setGenEditPins] = useState<string[]>([])
@@ -490,6 +492,7 @@ export default function AdminDashboard({
   const [hammerError, setHammerError] = useState('')
 
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
+  const [bankerMaxBetInput, setBankerMaxBetInput] = useState('')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
   const [hcpRounding, setHcpRounding] = useState(round?.handicap_rounding ?? 'down')
   // Re-sync when a different round loads (e.g. a new Daytona/Banker round created with auto handicap on)
@@ -529,7 +532,7 @@ export default function AdminDashboard({
   const [expandedGroupCards, setExpandedGroupCards] = useState<Set<string>>(new Set())
   const [liveManualPlayers, setLiveManualPlayers] = useState<Player[]>([])
   const [expandedGroupSideGame, setExpandedGroupSideGame] = useState<string | null>(null)
-  type GroupSideGame = { daytonaEnabled: boolean; daytonaType: string; daytonaSubVariant: string; daytonaPayout: string; bankerEnabled: boolean; bankerMinBet: string; autoStrokes: boolean; strokeRounding: string; saving: boolean; saved: boolean }
+  type GroupSideGame = { daytonaEnabled: boolean; daytonaType: string; daytonaSubVariant: string; daytonaPayout: string; bankerEnabled: boolean; bankerMinBet: string; bankerMaxBet: string; autoStrokes: boolean; strokeRounding: string; saving: boolean; saved: boolean }
   const initGroupSideGame = (g: PlayingGroup): GroupSideGame => {
     const raw = g.daytona_variant ?? ''
     const [variant, payout] = raw.includes('|') ? raw.split('|') : [raw, '']
@@ -540,6 +543,7 @@ export default function AdminDashboard({
       daytonaPayout: payout || '',
       bankerEnabled: !!g.banker_side_game,
       bankerMinBet: g.banker_side_game_min_bet != null ? String(g.banker_side_game_min_bet) : '2',
+      bankerMaxBet: g.banker_side_game_max_bet != null ? String(g.banker_side_game_max_bet) : '',
       autoStrokes: !!g.auto_strokes,
       strokeRounding: g.stroke_rounding ?? (round?.handicap_rounding ?? 'down'),
       saving: false, saved: false,
@@ -1184,6 +1188,7 @@ export default function AdminDashboard({
         daytona_variant: daytonaVariant,
         banker_side_game: newGroupSG.bankerEnabled,
         banker_side_game_min_bet: newGroupSG.bankerEnabled ? (parseFloat(newGroupSG.bankerMinBet) || 2) : null,
+        banker_side_game_max_bet: newGroupSG.bankerEnabled ? (parseFloat(newGroupSG.bankerMaxBet) || null) : null,
         auto_strokes: newGroupSG.autoStrokes,
         stroke_rounding: newGroupSG.strokeRounding,
       })
@@ -1504,6 +1509,7 @@ export default function AdminDashboard({
     setSelectedHoleCount(String(holes.length || 18))
     setSelectedStartHole(String(holes.length > 0 ? holes[0].hole_number : 1))
     setBankerMinBetInput(String(round.banker_min_bet ?? 2))
+    setBankerMaxBetInput(round.banker_default_max_bet != null ? String(round.banker_default_max_bet) : '')
     setEditRoundError('')
     setEditingRoundSettings(true)
   }
@@ -1539,6 +1545,7 @@ export default function AdminDashboard({
           holeCount: parseInt(selectedHoleCount) || 18,
           startHole: parseInt(selectedStartHole) || 1,
           bankerMinBet: parseFloat(bankerMinBetInput) || 2,
+          bankerDefaultMaxBet: parseFloat(bankerMaxBetInput) || null,
           clearScores,
         }),
       })
@@ -2835,6 +2842,13 @@ export default function AdminDashboard({
                         <p className="text-xs text-gray-400 mt-0.5">Minimum bet each player must put up against the banker</p>
                       </div>
                       <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Default Max Bet ($)</label>
+                        <input type="number" name="banker_default_max_bet" value={bankerMaxBetInput} onChange={(e) => setBankerMaxBetInput(e.target.value)}
+                          min="0.5" step="0.5" placeholder={`Defaults to $${parseFloat(bankerMinBetInput) || 2}`}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                        <p className="text-xs text-gray-400 mt-0.5">Starting max bet on every hole — the scorekeeper can still change it hole by hole</p>
+                      </div>
+                      <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1.5">Holes</label>
                         <div className="flex gap-2">
                           {(['18', '9'] as const).map((hc) => (
@@ -3910,12 +3924,17 @@ export default function AdminDashboard({
                                   <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
                                     value={newTeamBankerMinBet} onChange={(e) => setNewTeamBankerMinBet(e.target.value)}
                                     className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
+                                  <label className="text-xs text-gray-500 whitespace-nowrap">Default max ($)</label>
+                                  <input type="number" min="0.5" step="0.5" placeholder={`$${parseFloat(newTeamBankerMinBet) || 2}`}
+                                    value={newTeamBankerMaxBet} onChange={(e) => setNewTeamBankerMaxBet(e.target.value)}
+                                    className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                                 </div>
                               )}
                             </>
                           )}
                           <input type="hidden" name="banker_side_game" value={newTeamBankerEnabled ? 'true' : 'false'} />
                           {newTeamBankerEnabled && <input type="hidden" name="banker_side_game_min_bet" value={newTeamBankerMinBet} />}
+                          {newTeamBankerEnabled && <input type="hidden" name="banker_side_game_max_bet" value={newTeamBankerMaxBet} />}
                           {/* Auto Strokes — shown when either side game is On */}
                           {(newTeamDaytonaEnabled || newTeamBankerEnabled) && (
                             <div className="flex items-center gap-2 pt-1">
@@ -4170,12 +4189,17 @@ export default function AdminDashboard({
                                         <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
                                           value={editBankerMinBet} onChange={(e) => setEditBankerMinBet(e.target.value)}
                                           className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                        <label className="text-xs text-gray-500 whitespace-nowrap">Default max ($)</label>
+                                        <input type="number" min="0.5" step="0.5" placeholder={`$${parseFloat(editBankerMinBet) || 2}`}
+                                          value={editBankerMaxBet} onChange={(e) => setEditBankerMaxBet(e.target.value)}
+                                          className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
                                       </div>
                                     )}
                                   </>
                                 )}
                                 <input type="hidden" name="banker_side_game" value={editBankerEnabled ? 'true' : 'false'} />
                                 {editBankerEnabled && <input type="hidden" name="banker_side_game_min_bet" value={editBankerMinBet} />}
+                                {editBankerEnabled && <input type="hidden" name="banker_side_game_max_bet" value={editBankerMaxBet} />}
                                 {/* Auto Strokes — shown when either side game is On */}
                                 {(editDaytonaEnabled || editBankerEnabled) && (
                                   <div className="flex items-center gap-2 pt-1">
@@ -4312,6 +4336,7 @@ export default function AdminDashboard({
                                 setEditDaytonaBack9(team.daytona_variant_back9 ?? '')
                                 setEditBankerEnabled(!!team.banker_side_game)
                                 setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
+                                setEditBankerMaxBet(team.banker_side_game_max_bet != null ? String(team.banker_side_game_max_bet) : '')
                                 setEditAutoStrokes(!!team.auto_strokes)
                                 setEditHammerEnabled(!!team.hammer_side_game)
                                 setEditHammerBaseBet(team.hammer_base_bet != null ? String(team.hammer_base_bet) : '1')
@@ -4676,6 +4701,10 @@ export default function AdminDashboard({
                                       <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
                                         value={newGroupSG.bankerMinBet} onChange={e => setNewGroupSG(sg => ({ ...sg, bankerMinBet: e.target.value }))}
                                         className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
+                                      <label className="text-xs text-gray-500 whitespace-nowrap">Default max ($)</label>
+                                      <input type="number" min="0.5" step="0.5" placeholder={`$${parseFloat(newGroupSG.bankerMinBet) || 2}`}
+                                        value={newGroupSG.bankerMaxBet} onChange={e => setNewGroupSG(sg => ({ ...sg, bankerMaxBet: e.target.value }))}
+                                        className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
                                     </div>
                                   )}
                                 </>
@@ -4989,6 +5018,7 @@ export default function AdminDashboard({
                                                 daytona_variant: null,
                                                 banker_side_game: captured.bankerEnabled,
                                                 banker_side_game_min_bet: captured.bankerEnabled ? (parseFloat(captured.bankerMinBet) || 2) : null,
+                                                banker_side_game_max_bet: captured.bankerEnabled ? (parseFloat(captured.bankerMaxBet) || null) : null,
                                                 auto_strokes: false,
                                               })
                                               updateGroupSG(g.id, { saving: false, saved: true })
@@ -5047,6 +5077,7 @@ export default function AdminDashboard({
                                                 daytona_variant: daytonaVariant,
                                                 banker_side_game: false,
                                                 banker_side_game_min_bet: null,
+                                                banker_side_game_max_bet: null,
                                                 auto_strokes: false,
                                               })
                                               updateGroupSG(g.id, { saving: false, saved: true })
@@ -5062,6 +5093,10 @@ export default function AdminDashboard({
                                         <label className="text-xs text-gray-500 whitespace-nowrap">Min bet ($)</label>
                                         <input type="number" min="0.5" step="0.5" placeholder="e.g. 2"
                                           value={sg.bankerMinBet} onChange={e => updateGroupSG(g.id, { bankerMinBet: e.target.value })}
+                                          className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
+                                        <label className="text-xs text-gray-500 whitespace-nowrap">Default max ($)</label>
+                                        <input type="number" min="0.5" step="0.5" placeholder={`$${parseFloat(sg.bankerMinBet) || 2}`}
+                                          value={sg.bankerMaxBet} onChange={e => updateGroupSG(g.id, { bankerMaxBet: e.target.value })}
                                           className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
                                       </div>
                                     )}
@@ -5109,6 +5144,7 @@ export default function AdminDashboard({
                                           daytona_variant: daytonaVariant,
                                           banker_side_game: sg.bankerEnabled,
                                           banker_side_game_min_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMinBet) || 2) : null,
+                                          banker_side_game_max_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMaxBet) || null) : null,
                                           auto_strokes: (sg.daytonaEnabled || sg.bankerEnabled) ? sg.autoStrokes : false,
                                           stroke_rounding: sg.strokeRounding,
                                         })

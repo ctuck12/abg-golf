@@ -266,6 +266,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
     const includeTotal = (format !== 'daytona' && format !== 'traditional' && !isBanker) && formData.get('include_total') === 'true'
     const isNineHoleFormat = format === 'daytona' || format === 'traditional' || isBanker
     const bankerMinBet = isBanker ? (parseFloat(formData.get('banker_min_bet') as string) || 2) : null
+    const bankerDefaultMaxBet = isBanker ? (parseFloat(formData.get('banker_default_max_bet') as string) || null) : null
     const holeCount = isNineHoleFormat ? (parseInt(formData.get('holeCount') as string) || 18) : 18
     const startHole = (holeCount === 9) ? (parseInt(formData.get('startHole') as string) || 1) : 1
 
@@ -296,7 +297,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
     // any step can no longer leave the group with no active round.
     const { data: round, error } = await supabase
       .from('rounds')
-      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: false, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}), ...((format === 'daytona' || isBanker) ? { auto_handicap: true } : {}) })
+      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: false, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}), ...(bankerDefaultMaxBet != null ? { banker_default_max_bet: bankerDefaultMaxBet } : {}), ...((format === 'daytona' || isBanker) ? { auto_handicap: true } : {}) })
       .select().single()
 
     if (error || !round) return { error: error?.message ?? 'Failed to create round.' }
@@ -395,6 +396,7 @@ export async function addTeam(_prev: unknown, formData: FormData) {
   const daytonaVariantBack9 = (formData.get('daytona_variant_back9') as string) || null
   const bankerSideGame = formData.get('banker_side_game') === 'true'
   const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
+  const bankerSideGameMaxBet = formData.get('banker_side_game_max_bet') ? parseFloat(formData.get('banker_side_game_max_bet') as string) : null
   const autoStrokes = formData.get('auto_strokes') === 'true'
   const hammerSideGame = formData.get('hammer_side_game') === 'true'
   const hammerBaseBet = formData.get('hammer_base_bet') ? parseFloat(formData.get('hammer_base_bet') as string) : 1
@@ -402,7 +404,7 @@ export async function addTeam(_prev: unknown, formData: FormData) {
 
   const supabase = createServerClient()
   const teamStrokeRounding = (formData.get('stroke_rounding') as string) || ''
-  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null, ...(teamStrokeRounding ? { stroke_rounding: teamStrokeRounding } : {}) })
+  const { error } = await supabase.from('teams').insert({ name, pin, round_id: roundId, is_admin: false, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, banker_side_game_max_bet: bankerSideGame ? bankerSideGameMaxBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null, ...(teamStrokeRounding ? { stroke_rounding: teamStrokeRounding } : {}) })
   if (error) return { error: error.code === '23505' ? 'A team with that name already exists.' : error.message }
   return { success: true }
 }
@@ -438,6 +440,7 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
 
   const bankerSideGame = formData.get('banker_side_game') === 'true'
   const bankerSideGameMinBet = formData.get('banker_side_game_min_bet') ? parseFloat(formData.get('banker_side_game_min_bet') as string) : null
+  const bankerSideGameMaxBet = formData.get('banker_side_game_max_bet') ? parseFloat(formData.get('banker_side_game_max_bet') as string) : null
   const autoStrokes = formData.get('auto_strokes') === 'true'
   const hammerSideGame = formData.get('hammer_side_game') === 'true'
   const hammerBaseBet = formData.get('hammer_base_bet') ? parseFloat(formData.get('hammer_base_bet') as string) : 1
@@ -447,7 +450,7 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
   const { data: before } = await supabase
     .from('teams').select('name, round_id, pin, daytona_variant, daytona_variant_back9, banker_side_game, hammer_side_game, auto_strokes, stroke_rounding')
     .eq('id', teamId).single()
-  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null }
+  const updates: Record<string, unknown> = { name, daytona_variant: daytonaVariant, daytona_variant_back9: daytonaVariantBack9, banker_side_game: bankerSideGame || false, banker_side_game_min_bet: bankerSideGame ? bankerSideGameMinBet : null, banker_side_game_max_bet: bankerSideGame ? bankerSideGameMaxBet : null, auto_strokes: autoStrokes, hammer_side_game: hammerSideGame || false, hammer_base_bet: hammerSideGame ? hammerBaseBet : null, hammer_format: hammerSideGame ? hammerFormat : null }
   if (pin) updates.pin = pin
   const strokeRounding = (formData.get('stroke_rounding') as string) || ''
   if (strokeRounding) updates.stroke_rounding = strokeRounding
@@ -902,6 +905,7 @@ export async function updatePlayingGroupSettings(groupId: string, settings: {
   daytona_variant: string | null
   banker_side_game: boolean
   banker_side_game_min_bet: number | null
+  banker_side_game_max_bet?: number | null
   auto_strokes: boolean
   stroke_rounding?: string | null
 }) {
