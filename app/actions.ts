@@ -1051,6 +1051,43 @@ export async function saveBankerHole(roundId: string, teamId: string, holeNumber
   return { success: true }
 }
 
+/**
+ * Claim the banker for a hole only if nobody holds it yet.
+ *
+ * Used by the first-hole auto-assign so a scorekeeper who reopens score entry
+ * (or a second device on the same group) never re-rolls a banker that is
+ * already locked in — the row that got there first always wins. Returns the
+ * banker of record, which may not be the one that was proposed.
+ */
+export async function ensureBankerHole(roundId: string, teamId: string, holeNumber: number, bankerPlayerId: string, maxBet: number) {
+  const authError = await requireAnyLogin()
+  if (authError) return { error: authError }
+  const supabase = createServerClient()
+  const { data: existing } = await supabase
+    .from('banker_holes')
+    .select('banker_player_id, max_bet')
+    .eq('round_id', roundId).eq('team_id', teamId).eq('hole_number', holeNumber)
+    .maybeSingle()
+  if (existing?.banker_player_id) {
+    return { bankerPlayerId: existing.banker_player_id as string, maxBet: (existing.max_bet as number) ?? maxBet }
+  }
+  const { error } = await supabase.from('banker_holes').upsert(
+    { round_id: roundId, team_id: teamId, hole_number: holeNumber, banker_player_id: bankerPlayerId, max_bet: maxBet },
+    { onConflict: 'round_id,team_id,hole_number' }
+  )
+  if (error) return { error: error.message }
+  // Re-read: a concurrent claim may have landed between the check and the write.
+  const { data: settled } = await supabase
+    .from('banker_holes')
+    .select('banker_player_id, max_bet')
+    .eq('round_id', roundId).eq('team_id', teamId).eq('hole_number', holeNumber)
+    .maybeSingle()
+  return {
+    bankerPlayerId: (settled?.banker_player_id as string | null) ?? bankerPlayerId,
+    maxBet: (settled?.max_bet as number | null) ?? maxBet,
+  }
+}
+
 export async function saveBankerBets(roundId: string, teamId: string, holeNumber: number, bets: { playerId: string; baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }[]) {
   const authError = await requireAnyLogin()
   if (authError) return { error: authError }
