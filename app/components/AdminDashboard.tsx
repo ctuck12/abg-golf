@@ -3263,47 +3263,6 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Matchup Results ── */}
-            {round && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <h3 className="font-semibold text-gray-900 text-sm mb-3">Matchup Results</h3>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-600">Exclude from Payouts &amp; Settlements</span>
-                  <button type="button"
-                    disabled={roundExcludeMatchupsSaving}
-                    onClick={() => {
-                      const newVal = !roundExcludeMatchups
-                      const apply = async () => {
-                        setRoundExcludeMatchupsState(newVal)
-                        setRoundExcludeMatchupsSaving(true)
-                        setRoundExcludeMatchupsSaved(false)
-                        await setRoundExcludeMatchups(round.id, newVal)
-                        setRoundExcludeMatchupsSaving(false)
-                        setRoundExcludeMatchupsSaved(true)
-                        setTimeout(() => setRoundExcludeMatchupsSaved(false), 3000)
-                      }
-                      if (round.is_started) {
-                        setLiveChangeConfirm({
-                          title: newVal ? 'Exclude matchups from payouts?' : 'Include matchups in payouts?',
-                          changes: [
-                            `Matchup results: ${newVal ? 'Included → Excluded' : 'Excluded → Included'}`,
-                            'Payouts and settlements recalculate immediately.',
-                          ],
-                          onConfirm: () => { void apply() },
-                        })
-                      } else { void apply() }
-                    }}
-                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition disabled:opacity-40 ${roundExcludeMatchups ? 'bg-red-100 text-red-800 border-red-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                    {roundExcludeMatchupsSaving ? '…' : roundExcludeMatchups ? 'On' : 'Off'}
-                  </button>
-                  {roundExcludeMatchupsSaved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
-                </div>
-                {roundExcludeMatchups && (
-                  <p className="text-xs text-gray-400 mt-2">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
-                )}
-              </div>
-            )}
-
             {/* ── Teams / Groups section ── */}
             {round && (
               <div className={`bg-white rounded-2xl border overflow-hidden ${dualTeamsAndGroups ? 'border-indigo-200 border-l-4 border-l-indigo-500' : 'border-gray-200'} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
@@ -5123,6 +5082,48 @@ export default function AdminDashboard({
                       )
                     })}
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Matchup Results — sits down here with the other
+                round-wide switches, after the playing groups ── */}
+            {round && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <h3 className="font-semibold text-gray-900 text-sm mb-3">Matchup Results</h3>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-600">Exclude from Payouts &amp; Settlements</span>
+                  <button type="button"
+                    disabled={roundExcludeMatchupsSaving}
+                    onClick={() => {
+                      const newVal = !roundExcludeMatchups
+                      const apply = async () => {
+                        setRoundExcludeMatchupsState(newVal)
+                        setRoundExcludeMatchupsSaving(true)
+                        setRoundExcludeMatchupsSaved(false)
+                        await setRoundExcludeMatchups(round.id, newVal)
+                        setRoundExcludeMatchupsSaving(false)
+                        setRoundExcludeMatchupsSaved(true)
+                        setTimeout(() => setRoundExcludeMatchupsSaved(false), 3000)
+                      }
+                      if (round.is_started) {
+                        setLiveChangeConfirm({
+                          title: newVal ? 'Exclude matchups from payouts?' : 'Include matchups in payouts?',
+                          changes: [
+                            `Matchup results: ${newVal ? 'Included → Excluded' : 'Excluded → Included'}`,
+                            'Payouts and settlements recalculate immediately.',
+                          ],
+                          onConfirm: () => { void apply() },
+                        })
+                      } else { void apply() }
+                    }}
+                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition disabled:opacity-40 ${roundExcludeMatchups ? 'bg-red-100 text-red-800 border-red-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                    {roundExcludeMatchupsSaving ? '…' : roundExcludeMatchups ? 'On' : 'Off'}
+                  </button>
+                  {roundExcludeMatchupsSaved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
+                </div>
+                {roundExcludeMatchups && (
+                  <p className="text-xs text-gray-400 mt-2">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
                 )}
               </div>
             )}
