@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { runOrQueue, getOfflineQueueCount } from '@/lib/offline-queue'
+import { ensureBankerHole } from '@/app/actions'
 import OfflineSyncBanner from './OfflineSyncBanner'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints, playerCoversHole, roundHcp } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
@@ -313,7 +314,10 @@ export default function PlayingGroupScoreEntry({
         if (bankerData?.holes) {
           const map: Record<number, { bankerPlayerId: string | null; maxBet: number }> = {}
           for (const bh of bankerData.holes as { hole_number: number; banker_player_id: string | null; max_bet: number }[]) map[bh.hole_number] = { bankerPlayerId: bh.banker_player_id, maxBet: bh.max_bet }
-          setBankerHoles(map)
+          // Merge, don't replace: a refetch already in flight when the hole-1
+          // banker is auto-assigned has no row for it yet, and replacing would
+          // blank the banker out until the next poll.
+          setBankerHoles((prev) => ({ ...prev, ...map }))
         }
         if (bankerData?.bets) {
           const map: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>> = {}
@@ -329,13 +333,32 @@ export default function PlayingGroupScoreEntry({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId])
 
-  // Auto-assign a random banker on the first hole if none is set yet
+  // Auto-assign a random banker on the first hole if none is set yet.
+  // Paints the pick immediately (no waiting on the network), then confirms with
+  // the server, which refuses to overwrite a banker that is already locked in.
   useEffect(() => {
     if (!isBanker || !isStarted || players.length === 0 || holes.length === 0) return
     const firstHole = holes[0].hole_number
     if (bankerHoles[firstHole]?.bankerPlayerId) return
-    const randomPlayer = players[Math.floor(Math.random() * players.length)]
-    handleSaveBankerHole(firstHole, randomPlayer.id, defaultMaxBet)
+    // A pick already made on this device stays put even if the page was
+    // reopened before hole 1 was saved and came back without the server row.
+    const lockedId = readBankerLock(firstHole)
+    const pick = players.find((p) => p.id === lockedId) ?? players[Math.floor(Math.random() * players.length)]
+    setBankerHoles((prev) => prev[firstHole]?.bankerPlayerId ? prev : { ...prev, [firstHole]: { bankerPlayerId: pick.id, maxBet: defaultMaxBet } })
+    writeBankerLock(firstHole, pick.id)
+    void (async () => {
+      const res = await ensureBankerHole(roundId, groupId, firstHole, pick.id, defaultMaxBet).catch(() => null)
+      const settled = res && 'bankerPlayerId' in res ? res : null
+      if (!settled?.bankerPlayerId) {
+        // Offline or the action failed — queue the pick so it lands on reconnect.
+        void runOrQueue('saveBankerHole', [roundId, groupId, firstHole, pick.id, defaultMaxBet])
+        return
+      }
+      if (settled.bankerPlayerId === pick.id) return
+      // Someone else claimed hole 1 first — their banker wins.
+      writeBankerLock(firstHole, settled.bankerPlayerId)
+      setBankerHoles((prev) => ({ ...prev, [firstHole]: { bankerPlayerId: settled.bankerPlayerId, maxBet: settled.maxBet ?? defaultMaxBet } }))
+    })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -448,6 +471,23 @@ export default function PlayingGroupScoreEntry({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBanker, savedHoles, bankerHoles, bankerBets, bankerMinBet, savedScores, holeStrokes, holes, players])
 
+  // Banker header row: start large and shrink only as far as the longest set of
+  // names and dollar amounts needs to stay on a single line. Pure character
+  // count — no DOM measurement, so it is right on the first paint.
+  const bankerBarFs = useMemo(() => {
+    const n = players.length
+    if (!isBanker || !n) return 15
+    const cw = Math.min(_vpw, 512) - 32 // header is max-w-lg inside px-4
+    let totalChars = 0
+    for (const p of players) {
+      const amt = bankerRunningTotals[p.id] ?? 0
+      totalChars += p.name.split(' ')[0].length + 1 + `$${Math.abs(Math.round(amt))}`.length // +1 = colon
+    }
+    const overhead = n * 14 // gap between name and amount + gap between players
+    const fs = (cw - overhead) / (totalChars * 0.55)
+    return Math.max(8, Math.min(20, Math.round(fs * 10) / 10))
+  }, [_vpw, players, isBanker, bankerRunningTotals])
+
   async function handleBankerDoubleAll(holeNumber: number, currentlyDoubled: boolean) {
     const hd = bankerHoles[holeNumber]
     if (!hd?.bankerPlayerId) return
@@ -461,9 +501,26 @@ export default function PlayingGroupScoreEntry({
     await handleSaveBankerBets(holeNumber, newBets)
   }
 
+  // The auto-assigned hole-1 banker is remembered on the device so reopening
+  // score entry before the round row lands never re-rolls the pick.
+  function bankerLockKey(holeNumber: number) {
+    return `abg-banker-hole:${roundId}:${groupId}:${holeNumber}`
+  }
+  function readBankerLock(holeNumber: number): string | null {
+    try { return window.localStorage.getItem(bankerLockKey(holeNumber)) } catch { return null }
+  }
+  function writeBankerLock(holeNumber: number, playerId: string | null) {
+    try {
+      if (playerId) window.localStorage.setItem(bankerLockKey(holeNumber), playerId)
+      else window.localStorage.removeItem(bankerLockKey(holeNumber))
+    } catch { /* private mode / storage full — the DB row is the source of truth */ }
+  }
+
   async function handleSaveBankerHole(holeNumber: number, bankerPlayerId: string | null, maxBet: number) {
     const prevBankerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
     setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId, maxBet } }))
+    // Picking or clearing hole 1 by hand overrides whatever the randomizer chose.
+    if (holes.length > 0 && holeNumber === holes[0].hole_number) writeBankerLock(holeNumber, bankerPlayerId)
     await runOrQueue('saveBankerHole', [roundId, groupId, holeNumber, bankerPlayerId, maxBet])
     if (bankerPlayerId !== prevBankerId) {
       setHoleStrokes((prev) => { const n = { ...prev }; delete n[holeNumber]; return n })
@@ -1165,13 +1222,16 @@ export default function PlayingGroupScoreEntry({
             )
           })()}
           {isBanker && Object.values(bankerRunningTotals).some((v) => v !== 0) && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-white/10 mt-1">
+            <div
+              className="flex flex-nowrap pt-1 border-t border-white/10 mt-1"
+              style={{ justifyContent: 'space-evenly', fontSize: `${bankerBarFs}px`, overflow: 'hidden' }}
+            >
               {players.map((p) => {
                 const amt = bankerRunningTotals[p.id] ?? 0
                 return (
                   <button key={p.id} type="button"
                     onClick={() => setPlayerPopup((prev) => prev === p.id ? null : p.id)}
-                    className="flex items-center gap-1 text-xs">
+                    className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 3px' }}>
                     <span style={{ color: 'rgba(255,255,255,0.55)' }}>{p.name.split(' ')[0]}:</span>
                     <span className="font-bold" style={{ color: amt > 0 ? '#4ade80' : amt < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
                       {`$${Math.abs(Math.round(amt))}`}
