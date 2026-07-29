@@ -471,12 +471,14 @@ export default function PlayingGroupScoreEntry({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBanker, savedHoles, bankerHoles, bankerBets, bankerMinBet, savedScores, holeStrokes, holes, players])
 
-  // Banker header row: start large and shrink only as far as the longest set of
-  // names and dollar amounts needs to stay on a single line. Pure character
-  // count — no DOM measurement, so it is right on the first paint.
+  // Banker header row: sized from the character count of the names and dollar
+  // amounts so they stay on a single line, capped well below what a short
+  // foursome would otherwise allow — a full-width row reads as shouting.
+  // Pure character count, no DOM measurement, so it is right on the first paint.
+  const BANKER_BAR_MAX_FS = 15
   const bankerBarFs = useMemo(() => {
     const n = players.length
-    if (!isBanker || !n) return 15
+    if (!isBanker || !n) return BANKER_BAR_MAX_FS
     const cw = Math.min(_vpw, 512) - 32 // header is max-w-lg inside px-4
     let totalChars = 0
     for (const p of players) {
@@ -485,7 +487,7 @@ export default function PlayingGroupScoreEntry({
     }
     const overhead = n * 14 // gap between name and amount + gap between players
     const fs = (cw - overhead) / (totalChars * 0.55)
-    return Math.max(8, Math.min(20, Math.round(fs * 10) / 10))
+    return Math.max(8, Math.min(BANKER_BAR_MAX_FS, Math.round(fs * 10) / 10))
   }, [_vpw, players, isBanker, bankerRunningTotals])
 
   async function handleBankerDoubleAll(holeNumber: number, currentlyDoubled: boolean) {
