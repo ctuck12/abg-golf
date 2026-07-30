@@ -4790,19 +4790,20 @@ export default function AdminDashboard({
                                 + Add works straight away. It's read-only until
                                 Edit, so the name reads as set rather than pending. */}
                             <input ref={groupNameInputRef}
-                              value={newGroupName || defaultGroupName}
+                              value={editingGroupName ? newGroupName : (newGroupName || defaultGroupName)}
                               onChange={(e) => setNewGroupName(e.target.value)}
                               readOnly={!editingGroupName}
+                              placeholder={defaultGroupName}
                               className={`flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none ${editingGroupName ? '' : 'bg-gray-50 text-gray-700'}`} />
                             {editingGroupName ? (
                               <>
                                 <button type="button" onClick={() => setEditingGroupName(false)}
-                                  className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-md text-white font-semibold" style={{ background: navy }}>
+                                  className="flex-shrink-0 text-[11px] px-2 py-0.5 rounded-md text-white font-semibold" style={{ background: navy }}>
                                   Save
                                 </button>
                                 <button type="button"
                                   onClick={() => { setNewGroupName(groupNameBeforeEdit); setEditingGroupName(false) }}
-                                  className="flex-shrink-0 text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">
+                                  className="flex-shrink-0 text-[11px] px-1.5 py-0.5 rounded-md border border-gray-300 text-gray-600 font-semibold">
                                   Cancel
                                 </button>
                               </>
@@ -4810,17 +4811,19 @@ export default function AdminDashboard({
                               <button type="button"
                                 onClick={() => {
                                   setGroupNameBeforeEdit(newGroupName)
+                                  setNewGroupName('')          // start from an empty box
                                   setEditingGroupName(true)
-                                  // Select it so a new name replaces the old one
-                                  setTimeout(() => { groupNameInputRef.current?.focus(); groupNameInputRef.current?.select() }, 0)
+                                  // Cursor at the front of an empty field — selecting
+                                  // the old text instead left iOS drag handles to fight
+                                  setTimeout(() => { groupNameInputRef.current?.focus(); groupNameInputRef.current?.setSelectionRange(0, 0) }, 0)
                                 }}
-                                className="flex-shrink-0 text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">
+                                className="flex-shrink-0 text-[11px] px-2 py-0.5 rounded-md border border-gray-300 text-gray-600 font-semibold">
                                 Edit
                               </button>
                             )}
                             <input type="text" value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
                               placeholder="PIN" maxLength={4} inputMode="numeric"
-                              className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
+                              className="w-14 flex-shrink-0 border border-gray-300 rounded-lg px-1 py-1.5 text-sm text-center focus:outline-none" />
                             {/* Pick this group's players up front (optional — assignable later too) */}
                             {(() => {
                               const allAssigned = new Set(liveGroupPlayers.map(gp => gp.player_id))
