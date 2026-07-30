@@ -4716,9 +4716,10 @@ export default function AdminDashboard({
                         setGroupCountSaving(true)
                         void setPlayingGroupCount(round.id, n).finally(() => setGroupCountSaving(false))
                       }
-                      // Groups hold 3-5, so four apiece is the natural starting
-                      // guess; never suggest fewer than already exist.
-                      const suggested = Math.max(1, livePlayingGroups.length, Math.ceil(teamPlayers.length / 4))
+                      // Fewest groups the field can legally make: groups hold up
+                      // to 5, so 9 players is 2 (5 + 4), not 3. Never fewer than
+                      // already exist.
+                      const autoCount = Math.max(1, livePlayingGroups.length, Math.ceil(teamPlayers.length / 5))
                       return (
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[11px] text-gray-500">Number of groups:</span>
@@ -4734,13 +4735,16 @@ export default function AdminDashboard({
                                   className="w-6 h-6 rounded-md border border-gray-300 text-gray-600 text-sm leading-none disabled:opacity-30">+</button>
                               </div>
                               <button type="button" onClick={() => applyCount(0)}
-                                className="text-[11px] text-gray-400 hover:text-gray-600 underline">use automatic</button>
+                                className="text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">Auto</button>
                             </>
                           ) : (
                             <>
-                              <span className="text-sm font-semibold text-gray-900">Automatic</span>
-                              <button type="button" onClick={() => applyCount(suggested)}
-                                className="text-[11px] text-gray-400 hover:text-gray-600 underline">set an exact number</button>
+                              {/* Show what automatic works out to — "Automatic"
+                                  alone never said how many to build */}
+                              <span className="text-sm font-semibold text-gray-900">{autoCount}</span>
+                              <span className="text-[11px] text-gray-400">auto</span>
+                              <button type="button" onClick={() => applyCount(autoCount)}
+                                className="text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">Edit</button>
                             </>
                           )}
                         </div>
