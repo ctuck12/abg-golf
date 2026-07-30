@@ -440,6 +440,10 @@ export default function AdminDashboard({
   // Players picked while creating a new playing group (assigned on create)
   const [newGroupPlayerIds, setNewGroupPlayerIds] = useState<Set<string>>(new Set())
   const [newGroupSGOpen, setNewGroupSGOpen] = useState(false)
+  // The name comes pre-filled, so it's read-only until Edit is pressed —
+  // that's what makes it read as already set rather than waiting on you.
+  const [editingGroupName, setEditingGroupName] = useState(false)
+  const groupNameInputRef = useRef<HTMLInputElement>(null)
   // 0 = no fixed count, which is the default: the number of groups follows
   // from placing everyone. Non-zero means the admin pinned it deliberately.
   const [targetGroupCount, setTargetGroupCount] = useState(round?.playing_group_count ?? 0)
@@ -1184,7 +1188,7 @@ export default function AdminDashboard({
     setNewGroupSG(emptyNewGroupSG)
     setNewGroupPlayerIds(new Set())
     setNewGroupPending(false)
-    setNewGroupName(''); setNewGroupPin(DEFAULT_PIN)
+    setNewGroupName(''); setNewGroupPin(DEFAULT_PIN); setEditingGroupName(false)
   }
   async function handleDeleteGroup(groupId: string) {
     await deletePlayingGroup(groupId)
@@ -4780,10 +4784,23 @@ export default function AdminDashboard({
                           <div className="flex gap-2 flex-wrap">
                             {/* Really filled in, not a placeholder dressed up as
                                 one: the next group number is the actual value, so
-                                + Add works straight away and typing over it is an
-                                edit rather than filling in a blank. */}
-                            <input value={newGroupName || defaultGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-                              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                                + Add works straight away. It's read-only until
+                                Edit, so the name reads as set rather than pending. */}
+                            <input ref={groupNameInputRef}
+                              value={newGroupName || defaultGroupName}
+                              onChange={(e) => setNewGroupName(e.target.value)}
+                              readOnly={!editingGroupName}
+                              className={`flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none ${editingGroupName ? '' : 'bg-gray-50 text-gray-700'}`} />
+                            <button type="button"
+                              onClick={() => {
+                                if (editingGroupName) { setEditingGroupName(false); return }
+                                setEditingGroupName(true)
+                                // Select it so a new name replaces the old one
+                                setTimeout(() => { groupNameInputRef.current?.focus(); groupNameInputRef.current?.select() }, 0)
+                              }}
+                              className="flex-shrink-0 text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">
+                              {editingGroupName ? 'Done' : 'Edit'}
+                            </button>
                             <input type="text" value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
                               placeholder="PIN" maxLength={4} inputMode="numeric"
                               className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
