@@ -3615,7 +3615,7 @@ export default function AdminDashboard({
                                 ) : (
                                   <button type="button"
                                     onClick={() => { setEditingRosterHcpId(rp.id); setRosterHcpDraft(rp.handicap_index != null ? fmtHcp(rp.handicap_index) : '') }}
-                                    className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
+                                    className="text-xs w-20 text-center px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
                                     title="Edit handicap">
                                     {rp.handicap_index != null ? `HCP ${fmtHcp(rp.handicap_index)}` : 'HCP —'}
                                   </button>
@@ -3694,7 +3694,7 @@ export default function AdminDashboard({
                                 ) : (
                                   <button type="button"
                                     onClick={() => { setEditingGenManualId(p.tempId); setGenManualHcpDraft(p.handicap !== '' ? fmtHcp(parseFloat(p.handicap)) : '') }}
-                                    className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
+                                    className="text-xs w-20 text-center px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
                                     title="Edit handicap">
                                     {p.handicap !== '' ? `HCP ${fmtHcp(parseFloat(p.handicap))}` : 'HCP —'}
                                   </button>
@@ -5033,7 +5033,7 @@ export default function AdminDashboard({
                                           ) : (
                                             <button type="button"
                                               onClick={() => { setEditingHandicapId(p.id); setHandicapDraft(p.handicap != null ? fmtHcp(p.handicap) : '') }}
-                                              className="text-xs px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
+                                              className="text-xs w-20 text-center px-1.5 py-0.5 rounded border border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 transition whitespace-nowrap flex-shrink-0"
                                               title="Edit handicap">
                                               {p.handicap != null ? `HCP ${fmtHcp(p.handicap)}` : 'HCP —'}
                                             </button>
