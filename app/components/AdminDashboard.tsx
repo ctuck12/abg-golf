@@ -65,25 +65,25 @@ const gold = '#f59e0b'
 /**
  * Left-spine color per Admin Hub section.
  *
- * The hub is a long stack of near-identical white cards, so a scroll that
- * lands mid-section left you guessing which one you were in. Each section
- * carries its own spine instead, borrowing whatever accent the section
- * already uses elsewhere (skins = amber, hammer = orange, money = green,
- * destructive = red) so the colors read as meaning, not decoration.
+ * Every section carries a spine so a scroll landing mid-card still shows
+ * where it starts. Navy is the default — the spine marks the boundary and
+ * stays out of the way.
  *
- * Neighbors are always different hue families — that's the property worth
- * preserving when adding a section here.
+ * Color is reserved for the few spines that carry meaning: the two builders
+ * that must not be confused with each other (teams vs playing groups), the
+ * destructive card, and the go button.
  */
+const NAVY_SPINE = 'border-slate-200 border-l-4 border-l-[#0f172a]'
 const SPINE = {
-  roster:   'border-sky-200 border-l-4 border-l-sky-500',
-  round:    'border-slate-300 border-l-4 border-l-slate-700',
-  payout:   'border-emerald-200 border-l-4 border-l-emerald-500',
-  skins:    'border-amber-200 border-l-4 border-l-amber-500',
-  handicap: 'border-cyan-200 border-l-4 border-l-cyan-500',
-  hammer:   'border-orange-200 border-l-4 border-l-orange-500',
+  roster:   NAVY_SPINE,
+  round:    NAVY_SPINE,
+  payout:   NAVY_SPINE,
+  skins:    NAVY_SPINE,
+  handicap: NAVY_SPINE,
+  hammer:   NAVY_SPINE,
+  matchups: NAVY_SPINE,
   teams:    'border-indigo-200 border-l-4 border-l-indigo-500',
   groups:   'border-teal-200 border-l-4 border-l-teal-500',
-  matchups: 'border-purple-200 border-l-4 border-l-purple-500',
   clear:    'border-red-200 border-l-4 border-l-red-500',
   activate: 'border-green-200 border-l-4 border-l-green-500',
 } as const
@@ -3012,8 +3012,10 @@ export default function AdminDashboard({
 
             {/* ── Active Round info card ── */}
             {/* Show immediately on submit using optimistic values; switches to real data after router.refresh() */}
+            {/* Navy spine like every other card — the ● Setting Up / Active /
+                Complete pill carries the round's state */}
             {(round && (!showNewRoundForm || createPending || !!effectivePendingId)) && (
-              <div className="bg-white border-l-4 rounded-xl px-4 py-3 shadow-sm" style={{ borderColor: isSettingUp ? '#d97706' : isComplete ? '#dc2626' : '#16a34a' }}>
+              <div className="bg-white border-l-4 rounded-xl px-4 py-3 shadow-sm" style={{ borderColor: navy }}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
