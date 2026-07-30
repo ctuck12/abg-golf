@@ -5076,18 +5076,33 @@ export default function AdminDashboard({
                       const setIdDraft = (patch: { name?: string; pin?: string }) =>
                         setGroupIdentityDrafts(prev => ({ ...prev, [g.id]: { name: nameDraft, pin: pinDraft, ...patch } }))
                       return (
-                        <div key={g.id} className="bg-teal-50/60 rounded-xl border border-teal-200 p-3 space-y-2.5">
-                          {/* Header — Edit / Remove, same pair as a team card */}
-                          <div className="flex items-start justify-between gap-2">
+                        <div key={g.id} className={`rounded-xl border p-3 space-y-2.5 transition ${isCardExpanded
+                          ? 'bg-white border-teal-500 ring-2 ring-teal-500/40 shadow-md'
+                          : 'bg-teal-50/60 border-teal-200'}`}>
+                          {/* Header — Edit / Remove, same pair as a team card.
+                              While editing it sticks under the step chips so the
+                              group you're in stays named through a long panel. */}
+                          <div className={`flex items-start justify-between gap-2 ${isCardExpanded ? 'sticky z-10 -mx-3 -mt-3 px-3 pt-3 pb-2 rounded-t-xl bg-white border-b border-teal-200' : ''}`}
+                            style={isCardExpanded ? { top: 'var(--admin-stick, 150px)' } : undefined}>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-800">{g.name}</p>
-                              <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
-                              {(() => {
-                                const lbl = groupSideGameLabel(groupSideGames[g.id] ?? initGroupSideGame(g))
-                                return lbl
-                                  ? <p className="text-xs font-medium text-amber-700 mt-0.5">{lbl}</p>
-                                  : <p className="text-xs text-gray-400 mt-0.5">No side game</p>
-                              })()}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-semibold text-gray-800">{g.name}</p>
+                                {isCardExpanded && (
+                                  <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-teal-600 text-white">Editing</span>
+                                )}
+                              </div>
+                              {/* PIN and side game get their own controls in the
+                                  edit panel below — repeating them here would
+                                  only make the stuck header taller */}
+                              {!isCardExpanded && <>
+                                <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
+                                {(() => {
+                                  const lbl = groupSideGameLabel(groupSideGames[g.id] ?? initGroupSideGame(g))
+                                  return lbl
+                                    ? <p className="text-xs font-medium text-amber-700 mt-0.5">{lbl}</p>
+                                    : <p className="text-xs text-gray-400 mt-0.5">No side game</p>
+                                })()}
+                              </>}
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               <button type="button" onClick={toggleCard}
