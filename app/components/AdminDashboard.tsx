@@ -1555,25 +1555,44 @@ export default function AdminDashboard({
   // The lock states above already describe the wizard; this just makes it
   // visible. First step that isn't done is the current one, and every chip
   // jumps to its section.
+  // Steps whose section doesn't exist yet (nothing renders until a round is
+  // saved) say so rather than swallowing the tap.
   function jumpTo(ref: React.RefObject<HTMLDivElement | null>) {
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (ref.current) ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    else nudgeLocked('Save the round first — this step opens up after')
   }
   function nudgeLocked(msg: string) {
     setLockedNudge(msg)
     window.clearTimeout(lockedNudgeTimer.current)
     lockedNudgeTimer.current = window.setTimeout(() => setLockedNudge(''), 2600)
   }
+  // Round is only "done" once a round is actually saved — so the very first
+  // screen (no round yet) and the new-round form both show Round as current.
+  const roundStepDone = !!round && !creatingNewRound
+  // Everything after Round belongs to a saved round. While the form is open for
+  // one that doesn't exist yet, the old round's progress must not leak in.
+  const stepDone = (v: boolean) => roundStepDone && v
+  // Before the round is saved there's no round.format to read, so the steps
+  // follow the format being picked in the form and adapt as it changes.
+  const stripFormat = (roundStepDone ? round?.format : selectedFormat) || selectedFormat || round?.format || ''
+  const stripIsStandard = stripFormat === 'standard'
+  const stripNoBallPool = ['traditional', 'banker', 'hammer'].includes(stripFormat)
   const setupSteps: { key: string; label: string; done: boolean; ref: React.RefObject<HTMLDivElement | null> }[] = [
-    { key: 'round', label: 'Round', done: true, ref: roundSectionRef },
-    ...(hasNoBallPool ? [] : [{ key: 'payout', label: 'Payout', done: effectivePayoutSaved, ref: payoutSectionRef }]),
-    { key: 'skins', label: 'Skins', done: skinsSaved, ref: skinsSectionRef },
-    { key: 'teams', label: isStandard ? 'Teams' : 'Groups', done: teamsSaved, ref: teamsSectionRef },
-    ...(isStandard && mixedGroups === true
-      ? [{ key: 'groups', label: 'Groups', done: mixedGroupsSaved, ref: mixedGroupsSectionRef }]
+    { key: 'round', label: 'Round', done: roundStepDone, ref: roundSectionRef },
+    ...(stripNoBallPool ? [] : [{ key: 'payout', label: 'Payout', done: stepDone(effectivePayoutSaved), ref: payoutSectionRef }]),
+    { key: 'skins', label: 'Skins', done: stepDone(skinsSaved), ref: skinsSectionRef },
+    // No format picked yet → "Teams", the 3/4-ball wording, rather than
+    // defaulting to the label for every other format
+    { key: 'teams', label: (stripIsStandard || !stripFormat) ? 'Teams' : 'Groups', done: stepDone(teamsSaved), ref: teamsSectionRef },
+    ...(stripIsStandard && mixedGroups === true
+      ? [{ key: 'groups', label: 'Groups', done: stepDone(mixedGroupsSaved), ref: mixedGroupsSectionRef }]
       : []),
     { key: 'activate', label: 'Activate', done: false, ref: activateSectionRef },
   ]
   const currentStepKey = setupSteps.find(s => !s.done)?.key
+  // Visible for the whole setup: no round yet, a round mid-setup, or a new
+  // round being created over a live one. Hidden once a round is running.
+  const showSetupStrip = !round || roundIsSettingUp || creatingNewRound
 
   // ── Player count requirements per format ──────────────────────────────────
   // Daytona 4-Man: exactly 4 · Daytona 5-Man: exactly 5 (per group's own type)
@@ -2548,8 +2567,27 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* Admin Hub header */}
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Admin Hub</h2>
+        {/* Admin Hub header + setup progress. The strip sits here rather than
+            inside a card so it holds one spot for the whole setup — including
+            the first screen, before any round exists to hang it off. */}
+        <h2 className={`text-lg font-bold text-gray-900 ${showSetupStrip ? 'mb-1.5' : 'mb-4'}`}>Admin Hub</h2>
+        {showSetupStrip && (
+          <div className="flex flex-wrap items-center gap-1 mb-4">
+            {setupSteps.map((s) => {
+              const current = s.key === currentStepKey
+              return (
+                <button key={s.key} type="button" onClick={() => jumpTo(s.ref)}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition ${
+                    s.done ? 'bg-green-50 text-green-700 border-green-200'
+                      : current ? 'text-white border-transparent'
+                      : 'bg-gray-50 text-gray-400 border-gray-200'}`}
+                  style={current ? { background: navy } : undefined}>
+                  {s.done ? '✓ ' : ''}{s.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* ── CONTENT ──────────────────────────────────────────────────── */}
         <div className="space-y-4">
@@ -3074,25 +3112,6 @@ export default function AdminDashboard({
                     </p>
                   </div>
                 </div>
-                {/* Setup progress — replaces the old paragraph of instructions.
-                    Each chip jumps to its section. */}
-                {roundIsSettingUp && !creatingNewRound && !createPending && !effectivePendingId && (
-                  <div className="flex flex-wrap items-center gap-1 mt-2">
-                    {setupSteps.map((s) => {
-                      const current = s.key === currentStepKey
-                      return (
-                        <button key={s.key} type="button" onClick={() => jumpTo(s.ref)}
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition ${
-                            s.done ? 'bg-green-50 text-green-700 border-green-200'
-                              : current ? 'text-white border-transparent'
-                              : 'bg-gray-50 text-gray-400 border-gray-200'}`}
-                          style={current ? { background: navy } : undefined}>
-                          {s.done ? '✓ ' : ''}{s.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
               </div>
             )}
 
