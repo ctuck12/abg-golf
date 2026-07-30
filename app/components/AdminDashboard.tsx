@@ -1688,7 +1688,12 @@ export default function AdminDashboard({
     const inner = (
       <>
         <h3 className="font-semibold text-gray-400 text-sm truncate">{label}</h3>
-        <span className="text-[11px] text-gray-400 flex-shrink-0">{creatingNewRound ? newRoundFirst : opens}</span>
+        <span className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-[11px] text-gray-400">{creatingNewRound ? newRoundFirst : opens}</span>
+          {/* Only the tappable row gets a caret — the rest genuinely don't
+              open, so the caret marks exactly which one responds */}
+          {onTap && <span className="text-gray-400 text-sm leading-none">▼</span>}
+        </span>
       </>
     )
     const box = `bg-gray-100 rounded-2xl border border-gray-200 px-4 py-3 flex items-center justify-between gap-3 ${spine} opacity-70`
