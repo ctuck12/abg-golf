@@ -970,6 +970,24 @@ export async function createPlayingGroup(roundId: string, name: string, pin: str
   return { success: true, id: data.id }
 }
 
+// Rename a playing group / change its scorekeeper PIN after it was created.
+export async function updatePlayingGroupIdentity(groupId: string, name: string, pin: string) {
+  const authError = await requireAdminAuth()
+  if (authError) return { error: authError }
+  const supabase = createServerClient()
+  const { data: before } = await supabase
+    .from('playing_groups').select('name, pin, round_id').eq('id', groupId).single()
+  const { error } = await supabase.from('playing_groups').update({ name, pin }).eq('id', groupId)
+  if (error) return { error: error.message }
+  if (before) {
+    const changes: string[] = []
+    if (before.name !== name) changes.push(`renamed to ${name}`)
+    if (before.pin !== pin) changes.push('PIN changed')
+    if (changes.length) await logRoundEvent(supabase, before.round_id, 'Group settings', `${before.name}: ${changes.join(', ')}`)
+  }
+  return { success: true }
+}
+
 export async function deletePlayingGroup(groupId: string) {
   const authError = await requireAdminAuth()
   if (authError) return { error: authError }

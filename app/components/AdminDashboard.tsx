@@ -15,6 +15,7 @@ import {
   toggleMixedGroups,
   createPlayingGroup,
   deletePlayingGroup,
+  updatePlayingGroupIdentity,
   setPlayerGroup,
   createRosterPlayer,
   updateRosterPlayer,
@@ -518,6 +519,11 @@ export default function AdminDashboard({
   const [manualGroupHandicap, setManualGroupHandicap] = useState('')
   const [manualGroupPending, setManualGroupPending] = useState(false)
   const [expandedGroupCards, setExpandedGroupCards] = useState<Set<string>>(new Set())
+  // Name / PIN edits in a group's Edit panel, kept per group so two open cards
+  // can't overwrite each other. Absent = showing the saved values.
+  const [groupIdentityDrafts, setGroupIdentityDrafts] = useState<Record<string, { name: string; pin: string }>>({})
+  const [groupIdentityPending, setGroupIdentityPending] = useState<string | null>(null)
+  const [groupIdentityError, setGroupIdentityError] = useState<{ id: string; msg: string } | null>(null)
   const [liveManualPlayers, setLiveManualPlayers] = useState<Player[]>([])
   const [expandedGroupSideGame, setExpandedGroupSideGame] = useState<string | null>(null)
   type GroupSideGame = { daytonaEnabled: boolean; daytonaType: string; daytonaSubVariant: string; daytonaPayout: string; bankerEnabled: boolean; bankerMinBet: string; bankerMaxBet: string; autoStrokes: boolean; strokeRounding: string; saving: boolean; saved: boolean }
@@ -1205,6 +1211,22 @@ export default function AdminDashboard({
     setNewGroupPlayerIds(new Set())
     setNewGroupPending(false)
     setNewGroupName(''); setNewGroupPin(DEFAULT_PIN); setEditingGroupName(false)
+  }
+  // Rename / re-PIN an existing group from its Edit panel. Same rules as the
+  // create form: 4-digit PIN, no duplicate names.
+  async function handleSaveGroupIdentity(groupId: string, name: string, pin: string) {
+    const trimmed = name.trim()
+    if (!trimmed) { setGroupIdentityError({ id: groupId, msg: 'Give the group a name.' }); return }
+    if (!/^\d{4}$/.test(pin.trim())) { setGroupIdentityError({ id: groupId, msg: 'PIN must be exactly 4 digits.' }); return }
+    if (livePlayingGroups.some(g => g.id !== groupId && g.name.toLowerCase() === trimmed.toLowerCase())) {
+      setGroupIdentityError({ id: groupId, msg: 'A group with that name already exists.' }); return
+    }
+    setGroupIdentityError(null); setGroupIdentityPending(groupId)
+    const res = await updatePlayingGroupIdentity(groupId, trimmed, pin.trim())
+    setGroupIdentityPending(null)
+    if (res.error) { setGroupIdentityError({ id: groupId, msg: res.error }); return }
+    setLivePlayingGroups(prev => prev.map(g => g.id === groupId ? { ...g, name: trimmed, pin: pin.trim() } : g))
+    setGroupIdentityDrafts(prev => { const next = { ...prev }; delete next[groupId]; return next })
   }
   async function handleDeleteGroup(groupId: string) {
     await deletePlayingGroup(groupId)
@@ -5006,20 +5028,30 @@ export default function AdminDashboard({
                       const groupFull = assignedPlayers.length >= 5
                       const isExpanded = expandedGroupAssign === g.id
                       const isCardExpanded = expandedGroupCards.has(g.id)
-                      const toggleCard = () => setExpandedGroupCards(prev => {
-                        const next = new Set(prev)
-                        next.has(g.id) ? next.delete(g.id) : next.add(g.id)
-                        return next
-                      })
+                      const toggleCard = () => {
+                        setExpandedGroupCards(prev => {
+                          const next = new Set(prev)
+                          next.has(g.id) ? next.delete(g.id) : next.add(g.id)
+                          return next
+                        })
+                        // Closing throws away an unsaved name/PIN edit
+                        if (isCardExpanded) {
+                          setGroupIdentityDrafts(prev => { const next = { ...prev }; delete next[g.id]; return next })
+                          setGroupIdentityError(cur => cur?.id === g.id ? null : cur)
+                        }
+                      }
+                      const idDraft = groupIdentityDrafts[g.id]
+                      const nameDraft = idDraft?.name ?? g.name
+                      const pinDraft = idDraft?.pin ?? g.pin
+                      const identityDirty = nameDraft.trim() !== g.name || pinDraft.trim() !== g.pin
+                      const setIdDraft = (patch: { name?: string; pin?: string }) =>
+                        setGroupIdentityDrafts(prev => ({ ...prev, [g.id]: { name: nameDraft, pin: pinDraft, ...patch } }))
                       return (
                         <div key={g.id} className="bg-teal-50/60 rounded-xl border border-teal-200 p-3 space-y-2.5">
-                          {/* Header — always visible, clickable to expand */}
-                          <div className="flex items-center justify-between cursor-pointer select-none" onClick={toggleCard}>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-sm font-semibold text-gray-800">{g.name}</p>
-                                <span className="text-gray-400 text-xs">{isCardExpanded ? '▲' : '▼'}</span>
-                              </div>
+                          {/* Header — Edit / Remove, same pair as a team card */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">{g.name}</p>
                               <p className="text-xs text-gray-400 font-mono">PIN: {g.pin}</p>
                               {(() => {
                                 const lbl = groupSideGameLabel(groupSideGames[g.id] ?? initGroupSideGame(g))
@@ -5028,8 +5060,16 @@ export default function AdminDashboard({
                                   : <p className="text-xs text-gray-400 mt-0.5">No side game</p>
                               })()}
                             </div>
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmRemoveGroupId(g.id) }}
-                              className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <button type="button" onClick={toggleCard}
+                                className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
+                                {isCardExpanded ? 'Done' : 'Edit'}
+                              </button>
+                              <button type="button" onClick={() => setConfirmRemoveGroupId(g.id)}
+                                className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded hover:bg-red-50">
+                                Remove
+                              </button>
+                            </div>
                           </div>
 
                           {/* Assigned player chips — always visible */}
@@ -5092,8 +5132,31 @@ export default function AdminDashboard({
                             {assignedPlayers.length === 0 && <p className="text-xs text-gray-400">No players assigned yet</p>}
                           </div>
 
-                          {/* Expanded body — add-player panel + side game */}
+                          {/* Expanded body — name/PIN, add-player panel, side game:
+                              the same set of choices the create form offers */}
                           {isCardExpanded && <>
+
+                          {/* Group name + scorekeeper PIN */}
+                          <div className="border border-gray-200 rounded-lg bg-white p-2.5 space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <input type="text" value={nameDraft} onChange={e => setIdDraft({ name: e.target.value })}
+                                placeholder="Group name" aria-label="Group name"
+                                className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none" />
+                              <input type="text" inputMode="numeric" maxLength={4} value={pinDraft}
+                                onChange={e => setIdDraft({ pin: e.target.value.replace(/\D/g, '') })}
+                                placeholder="PIN" aria-label="Scorekeeper PIN"
+                                className="w-14 border border-gray-300 rounded-lg px-1.5 py-1.5 text-sm text-center font-mono focus:outline-none" />
+                              <button type="button" disabled={!identityDirty || groupIdentityPending === g.id}
+                                onClick={() => handleSaveGroupIdentity(g.id, nameDraft, pinDraft)}
+                                className="text-xs px-2.5 py-1.5 rounded-lg font-semibold text-white disabled:opacity-40 transition"
+                                style={{ background: navy }}>
+                                {groupIdentityPending === g.id ? '…' : 'Save'}
+                              </button>
+                            </div>
+                            {groupIdentityError?.id === g.id && (
+                              <p className="text-xs text-red-600">{groupIdentityError.msg}</p>
+                            )}
+                          </div>
 
                           {/* Inline add-player panel */}
                           {!groupFull && (
