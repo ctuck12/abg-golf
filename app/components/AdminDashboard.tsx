@@ -1617,6 +1617,30 @@ export default function AdminDashboard({
   // shallowest unlocked section — so this never rings a locked card.
   const stepRing = (key: string) => (showSetupStrip && currentStepKey === key) ? 'ring-2 ring-[#0f172a]/25' : ''
 
+  // Opens a team's edit form — shared by the Edit button and the card's
+  // "+ Side Game" chip, which is the only hint side games exist when they're
+  // all off and mixed groups is No.
+  function beginEditTeam(team: typeof teams[number]) {
+    const v = team.daytona_variant ?? (isDaytona ? (round?.daytona_variant ?? '') : '')
+    const [variant, payout] = v.includes('|') ? v.split('|') : [v, '']
+    setEditingTeamId(team.id)
+    setEditName(team.name)
+    setEditPin(team.pin)
+    setEditDaytonaEnabled(!!v)
+    setEditDaytonaType(variant.startsWith('5man') ? '5' : variant === '4man' ? '4' : '')
+    setEditDaytonaSubVariant(variant === '5man-flares' ? 'flares' : variant === '5man-normal' ? 'normal' : '')
+    setEditDaytonaPayout(payout || '')
+    setEditDaytonaBack9(team.daytona_variant_back9 ?? '')
+    setEditBankerEnabled(!!team.banker_side_game)
+    setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
+    setEditBankerMaxBet(team.banker_side_game_max_bet != null ? String(team.banker_side_game_max_bet) : '')
+    setEditAutoStrokes(!!team.auto_strokes)
+    setEditHammerEnabled(!!team.hammer_side_game)
+    setEditHammerBaseBet(team.hammer_base_bet != null ? String(team.hammer_base_bet) : '1')
+    setEditHammerFormat(team.hammer_format ?? 'stroke')
+    setEditTeamStrokeRounding(team.stroke_rounding ?? hcpRounding)
+  }
+
   // ── Locked sections collapse ──────────────────────────────────────────────
   // A locked section used to sit there full height and unusable, so the card
   // you could actually act in was buried under a screenful of dead ones. A
@@ -4360,6 +4384,16 @@ export default function AdminDashboard({
                                 {team.hammer_side_game && <> · <span className="font-medium text-orange-700">Hammer · {team.hammer_format === 'match' ? 'Match' : 'Stroke'} · ${team.hammer_base_bet ?? 1}/hole</span></>}
                                 {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
                               </p>
+                              {/* With every side game off there was nothing on the card to
+                                  say they exist — you had to know to press Edit. When one is
+                                  on it already shows in the line above, so this only appears
+                                  when there's nothing to show. */}
+                              {!team.daytona_variant && !team.banker_side_game && !team.hammer_side_game && (
+                                <button type="button" onClick={() => beginEditTeam(team)}
+                                  className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded-full px-2 py-0.5 mt-1 hover:bg-amber-100 transition">
+                                  + Side Game
+                                </button>
+                              )}
                               <p className="text-xs mt-0.5">
                                 {(() => {
                                   if (isTraditional) {
@@ -4392,26 +4426,7 @@ export default function AdminDashboard({
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <button onClick={() => {
-                                const v = team.daytona_variant ?? (isDaytona ? (round?.daytona_variant ?? '') : '')
-                                const [variant, payout] = v.includes('|') ? v.split('|') : [v, '']
-                                setEditingTeamId(team.id)
-                                setEditName(team.name)
-                                setEditPin(team.pin)
-                                setEditDaytonaEnabled(!!v)
-                                setEditDaytonaType(variant.startsWith('5man') ? '5' : variant === '4man' ? '4' : '')
-                                setEditDaytonaSubVariant(variant === '5man-flares' ? 'flares' : variant === '5man-normal' ? 'normal' : '')
-                                setEditDaytonaPayout(payout || '')
-                                setEditDaytonaBack9(team.daytona_variant_back9 ?? '')
-                                setEditBankerEnabled(!!team.banker_side_game)
-                                setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
-                                setEditBankerMaxBet(team.banker_side_game_max_bet != null ? String(team.banker_side_game_max_bet) : '')
-                                setEditAutoStrokes(!!team.auto_strokes)
-                                setEditHammerEnabled(!!team.hammer_side_game)
-                                setEditHammerBaseBet(team.hammer_base_bet != null ? String(team.hammer_base_bet) : '1')
-                                setEditHammerFormat(team.hammer_format ?? 'stroke')
-                                setEditTeamStrokeRounding(team.stroke_rounding ?? hcpRounding)
-                              }}
+                              <button onClick={() => beginEditTeam(team)}
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
                                 Edit
                               </button>
