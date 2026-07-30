@@ -1775,6 +1775,18 @@ export default function AdminDashboard({
     )
   }
 
+  // A step reopened from its done row needs a way back out. Saving collapses
+  // it (those handlers clear reopenedStep themselves); this is for backing out
+  // without changing anything.
+  function collapseCaret(key: string, done: boolean) {
+    if (!showSetupStrip || !done || reopenedStep !== key) return null
+    return (
+      <button type="button" onClick={() => setReopenedStep(null)}
+        aria-label="Collapse section"
+        className="text-green-600 text-sm leading-none px-1 flex-shrink-0">▲</button>
+    )
+  }
+
   // ── Player count requirements per format ──────────────────────────────────
   // Daytona 4-Man: exactly 4 · Daytona 5-Man: exactly 5 (per group's own type)
   // Traditional: 2–5 players per group
@@ -3321,9 +3333,12 @@ export default function AdminDashboard({
               doneRow('payout', payoutLabel, stepSummary.payout, SPINE.payout, payoutSectionRef)}
             {round && !hasNoBallPool && payoutStep === 'open' && (
               <div ref={payoutSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative ${SPINE.payout} ${stepRing('payout')}`}>
-                <h3 className="font-semibold text-gray-900 mb-3 text-sm">
-                  {isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value'}
-                </h3>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    {isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value'}
+                  </h3>
+                  {collapseCaret('payout', effectivePayoutSaved)}
+                </div>
                 <form action={ballAction} ref={ballFormRef} className="space-y-3"
                   onSubmit={(e) => {
                     if (ballConfirmBypass.current || !round.is_started) { ballConfirmBypass.current = false; return }
@@ -3374,7 +3389,10 @@ export default function AdminDashboard({
               doneRow('skins', 'Skins Game', stepSummary.skins, SPINE.skins, skinsSectionRef)}
             {round && skinsStep === 'open' && (
               <div ref={skinsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative ${SPINE.skins} ${stepRing('skins')}`}>
-                <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className="font-semibold text-gray-900 text-sm">Skins Game</h3>
+                  {collapseCaret('skins', skinsSaved)}
+                </div>
                 <form action={skinsAction} ref={skinsFormRef} className="space-y-4"
                   onSubmit={(e) => {
                     if (skinsConfirmBypass.current) { skinsConfirmBypass.current = false; return }
@@ -3611,13 +3629,16 @@ export default function AdminDashboard({
                       <span className="text-xs font-medium text-indigo-700">{genNounCap} Generator</span>
                     </label>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setShowAddTeamForm((v) => !v); setNewTeamStrokeRounding(hcpRounding) }}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium transition text-white"
-                    style={{ background: navy }}>
-                    {(round.format === 'daytona' || round.format === 'traditional') ? 'Add Group +' : 'Add Team +'}
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => { setShowAddTeamForm((v) => !v); setNewTeamStrokeRounding(hcpRounding) }}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition text-white"
+                      style={{ background: navy }}>
+                      {(round.format === 'daytona' || round.format === 'traditional') ? 'Add Group +' : 'Add Team +'}
+                    </button>
+                    {collapseCaret('teams', teamsSaved)}
+                  </div>
                 </div>
                 {/* Mixed Groups only — spells out that these are the scoring
                     teams, not the carts, so this card can't be mistaken for
@@ -4757,9 +4778,12 @@ export default function AdminDashboard({
                     Teams saved — now build the playing groups and put every player in one.
                   </p>
                 )}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-gray-900 text-sm">Playing Groups</h3>
-                  <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200">On Course</span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-gray-900 text-sm">Playing Groups</h3>
+                    <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200">On Course</span>
+                  </div>
+                  {collapseCaret('groups', mixedGroupsSaved)}
                 </div>
                 <p className="text-xs text-teal-700 -mt-2">Who actually rides together — each group has its own scorekeeper PIN and side games.</p>
 
