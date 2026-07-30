@@ -28,6 +28,7 @@ import {
   addManualPlayerToGroup,
   removeManualPlayerFromGroup,
   updatePlayingGroupSettings,
+  setPlayingGroupCount,
   setRoundExcludeMatchups,
 } from '@/app/actions'
 import {
@@ -439,6 +440,11 @@ export default function AdminDashboard({
   // Players picked while creating a new playing group (assigned on create)
   const [newGroupPlayerIds, setNewGroupPlayerIds] = useState<Set<string>>(new Set())
   const [newGroupSGOpen, setNewGroupSGOpen] = useState(false)
+  // 0 = no fixed count, which is the default: the number of groups follows
+  // from placing everyone. Non-zero means the admin pinned it deliberately.
+  const [targetGroupCount, setTargetGroupCount] = useState(round?.playing_group_count ?? 0)
+  const [groupCountDraft, setGroupCountDraft] = useState('')
+  const [showGroupCountOverride, setShowGroupCountOverride] = useState(false)
   // Side game configured while creating a new playing group (saved on create)
   const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', bankerMaxBet: '', autoStrokes: false, strokeRounding: round?.handicap_rounding ?? 'down' }
   const [newGroupSG, setNewGroupSG] = useState(emptyNewGroupSG)
@@ -1553,7 +1559,8 @@ export default function AdminDashboard({
     const n = liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).length
     return n >= 3 && n <= 5
   })
-  const groupsComplete = livePlayingGroups.length > 0 && unassignedPlayers.length === 0 && groupsAllLegalSize
+  const groupCountMet = targetGroupCount === 0 || livePlayingGroups.length === targetGroupCount
+  const groupsComplete = livePlayingGroups.length > 0 && unassignedPlayers.length === 0 && groupsAllLegalSize && groupCountMet
   const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupsComplete)
   // If the new-round form is open over an existing round, lock all downstream sections
   // (they belong to the old round; settings don't apply until the new round is saved)
@@ -1752,6 +1759,7 @@ export default function AdminDashboard({
     if (!teamsSaved) activateMissingItems.push((isDaytona || isTraditional) ? 'Save Group(s)' : 'Save Teams')
     if (mixedGroups === true && !allGroupsMeetMinimum) activateMissingItems.push('Each playing group needs 3–5 players')
     if (mixedGroups === true && unassignedPlayers.length > 0) activateMissingItems.push(`${unassignedPlayers.length} player${unassignedPlayers.length === 1 ? ' is' : 's are'} not in a playing group yet`)
+    if (mixedGroups === true && !groupCountMet) activateMissingItems.push(`Set to ${targetGroupCount} playing groups — ${livePlayingGroups.length} created`)
     if (teamsSaved && !allTeamsMeetRequirement) {
       if (isDaytona) {
         activateMissingItems.push('Each group needs the correct number of players')
@@ -4694,7 +4702,51 @@ export default function AdminDashboard({
                       {!groupsComplete && livePlayingGroups.length > 0 && !groupsAllLegalSize && (
                         <span className="text-[11px] text-amber-700">Every group needs 3–5 players</span>
                       )}
+                      {targetGroupCount > 0 && (
+                        <span className="text-[11px] text-gray-500">{livePlayingGroups.length} / {targetGroupCount} groups</span>
+                      )}
                     </div>
+
+                    {/* Escape hatch — the count normally follows from placing
+                        everyone, but an admin who knows they want exactly N
+                        carts can pin it and have the form stop there. */}
+                    {targetGroupCount > 0 ? (
+                      <button type="button"
+                        onClick={async () => {
+                          setTargetGroupCount(0)
+                          if (round) await setPlayingGroupCount(round.id, 0)
+                        }}
+                        className="text-[11px] text-gray-400 hover:text-gray-600 underline">
+                        Fixed at {targetGroupCount} groups — remove the limit
+                      </button>
+                    ) : showGroupCountOverride ? (
+                      <div className="flex items-center gap-2">
+                        <input type="number" min="1" max="20" autoFocus
+                          value={groupCountDraft}
+                          onChange={e => setGroupCountDraft(e.target.value)}
+                          placeholder="e.g. 4"
+                          className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none" />
+                        <button type="button"
+                          onClick={async () => {
+                            const n = Math.max(0, parseInt(groupCountDraft) || 0)
+                            if (!round || n === 0) return
+                            setTargetGroupCount(n)
+                            setShowGroupCountOverride(false)
+                            setGroupCountDraft('')
+                            await setPlayingGroupCount(round.id, n)
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: navy }}>
+                          Set
+                        </button>
+                        <button type="button" onClick={() => { setShowGroupCountOverride(false); setGroupCountDraft('') }}
+                          className="text-[11px] text-gray-400">Cancel</button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setShowGroupCountOverride(true)}
+                        className="text-[11px] text-gray-400 hover:text-gray-600 underline">
+                        Need an exact number of groups?
+                      </button>
+                    )}
 
                     {
                       <>
@@ -4703,7 +4755,7 @@ export default function AdminDashboard({
 
                         {/* Create group form — always available; you stop when
                             everyone is placed, not at a preset count */}
-                        {unassignedPlayers.length > 0 || livePlayingGroups.length === 0 ? (
+                        {(unassignedPlayers.length > 0 || livePlayingGroups.length === 0) && (targetGroupCount === 0 || livePlayingGroups.length < targetGroupCount) ? (
                           <div className="flex gap-2 flex-wrap">
                             <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
                               placeholder={`Group ${livePlayingGroups.length + 1}`} className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
