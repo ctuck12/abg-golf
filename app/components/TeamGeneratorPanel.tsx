@@ -49,6 +49,7 @@ export default function TeamGeneratorPanel({
   const [history, setHistory] = useState<{ teams: GeneratedTeam[]; names: string[] }[]>([])
   const [historyIdx, setHistoryIdx] = useState(0)
   const [atStartNotice, setAtStartNotice] = useState(false)
+  const [poolOpen, setPoolOpen] = useState(true)
 
   const totalSelected = selectedRosterIds.size + manualPlayers.length
 
@@ -84,6 +85,7 @@ export default function TeamGeneratorPanel({
     setHistoryIdx(0)
     setGeneratedTeams(result)
     setEditNames(names)
+    setPoolOpen(false)
   }
 
   function handleRegenerate() {
@@ -176,7 +178,14 @@ export default function TeamGeneratorPanel({
 
       {/* Player pool */}
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-gray-700">Select Players</p>
+        {/* Collapses once teams are generated — the pool has done its job by
+            then and the preview is what matters */}
+        <button type="button" onClick={() => setPoolOpen(v => !v)}
+          className="flex items-center gap-1.5 w-full text-left">
+          <p className="text-xs font-semibold text-gray-700">Select Players</p>
+          <span className="text-gray-400 text-xs ml-auto">{poolOpen ? '▲' : '▼'}</span>
+        </button>
+        {poolOpen && (<>
 
         {roster.length > 0 && (
           <div className="bg-white rounded-xl border border-indigo-200 p-3 space-y-2 max-h-52 overflow-y-auto">
@@ -306,6 +315,8 @@ export default function TeamGeneratorPanel({
             </div>
           )}
         </div>
+
+        </>)}
 
         {totalSelected > 0 && (
           <p className="text-xs text-indigo-600 font-medium">{totalSelected} player{totalSelected !== 1 ? 's' : ''} selected</p>

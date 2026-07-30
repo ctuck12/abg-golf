@@ -436,6 +436,7 @@ export default function AdminDashboard({
   const [genAtStartNotice, setGenAtStartNotice] = useState(false)
   // Skins participants picked in the generator preview (by generated-player id)
   const [genSkinsIds, setGenSkinsIds] = useState<Set<string>>(new Set())
+  const [genPoolOpen, setGenPoolOpen] = useState(true)
   // Players picked while creating a new playing group (assigned on create)
   const [newGroupPlayerIds, setNewGroupPlayerIds] = useState<Set<string>>(new Set())
   // Side game configured while creating a new playing group (saved on create)
@@ -913,6 +914,7 @@ export default function AdminDashboard({
     setGeneratedTeams(result)
     setGenEditNames(names)
     setGenEditPins(pins)
+    setGenPoolOpen(false)
     // Everyone starts in skins. Opting a couple of people out is a handful of
     // taps; opting everyone in was one tap per player, and forgetting blocked
     // activation on "fewer than 2 skins participants".
@@ -3556,7 +3558,14 @@ export default function AdminDashboard({
 
                     {/* Player pool */}
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold text-gray-700">Select Players for the Round</p>
+                      {/* Collapses once teams are generated — the pool has done
+                          its job by then and the preview is what matters */}
+                      <button type="button" onClick={() => setGenPoolOpen(v => !v)}
+                        className="flex items-center gap-1.5 w-full text-left">
+                        <p className="text-xs font-semibold text-gray-700">Select Players for the Round</p>
+                        <span className="text-gray-400 text-xs ml-auto">{genPoolOpen ? '▲' : '▼'}</span>
+                      </button>
+                      {genPoolOpen && (<>
 
                       {/* Roster search + list */}
                       {liveRoster.length > 0 && (
@@ -3698,6 +3707,8 @@ export default function AdminDashboard({
                           </div>
                         )}
                       </div>
+
+                      </>)}
 
                       {/* Player count summary */}
                       {(() => {
