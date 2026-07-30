@@ -98,8 +98,12 @@ const FORMAT_BLURB: Record<string, string> = {
   hammer: '2 or 4 players; the hammer doubles the stake.',
 }
 
-// Clears the fixed header when the setup strip jumps to a section
-const JUMP_OFFSET = { scrollMarginTop: '100px' } as const
+// Clears the fixed header when a jump lands on a section, so the section's
+// heading is the first thing under the header rather than hidden behind it.
+// --admin-hdr is measured from the real header (see the ResizeObserver below)
+// because its height varies with the device's safe-area inset — a fixed guess
+// leaves the top of the card cut off on phones with a Dynamic Island.
+const JUMP_OFFSET = { scrollMarginTop: 'calc(var(--admin-hdr, 104px) + 12px)' } as const
 
 function SortablePlayerRow({ id, children }: { id: string; children: (dragProps: Record<string, unknown>) => ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
@@ -570,7 +574,12 @@ export default function AdminDashboard({
   // editing a live round stays put.
   function advanceTo(ref: React.RefObject<HTMLDivElement | null>) {
     if (!roundIsSettingUp) return
-    setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
+    // The next section expands from a collapsed row as it unlocks, and
+    // router.refresh() can reflow again behind that — wait for the paint so
+    // the scroll lands on the section's final position, not its old one.
+    setTimeout(() => requestAnimationFrame(() =>
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    ), 400)
   }
   useEffect(() => {
     if (ballState?.success) {
@@ -1687,6 +1696,8 @@ export default function AdminDashboard({
     if (!header) return
     const ro = new ResizeObserver(() => {
       if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
+      // Publish the measured height for JUMP_OFFSET's scroll-margin
+      document.documentElement.style.setProperty('--admin-hdr', `${header.offsetHeight}px`)
     })
     ro.observe(header)
     return () => ro.disconnect()
