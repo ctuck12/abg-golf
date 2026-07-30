@@ -13,7 +13,6 @@ import {
   clearAllScores,
   updateRoundAutoHandicap,
   toggleMixedGroups,
-  setPlayingGroupCount,
   createPlayingGroup,
   deletePlayingGroup,
   setPlayerGroup,
@@ -475,11 +474,6 @@ export default function AdminDashboard({
     const ls = getSetupLS(round?.id)
     return ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true)
   })
-  const [targetGroupCount, setTargetGroupCount] = useState(round?.playing_group_count ?? 0)
-  const [groupCountSaved, setGroupCountSaved] = useState<boolean>(() => {
-    const ls = getSetupLS(round?.id)
-    return ls.groupCountSaved ?? !!(round?.playing_group_count && round.playing_group_count > 0)
-  })
   const [livePlayingGroups, setLivePlayingGroups] = useState<PlayingGroup[]>(playingGroups)
   const [liveGroupPlayers, setLiveGroupPlayers] = useState<PlayingGroupPlayer[]>(playingGroupPlayers)
   const [newGroupName, setNewGroupName] = useState('')
@@ -632,7 +626,6 @@ export default function AdminDashboard({
     setPayoutSaved(ls.payoutSaved ?? (hasRealBallValue || ['traditional', 'banker', 'hammer'].includes(round?.format ?? '')))
     setSkinsSaved(ls.skinsSaved ?? false)
     setTeamsSaved(ls.teamsSaved ?? false)
-    setGroupCountSaved(ls.groupCountSaved ?? !!(round?.playing_group_count && round.playing_group_count > 0))
     setMixedGroupsAnswered(ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true))
     setMixedGroups(round?.mixed_groups ?? null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1123,9 +1116,6 @@ export default function AdminDashboard({
     // Playing groups are cleared on any switch (server deletes them both directions)
     setLivePlayingGroups([])
     setLiveGroupPlayers([])
-    setTargetGroupCount(0)
-    setGroupCountSaved(false)
-    setSetupLS(round.id, 'groupCountSaved', false)
     await toggleMixedGroups(round.id, value)
     router.refresh()
     setMixedGroupsPending(false)
@@ -1139,9 +1129,6 @@ export default function AdminDashboard({
     if (mixedGroups) {
       setLivePlayingGroups([])
       setLiveGroupPlayers([])
-      setTargetGroupCount(0)
-      setGroupCountSaved(false)
-      setSetupLS(round.id, 'groupCountSaved', false)
     }
     await toggleMixedGroups(round.id, mixedGroups)
     router.refresh()
@@ -1556,7 +1543,18 @@ export default function AdminDashboard({
   const setupBase = roundIsSettingUp && !createPending && !effectivePendingId
   const effectivePayoutSaved = payoutSaved || hasNoBallPool   // Traditional/Banker/Hammer have no payout step
   // Mixed groups is "done" when: not standard, OR chose No, OR chose Yes + Set clicked + all groups created
-  const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupCountSaved && targetGroupCount > 0 && livePlayingGroups.length === targetGroupCount)
+  // Playing groups are finished when everyone on a team is riding somewhere and
+  // every group is a legal size — not when a count typed up front is reached.
+  // That old rule could read "2 / 2 added ✓" with players in no group at all,
+  // and an unassigned player has no scorekeeper screen to enter scores on.
+  const groupAssignedIds = new Set(liveGroupPlayers.map(gp => gp.player_id))
+  const unassignedPlayers = teamPlayers.filter(p => !groupAssignedIds.has(p.id))
+  const groupsAllLegalSize = livePlayingGroups.every(g => {
+    const n = liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).length
+    return n >= 3 && n <= 5
+  })
+  const groupsComplete = livePlayingGroups.length > 0 && unassignedPlayers.length === 0 && groupsAllLegalSize
+  const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupsComplete)
   // If the new-round form is open over an existing round, lock all downstream sections
   // (they belong to the old round; settings don't apply until the new round is saved)
   const creatingNewRound = showNewRoundForm && !!round && !editingRoundSettings
@@ -1742,9 +1740,7 @@ export default function AdminDashboard({
     return count >= (round?.balls_count ?? 3) && count <= 5
   })
 
-  const allGroupsMeetMinimum = mixedGroups !== true || livePlayingGroups.every(g =>
-    liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).length >= 3
-  )
+  const allGroupsMeetMinimum = mixedGroups !== true || groupsAllLegalSize
   // Skins enabled but fewer than 2 participants marked → block activation
   const skinsNeedsParticipants = skinsEnabled === true && skinsParticipants.length < 2
   const canActivate = roundIsSettingUp && skinsSaved && effectivePayoutSaved && mixedGroupsSaved && teamsSaved && allTeamsMeetRequirement && allGroupsMeetMinimum && !skinsNeedsParticipants
@@ -1754,7 +1750,8 @@ export default function AdminDashboard({
     if (!skinsSaved) activateMissingItems.push('Save Skins Settings')
     if (isStandard && !mixedGroupsSaved) activateMissingItems.push(!mixedGroupsAnswered ? 'Answer the Mixed Groups question (top of Teams / Groups)' : 'Finish creating the playing groups')
     if (!teamsSaved) activateMissingItems.push((isDaytona || isTraditional) ? 'Save Group(s)' : 'Save Teams')
-    if (mixedGroups === true && !allGroupsMeetMinimum) activateMissingItems.push('Each playing group needs at least 3 players')
+    if (mixedGroups === true && !allGroupsMeetMinimum) activateMissingItems.push('Each playing group needs 3–5 players')
+    if (mixedGroups === true && unassignedPlayers.length > 0) activateMissingItems.push(`${unassignedPlayers.length} player${unassignedPlayers.length === 1 ? ' is' : 's are'} not in a playing group yet`)
     if (teamsSaved && !allTeamsMeetRequirement) {
       if (isDaytona) {
         activateMissingItems.push('Each group needs the correct number of players')
@@ -2186,8 +2183,6 @@ export default function AdminDashboard({
                   setTeamsSaved(false)
                   setMixedGroups(null)
                   setMixedGroupsAnswered(false)
-                  setGroupCountSaved(false)
-                  setTargetGroupCount(0)
                   setAutoHandicap(false)
                 }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
@@ -4688,53 +4683,27 @@ export default function AdminDashboard({
 
                 {mixedGroups && mixedGroupsAnswered && (
                   <div className="space-y-3 border-t border-gray-100 pt-3">
-                    {/* Step 1: set number of groups */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Number of Playing Groups</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number" min="1" max="20"
-                          value={targetGroupCount || ''}
-                          placeholder="e.g. 4"
-                          onChange={e => {
-                            setTargetGroupCount(Math.max(0, parseInt(e.target.value) || 0))
-                            setGroupCountSaved(false)
-                          }}
-                          className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          disabled={targetGroupCount === 0}
-                          onClick={async () => {
-                            if (round && targetGroupCount > 0) {
-                              await setPlayingGroupCount(round.id, targetGroupCount)
-                              setGroupCountSaved(true)
-                              setSetupLS(round.id, 'groupCountSaved', true)
-                            }
-                          }}
-                          className="px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition"
-                          style={{ background: navy }}>
-                          Set
-                        </button>
-                        {groupCountSaved && targetGroupCount > 0 && (
-                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${livePlayingGroups.length === targetGroupCount ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {livePlayingGroups.length} / {targetGroupCount} added
-                          </span>
-                        )}
-                      </div>
-                      {!groupCountSaved && (
-                        <p className="text-xs text-gray-400 mt-1.5">Enter how many groups, then tap Set.</p>
+                    {/* Progress is how many players are riding somewhere — you
+                        add groups until everyone's placed, no count up front */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${groupsComplete ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {groupsComplete
+                          ? `All ${teamPlayers.length} players in ${livePlayingGroups.length} group${livePlayingGroups.length === 1 ? '' : 's'} ✓`
+                          : `${teamPlayers.length - unassignedPlayers.length} of ${teamPlayers.length} players placed`}
+                      </span>
+                      {!groupsComplete && livePlayingGroups.length > 0 && !groupsAllLegalSize && (
+                        <span className="text-[11px] text-amber-700">Every group needs 3–5 players</span>
                       )}
                     </div>
 
-                    {/* Step 2: add groups (only after Set is clicked) */}
-                    {groupCountSaved && targetGroupCount > 0 && (
+                    {
                       <>
                         <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Playing Groups</p>
                         {groupError && <p className="text-xs text-red-500 bg-red-50 rounded px-2 py-1.5">{groupError}</p>}
 
-                        {/* Create group form — hidden when at capacity */}
-                        {livePlayingGroups.length < targetGroupCount ? (
+                        {/* Create group form — always available; you stop when
+                            everyone is placed, not at a preset count */}
+                        {unassignedPlayers.length > 0 || livePlayingGroups.length === 0 ? (
                           <div className="flex gap-2 flex-wrap">
                             <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
                               placeholder={`Group ${livePlayingGroups.length + 1}`} className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
@@ -4892,13 +4861,13 @@ export default function AdminDashboard({
                             </button>
                           </div>
                         ) : (
-                          <p className="text-xs text-green-700 bg-green-50 rounded px-3 py-2 font-medium">All {targetGroupCount} groups added ✓</p>
+                          <p className="text-xs text-green-700 bg-green-50 rounded px-3 py-2 font-medium">Everyone&apos;s in a group ✓</p>
                         )}
                       </>
-                    )}
+                    }
 
                     {/* Group cards — each has inline player assignment */}
-                    {groupCountSaved && livePlayingGroups.map((g) => {
+                    {livePlayingGroups.map((g) => {
                       const allKnownPlayers = [...players, ...liveManualPlayers]
                       const assignedPlayerIds = new Set(liveGroupPlayers.filter(gp => gp.playing_group_id === g.id).map(gp => gp.player_id))
                       const assignedPlayers = allKnownPlayers.filter(p => assignedPlayerIds.has(p.id))
