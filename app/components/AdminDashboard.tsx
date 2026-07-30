@@ -444,6 +444,10 @@ export default function AdminDashboard({
   // from placing everyone. Non-zero means the admin pinned it deliberately.
   const [targetGroupCount, setTargetGroupCount] = useState(round?.playing_group_count ?? 0)
   const [groupCountSaving, setGroupCountSaving] = useState(false)
+  // Editing the group count is a draft now: the stepper moves this, and
+  // nothing is written until Save. 0 means "back to automatic".
+  const [editingGroupCount, setEditingGroupCount] = useState(false)
+  const [groupCountDraft, setGroupCountDraft] = useState(0)
   // Side game configured while creating a new playing group (saved on create)
   const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', bankerMaxBet: '', autoStrokes: false, strokeRounding: round?.handicap_rounding ?? 'down' }
   const [newGroupSG, setNewGroupSG] = useState(emptyNewGroupSG)
@@ -4720,30 +4724,41 @@ export default function AdminDashboard({
                       // to 5, so 9 players is 2 (5 + 4), not 3. Never fewer than
                       // already exist.
                       const autoCount = Math.max(1, livePlayingGroups.length, Math.ceil(teamPlayers.length / 5))
+                      // A pinned count below the groups that already exist can't
+                      // be honoured without deleting one
+                      const minPinned = Math.max(1, livePlayingGroups.length)
                       return (
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[11px] text-gray-500">Number of groups:</span>
-                          {targetGroupCount > 0 ? (
+                          {editingGroupCount ? (
                             <>
                               <div className="flex items-center gap-1">
-                                <button type="button" disabled={groupCountSaving || targetGroupCount <= Math.max(1, livePlayingGroups.length)}
-                                  onClick={() => applyCount(targetGroupCount - 1)}
+                                {/* Stepping below the smallest workable count
+                                    reads Auto, so there's still a way back */}
+                                <button type="button" disabled={groupCountDraft === 0}
+                                  onClick={() => setGroupCountDraft(d => d <= minPinned ? 0 : d - 1)}
                                   className="w-6 h-6 rounded-md border border-gray-300 text-gray-600 text-sm leading-none disabled:opacity-30">−</button>
-                                <span className="text-sm font-semibold text-gray-900 w-5 text-center">{targetGroupCount}</span>
-                                <button type="button" disabled={groupCountSaving || targetGroupCount >= 20}
-                                  onClick={() => applyCount(targetGroupCount + 1)}
+                                <span className="text-sm font-semibold text-gray-900 text-center" style={{ minWidth: '2.5rem' }}>
+                                  {groupCountDraft === 0 ? 'Auto' : groupCountDraft}
+                                </span>
+                                <button type="button" disabled={groupCountDraft >= 20}
+                                  onClick={() => setGroupCountDraft(d => d === 0 ? minPinned : d + 1)}
                                   className="w-6 h-6 rounded-md border border-gray-300 text-gray-600 text-sm leading-none disabled:opacity-30">+</button>
                               </div>
-                              <button type="button" onClick={() => applyCount(0)}
-                                className="text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">Auto</button>
+                              <button type="button" disabled={groupCountSaving}
+                                onClick={() => { applyCount(groupCountDraft); setEditingGroupCount(false) }}
+                                className="text-[11px] px-2.5 py-1 rounded-md text-white font-semibold disabled:opacity-50" style={{ background: navy }}>Save</button>
+                              <button type="button" onClick={() => setEditingGroupCount(false)}
+                                className="text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">Cancel</button>
                             </>
                           ) : (
                             <>
                               {/* Show what automatic works out to — "Automatic"
                                   alone never said how many to build */}
-                              <span className="text-sm font-semibold text-gray-900">{autoCount}</span>
-                              <span className="text-[11px] text-gray-400">auto</span>
-                              <button type="button" onClick={() => applyCount(autoCount)}
+                              <span className="text-sm font-semibold text-gray-900">{targetGroupCount || autoCount}</span>
+                              {targetGroupCount === 0 && <span className="text-[11px] text-gray-400">auto</span>}
+                              <button type="button"
+                                onClick={() => { setGroupCountDraft(targetGroupCount || autoCount); setEditingGroupCount(true) }}
                                 className="text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">Edit</button>
                             </>
                           )}
