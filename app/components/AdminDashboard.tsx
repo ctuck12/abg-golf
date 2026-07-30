@@ -1708,7 +1708,12 @@ export default function AdminDashboard({
         <button type="button" onClick={() => setReopenedStep(key)}
           className={`w-full bg-green-50 rounded-2xl border border-green-200 px-4 py-3 flex items-center justify-between gap-3 text-left transition hover:bg-green-100 ${spine}`}>
           <h3 className="font-semibold text-green-800 text-sm truncate">✓ {label}</h3>
-          <span className="text-[11px] font-medium text-green-700 flex-shrink-0">{summary}</span>
+          {/* Caret matches the other expandable sections — without it a closed
+              step reads as a status line rather than something you can reopen */}
+          <span className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-[11px] font-medium text-green-700">{summary}</span>
+            <span className="text-green-600 text-sm leading-none">▼</span>
+          </span>
         </button>
       </div>
     )
