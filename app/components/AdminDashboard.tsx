@@ -30,7 +30,6 @@ import {
   removeManualPlayerFromGroup,
   updatePlayingGroupSettings,
   setPlayingGroupCount,
-  setRoundExcludeMatchups,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -142,7 +141,7 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; skins_mode?: string | null; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; banker_default_max_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number; exclude_matchups?: boolean } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; skins_mode?: string | null; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; banker_default_max_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number } | null
 type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; banker_side_game_max_bet?: number | null; auto_strokes?: boolean; stroke_rounding?: string | null }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
@@ -374,9 +373,6 @@ export default function AdminDashboard({
   })
   const [showActivateTooltip, setShowActivateTooltip] = useState(false)
   const [resetConfirmTeamId, setResetConfirmTeamId] = useState<string | null>(null)
-  const [roundExcludeMatchups, setRoundExcludeMatchupsState] = useState<boolean>(round?.exclude_matchups ?? false)
-  const [roundExcludeMatchupsSaving, setRoundExcludeMatchupsSaving] = useState(false)
-  const [roundExcludeMatchupsSaved, setRoundExcludeMatchupsSaved] = useState(false)
   const [showAddTeamSuccess, setShowAddTeamSuccess] = useState(false)
   const [newTeamDaytonaType, setNewTeamDaytonaType] = useState('')
   const [newTeamSubVariant, setNewTeamSubVariant] = useState('')
@@ -2063,9 +2059,6 @@ export default function AdminDashboard({
                   )
                 })()}
               </div>
-              {roundExcludeMatchups && (
-                <p className="text-xs text-red-600">Matchup Results are excluded from Payouts &amp; Settlements.</p>
-              )}
             </div>
             <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
               <form action={activateRound.bind(null, round.id, orgSlug)} className="flex-1">
@@ -5587,42 +5580,8 @@ export default function AdminDashboard({
                 {showOptionalSettings && (
                 <div className="border-t border-gray-100 px-5 py-4 space-y-4">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Matchup Results</p>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-600">Exclude from Payouts &amp; Settlements</span>
-                  <button type="button"
-                    disabled={roundExcludeMatchupsSaving}
-                    onClick={() => {
-                      const newVal = !roundExcludeMatchups
-                      const apply = async () => {
-                        setRoundExcludeMatchupsState(newVal)
-                        setRoundExcludeMatchupsSaving(true)
-                        setRoundExcludeMatchupsSaved(false)
-                        await setRoundExcludeMatchups(round.id, newVal)
-                        setRoundExcludeMatchupsSaving(false)
-                        setRoundExcludeMatchupsSaved(true)
-                        setTimeout(() => setRoundExcludeMatchupsSaved(false), 3000)
-                      }
-                      if (round.is_started) {
-                        setLiveChangeConfirm({
-                          title: newVal ? 'Exclude matchups from payouts?' : 'Include matchups in payouts?',
-                          changes: [
-                            `Matchup results: ${newVal ? 'Included → Excluded' : 'Excluded → Included'}`,
-                            'Payouts and settlements recalculate immediately.',
-                          ],
-                          onConfirm: () => { void apply() },
-                        })
-                      } else { void apply() }
-                    }}
-                    className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition disabled:opacity-40 ${roundExcludeMatchups ? 'bg-red-100 text-red-800 border-red-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
-                    {roundExcludeMatchupsSaving ? '…' : roundExcludeMatchups ? 'On' : 'Off'}
-                  </button>
-                  {roundExcludeMatchupsSaved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
-                </div>
-                {roundExcludeMatchups && (
-                  <p className="text-xs text-gray-400">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
-                )}
-                {/* The switch governs matchups, but they're built on another
-                    screen — with no link there was no way to know where */}
+                {/* Matchups are built on another screen — with no link there
+                    was no way to know where */}
                 <a href={`/${orgSlug}/matchup`}
                   className="inline-block text-xs font-semibold text-blue-600 hover:underline">
                   Head-to-head, Best Ball &amp; Medley matchups are set up here →

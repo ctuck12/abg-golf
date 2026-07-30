@@ -756,7 +756,7 @@ export default function MatchupClient({
     const ids = medSlots.filter(Boolean)
     if (ids.length < 3 || new Set(ids).size !== ids.length) return
     const amt = parseFloat(medAmount)
-    if (isNaN(amt) || amt <= 0) return
+    if (isNaN(amt) || amt < 0) return
     setSavingMedley(true)
     const entries = buildMedleyEntries(ids, medBetType, medStrokesEnabled, medStrokesDraft)
     const res = await saveMedleyMatchup(roundId, entries, medBetType, amt)
@@ -1971,7 +1971,7 @@ export default function MatchupClient({
                                     <button
                                       onClick={() => {
                                         const amt = parseFloat(newPressAmount)
-                                        if (!newPressAmount.trim() || isNaN(amt) || amt <= 0) return
+                                        if (!newPressAmount.trim() || isNaN(amt) || amt < 0) return
                                         const hEnd = newPressHoleType === '1hole' ? newPressHoleStart : Math.max(newPressHoleStart, newPressHoleEnd)
                                         const forfSegs = (['front', 'back', 'total'] as const).filter((s) => newPressForfeitSegs[s])
                                         const entry: PressEntry = {
@@ -1995,7 +1995,7 @@ export default function MatchupClient({
                                           entry,
                                         })
                                       }}
-                                      disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
+                                      disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) >= 0)}
                                       className="w-full py-2 rounded-lg text-sm font-bold text-white disabled:opacity-40 transition"
                                       style={{ background: '#f59e0b' }}>
                                       Confirm Press
@@ -2686,7 +2686,7 @@ export default function MatchupClient({
                                     <button
                                       onClick={() => {
                                         const amt = parseFloat(newPressAmount)
-                                        if (!newPressAmount.trim() || isNaN(amt) || amt <= 0) return
+                                        if (!newPressAmount.trim() || isNaN(amt) || amt < 0) return
                                         const hEnd = newPressHoleType === '1hole' ? newPressHoleStart : Math.max(newPressHoleStart, newPressHoleEnd)
                                         const forfSegs = (['front', 'back', 'total'] as const).filter((s) => newPressForfeitSegs[s])
                                         const entry: PressEntry = {
@@ -2710,7 +2710,7 @@ export default function MatchupClient({
                                           entry,
                                         })
                                       }}
-                                      disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) > 0)}
+                                      disabled={!newPressAmount.trim() || !(parseFloat(newPressAmount) >= 0)}
                                       className="w-full py-2 rounded-lg text-sm font-bold text-white disabled:opacity-40 transition"
                                       style={{ background: '#f59e0b' }}>
                                       Confirm Press
@@ -2966,7 +2966,7 @@ export default function MatchupClient({
                     <button onClick={() => { setShowMedleyForm(false); setMedSlots(['', '', '']); setMedBetType('straight'); setMedAmount(''); setMedStrokesEnabled(false); setMedStrokesDraft({}) }}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">Cancel</button>
                     <button onClick={handleCreateMedley}
-                      disabled={medSlots.filter(Boolean).length < 3 || new Set(medSlots.filter(Boolean)).size !== medSlots.filter(Boolean).length || !medAmount.trim() || !(parseFloat(medAmount) > 0) || savingMedley}
+                      disabled={medSlots.filter(Boolean).length < 3 || new Set(medSlots.filter(Boolean)).size !== medSlots.filter(Boolean).length || !medAmount.trim() || !(parseFloat(medAmount) >= 0) || savingMedley}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
                       style={{ background: navy, color: 'white' }}>
                       {savingMedley ? 'Saving…' : 'Save'}
@@ -3171,7 +3171,7 @@ export default function MatchupClient({
                                     <button
                                       onClick={() => {
                                         const amt = parseFloat(newMedPressAmount)
-                                        if (!newMedPressAmount.trim() || isNaN(amt) || amt <= 0) return
+                                        if (!newMedPressAmount.trim() || isNaN(amt) || amt < 0) return
                                         const hEnd = newMedPressHoleType === '1hole' ? newMedPressHoleStart : Math.max(newMedPressHoleStart, newMedPressHoleEnd)
                                         const strokesEntries = newMedPressStrokesEnabled
                                           ? Object.entries(newMedPressStrokesDraft)
@@ -3197,7 +3197,7 @@ export default function MatchupClient({
                                           entry,
                                         })
                                       }}
-                                      disabled={!newMedPressAmount.trim() || !(parseFloat(newMedPressAmount) > 0)}
+                                      disabled={!newMedPressAmount.trim() || !(parseFloat(newMedPressAmount) >= 0)}
                                       className="w-full py-2 rounded-lg text-sm font-bold text-white disabled:opacity-40 transition"
                                       style={{ background: '#f59e0b' }}>
                                       Confirm Press
