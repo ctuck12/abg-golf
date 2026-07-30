@@ -12,7 +12,6 @@ import {
   updatePlayerHolesRange,
   clearAllScores,
   updateRoundAutoHandicap,
-  updateRoundHandicapRounding,
   toggleMixedGroups,
   setPlayingGroupCount,
   createPlayingGroup,
@@ -1183,24 +1182,6 @@ export default function AdminDashboard({
     await setPlayerGroup(playerId, groupId)
   }
 
-  async function handleSetHcpRounding(mode: string) {
-    if (!round || mode === hcpRounding) return
-    const apply = async () => {
-      setHcpRounding(mode)
-      await updateRoundHandicapRounding(round.id, mode)
-      router.refresh()
-    }
-    if (round.is_started) {
-      const label = (m: string) => m === 'down' ? 'Round Down' : 'Round Up'
-      setLiveChangeConfirm({
-        title: 'Change stroke rounding?',
-        changes: [`Rounding: ${label(hcpRounding)} → ${label(mode)}`, 'Strokes recalculate for every player in the round.'],
-        onConfirm: () => { void apply() },
-      })
-      return
-    }
-    await apply()
-  }
   async function handleToggleAutoHandicap() {
     if (!round) return
     const next = !autoHandicap
@@ -3413,12 +3394,15 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Handicap Settings (auto strokes + rounding) — during setup too for Daytona/Banker, which auto-stroke by default ── */}
-            {round && (round.is_started || isDaytona || isBankerRound) && (
+            {/* ── Auto Handicap — Daytona and Banker only, the two formats that
+                   auto-stroke by default. Stroke Rounding used to live here as a
+                   round-wide setting; it's now set per side game and per group,
+                   where the strokes it affects are actually configured. ── */}
+            {round && (isDaytona || isBankerRound) && (
               <div className={`bg-white rounded-2xl border p-5 ${SPINE.handicap}`}>
-                <h3 className="font-semibold text-gray-900 text-sm mb-3">Handicap Settings</h3>
+                <h3 className="font-semibold text-gray-900 text-sm mb-3">Auto Handicap</h3>
                 {(isDaytona || round.format === 'banker') && (
-                  <div className="flex items-center gap-3 cursor-pointer mb-4" onClick={handleToggleAutoHandicap}>
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
                     <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
                       <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
                     </div>
@@ -3428,19 +3412,6 @@ export default function AdminDashboard({
                     </div>
                   </div>
                 )}
-                <div>
-                  <p className="text-sm font-medium text-gray-800 mb-1">Stroke Rounding</p>
-                  <p className="text-xs text-gray-400 mb-2">How decimal handicaps become whole strokes. Round Down: 7.9 → 7. Round Up: 7.4 → 7, 7.5 → 8.</p>
-                  <div className="flex gap-1.5">
-                    {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, label]) => (
-                      <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition"
-                        style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
 
