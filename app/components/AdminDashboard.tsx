@@ -1608,6 +1608,29 @@ export default function AdminDashboard({
   // shallowest unlocked section — so this never rings a locked card.
   const stepRing = (key: string) => (showSetupStrip && currentStepKey === key) ? 'ring-2 ring-[#0f172a]/25' : ''
 
+  // ── Locked sections collapse ──────────────────────────────────────────────
+  // A locked section used to sit there full height and unusable, so the card
+  // you could actually act in was buried under a screenful of dead ones. A
+  // locked section is now a single row that says what opens it. The step strip
+  // still lists every step by name, so nothing about what's coming is lost.
+  //
+  // These sections only render when a round exists, and their enabled flags are
+  // only false mid-setup, so "not enabled" is the same as "locked during setup".
+  const payoutLocked = !payoutSectionEnabled
+  const skinsLocked = !skinsSectionEnabled
+  const teamsLocked = !teamsAddEnabled
+  const groupsLocked = !mixedGroupsSectionEnabled
+  const newRoundFirst = 'unlocks once the new round is saved'
+  function lockedRow(label: string, opens: string, spine: string, ref: React.RefObject<HTMLDivElement | null>) {
+    return (
+      <div ref={ref} style={JUMP_OFFSET}
+        className={`bg-white rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 ${spine}`}>
+        <h3 className="font-semibold text-gray-400 text-sm truncate">{label}</h3>
+        <span className="text-[11px] text-gray-400 flex-shrink-0">{creatingNewRound ? newRoundFirst : opens}</span>
+      </div>
+    )
+  }
+
   // ── Player count requirements per format ──────────────────────────────────
   // Daytona 4-Man: exactly 4 · Daytona 5-Man: exactly 5 (per group's own type)
   // Traditional: 2–5 players per group
@@ -3132,20 +3155,10 @@ export default function AdminDashboard({
             )}
 
             {/* ── Per Ball / Per Point Payout Value — not shown for formats with no ball pool ── */}
-            {round && !hasNoBallPool && (
-              <div ref={payoutSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative transition-opacity ${SPINE.payout} ${stepRing('payout')} ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {/* Locked cards kill pointer events, so this re-enables just
-                    enough to answer "why can't I tap this?" */}
-                {!skinsAndPayoutEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <button type="button" aria-label="Locked — tap to see why"
-                    onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Fill in the round form above first')}
-                    className="absolute inset-0 z-10 pointer-events-auto rounded-2xl" />
-                )}
-                {!skinsAndPayoutEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    {creatingNewRound ? 'Save the new round above to unlock' : 'Complete the round form above to unlock'}
-                  </p>
-                )}
+            {round && !hasNoBallPool && payoutLocked &&
+              lockedRow(isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value', 'unlocks once the round is saved', SPINE.payout, payoutSectionRef)}
+            {round && !hasNoBallPool && !payoutLocked && (
+              <div ref={payoutSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative ${SPINE.payout} ${stepRing('payout')}`}>
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">
                   {isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value'}
                 </h3>
@@ -3193,18 +3206,10 @@ export default function AdminDashboard({
             )}
 
             {/* ── Skins Game ── */}
-            {round && (
-              <div ref={skinsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative transition-opacity ${SPINE.skins} ${stepRing('skins')} ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {!skinsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <button type="button" aria-label="Locked — tap to see why"
-                    onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save the Per Ball / Per Point Value above first')}
-                    className="absolute inset-0 z-10 pointer-events-auto rounded-2xl" />
-                )}
-                {!skinsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    {creatingNewRound ? 'Save the new round above to unlock' : 'Save Per Ball/Per Point Value above to unlock'}
-                  </p>
-                )}
+            {round && skinsLocked &&
+              lockedRow('Skins Game', hasNoBallPool ? 'unlocks once the round is saved' : 'unlocks after Payout', SPINE.skins, skinsSectionRef)}
+            {round && !skinsLocked && (
+              <div ref={skinsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative ${SPINE.skins} ${stepRing('skins')}`}>
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
                 <form action={skinsAction} ref={skinsFormRef} className="space-y-4"
                   onSubmit={(e) => {
@@ -3414,13 +3419,10 @@ export default function AdminDashboard({
             )}
 
             {/* ── Teams / Groups section ── */}
-            {round && (
-              <div ref={teamsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden relative ${SPINE.teams} ${stepRing('teams')} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {!teamsAddEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <button type="button" aria-label="Locked — tap to see why"
-                    onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save the Payout and Skins sections above first')}
-                    className="absolute inset-0 z-10 pointer-events-auto rounded-2xl" />
-                )}
+            {round && teamsLocked &&
+              lockedRow(isStandard ? `${ballsCount} Ball Teams` : 'Groups', 'unlocks after Skins', SPINE.teams, teamsSectionRef)}
+            {round && !teamsLocked && (
+              <div ref={teamsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden relative ${SPINE.teams} ${stepRing('teams')}`}>
                 {/* Mixed Groups question — must be answered before team building (3/4 ball only) */}
                 {isStandard && roundIsSettingUp && (
                   <div className="px-4 py-3 border-b border-gray-100">
@@ -3488,13 +3490,6 @@ export default function AdminDashboard({
                 {dualTeamsAndGroups && (
                   <div className="px-4 py-2 border-b border-indigo-100 bg-indigo-50/60">
                     <p className="text-[11px] text-indigo-700">Who scores together for the {ballsCount}-ball game — not who rides together.</p>
-                  </div>
-                )}
-                {!teamsAddEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
-                    <p className="text-xs text-gray-400 text-center">
-                      {creatingNewRound ? 'Save the new round above to unlock' : 'Complete all sections above to unlock'}
-                    </p>
                   </div>
                 )}
 
@@ -4587,18 +4582,10 @@ export default function AdminDashboard({
             )}
 
             {/* ── Playing Groups (standard format, mixed groups = Yes only) ── */}
-            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && (
-              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 relative transition-opacity ${SPINE.groups} ${stepRing('groups')} ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={JUMP_OFFSET}>
-                {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <button type="button" aria-label="Locked — tap to see why"
-                    onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save Teams above first')}
-                    className="absolute inset-0 z-10 pointer-events-auto rounded-2xl" />
-                )}
-                {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
-                  <p className="text-xs text-gray-400 bg-gray-50 rounded px-2 py-1.5 border border-gray-100 text-center">
-                    {creatingNewRound ? 'Save the new round above to unlock' : 'Save Teams above to unlock'}
-                  </p>
-                )}
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsLocked &&
+              lockedRow('Playing Groups', 'unlocks after Teams', SPINE.groups, mixedGroupsSectionRef)}
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && !groupsLocked && (
+              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 relative ${SPINE.groups} ${stepRing('groups')}`} style={JUMP_OFFSET}>
                 {showAssignGroupsNotice && roundIsSettingUp && (
                   <p className="text-xs font-medium text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
                     Teams saved — now build the playing groups and put every player in one.
