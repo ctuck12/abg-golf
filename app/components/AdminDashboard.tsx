@@ -70,9 +70,9 @@ const gold = '#f59e0b'
  * where it starts. Navy is the default — the spine marks the boundary and
  * stays out of the way.
  *
- * Color is reserved for the few spines that carry meaning: the two builders
- * that must not be confused with each other (teams vs playing groups), the
- * destructive card, and the go button.
+ * Color is reserved for the two spines that carry a warning rather than an
+ * identity: the destructive card and the go button. Teams and Playing Groups
+ * are told apart by their SCORING / ON COURSE badges, not by spine color.
  */
 const NAVY_SPINE = 'border-slate-200 border-l-4 border-l-[#0f172a]'
 const SPINE = {
@@ -83,8 +83,8 @@ const SPINE = {
   handicap: NAVY_SPINE,
   hammer:   NAVY_SPINE,
   matchups: NAVY_SPINE,
-  teams:    'border-indigo-200 border-l-4 border-l-indigo-500',
-  groups:   'border-teal-200 border-l-4 border-l-teal-500',
+  teams:    NAVY_SPINE,
+  groups:   NAVY_SPINE,
   clear:    'border-red-200 border-l-4 border-l-red-500',
   activate: 'border-green-200 border-l-4 border-l-green-500',
 } as const
@@ -303,6 +303,7 @@ export default function AdminDashboard({
   const skinsSectionRef = useRef<HTMLDivElement | null>(null)
   const teamsSectionRef = useRef<HTMLDivElement | null>(null)
   const activateSectionRef = useRef<HTMLDivElement | null>(null)
+  const optionalSectionRef = useRef<HTMLDivElement | null>(null)
   // Tapping a locked section explains itself here instead of doing nothing
   const [lockedNudge, setLockedNudge] = useState('')
   const lockedNudgeTimer = useRef<number | undefined>(undefined)
@@ -1756,6 +1757,14 @@ export default function AdminDashboard({
   // Activate is never 'done' during setup — it's either not ready yet or it's
   // the step you're on. Declared here because it reads canActivate.
   const activateStep: StepState = (!showSetupStrip || canActivate || reopenedStep === 'activate') ? 'open' : 'locked'
+  // Optional Settings only makes sense once the field is built, so it stays
+  // locked until Teams — and, for a 3/4-ball round with Mixed Groups on, the
+  // playing groups too. mixedGroupsSaved is already true for every other
+  // format and for Mixed Groups = No, so this one condition covers them all.
+  const optionalSettingsLocked = showSetupStrip && !(teamsSaved && mixedGroupsSaved)
+  const optionalOpensAfter = (isStandard && mixedGroups === true && !mixedGroupsSaved)
+    ? 'unlocks after Playing Groups'
+    : `unlocks after ${isStandard ? 'Teams' : 'Groups'}`
 
   useEffect(() => {
     const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
@@ -5300,8 +5309,10 @@ export default function AdminDashboard({
 
             {/* ── Optional Settings — nothing in here blocks activation, so it
                 stays folded away and out of the required run of steps ── */}
-            {round && (
-              <div className={`bg-white rounded-2xl border overflow-hidden ${SPINE.matchups}`}>
+            {round && optionalSettingsLocked &&
+              lockedRow('Optional Settings', optionalOpensAfter, SPINE.matchups, optionalSectionRef)}
+            {round && !optionalSettingsLocked && (
+              <div ref={optionalSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden ${SPINE.matchups}`}>
                 <button type="button" onClick={() => setShowOptionalSettings(v => !v)}
                   className="w-full flex items-center justify-between px-5 py-4">
                   <div className="flex items-center gap-3">
@@ -5370,6 +5381,10 @@ export default function AdminDashboard({
                 )}
               </div>
             )}
+
+            {/* ── Round History — only exists once there's a round to have a
+                history of, so it stays hidden until activation ── */}
+            {round && round.is_started && <RoundHistory roundId={round.id} />}
 
             {/* ── Clear All Scores (any format, once started) — last card before activation/banner ── */}
             {round && round.is_started && (
@@ -5468,10 +5483,6 @@ export default function AdminDashboard({
                 </div>
               </div>
             )}
-
-            {/* ── Round History — audit trail, kept below Activate so the
-                setup CTA is the last card during setup ── */}
-            {round && <RoundHistory roundId={round.id} />}
 
         </div>{/* end outer content space-y-4 */}
 
