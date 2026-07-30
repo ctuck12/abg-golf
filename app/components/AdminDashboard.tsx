@@ -3874,7 +3874,7 @@ export default function AdminDashboard({
                                     <button type="button"
                                       onClick={() => setGenSkinsIds(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n })}
                                       className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition flex-shrink-0 ${genSkinsIds.has(p.id) ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}>
-                                      Skins{genSkinsIds.has(p.id) ? ' ✓' : ''}
+                                      Skins <span className={genSkinsIds.has(p.id) ? '' : 'invisible'}>✓</span>
                                     </button>
                                   )}
                                   {p.source === 'manual' && (
@@ -4521,7 +4521,7 @@ export default function AdminDashboard({
                                                       onClick={() => handleSkinsChipTap(p, inSkins)}
                                                       className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
                                                       title="Toggle skins participation">
-                                                      {inSkins ? 'Skins ✓' : 'Skins'}
+                                                      Skins <span className={inSkins ? '' : 'invisible'}>✓</span>
                                                     </button>
                                                   )}
                                                   <button type="button"
@@ -4958,7 +4958,7 @@ export default function AdminDashboard({
                                           onClick={(e) => { e.stopPropagation(); handleSkinsChipTap(p, inSkins) }}
                                           className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
                                           title="Toggle skins participation">
-                                          {inSkins ? 'Skins ✓' : 'Skins'}
+                                          Skins <span className={inSkins ? '' : 'invisible'}>✓</span>
                                         </button>
                                       )}
                                       <button type="button"
