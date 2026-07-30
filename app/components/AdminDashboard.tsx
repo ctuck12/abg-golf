@@ -1144,15 +1144,17 @@ export default function AdminDashboard({
     setMixedGroupsPending(false)
   }
   async function handleCreateGroup() {
-    if (!round || !newGroupName.trim() || !newGroupPin.trim()) return
+    // Untouched field means take the name it's showing
+    const groupName = (newGroupName.trim() || defaultGroupName).trim()
+    if (!round || !newGroupPin.trim()) return
     if (!/^\d{4}$/.test(newGroupPin)) { setGroupError('PIN must be exactly 4 digits.'); return }
-    if (livePlayingGroups.some(g => g.name.toLowerCase() === newGroupName.trim().toLowerCase())) {
+    if (livePlayingGroups.some(g => g.name.toLowerCase() === groupName.toLowerCase())) {
       setGroupError('A group with that name already exists.'); return
     }
     setGroupError(''); setNewGroupPending(true)
-    const res = await createPlayingGroup(round.id, newGroupName.trim(), newGroupPin.trim())
+    const res = await createPlayingGroup(round.id, groupName, newGroupPin.trim())
     if (res.error) { setNewGroupPending(false); setGroupError(res.error); return }
-    const newGroup: PlayingGroup = { id: res.id!, name: newGroupName.trim(), pin: newGroupPin.trim() }
+    const newGroup: PlayingGroup = { id: res.id!, name: groupName, pin: newGroupPin.trim() }
     setLivePlayingGroups((prev) => [...prev, newGroup])
     setGroupSideGames(prev => ({ ...prev, [res.id!]: initGroupSideGame(newGroup) }))
     // Assign any players picked in the create form
@@ -1563,6 +1565,7 @@ export default function AdminDashboard({
     return n >= 3 && n <= 5
   })
   const groupCountMet = targetGroupCount === 0 || livePlayingGroups.length === targetGroupCount
+  const defaultGroupName = `Group ${livePlayingGroups.length + 1}`
   const groupsComplete = livePlayingGroups.length > 0 && unassignedPlayers.length === 0 && groupsAllLegalSize && groupCountMet
   const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupsComplete)
   // If the new-round form is open over an existing round, lock all downstream sections
@@ -4775,16 +4778,12 @@ export default function AdminDashboard({
                             everyone is placed, not at a preset count */}
                         {(unassignedPlayers.length > 0 || livePlayingGroups.length === 0) && (targetGroupCount === 0 || livePlayingGroups.length < targetGroupCount) ? (
                           <div className="flex gap-2 flex-wrap">
-                            {/* "Group 2" is a suggestion, not a value — the
-                                field is empty and + Add stays disabled until
-                                it's filled. Amber while empty says so without
-                                a word of explanation or a taller box. */}
-                            <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-                              placeholder={`Group ${livePlayingGroups.length + 1}`}
-                              className={`flex-1 min-w-0 border rounded-lg px-3 py-1.5 text-sm focus:outline-none placeholder:italic ${
-                                newGroupName.trim()
-                                  ? 'border-gray-300'
-                                  : 'border-amber-400 bg-amber-50/50 placeholder:text-amber-700/70'}`} />
+                            {/* Really filled in, not a placeholder dressed up as
+                                one: the next group number is the actual value, so
+                                + Add works straight away and typing over it is an
+                                edit rather than filling in a blank. */}
+                            <input value={newGroupName || defaultGroupName} onChange={(e) => setNewGroupName(e.target.value)}
+                              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
                             <input type="text" value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
                               placeholder="PIN" maxLength={4} inputMode="numeric"
                               className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
@@ -4933,7 +4932,7 @@ export default function AdminDashboard({
                               </>)}
                             </div>
                             <button type="button" onClick={handleCreateGroup}
-                              disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim() || (newGroupSG.daytonaEnabled && (!newGroupSG.daytonaType || (newGroupSG.daytonaType === '5' && !newGroupSG.daytonaSubVariant)))}
+                              disabled={newGroupPending || !newGroupPin.trim() || (newGroupSG.daytonaEnabled && (!newGroupSG.daytonaType || (newGroupSG.daytonaType === '5' && !newGroupSG.daytonaSubVariant)))}
                               className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
                               {newGroupPlayerIds.size > 0 ? `+ Add with ${newGroupPlayerIds.size} player${newGroupPlayerIds.size !== 1 ? 's' : ''}` : '+ Add'}
                             </button>
