@@ -439,6 +439,7 @@ export default function AdminDashboard({
   const [genPoolOpen, setGenPoolOpen] = useState(true)
   // Players picked while creating a new playing group (assigned on create)
   const [newGroupPlayerIds, setNewGroupPlayerIds] = useState<Set<string>>(new Set())
+  const [newGroupSGOpen, setNewGroupSGOpen] = useState(false)
   // Side game configured while creating a new playing group (saved on create)
   const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', bankerMaxBet: '', autoStrokes: false, strokeRounding: round?.handicap_rounding ?? 'down' }
   const [newGroupSG, setNewGroupSG] = useState(emptyNewGroupSG)
@@ -484,7 +485,6 @@ export default function AdminDashboard({
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupPin, setNewGroupPin] = useState(DEFAULT_PIN)
   const [newGroupPending, setNewGroupPending] = useState(false)
-  const [showNewGroupPin, setShowNewGroupPin] = useState(false)
   const [groupError, setGroupError] = useState('')
   const [confirmRemoveGroupId, setConfirmRemoveGroupId] = useState<string | null>(null)
   const [confirmRemoveGroupPlayer, setConfirmRemoveGroupPlayer] = useState<{ playerId: string; playerName: string; isManual: boolean } | null>(null)
@@ -4738,23 +4738,19 @@ export default function AdminDashboard({
                           <div className="flex gap-2 flex-wrap">
                             <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
                               placeholder={`Group ${livePlayingGroups.length + 1}`} className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
-                            <div className="relative">
-                              <input type={showNewGroupPin ? 'text' : 'password'} value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
-                                placeholder="4-digit PIN" maxLength={4} inputMode="numeric"
-                                className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 pr-8 text-sm focus:outline-none" />
-                              <button type="button" tabIndex={-1} onClick={() => setShowNewGroupPin(v => !v)}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-                                {showNewGroupPin ? '🙈' : '👁'}
-                              </button>
-                            </div>
+                            <input type="text" value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
+                              placeholder="PIN" maxLength={4} inputMode="numeric"
+                              className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
                             {/* Pick this group's players up front (optional — assignable later too) */}
                             {(() => {
                               const allAssigned = new Set(liveGroupPlayers.map(gp => gp.player_id))
                               const avail = players.filter(p => p.team_id !== null && !allAssigned.has(p.id))
+                                .slice()
+                                .sort((a, b) => (a.handicap ?? 999) - (b.handicap ?? 999))
                               if (avail.length === 0) return null
                               return (
                                 <div className="w-full">
-                                  <p className="text-xs text-gray-500 mb-1">Tap the players in this group (optional — you can also add them after creating):</p>
+                                  <p className="text-xs text-gray-500 mb-1">Tap who&apos;s in this group — lowest handicap first. You can also add them later.</p>
                                   <div className="flex flex-wrap gap-1.5">
                                     {avail.map(p => {
                                       const sel = newGroupPlayerIds.has(p.id)
@@ -4793,7 +4789,12 @@ export default function AdminDashboard({
                             })()}
                             {/* Side game — configured up front, saved with the group */}
                             <div className="w-full border-t border-gray-100 pt-2 space-y-2">
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Side Game (optional)</p>
+                              <button type="button" onClick={() => setNewGroupSGOpen(v => !v)}
+                                className="flex items-center gap-1.5 w-full text-left">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Side Game (optional)</p>
+                                <span className="text-gray-400 text-xs ml-auto">{newGroupSGOpen ? '▲' : '▼'}</span>
+                              </button>
+                              {newGroupSGOpen && (<>
                               {!newGroupSG.bankerEnabled && (
                                 <>
                                   <div className="flex items-center gap-2">
@@ -4882,6 +4883,7 @@ export default function AdminDashboard({
                                   )}
                                 </>
                               )}
+                              </>)}
                             </div>
                             <button type="button" onClick={handleCreateGroup}
                               disabled={newGroupPending || !newGroupName.trim() || !newGroupPin.trim() || (newGroupSG.daytonaEnabled && (!newGroupSG.daytonaType || (newGroupSG.daytonaType === '5' && !newGroupSG.daytonaSubVariant)))}
