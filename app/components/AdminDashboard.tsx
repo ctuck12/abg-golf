@@ -104,7 +104,7 @@ const FORMAT_BLURB: Record<string, string> = {
 // --admin-hdr is measured from the real header (see the ResizeObserver below)
 // because its height varies with the device's safe-area inset — a fixed guess
 // leaves the top of the card cut off on phones with a Dynamic Island.
-const JUMP_OFFSET = { scrollMarginTop: 'calc(var(--admin-hdr, 104px) + 12px)' } as const
+const JUMP_OFFSET = { scrollMarginTop: 'calc(var(--admin-stick, 150px) + 12px)' } as const
 
 function SortablePlayerRow({ id, children }: { id: string; children: (dragProps: Record<string, unknown>) => ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
@@ -1767,15 +1767,20 @@ export default function AdminDashboard({
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
+  const stickyBarRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const header = headerRef.current
     if (!header) return
     const ro = new ResizeObserver(() => {
       if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
-      // Publish the measured height for JUMP_OFFSET's scroll-margin
+      // --admin-hdr positions the sticky step bar directly under the header.
+      // --admin-stick is header + that bar, so a jump clears both and lands on
+      // the section's heading rather than behind the chips.
       document.documentElement.style.setProperty('--admin-hdr', `${header.offsetHeight}px`)
+      document.documentElement.style.setProperty('--admin-stick', `${header.offsetHeight + (stickyBarRef.current?.offsetHeight ?? 0)}px`)
     })
     ro.observe(header)
+    if (stickyBarRef.current) ro.observe(stickyBarRef.current)
     return () => ro.disconnect()
   }, [])
 
@@ -2694,26 +2699,37 @@ export default function AdminDashboard({
         {/* Admin Hub header + setup progress. The strip sits here rather than
             inside a card so it holds one spot for the whole setup — including
             the first screen, before any round exists to hang it off. */}
-        <h2 className={`text-lg font-bold text-gray-900 ${showSetupStrip ? 'mb-1.5' : 'mb-4'}`}>Admin Hub</h2>
-        {showSetupStrip && (
-          <div className="flex flex-wrap items-center gap-1.5 mb-4">
-            {/* The step numbers are what make this read as a sequence rather
-                than a row of tags, and they keep it to one line */}
-            {setupSteps.map((s, i) => {
-              const current = s.key === currentStepKey
-              return (
-                <button key={s.key} type="button" onClick={() => jumpTo(s.ref)}
-                  className={`text-[11px] font-semibold px-2 py-1 rounded-full border transition ${
-                    s.done ? 'bg-green-50 text-green-700 border-green-200'
-                      : current ? 'text-white border-transparent shadow-sm ring-2 ring-slate-900/20'
-                      : 'bg-gray-50 text-gray-400 border-gray-200'}`}
-                  style={current ? { background: navy } : undefined}>
-                  {s.done ? '✓' : i + 1} {s.label}
-                </button>
-              )
-            })}
-          </div>
-        )}
+        {/* Sticky so the step you're on stays on screen through a long
+            section. Sits directly under the fixed app header, whose measured
+            height --admin-hdr also drives the jump offset below. */}
+        <div ref={stickyBarRef} className="sticky z-20 -mx-4 px-4 pb-2" style={{ top: 'var(--admin-hdr, 104px)', background: '#f8fafc' }}>
+          <h2 className={`text-lg font-bold text-gray-900 ${showSetupStrip ? 'mb-1.5' : ''}`}>Admin Hub</h2>
+          {showSetupStrip && (
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              {setupSteps.map((s, i) => {
+                const current = s.key === currentStepKey
+                return (
+                  <button key={s.key} type="button" onClick={() => jumpTo(s.ref)}
+                    className="flex items-center gap-1">
+                    {/* Number outside the pill — it reads as the step's index
+                        rather than part of its name */}
+                    <span className={`text-[11px] font-bold ${s.done ? 'text-green-600' : current ? 'text-gray-900' : 'text-gray-300'}`}>
+                      {s.done ? '✓' : i + 1}
+                    </span>
+                    <span className={`text-[11px] font-semibold px-2 py-1 rounded-full border transition ${
+                      s.done ? 'bg-green-50 text-green-700 border-green-200'
+                        : current ? 'text-white border-transparent shadow-sm ring-2 ring-slate-900/20'
+                        : 'bg-gray-50 text-gray-400 border-gray-200'}`}
+                      style={current ? { background: navy } : undefined}>
+                      {s.label}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        <div className="h-4" />
 
         {/* ── CONTENT ──────────────────────────────────────────────────── */}
         <div className="space-y-4">
@@ -3162,41 +3178,43 @@ export default function AdminDashboard({
             {/* Show immediately on submit using optimistic values; switches to real data after router.refresh() */}
             {/* Navy spine like every other card — the ● Setting Up / Active /
                 Complete pill carries the round's state */}
-            {round && !roundFormOpen && (
-              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border px-4 py-4 ${SPINE.round} ${stepRing('round')}`}>
-                <div className="flex items-center gap-2 mb-0.5">
-                  {/* The pencil is gone — Edit Round Settings below renames it */}
-                  <p className="font-semibold text-gray-900 truncate">
-                    {(createPending || !!effectivePendingId) && newRoundName ? newRoundName : round.name}
-                  </p>
+            {round && !roundFormOpen && (() => {
+              const shownName = ((createPending || !!effectivePendingId) && newRoundName ? newRoundName : round.name) ?? ''
+              // Name shrinks with its own length so the status pill and both
+              // buttons keep their place on the row; truncation is the backstop
+              // for a name long enough that even the floor won't fit.
+              const nameSize = shownName.length > 22 ? 11 : shownName.length > 16 ? 12 : shownName.length > 11 ? 13 : 15
+              return (
+              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border px-4 py-3 ${SPINE.round} ${stepRing('round')}`}>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-semibold text-gray-900 truncate min-w-0" style={{ fontSize: `${nameSize}px` }}>{shownName}</p>
                   {isSettingUp ? (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>● Setting Up</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap" style={{ background: '#fef3c7', color: '#92400e' }}>● Setting Up</span>
                   ) : (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={isComplete ? { background: '#fee2e2', color: '#dc2626' } : { background: '#dcfce7', color: '#15803d' }}>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap" style={isComplete ? { background: '#fee2e2', color: '#dc2626' } : { background: '#dcfce7', color: '#15803d' }}>
                       {isComplete ? '● Complete' : '● Active'}
                     </span>
                   )}
+                  <button type="button" onClick={enterRoundEditMode}
+                    className="ml-auto flex-shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                    Edit
+                  </button>
+                  <button type="button" onClick={() => setShowNewRoundWarning(true)}
+                    className="flex-shrink-0 text-white px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap"
+                    style={{ background: navy }}>
+                    New Round +
+                  </button>
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-[11px] text-gray-500 mt-0.5 truncate">
                   {round.course && `${round.course} · `}
                   {new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   {' · '}{teams.length} {isDaytona ? 'groups' : 'teams'} · Par {parTotal}
                   {' · '}{isDaytona ? 'Daytona' : isTraditional ? 'Traditional' : `${ballsCount}-ball${roundIncludeTotal ? ' + total' : ''}`}
                   {is9HoleRound && ` · 9 Holes (${roundStartHole === 10 ? 'Back 9' : 'Front 9'})`}
                 </p>
-                <div className="flex items-center gap-2 mt-3">
-                  <button type="button" onClick={enterRoundEditMode}
-                    className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
-                    Edit Round Settings
-                  </button>
-                  <button type="button" onClick={() => setShowNewRoundWarning(true)}
-                    className="flex-1 text-white px-3 py-2 rounded-lg text-sm font-semibold"
-                    style={{ background: navy }}>
-                    New Round +
-                  </button>
-                </div>
               </div>
-            )}
+              )
+            })()}
 
             {/* ── Per Ball / Per Point Payout Value — not shown for formats with no ball pool ── */}
             {round && !hasNoBallPool && payoutStep === 'locked' &&
