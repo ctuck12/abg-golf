@@ -4789,7 +4789,7 @@ export default function AdminDashboard({
                           <div className="flex gap-2 flex-wrap">
                             {/* Really filled in, not a placeholder dressed up as
                                 one: the next group number is the actual value, so
-                                + Add works straight away. It's read-only until
+                                Save Group works straight away. It's read-only until
                                 Edit, so the name reads as set rather than pending. */}
                             <input ref={groupNameInputRef}
                               value={editingGroupName ? newGroupName : (newGroupName || defaultGroupName)}
@@ -4973,7 +4973,7 @@ export default function AdminDashboard({
                             <button type="button" onClick={handleCreateGroup}
                               disabled={newGroupPending || !newGroupPin.trim() || (newGroupSG.daytonaEnabled && (!newGroupSG.daytonaType || (newGroupSG.daytonaType === '5' && !newGroupSG.daytonaSubVariant)))}
                               className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
-                              {newGroupPlayerIds.size > 0 ? `+ Add with ${newGroupPlayerIds.size} player${newGroupPlayerIds.size !== 1 ? 's' : ''}` : '+ Add'}
+                              {newGroupPlayerIds.size > 0 ? `Save Group with ${newGroupPlayerIds.size} player${newGroupPlayerIds.size !== 1 ? 's' : ''}` : 'Save Group'}
                             </button>
                           </div>
                         ) : (
