@@ -4973,7 +4973,9 @@ export default function AdminDashboard({
                             <button type="button" onClick={handleCreateGroup}
                               disabled={newGroupPending || !newGroupPin.trim() || (newGroupSG.daytonaEnabled && (!newGroupSG.daytonaType || (newGroupSG.daytonaType === '5' && !newGroupSG.daytonaSubVariant)))}
                               className="text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60" style={{ background: navy }}>
-                              {newGroupPlayerIds.size > 0 ? `Save Group with ${newGroupPlayerIds.size} player${newGroupPlayerIds.size !== 1 ? 's' : ''}` : 'Save Group'}
+                              {newGroupPlayerIds.size > 0 ? (
+                                <>Save Group <span className="italic font-normal">({newGroupPlayerIds.size} player{newGroupPlayerIds.size !== 1 ? 's' : ''})</span></>
+                              ) : 'Save Group'}
                             </button>
                           </div>
                         ) : (
