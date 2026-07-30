@@ -1826,6 +1826,10 @@ export default function AdminDashboard({
   const optionalOpensAfter = (isStandard && mixedGroups === true && !mixedGroupsSaved)
     ? 'unlocks after Playing Groups'
     : `unlocks after ${isStandard ? 'Teams' : 'Groups'}`
+  // With the exclude-matchups toggle gone, Auto Handicap is the only thing
+  // left in here — and it's Daytona/Banker only. For every other format the
+  // card holds nothing to set, so it doesn't render at all.
+  const hasOptionalSettings = isDaytona || isBankerRound
 
   useEffect(() => {
     const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
@@ -5565,9 +5569,9 @@ export default function AdminDashboard({
 
             {/* ── Optional Settings — nothing in here blocks activation, so it
                 stays folded away and out of the required run of steps ── */}
-            {round && optionalSettingsLocked &&
+            {round && hasOptionalSettings && optionalSettingsLocked &&
               lockedRow('Optional Settings', optionalOpensAfter, SPINE.matchups, optionalSectionRef)}
-            {round && !optionalSettingsLocked && (
+            {round && hasOptionalSettings && !optionalSettingsLocked && (
               <div ref={optionalSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden ${SPINE.matchups}`}>
                 <button type="button" onClick={() => setShowOptionalSettings(v => !v)}
                   className="w-full flex items-center justify-between px-5 py-4">
