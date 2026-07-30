@@ -551,13 +551,37 @@ export async function addPlayer(_prev: unknown, formData: FormData) {
     }
   }
 
+  // Also put them on the org roster unless told not to. Without this, a player
+  // typed straight into a team existed for one round only: retyped next week,
+  // with no roster row to hang a GHIN number or handicap sync off.
+  const orgId = (formData.get('orgId') as string) || ''
+  const addToRoster = formData.get('add_to_roster') === 'true'
+  let rosterPlayerId: string | null = null
+  if (addToRoster && orgId) {
+    const { data: existingRoster } = await supabase
+      .from('org_players').select('id, name').eq('org_id', orgId)
+    const match = (existingRoster ?? []).find(
+      (rp: { id: string; name: string }) => rp.name.trim().toLowerCase() === name.toLowerCase()
+    )
+    if (match) {
+      rosterPlayerId = match.id            // already on the roster — just link to it
+    } else {
+      const { data: created } = await supabase
+        .from('org_players')
+        .insert({ org_id: orgId, name, handicap_index: handicap ?? null })
+        .select('id').single()
+      rosterPlayerId = created?.id ?? null
+    }
+  }
+
   // Place new player after all existing ones
   const { data: existing } = await supabase
     .from('players').select('position').eq('team_id', teamId).order('position', { ascending: false }).limit(1)
   const nextPosition = existing?.[0]?.position != null ? existing[0].position + 1 : 0
-  const { error } = await supabase.from('players').insert({ name, team_id: teamId, position: nextPosition, skins_participant: skinsParticipant, handicap: handicap ?? null })
+  const { error } = await supabase.from('players').insert({ name, team_id: teamId, position: nextPosition, skins_participant: skinsParticipant, handicap: handicap ?? null, roster_player_id: rosterPlayerId })
   if (error) return { error: error.message }
-  await logRoundEvent(supabase, teamRow?.round_id, 'Player added', `${name} (HCP ${fmtHcp(handicap)}) → ${teamRow?.name ?? 'team'}`)
+  await logRoundEvent(supabase, teamRow?.round_id, 'Player added',
+    `${name} (HCP ${fmtHcp(handicap)}) → ${teamRow?.name ?? 'team'}${rosterPlayerId ? ' · added to roster' : ''}`)
   return { success: true }
 }
 

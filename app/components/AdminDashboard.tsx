@@ -58,6 +58,9 @@ import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifi
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+// Every team and group starts on this PIN — an admin shouldn't have to invent
+// one per team, and it's shared with the players anyway. Still editable.
+const DEFAULT_PIN = '1234'
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
@@ -330,7 +333,11 @@ export default function AdminDashboard({
   const [showAddTeamForm, setShowAddTeamForm] = useState(false)
   const [skinsSaved, setSkinsSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
-    return ls.skinsSaved ?? false
+    // Fall back to the database, not just this device's localStorage. A round
+    // set up on a phone and reopened on a laptop used to read as unsaved here,
+    // which re-locked Teams and blocked activation. rounds.skins_enabled is
+    // null until the section is saved, so it answers exactly this question.
+    return ls.skinsSaved ?? (round?.skins_enabled != null)
   })
   const [roundSaved, setRoundSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
@@ -346,7 +353,11 @@ export default function AdminDashboard({
     // $0 ball values are created automatically on round creation — don't count those as "saved".
     // Only treat payout as saved when a non-zero value was deliberately set, or LS confirms it.
     const hasRealBallValue = ballValues.some(bv => bv.value_dollars > 0)
-    return ls.payoutSaved ?? (hasRealBallValue || ['traditional', 'banker', 'hammer'].includes(round?.format ?? ''))
+    // A deliberate $0 round is indistinguishable from the auto-created zeros, so
+    // also trust the step after it: Skins can only have been saved if Payout
+    // was. Without this, a $0 round read as unsaved on another device.
+    const skinsWasSaved = round?.skins_enabled != null
+    return ls.payoutSaved ?? (hasRealBallValue || skinsWasSaved || ['traditional', 'banker', 'hammer'].includes(round?.format ?? ''))
   })
   const [teamsSaved, setTeamsSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
@@ -472,7 +483,7 @@ export default function AdminDashboard({
   const [livePlayingGroups, setLivePlayingGroups] = useState<PlayingGroup[]>(playingGroups)
   const [liveGroupPlayers, setLiveGroupPlayers] = useState<PlayingGroupPlayer[]>(playingGroupPlayers)
   const [newGroupName, setNewGroupName] = useState('')
-  const [newGroupPin, setNewGroupPin] = useState('')
+  const [newGroupPin, setNewGroupPin] = useState(DEFAULT_PIN)
   const [newGroupPending, setNewGroupPending] = useState(false)
   const [showNewGroupPin, setShowNewGroupPin] = useState(false)
   const [groupError, setGroupError] = useState('')
@@ -904,6 +915,12 @@ export default function AdminDashboard({
     setGeneratedTeams(result)
     setGenEditNames(names)
     setGenEditPins(pins)
+    // Everyone starts in skins. Opting a couple of people out is a handful of
+    // taps; opting everyone in was one tap per player, and forgetting blocked
+    // activation on "fewer than 2 skins participants".
+    if (skinsEnabled === true) {
+      setGenSkinsIds(new Set(result.flatMap(t => t.players.map(p => p.id))))
+    }
   }
 
   function handleRegenerateTeams() {
@@ -1169,7 +1186,7 @@ export default function AdminDashboard({
     setNewGroupSG(emptyNewGroupSG)
     setNewGroupPlayerIds(new Set())
     setNewGroupPending(false)
-    setNewGroupName(''); setNewGroupPin('')
+    setNewGroupName(''); setNewGroupPin(DEFAULT_PIN)
   }
   async function handleDeleteGroup(groupId: string) {
     await deletePlayingGroup(groupId)
@@ -3810,6 +3827,23 @@ export default function AdminDashboard({
                             </button>
                           </div>
                         </div>
+                        {/* Bulk skins, so opting a whole field in or out isn't
+                            one tap per player */}
+                        {skinsEnabled === true && generatedTeams && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-gray-500">Skins:</span>
+                            <button type="button"
+                              onClick={() => setGenSkinsIds(new Set(generatedTeams.flatMap(t => t.players.map(p => p.id))))}
+                              className="text-[11px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
+                              All in
+                            </button>
+                            <button type="button" onClick={() => setGenSkinsIds(new Set())}
+                              className="text-[11px] font-semibold text-gray-500 bg-gray-100 border border-gray-300 rounded-full px-2 py-0.5">
+                              None
+                            </button>
+                            <span className="text-[11px] text-gray-400">{genSkinsIds.size} in</span>
+                          </div>
+                        )}
 
                         {generatedTeams.map((team, i) => (
                           <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
@@ -4101,10 +4135,13 @@ export default function AdminDashboard({
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <input type="text" name="name" placeholder={(isDaytona || isTraditional) ? 'Group name' : 'Team name'} required
+                        {/* Prefilled so a first-timer doesn't have to invent a
+                            name and a PIN for every team — both stay editable */}
+                        <input key={`n${teams.length}`} type="text" name="name" defaultValue={`${(isDaytona || isTraditional) ? 'Group' : 'Team'} ${teams.length + 1}`}
+                          placeholder={(isDaytona || isTraditional) ? 'Group name' : 'Team name'} required
                           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                         {!mixedGroups && (
-                          <input type="text" name="pin" placeholder="PIN" maxLength={4} inputMode="numeric" required
+                          <input key={`p${teams.length}`} type="text" name="pin" defaultValue={DEFAULT_PIN} placeholder="PIN" maxLength={4} inputMode="numeric" required
                             className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none" />
                         )}
                         {/* Disabled only while the create action is in-flight (roundId not known yet) */}
@@ -4113,7 +4150,7 @@ export default function AdminDashboard({
                           className="text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
                           style={{ background: navy }}>{createPending ? '…' : 'Add'}</button>
                       </div>
-                      {!mixedGroups && <p className="text-xs text-gray-400">PIN must be 4 digits — share with the team.</p>}
+                      {!mixedGroups && <p className="text-xs text-gray-400">PIN must be 4 digits — share with the team. Defaults to {DEFAULT_PIN}.</p>}
                     </form>
                   </div>
                 )}
@@ -4545,6 +4582,7 @@ export default function AdminDashboard({
                                 )}
                                 <form action={addPlayerAction} className="flex flex-col gap-2">
                                   <input type="hidden" name="teamId" value={team.id} />
+                                  <input type="hidden" name="orgId" value={orgId} />
                                   {addPlayerState?.error && <p className="text-xs text-red-500">{addPlayerState.error}</p>}
                                   <input type="text" name="name" placeholder="Or enter name manually" required
                                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
@@ -4562,6 +4600,14 @@ export default function AdminDashboard({
                                       className="text-white px-4 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60 ml-auto"
                                       style={{ background: navy }}>Add</button>
                                   </div>
+                                  {/* On by default — otherwise this player exists
+                                      for one round only and has to be retyped next
+                                      week, with no roster row for GHIN sync */}
+                                  <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
+                                    <input type="checkbox" name="add_to_roster" value="true" defaultChecked
+                                      className="w-3.5 h-3.5 accent-sky-600" />
+                                    Also add to the Player Roster
+                                  </label>
                                 </form>
                               </div>
                             )}
@@ -4684,7 +4730,7 @@ export default function AdminDashboard({
                         {livePlayingGroups.length < targetGroupCount ? (
                           <div className="flex gap-2 flex-wrap">
                             <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-                              placeholder="Group name" className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                              placeholder={`Group ${livePlayingGroups.length + 1}`} className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
                             <div className="relative">
                               <input type={showNewGroupPin ? 'text' : 'password'} value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
                                 placeholder="4-digit PIN" maxLength={4} inputMode="numeric"
@@ -5324,6 +5370,12 @@ export default function AdminDashboard({
                 {roundExcludeMatchups && (
                   <p className="text-xs text-gray-400">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
                 )}
+                {/* The switch governs matchups, but they're built on another
+                    screen — with no link there was no way to know where */}
+                <a href={`/${orgSlug}/matchup`}
+                  className="inline-block text-xs font-semibold text-blue-600 hover:underline">
+                  Head-to-head, Best Ball &amp; Medley matchups are set up here →
+                </a>
                 {(isDaytona || isBankerRound) && (
                   <div className="border-t border-gray-100 pt-3">
                     <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
