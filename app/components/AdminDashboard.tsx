@@ -240,6 +240,8 @@ export default function AdminDashboard({
 }) {
   const router = useRouter()
   const [showOptions, setShowOptions] = useState(false)
+  // Optional Settings stays folded by default — none of it blocks activation
+  const [showOptionalSettings, setShowOptionalSettings] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
   const [addPlayerTeamId, setAddPlayerTeamId] = useState<string | null>(null)
   const [playerOrderOverrides, setPlayerOrderOverrides] = useState<Record<string, string[]>>({})
@@ -3394,27 +3396,6 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Auto Handicap — Daytona and Banker only, the two formats that
-                   auto-stroke by default. Stroke Rounding used to live here as a
-                   round-wide setting; it's now set per side game and per group,
-                   where the strokes it affects are actually configured. ── */}
-            {round && (isDaytona || isBankerRound) && (
-              <div className={`bg-white rounded-2xl border p-5 ${SPINE.handicap}`}>
-                <h3 className="font-semibold text-gray-900 text-sm mb-3">Auto Handicap</h3>
-                {(isDaytona || round.format === 'banker') && (
-                  <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
-                    <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
-                      <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
-                      <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* ── Hammer Matchups (standalone Hammer format only) ── */}
             {round && round.format === 'hammer' && round.is_started && (
               <div className={`bg-white rounded-2xl border p-5 space-y-3 ${SPINE.hammer}`}>
@@ -5294,11 +5275,21 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Matchup Results — sits down here with the other
-                round-wide switches, after the playing groups ── */}
+            {/* ── Optional Settings — nothing in here blocks activation, so it
+                stays folded away and out of the required run of steps ── */}
             {round && (
-              <div className={`bg-white rounded-2xl border p-5 ${SPINE.matchups}`}>
-                <h3 className="font-semibold text-gray-900 text-sm mb-3">Matchup Results</h3>
+              <div className={`bg-white rounded-2xl border overflow-hidden ${SPINE.matchups}`}>
+                <button type="button" onClick={() => setShowOptionalSettings(v => !v)}
+                  className="w-full flex items-center justify-between px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-semibold text-gray-900 text-sm">Optional Settings</h3>
+                    <span className="text-[11px] text-gray-400">nothing here is required</span>
+                  </div>
+                  <span className="text-gray-400 text-sm">{showOptionalSettings ? '▲' : '▼'}</span>
+                </button>
+                {showOptionalSettings && (
+                <div className="border-t border-gray-100 px-5 py-4 space-y-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Matchup Results</p>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-600">Exclude from Payouts &amp; Settlements</span>
                   <button type="button"
@@ -5331,7 +5322,22 @@ export default function AdminDashboard({
                   {roundExcludeMatchupsSaved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
                 </div>
                 {roundExcludeMatchups && (
-                  <p className="text-xs text-gray-400 mt-2">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
+                  <p className="text-xs text-gray-400">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
+                )}
+                {(isDaytona || isBankerRound) && (
+                  <div className="border-t border-gray-100 pt-3">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
+                      <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
+                        <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
+                        <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                </div>
                 )}
               </div>
             )}
