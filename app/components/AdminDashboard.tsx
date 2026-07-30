@@ -565,11 +565,19 @@ export default function AdminDashboard({
   useEffect(() => {
     if (parState?.success) router.refresh()
   }, [parState])
+  // Saving a step carries you to the one it just unlocked. Motion is what
+  // makes the sequence land — the strip is easy to read past. Setup only;
+  // editing a live round stays put.
+  function advanceTo(ref: React.RefObject<HTMLDivElement | null>) {
+    if (!roundIsSettingUp) return
+    setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
+  }
   useEffect(() => {
     if (ballState?.success) {
       router.refresh()
       setPayoutSaved(true)
       setSetupLS(round?.id, 'payoutSaved', true)
+      advanceTo(skinsSectionRef)
     }
   }, [ballState])
   useEffect(() => {
@@ -577,6 +585,7 @@ export default function AdminDashboard({
       router.refresh()
       setSkinsSaved(true)
       setSetupLS(round?.id, 'skinsSaved', true)
+      advanceTo(teamsSectionRef)
     }
   }, [skinsState])
 
@@ -1593,6 +1602,11 @@ export default function AdminDashboard({
   // Visible for the whole setup: no round yet, a round mid-setup, or a new
   // round being created over a live one. Hidden once a round is running.
   const showSetupStrip = !round || roundIsSettingUp || creatingNewRound
+  // Ring the section for the current step. The strip alone is easy to read
+  // past; this puts the emphasis on the card that's actually actionable.
+  // The current step is always the first un-done one, which is always the
+  // shallowest unlocked section — so this never rings a locked card.
+  const stepRing = (key: string) => (showSetupStrip && currentStepKey === key) ? 'ring-2 ring-[#0f172a]/25' : ''
 
   // ── Player count requirements per format ──────────────────────────────────
   // Daytona 4-Man: exactly 4 · Daytona 5-Man: exactly 5 (per group's own type)
@@ -2572,17 +2586,19 @@ export default function AdminDashboard({
             the first screen, before any round exists to hang it off. */}
         <h2 className={`text-lg font-bold text-gray-900 ${showSetupStrip ? 'mb-1.5' : 'mb-4'}`}>Admin Hub</h2>
         {showSetupStrip && (
-          <div className="flex flex-wrap items-center gap-1 mb-4">
-            {setupSteps.map((s) => {
+          <div className="flex flex-wrap items-center gap-1.5 mb-4">
+            {/* The step numbers are what make this read as a sequence rather
+                than a row of tags, and they keep it to one line */}
+            {setupSteps.map((s, i) => {
               const current = s.key === currentStepKey
               return (
                 <button key={s.key} type="button" onClick={() => jumpTo(s.ref)}
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition ${
+                  className={`text-[11px] font-semibold px-2 py-1 rounded-full border transition ${
                     s.done ? 'bg-green-50 text-green-700 border-green-200'
-                      : current ? 'text-white border-transparent'
+                      : current ? 'text-white border-transparent shadow-sm ring-2 ring-slate-900/20'
                       : 'bg-gray-50 text-gray-400 border-gray-200'}`}
                   style={current ? { background: navy } : undefined}>
-                  {s.done ? '✓ ' : ''}{s.label}
+                  {s.done ? '✓' : i + 1} {s.label}
                 </button>
               )
             })}
@@ -2777,7 +2793,7 @@ export default function AdminDashboard({
             {/* Collapse immediately on submit (createPending) or while refresh is pending (effectivePendingId) */}
             {round && ((!showNewRoundForm && !editingRoundSettings) || createPending || !!effectivePendingId) ? (
               /* Collapsed state — show "Edit Round Settings" and "New Round +" buttons */
-              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border px-4 py-5 flex items-center justify-center gap-3 ${SPINE.round}`}>
+              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border px-4 py-5 flex items-center justify-center gap-3 ${SPINE.round} ${stepRing('round')}`}>
                 <button
                   type="button"
                   onClick={enterRoundEditMode}
@@ -2793,7 +2809,7 @@ export default function AdminDashboard({
                 </button>
               </div>
             ) : (
-              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.round}`}>
+              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.round} ${stepRing('round')}`}>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-gray-900 text-sm">
                     {editingRoundSettings ? 'Edit Round Settings' : round ? 'Start New Round' : 'Set Up Round'}
@@ -3117,7 +3133,7 @@ export default function AdminDashboard({
 
             {/* ── Per Ball / Per Point Payout Value — not shown for formats with no ball pool ── */}
             {round && !hasNoBallPool && (
-              <div ref={payoutSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative transition-opacity ${SPINE.payout} ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div ref={payoutSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative transition-opacity ${SPINE.payout} ${stepRing('payout')} ${!skinsAndPayoutEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {/* Locked cards kill pointer events, so this re-enables just
                     enough to answer "why can't I tap this?" */}
                 {!skinsAndPayoutEnabled && (roundIsSettingUp || creatingNewRound) && (
@@ -3178,7 +3194,7 @@ export default function AdminDashboard({
 
             {/* ── Skins Game ── */}
             {round && (
-              <div ref={skinsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative transition-opacity ${SPINE.skins} ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div ref={skinsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative transition-opacity ${SPINE.skins} ${stepRing('skins')} ${!skinsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {!skinsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <button type="button" aria-label="Locked — tap to see why"
                     onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save the Per Ball / Per Point Value above first')}
@@ -3399,7 +3415,7 @@ export default function AdminDashboard({
 
             {/* ── Teams / Groups section ── */}
             {round && (
-              <div ref={teamsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden relative ${SPINE.teams} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div ref={teamsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden relative ${SPINE.teams} ${stepRing('teams')} ${!teamsAddEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {!teamsAddEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <button type="button" aria-label="Locked — tap to see why"
                     onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save the Payout and Skins sections above first')}
@@ -4572,7 +4588,7 @@ export default function AdminDashboard({
 
             {/* ── Playing Groups (standard format, mixed groups = Yes only) ── */}
             {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && (
-              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 relative transition-opacity ${SPINE.groups} ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={JUMP_OFFSET}>
+              <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 relative transition-opacity ${SPINE.groups} ${stepRing('groups')} ${!mixedGroupsSectionEnabled ? 'opacity-50 pointer-events-none select-none' : ''}`} style={JUMP_OFFSET}>
                 {!mixedGroupsSectionEnabled && (roundIsSettingUp || creatingNewRound) && (
                   <button type="button" aria-label="Locked — tap to see why"
                     onClick={() => nudgeLocked(creatingNewRound ? 'Save the new round above first' : 'Save Teams above first')}
@@ -5322,7 +5338,7 @@ export default function AdminDashboard({
 
             {/* ── Activate Round (bottom) — only when round exists but not yet started ── */}
             {roundIsSettingUp && round && (
-              <div ref={activateSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.activate}`}>
+              <div ref={activateSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.activate} ${stepRing('activate')}`}>
                 <h3 className="font-semibold text-gray-900 text-sm mb-2">Activate Round</h3>
                 <p className="text-xs text-gray-500 mb-3">
                   {canActivate
