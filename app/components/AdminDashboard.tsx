@@ -361,6 +361,16 @@ export default function AdminDashboard({
     const ls = getSetupLS(round?.id)
     return ls.teamsSaved ?? (teams.length > 0)
   })
+  // Playing Groups gets its own Save, same as Teams — the section stays open so
+  // the admin can look over every group (rosters, skins, side games) in one view
+  // before committing, instead of collapsing the moment the last player lands.
+  const [groupsSaved, setGroupsSaved] = useState<boolean>(() => {
+    const ls = getSetupLS(round?.id)
+    // Set up on another device: everyone already riding somewhere counts as saved.
+    const everyoneAssigned = playingGroups.length > 0 &&
+      players.filter(p => p.team_id !== null).every(p => playingGroupPlayers.some(gp => gp.player_id === p.id))
+    return ls.groupsSaved ?? everyoneAssigned
+  })
   const [showActivateTooltip, setShowActivateTooltip] = useState(false)
   const [resetConfirmTeamId, setResetConfirmTeamId] = useState<string | null>(null)
   const [roundExcludeMatchups, setRoundExcludeMatchupsState] = useState<boolean>(round?.exclude_matchups ?? false)
@@ -644,6 +654,7 @@ export default function AdminDashboard({
     setPayoutSaved(ls.payoutSaved ?? (hasRealBallValue || ['traditional', 'banker', 'hammer'].includes(round?.format ?? '')))
     setSkinsSaved(ls.skinsSaved ?? false)
     setTeamsSaved(ls.teamsSaved ?? false)
+    setGroupsSaved(ls.groupsSaved ?? false)
     setMixedGroupsAnswered(ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true))
     setMixedGroups(round?.mixed_groups ?? null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1576,7 +1587,7 @@ export default function AdminDashboard({
   const groupCountMet = targetGroupCount === 0 || livePlayingGroups.length === targetGroupCount
   const defaultGroupName = `Group ${livePlayingGroups.length + 1}`
   const groupsComplete = livePlayingGroups.length > 0 && unassignedPlayers.length === 0 && groupsAllLegalSize && groupCountMet
-  const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupsComplete)
+  const mixedGroupsSaved = !isStandard || (mixedGroupsAnswered && mixedGroups === false) || (mixedGroups === true && groupsComplete && groupsSaved)
   // If the new-round form is open over an existing round, lock all downstream sections
   // (they belong to the old round; settings don't apply until the new round is saved)
   const creatingNewRound = showNewRoundForm && !!round && !editingRoundSettings
@@ -1770,7 +1781,7 @@ export default function AdminDashboard({
   if (roundIsSettingUp) {
     if (!effectivePayoutSaved) activateMissingItems.push('Save Payout Value')
     if (!skinsSaved) activateMissingItems.push('Save Skins Settings')
-    if (isStandard && !mixedGroupsSaved) activateMissingItems.push(!mixedGroupsAnswered ? 'Answer the Mixed Groups question (top of Teams / Groups)' : 'Finish creating the playing groups')
+    if (isStandard && !mixedGroupsSaved) activateMissingItems.push(!mixedGroupsAnswered ? 'Answer the Mixed Groups question (top of Teams / Groups)' : groupsComplete ? 'Save Groups' : 'Finish creating the playing groups')
     if (!teamsSaved) activateMissingItems.push((isDaytona || isTraditional) ? 'Save Group(s)' : 'Save Teams')
     if (mixedGroups === true && !allGroupsMeetMinimum) activateMissingItems.push('Each playing group needs 3–5 players')
     if (mixedGroups === true && unassignedPlayers.length > 0) activateMissingItems.push(`${unassignedPlayers.length} player${unassignedPlayers.length === 1 ? ' is' : 's are'} not in a playing group yet`)
@@ -3902,8 +3913,8 @@ export default function AdminDashboard({
                                   {skinsEnabled === true && (
                                     <button type="button"
                                       onClick={() => setGenSkinsIds(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n })}
-                                      className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition flex-shrink-0 ${genSkinsIds.has(p.id) ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}>
-                                      Skins <span className={genSkinsIds.has(p.id) ? '' : 'invisible'}>✓</span>
+                                      className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition flex-shrink-0 w-14 text-center ${genSkinsIds.has(p.id) ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}>
+                                      {genSkinsIds.has(p.id) ? 'Skins ✓' : 'Skins'}
                                     </button>
                                   )}
                                   {p.source === 'manual' && (
@@ -4550,7 +4561,7 @@ export default function AdminDashboard({
                                                       onClick={() => handleSkinsChipTap(p, inSkins)}
                                                       className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
                                                       title="Toggle skins participation">
-                                                      Skins <span className={inSkins ? '' : 'invisible'}>✓</span>
+                                                      {inSkins ? 'Skins ✓' : 'Skins'}
                                                     </button>
                                                   )}
                                                   <button type="button"
@@ -5058,7 +5069,7 @@ export default function AdminDashboard({
                                           onClick={(e) => { e.stopPropagation(); handleSkinsChipTap(p, inSkins) }}
                                           className={`text-[9px] font-bold px-1 py-0.5 rounded-full border leading-none whitespace-nowrap flex-shrink-0 w-14 text-center transition ${inSkins ? 'bg-amber-100 text-amber-800 border-amber-400' : 'bg-gray-100 text-gray-400 border-gray-300'}`}
                                           title="Toggle skins participation">
-                                          Skins <span className={inSkins ? '' : 'invisible'}>✓</span>
+                                          {inSkins ? 'Skins ✓' : 'Skins'}
                                         </button>
                                       )}
                                       <button type="button"
@@ -5412,6 +5423,36 @@ export default function AdminDashboard({
                         </div>
                       )
                     })}
+
+                    {/* Save Groups — the list stays open until this is tapped, so
+                        every group's roster, skins and side game can be looked
+                        over in one view first. Same deal as Save Teams. */}
+                    {roundIsSettingUp && (
+                      <div className="pt-3 border-t border-gray-100">
+                        {groupsSaved && groupsComplete && (
+                          <p className="text-sm bg-green-50 text-green-700 rounded px-3 py-2 mb-2">Groups saved!</p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGroupsSaved(true); setSetupLS(round?.id, 'groupsSaved', true); setReopenedStep(null)
+                          }}
+                          disabled={!groupsComplete}
+                          className="w-full py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed text-white"
+                          style={{ background: navy }}>
+                          Save Groups
+                        </button>
+                        {!groupsComplete && (
+                          <p className="text-xs text-gray-400 text-center mt-1.5">
+                            {unassignedPlayers.length > 0
+                              ? `${unassignedPlayers.length} player${unassignedPlayers.length === 1 ? '' : 's'} still need${unassignedPlayers.length === 1 ? 's' : ''} a group`
+                              : !groupsAllLegalSize
+                              ? 'Every group needs 3–5 players'
+                              : `${livePlayingGroups.length} of ${targetGroupCount} groups created`}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
