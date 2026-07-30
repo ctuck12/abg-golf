@@ -5484,8 +5484,9 @@ export default function AdminDashboard({
                                   </div>
                                 )}
 
-                                {/* Save button */}
-                                <div className="flex items-center gap-2 pt-0.5">
+                                {/* Save button — saving the side game doesn't finish
+                                    the group, so point at the two taps that do */}
+                                <div className="flex items-center gap-2 pt-0.5 flex-wrap">
                                   <button type="button"
                                     disabled={sg.saving || (sg.daytonaEnabled && !sg.daytonaType)}
                                     onClick={() => {
@@ -5518,9 +5519,13 @@ export default function AdminDashboard({
                                     }}
                                     className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white disabled:opacity-40 transition"
                                     style={{ background: navy }}>
-                                    {sg.saving ? 'Saving…' : 'Save'}
+                                    {sg.saving ? 'Saving…' : 'Save Side Game'}
                                   </button>
-                                  {sg.saved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
+                                  {sg.saved && (
+                                    <span className="text-[10px] text-gray-400 italic">
+                                      <span className="text-green-600 not-italic font-bold">✓</span> Hit Done then Save Groups buttons
+                                    </span>
+                                  )}
                                 </div>
                                 </>)}
                               </div>
