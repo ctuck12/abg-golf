@@ -19,7 +19,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const [{ data: orgRow }, { data: roundRows }] = await Promise.all([
     sb.from('organizations').select('name').eq('id', orgId).single(),
     sb.from('rounds')
-      .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, skins_mode, auto_handicap, handicap_rounding, mixed_groups, playing_group_count, exclude_matchups')
+      .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, skins_mode, auto_handicap, handicap_rounding, mixed_groups, playing_group_count')
       .eq('is_active', true)
       .eq('org_id', orgId)
       .order('created_at', { ascending: false })

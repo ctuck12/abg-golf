@@ -40,7 +40,7 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
   // the leaderboard entirely. Newest active round wins, matching the admin hub.
   const { data: roundRows } = await sb
     .from('rounds')
-    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, skins_mode, handicap_rounding, mixed_groups, exclude_matchups')
+    .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, skins_mode, handicap_rounding, mixed_groups')
     .eq('is_active', true)
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
@@ -235,7 +235,6 @@ export default async function OrgPage({ params }: { params: Promise<{ orgSlug: s
       isAdmin={isAdmin}
       scorecardTeamId={scorecardTeamId}
       scorecardGroupId={scorecardGroupId}
-      excludeMatchups={round.exclude_matchups ?? false}
       isMixedGroups={isMixedGroups}
       playingGroups={lbPlayingGroupsRaw ?? []}
       groupPlayerMap={lbGroupPlayerMap}

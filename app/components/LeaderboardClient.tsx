@@ -15,7 +15,7 @@ import {
 import PinLoginModal from './PinLoginModal'
 import { ScoreNotation } from './ScoreNotation'
 
-type Team = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null; exclude_matchups?: boolean | null }
+type Team = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null }
 type Player = { id: string; team_id: string; name: string; position: number | null; skins_participant: boolean; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
 type Score = { player_id: string; hole_number: number; strokes: number }
@@ -113,7 +113,7 @@ function vpColor(vp: number | null): string {
 
 export default function LeaderboardClient({
   orgSlug, orgId, orgName, isMaster = false,
-  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], medleyMatchups = [], handicapRounding = 'down', skinsEnabled = false, skinsAmount = 0, skinsMode = 'per_hole', initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, excludeMatchups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {}, hammerMatchups = [], hammerHolesMap = {},
+  initialTeams, players, holes, initialScores, ballsCount, ballValues = [], roundName, roundDate, roundCourse, format = 'standard', daytonaVariant = '4man', viewOnly = false, scorecardTeamId: scorecardTeamIdProp = null, isAdmin: isAdminProp = false, roundId = '', initialAssignments = [], includeTotal = false, matchups = [], bestBallMatchups = [], medleyMatchups = [], handicapRounding = 'down', skinsEnabled = false, skinsAmount = 0, skinsMode = 'per_hole', initialHoleValues = {}, scorecardGroupId = null, isMixedGroups = false, playingGroups = [], groupPlayerMap = {}, groupHoleStrokes = {}, bankerHolesMap = {}, bankerBetsMap = {}, hammerMatchups = [], hammerHolesMap = {},
 }: {
   orgSlug: string
   orgId: string
@@ -134,7 +134,6 @@ export default function LeaderboardClient({
   scorecardTeamId?: string | null
   scorecardGroupId?: string | null
   isMixedGroups?: boolean
-  excludeMatchups?: boolean
   playingGroups?: { id: string; name: string; daytona_variant?: string | null; banker_side_game?: boolean | null; banker_side_game_min_bet?: number | null; auto_strokes?: boolean | null }[]
   groupPlayerMap?: Record<string, string[]>
   groupHoleStrokes?: Record<number, string[]>
@@ -827,10 +826,7 @@ export default function LeaderboardClient({
   }
   const matchupPayouts = computeAllMatchupPayouts(matchups, bestBallMatchups, medleyMatchups ?? [], players, scoreMapForMatchups, holes, handicapRounding)
 
-  // Players whose groups have "Exclude Matchups from Payouts" toggled on
-  const visibleMatchupPayouts = excludeMatchups
-    ? { rows: [], net: {} as Record<string, number>, involvedIds: new Set<string>() }
-    : matchupPayouts
+  const visibleMatchupPayouts = matchupPayouts
 
   // Hole splits for All Scorecards panel
   const scFrontNine = holes.filter((h) => h.hole_number <= 9).sort((a, b) => a.hole_number - b.hole_number)
@@ -1606,8 +1602,7 @@ export default function LeaderboardClient({
                 </div>
               )}
 
-              {/* ── Matchup Results (collapsible) — hidden when all matchups excluded ── */}
-              {!excludeMatchups ? (
+              {/* ── Matchup Results (collapsible) ── */}
               <div className="bg-white rounded-2xl border border-gray-400 shadow-sm overflow-hidden">
                 <button onClick={() => setShowMatchupResults((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 text-left">
                   <span className="text-sm font-semibold text-gray-800">Matchup Results</span>
@@ -1718,7 +1713,6 @@ export default function LeaderboardClient({
                     </div>
                   )}
                 </div>
-              ) : null}
 
               {/* ── Skins Game Results ── */}
               {skinsEnabled && skinsParticipants.length > 0 && (
@@ -1891,7 +1885,7 @@ export default function LeaderboardClient({
                     {isHammer && hammerMatchups.length > 0 && (
                       <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Hammer</span>
                     )}
-                    {!excludeMatchups && <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Matchups</span>}
+                    <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Matchups</span>
                     {skinsEnabled && (
                       <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap flex-shrink-0">Skins</span>
                     )}

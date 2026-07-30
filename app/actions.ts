@@ -952,15 +952,6 @@ export async function updatePlayingGroupSettings(groupId: string, settings: {
   return { success: true }
 }
 
-export async function setRoundExcludeMatchups(roundId: string, exclude: boolean) {
-  const authError = await requireAdminAuth()
-  if (authError) return { error: authError }
-  const supabase = createServerClient()
-  const { error } = await supabase.from('rounds').update({ exclude_matchups: exclude }).eq('id', roundId)
-  if (error) return { error: error.message }
-  return { success: true }
-}
-
 export async function createPlayingGroup(roundId: string, name: string, pin: string) {
   const authError = await requireAdminAuth()
   if (authError) return { error: authError }
