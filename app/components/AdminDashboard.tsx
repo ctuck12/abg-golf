@@ -30,7 +30,6 @@ import {
   removeManualPlayerFromGroup,
   updatePlayingGroupSettings,
   setRoundExcludeMatchups,
-  updateRoundName,
 } from '@/app/actions'
 import {
   computeTeamBallSummary, calculatePoolPayouts,
@@ -282,8 +281,6 @@ export default function AdminDashboard({
   const [showAddRosterForm, setShowAddRosterForm] = useState(false)
   const [editName, setEditName] = useState('')
   const [editPin, setEditPin] = useState('')
-  const [editingRoundName, setEditingRoundName] = useState(false)
-  const [roundNameDraft, setRoundNameDraft] = useState('')
   const [editDaytonaEnabled, setEditDaytonaEnabled] = useState(false)
   const [editDaytonaType, setEditDaytonaType] = useState('')
   const [editDaytonaSubVariant, setEditDaytonaSubVariant] = useState('')
@@ -1613,6 +1610,11 @@ export default function AdminDashboard({
   // Visible for the whole setup: no round yet, a round mid-setup, or a new
   // round being created over a live one. Hidden once a round is running.
   const showSetupStrip = !round || roundIsSettingUp || creatingNewRound
+  // The round form and the round card are the same slot: the form when it's
+  // open (or when there's no round yet), otherwise the card with the round's
+  // details and its Edit / New Round buttons. Collapses immediately on submit
+  // (createPending) or while a refresh is pending (effectivePendingId).
+  const roundFormOpen = !round || ((showNewRoundForm || editingRoundSettings) && !createPending && !effectivePendingId)
   // Ring the section for the current step. The strip alone is easy to read
   // past; this puts the emphasis on the card that's actually actionable.
   // The current step is always the first un-done one, which is always the
@@ -2897,26 +2899,10 @@ export default function AdminDashboard({
               </div>
             )}
           </div>
-            {/* Create round */}
-            {/* Collapse immediately on submit (createPending) or while refresh is pending (effectivePendingId) */}
-            {round && ((!showNewRoundForm && !editingRoundSettings) || createPending || !!effectivePendingId) ? (
-              /* Collapsed state — show "Edit Round Settings" and "New Round +" buttons */
-              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border px-4 py-5 flex items-center justify-center gap-3 ${SPINE.round} ${stepRing('round')}`}>
-                <button
-                  type="button"
-                  onClick={enterRoundEditMode}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
-                  Edit Round Settings
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowNewRoundWarning(true)}
-                  className="text-white px-4 py-2 rounded-lg text-sm font-semibold"
-                  style={{ background: navy }}>
-                  New Round +
-                </button>
-              </div>
-            ) : (
+            {/* Create / edit round form. When it's closed the round card below
+                carries the round's details and the two buttons — one card for
+                the round, not a button card stacked on an info card. */}
+            {roundFormOpen && (
               <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.round} ${stepRing('round')}`}>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-semibold text-gray-900 text-sm">
@@ -3172,69 +3158,42 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Active Round info card ── */}
+            {/* ── Round card ── */}
             {/* Show immediately on submit using optimistic values; switches to real data after router.refresh() */}
             {/* Navy spine like every other card — the ● Setting Up / Active /
                 Complete pill carries the round's state */}
-            {(round && (!showNewRoundForm || createPending || !!effectivePendingId)) && (
-              <div className="bg-white border-l-4 rounded-xl px-4 py-3 shadow-sm" style={{ borderColor: navy }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      {editingRoundName ? (
-                        <form
-                          className="flex items-center gap-1.5 flex-1 min-w-0"
-                          onSubmit={async (e) => {
-                            e.preventDefault()
-                            const trimmed = roundNameDraft.trim()
-                            if (!trimmed || !round?.id) { setEditingRoundName(false); return }
-                            await updateRoundName(round.id, trimmed)
-                            setEditingRoundName(false)
-                            router.refresh()
-                          }}
-                        >
-                          <input
-                            autoFocus
-                            value={roundNameDraft}
-                            onChange={(e) => setRoundNameDraft(e.target.value)}
-                            className="flex-1 min-w-0 text-sm font-semibold text-gray-900 border border-blue-400 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                          />
-                          <button type="submit" className="text-xs px-2 py-0.5 rounded font-semibold" style={{ background: '#1d4ed8', color: 'white' }}>Save</button>
-                          <button type="button" className="text-xs px-2 py-0.5 rounded font-semibold text-gray-500 border border-gray-300" onClick={() => setEditingRoundName(false)}>✕</button>
-                        </form>
-                      ) : (
-                        <>
-                          {/* During transition, show the new round's name from form state */}
-                          <p className="font-semibold text-gray-900 truncate">
-                            {(createPending || !!effectivePendingId) && newRoundName ? newRoundName : round.name}
-                          </p>
-                          <button
-                            onClick={() => { setRoundNameDraft(round.name); setEditingRoundName(true) }}
-                            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                            title="Edit round name"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 14, height: 14 }}>
-                              <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
-                            </svg>
-                          </button>
-                        </>
-                      )}
-                      {!editingRoundName && (isSettingUp ? (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>● Setting Up</span>
-                      ) : (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={isComplete ? { background: '#fee2e2', color: '#dc2626' } : { background: '#dcfce7', color: '#15803d' }}>
-                          {isComplete ? '● Complete' : '● Active'}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {round.course && `${round.course} · `}
-                      {new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      {' · '}{teams.length} {isDaytona ? 'groups' : 'teams'} · Par {parTotal}
-                      {' · '}{isDaytona ? 'Daytona' : isTraditional ? 'Traditional' : `${ballsCount}-ball${roundIncludeTotal ? ' + total' : ''}`}
-                      {is9HoleRound && ` · 9 Holes (${roundStartHole === 10 ? 'Back 9' : 'Front 9'})`}
-                    </p>
-                  </div>
+            {round && !roundFormOpen && (
+              <div ref={roundSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border px-4 py-4 ${SPINE.round} ${stepRing('round')}`}>
+                <div className="flex items-center gap-2 mb-0.5">
+                  {/* The pencil is gone — Edit Round Settings below renames it */}
+                  <p className="font-semibold text-gray-900 truncate">
+                    {(createPending || !!effectivePendingId) && newRoundName ? newRoundName : round.name}
+                  </p>
+                  {isSettingUp ? (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: '#fef3c7', color: '#92400e' }}>● Setting Up</span>
+                  ) : (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0" style={isComplete ? { background: '#fee2e2', color: '#dc2626' } : { background: '#dcfce7', color: '#15803d' }}>
+                      {isComplete ? '● Complete' : '● Active'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">
+                  {round.course && `${round.course} · `}
+                  {new Date(round.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {' · '}{teams.length} {isDaytona ? 'groups' : 'teams'} · Par {parTotal}
+                  {' · '}{isDaytona ? 'Daytona' : isTraditional ? 'Traditional' : `${ballsCount}-ball${roundIncludeTotal ? ' + total' : ''}`}
+                  {is9HoleRound && ` · 9 Holes (${roundStartHole === 10 ? 'Back 9' : 'Front 9'})`}
+                </p>
+                <div className="flex items-center gap-2 mt-3">
+                  <button type="button" onClick={enterRoundEditMode}
+                    className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+                    Edit Round Settings
+                  </button>
+                  <button type="button" onClick={() => setShowNewRoundWarning(true)}
+                    className="flex-1 text-white px-3 py-2 rounded-lg text-sm font-semibold"
+                    style={{ background: navy }}>
+                    New Round +
+                  </button>
                 </div>
               </div>
             )}
