@@ -586,6 +586,7 @@ export default function AdminDashboard({
       router.refresh()
       setPayoutSaved(true)
       setSetupLS(round?.id, 'payoutSaved', true)
+      setReopenedStep(null)
       advanceTo(skinsSectionRef)
     }
   }, [ballState])
@@ -594,6 +595,7 @@ export default function AdminDashboard({
       router.refresh()
       setSkinsSaved(true)
       setSetupLS(round?.id, 'skinsSaved', true)
+      setReopenedStep(null)
       advanceTo(teamsSectionRef)
     }
   }, [skinsState])
@@ -1649,17 +1651,62 @@ export default function AdminDashboard({
   //
   // These sections only render when a round exists, and their enabled flags are
   // only false mid-setup, so "not enabled" is the same as "locked during setup".
-  const payoutLocked = !payoutSectionEnabled
-  const skinsLocked = !skinsSectionEnabled
-  const teamsLocked = !teamsAddEnabled
-  const groupsLocked = !mixedGroupsSectionEnabled
+  //
+  // During setup a section is in one of three states, and only one is open at a
+  // time so the step you're on is the only thing competing for attention:
+  //   locked — gray row saying what opens it
+  //   done   — green row showing what you saved; tap to reopen and change it
+  //   open   — the full card
+  // A live round is always 'open': nothing collapses once the round is running.
+  const [reopenedStep, setReopenedStep] = useState<string | null>(null)
+  type StepState = 'locked' | 'done' | 'open'
+  function stepState(key: string, locked: boolean, done: boolean): StepState {
+    if (!showSetupStrip) return 'open'
+    if (locked) return 'locked'
+    if (done && reopenedStep !== key) return 'done'
+    return 'open'
+  }
+  const payoutStep = stepState('payout', !payoutSectionEnabled, effectivePayoutSaved)
+  const skinsStep = stepState('skins', !skinsSectionEnabled, skinsSaved)
+  const teamsStep = stepState('teams', !teamsAddEnabled, teamsSaved)
+  const groupsStep = stepState('groups', !mixedGroupsSectionEnabled, mixedGroupsSaved)
+
+  const payoutLabel = isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value'
+  const teamsLabel = isStandard ? `${ballsCount} Ball Teams` : 'Groups'
+  const stepSummary = {
+    payout: `$${ballVals[1] ?? 0} per ${isDaytona ? 'point' : 'ball'}`,
+    skins: skinsEnabled ? `On · $${skinsAmount} ${skinsMode === 'pot' ? 'pot' : 'per skin'}` : 'Off',
+    teams: `${teams.length} ${isStandard ? 'teams' : 'groups'} · ${teamPlayers.length} players`,
+    groups: `${livePlayingGroups.length} group${livePlayingGroups.length === 1 ? '' : 's'}`,
+  }
+
   const newRoundFirst = 'unlocks once the new round is saved'
-  function lockedRow(label: string, opens: string, spine: string, ref: React.RefObject<HTMLDivElement | null>) {
-    return (
-      <div ref={ref} style={JUMP_OFFSET}
-        className={`bg-white rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 ${spine}`}>
+  function lockedRow(label: string, opens: string, spine: string, ref: React.RefObject<HTMLDivElement | null>, onTap?: () => void) {
+    const inner = (
+      <>
         <h3 className="font-semibold text-gray-400 text-sm truncate">{label}</h3>
         <span className="text-[11px] text-gray-400 flex-shrink-0">{creatingNewRound ? newRoundFirst : opens}</span>
+      </>
+    )
+    const box = `bg-gray-100 rounded-2xl border border-gray-200 px-4 py-3 flex items-center justify-between gap-3 ${spine} opacity-70`
+    return (
+      <div ref={ref} style={JUMP_OFFSET}>
+        {onTap
+          ? <button type="button" onClick={onTap} className={`w-full text-left ${box}`}>{inner}</button>
+          : <div className={box}>{inner}</div>}
+      </div>
+    )
+  }
+  // Tap to reopen — a finished step stays changeable, it just stops taking up
+  // the screen. Spine stays the section's own; the fill carries the state.
+  function doneRow(key: string, label: string, summary: string, spine: string, ref: React.RefObject<HTMLDivElement | null>) {
+    return (
+      <div ref={ref} style={JUMP_OFFSET}>
+        <button type="button" onClick={() => setReopenedStep(key)}
+          className={`w-full bg-green-50 rounded-2xl border border-green-200 px-4 py-3 flex items-center justify-between gap-3 text-left transition hover:bg-green-100 ${spine}`}>
+          <h3 className="font-semibold text-green-800 text-sm truncate">✓ {label}</h3>
+          <span className="text-[11px] font-medium text-green-700 flex-shrink-0">{summary}</span>
+        </button>
       </div>
     )
   }
@@ -1704,6 +1751,9 @@ export default function AdminDashboard({
     }
     if (skinsNeedsParticipants) activateMissingItems.push('Skins Game is enabled but fewer than 2 skins participants are selected — mark at least 2 players with the Skins button in the Teams / Groups → Players section, or disable the Skins Game')
   }
+  // Activate is never 'done' during setup — it's either not ready yet or it's
+  // the step you're on. Declared here because it reads canActivate.
+  const activateStep: StepState = (!showSetupStrip || canActivate || reopenedStep === 'activate') ? 'open' : 'locked'
 
   useEffect(() => {
     const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
@@ -3190,9 +3240,11 @@ export default function AdminDashboard({
             )}
 
             {/* ── Per Ball / Per Point Payout Value — not shown for formats with no ball pool ── */}
-            {round && !hasNoBallPool && payoutLocked &&
-              lockedRow(isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value', 'unlocks once the round is saved', SPINE.payout, payoutSectionRef)}
-            {round && !hasNoBallPool && !payoutLocked && (
+            {round && !hasNoBallPool && payoutStep === 'locked' &&
+              lockedRow(payoutLabel, 'unlocks once the round is saved', SPINE.payout, payoutSectionRef)}
+            {round && !hasNoBallPool && payoutStep === 'done' &&
+              doneRow('payout', payoutLabel, stepSummary.payout, SPINE.payout, payoutSectionRef)}
+            {round && !hasNoBallPool && payoutStep === 'open' && (
               <div ref={payoutSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative ${SPINE.payout} ${stepRing('payout')}`}>
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">
                   {isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value'}
@@ -3241,9 +3293,11 @@ export default function AdminDashboard({
             )}
 
             {/* ── Skins Game ── */}
-            {round && skinsLocked &&
+            {round && skinsStep === 'locked' &&
               lockedRow('Skins Game', hasNoBallPool ? 'unlocks once the round is saved' : 'unlocks after Payout', SPINE.skins, skinsSectionRef)}
-            {round && !skinsLocked && (
+            {round && skinsStep === 'done' &&
+              doneRow('skins', 'Skins Game', stepSummary.skins, SPINE.skins, skinsSectionRef)}
+            {round && skinsStep === 'open' && (
               <div ref={skinsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative ${SPINE.skins} ${stepRing('skins')}`}>
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
                 <form action={skinsAction} ref={skinsFormRef} className="space-y-4"
@@ -3454,9 +3508,11 @@ export default function AdminDashboard({
             )}
 
             {/* ── Teams / Groups section ── */}
-            {round && teamsLocked &&
-              lockedRow(isStandard ? `${ballsCount} Ball Teams` : 'Groups', 'unlocks after Skins', SPINE.teams, teamsSectionRef)}
-            {round && !teamsLocked && (
+            {round && teamsStep === 'locked' &&
+              lockedRow(teamsLabel, 'unlocks after Skins', SPINE.teams, teamsSectionRef)}
+            {round && teamsStep === 'done' &&
+              doneRow('teams', teamsLabel, stepSummary.teams, SPINE.teams, teamsSectionRef)}
+            {round && teamsStep === 'open' && (
               <div ref={teamsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden relative ${SPINE.teams} ${stepRing('teams')}`}>
                 {/* Mixed Groups question — must be answered before team building (3/4 ball only) */}
                 {isStandard && roundIsSettingUp && (
@@ -4574,7 +4630,7 @@ export default function AdminDashboard({
                     <button
                       type="button"
                       onClick={() => {
-                        setTeamsSaved(true); setSetupLS(round?.id, 'teamsSaved', true)
+                        setTeamsSaved(true); setSetupLS(round?.id, 'teamsSaved', true); setReopenedStep(null)
                         // Skins enabled with fewer than 2 participants marked — warn now (activation stays gated too)
                         if (skinsEnabled === true && skinsParticipants.length < 2 && roundIsSettingUp) {
                           setSkinsFewParticipantsWarning(true)
@@ -4608,9 +4664,11 @@ export default function AdminDashboard({
             )}
 
             {/* ── Playing Groups (standard format, mixed groups = Yes only) ── */}
-            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsLocked &&
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsStep === 'locked' &&
               lockedRow('Playing Groups', 'unlocks after Teams', SPINE.groups, mixedGroupsSectionRef)}
-            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && !groupsLocked && (
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsStep === 'done' &&
+              doneRow('groups', 'Playing Groups', stepSummary.groups, SPINE.groups, mixedGroupsSectionRef)}
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsStep === 'open' && (
               <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 relative ${SPINE.groups} ${stepRing('groups')}`} style={JUMP_OFFSET}>
                 {showAssignGroupsNotice && roundIsSettingUp && (
                   <p className="text-xs font-medium text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
@@ -5350,8 +5408,14 @@ export default function AdminDashboard({
             )}
 
             {/* ── Activate Round (bottom) — only when round exists but not yet started ── */}
-            {roundIsSettingUp && round && (
-              <div ref={activateSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.activate} ${stepRing('activate')}`}>
+            {/* Collapsed until the steps above are done, so it reads as not-yet
+                rather than as a button that mysteriously won't press. Tapping
+                opens it to show exactly what's still needed. */}
+            {roundIsSettingUp && round && activateStep === 'locked' &&
+              lockedRow('Activate Round', `${activateMissingItems.length} step${activateMissingItems.length === 1 ? '' : 's'} left`,
+                SPINE.activate, activateSectionRef, () => setReopenedStep('activate'))}
+            {roundIsSettingUp && round && activateStep === 'open' && (
+              <div ref={activateSectionRef} style={JUMP_OFFSET} className={`rounded-2xl border p-5 ${canActivate ? 'bg-white' : 'bg-gray-100'} ${SPINE.activate} ${stepRing('activate')}`}>
                 <h3 className="font-semibold text-gray-900 text-sm mb-2">Activate Round</h3>
                 <p className="text-xs text-gray-500 mb-3">
                   {canActivate
