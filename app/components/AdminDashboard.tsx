@@ -443,6 +443,9 @@ export default function AdminDashboard({
   // The name comes pre-filled, so it's read-only until Edit is pressed —
   // that's what makes it read as already set rather than waiting on you.
   const [editingGroupName, setEditingGroupName] = useState(false)
+  // What the name was when Edit was pressed, so Cancel can put it back.
+  // Empty means it was showing the default, and Cancel returns to that.
+  const [groupNameBeforeEdit, setGroupNameBeforeEdit] = useState('')
   const groupNameInputRef = useRef<HTMLInputElement>(null)
   // 0 = no fixed count, which is the default: the number of groups follows
   // from placing everyone. Non-zero means the admin pinned it deliberately.
@@ -4791,16 +4794,30 @@ export default function AdminDashboard({
                               onChange={(e) => setNewGroupName(e.target.value)}
                               readOnly={!editingGroupName}
                               className={`flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none ${editingGroupName ? '' : 'bg-gray-50 text-gray-700'}`} />
-                            <button type="button"
-                              onClick={() => {
-                                if (editingGroupName) { setEditingGroupName(false); return }
-                                setEditingGroupName(true)
-                                // Select it so a new name replaces the old one
-                                setTimeout(() => { groupNameInputRef.current?.focus(); groupNameInputRef.current?.select() }, 0)
-                              }}
-                              className="flex-shrink-0 text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">
-                              {editingGroupName ? 'Done' : 'Edit'}
-                            </button>
+                            {editingGroupName ? (
+                              <>
+                                <button type="button" onClick={() => setEditingGroupName(false)}
+                                  className="flex-shrink-0 text-[11px] px-2.5 py-1 rounded-md text-white font-semibold" style={{ background: navy }}>
+                                  Save
+                                </button>
+                                <button type="button"
+                                  onClick={() => { setNewGroupName(groupNameBeforeEdit); setEditingGroupName(false) }}
+                                  className="flex-shrink-0 text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <button type="button"
+                                onClick={() => {
+                                  setGroupNameBeforeEdit(newGroupName)
+                                  setEditingGroupName(true)
+                                  // Select it so a new name replaces the old one
+                                  setTimeout(() => { groupNameInputRef.current?.focus(); groupNameInputRef.current?.select() }, 0)
+                                }}
+                                className="flex-shrink-0 text-[11px] px-2 py-1 rounded-md border border-gray-300 text-gray-600 font-semibold">
+                                Edit
+                              </button>
+                            )}
                             <input type="text" value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
                               placeholder="PIN" maxLength={4} inputMode="numeric"
                               className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
