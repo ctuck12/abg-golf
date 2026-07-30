@@ -12,7 +12,6 @@ import {
   updatePlayerHolesRange,
   clearAllScores,
   updateRoundAutoHandicap,
-  updateRoundHandicapRounding,
   toggleMixedGroups,
   setPlayingGroupCount,
   createPlayingGroup,
@@ -59,6 +58,9 @@ import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifi
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+// Every team and group starts on this PIN — an admin shouldn't have to invent
+// one per team, and it's shared with the players anyway. Still editable.
+const DEFAULT_PIN = '1234'
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
@@ -241,6 +243,8 @@ export default function AdminDashboard({
 }) {
   const router = useRouter()
   const [showOptions, setShowOptions] = useState(false)
+  // Optional Settings stays folded by default — none of it blocks activation
+  const [showOptionalSettings, setShowOptionalSettings] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
   const [addPlayerTeamId, setAddPlayerTeamId] = useState<string | null>(null)
   const [playerOrderOverrides, setPlayerOrderOverrides] = useState<Record<string, string[]>>({})
@@ -329,7 +333,11 @@ export default function AdminDashboard({
   const [showAddTeamForm, setShowAddTeamForm] = useState(false)
   const [skinsSaved, setSkinsSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
-    return ls.skinsSaved ?? false
+    // Fall back to the database, not just this device's localStorage. A round
+    // set up on a phone and reopened on a laptop used to read as unsaved here,
+    // which re-locked Teams and blocked activation. rounds.skins_enabled is
+    // null until the section is saved, so it answers exactly this question.
+    return ls.skinsSaved ?? (round?.skins_enabled != null)
   })
   const [roundSaved, setRoundSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
@@ -345,7 +353,11 @@ export default function AdminDashboard({
     // $0 ball values are created automatically on round creation — don't count those as "saved".
     // Only treat payout as saved when a non-zero value was deliberately set, or LS confirms it.
     const hasRealBallValue = ballValues.some(bv => bv.value_dollars > 0)
-    return ls.payoutSaved ?? (hasRealBallValue || ['traditional', 'banker', 'hammer'].includes(round?.format ?? ''))
+    // A deliberate $0 round is indistinguishable from the auto-created zeros, so
+    // also trust the step after it: Skins can only have been saved if Payout
+    // was. Without this, a $0 round read as unsaved on another device.
+    const skinsWasSaved = round?.skins_enabled != null
+    return ls.payoutSaved ?? (hasRealBallValue || skinsWasSaved || ['traditional', 'banker', 'hammer'].includes(round?.format ?? ''))
   })
   const [teamsSaved, setTeamsSaved] = useState<boolean>(() => {
     const ls = getSetupLS(round?.id)
@@ -471,7 +483,7 @@ export default function AdminDashboard({
   const [livePlayingGroups, setLivePlayingGroups] = useState<PlayingGroup[]>(playingGroups)
   const [liveGroupPlayers, setLiveGroupPlayers] = useState<PlayingGroupPlayer[]>(playingGroupPlayers)
   const [newGroupName, setNewGroupName] = useState('')
-  const [newGroupPin, setNewGroupPin] = useState('')
+  const [newGroupPin, setNewGroupPin] = useState(DEFAULT_PIN)
   const [newGroupPending, setNewGroupPending] = useState(false)
   const [showNewGroupPin, setShowNewGroupPin] = useState(false)
   const [groupError, setGroupError] = useState('')
@@ -586,6 +598,7 @@ export default function AdminDashboard({
       router.refresh()
       setPayoutSaved(true)
       setSetupLS(round?.id, 'payoutSaved', true)
+      setReopenedStep(null)
       advanceTo(skinsSectionRef)
     }
   }, [ballState])
@@ -594,6 +607,7 @@ export default function AdminDashboard({
       router.refresh()
       setSkinsSaved(true)
       setSetupLS(round?.id, 'skinsSaved', true)
+      setReopenedStep(null)
       advanceTo(teamsSectionRef)
     }
   }, [skinsState])
@@ -901,6 +915,12 @@ export default function AdminDashboard({
     setGeneratedTeams(result)
     setGenEditNames(names)
     setGenEditPins(pins)
+    // Everyone starts in skins. Opting a couple of people out is a handful of
+    // taps; opting everyone in was one tap per player, and forgetting blocked
+    // activation on "fewer than 2 skins participants".
+    if (skinsEnabled === true) {
+      setGenSkinsIds(new Set(result.flatMap(t => t.players.map(p => p.id))))
+    }
   }
 
   function handleRegenerateTeams() {
@@ -1166,7 +1186,7 @@ export default function AdminDashboard({
     setNewGroupSG(emptyNewGroupSG)
     setNewGroupPlayerIds(new Set())
     setNewGroupPending(false)
-    setNewGroupName(''); setNewGroupPin('')
+    setNewGroupName(''); setNewGroupPin(DEFAULT_PIN)
   }
   async function handleDeleteGroup(groupId: string) {
     await deletePlayingGroup(groupId)
@@ -1181,24 +1201,6 @@ export default function AdminDashboard({
     await setPlayerGroup(playerId, groupId)
   }
 
-  async function handleSetHcpRounding(mode: string) {
-    if (!round || mode === hcpRounding) return
-    const apply = async () => {
-      setHcpRounding(mode)
-      await updateRoundHandicapRounding(round.id, mode)
-      router.refresh()
-    }
-    if (round.is_started) {
-      const label = (m: string) => m === 'down' ? 'Round Down' : 'Round Up'
-      setLiveChangeConfirm({
-        title: 'Change stroke rounding?',
-        changes: [`Rounding: ${label(hcpRounding)} → ${label(mode)}`, 'Strokes recalculate for every player in the round.'],
-        onConfirm: () => { void apply() },
-      })
-      return
-    }
-    await apply()
-  }
   async function handleToggleAutoHandicap() {
     if (!round) return
     const next = !autoHandicap
@@ -1617,6 +1619,30 @@ export default function AdminDashboard({
   // shallowest unlocked section — so this never rings a locked card.
   const stepRing = (key: string) => (showSetupStrip && currentStepKey === key) ? 'ring-2 ring-[#0f172a]/25' : ''
 
+  // Opens a team's edit form — shared by the Edit button and the card's
+  // "+ Side Game" chip, which is the only hint side games exist when they're
+  // all off and mixed groups is No.
+  function beginEditTeam(team: typeof teams[number]) {
+    const v = team.daytona_variant ?? (isDaytona ? (round?.daytona_variant ?? '') : '')
+    const [variant, payout] = v.includes('|') ? v.split('|') : [v, '']
+    setEditingTeamId(team.id)
+    setEditName(team.name)
+    setEditPin(team.pin)
+    setEditDaytonaEnabled(!!v)
+    setEditDaytonaType(variant.startsWith('5man') ? '5' : variant === '4man' ? '4' : '')
+    setEditDaytonaSubVariant(variant === '5man-flares' ? 'flares' : variant === '5man-normal' ? 'normal' : '')
+    setEditDaytonaPayout(payout || '')
+    setEditDaytonaBack9(team.daytona_variant_back9 ?? '')
+    setEditBankerEnabled(!!team.banker_side_game)
+    setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
+    setEditBankerMaxBet(team.banker_side_game_max_bet != null ? String(team.banker_side_game_max_bet) : '')
+    setEditAutoStrokes(!!team.auto_strokes)
+    setEditHammerEnabled(!!team.hammer_side_game)
+    setEditHammerBaseBet(team.hammer_base_bet != null ? String(team.hammer_base_bet) : '1')
+    setEditHammerFormat(team.hammer_format ?? 'stroke')
+    setEditTeamStrokeRounding(team.stroke_rounding ?? hcpRounding)
+  }
+
   // ── Locked sections collapse ──────────────────────────────────────────────
   // A locked section used to sit there full height and unusable, so the card
   // you could actually act in was buried under a screenful of dead ones. A
@@ -1625,17 +1651,62 @@ export default function AdminDashboard({
   //
   // These sections only render when a round exists, and their enabled flags are
   // only false mid-setup, so "not enabled" is the same as "locked during setup".
-  const payoutLocked = !payoutSectionEnabled
-  const skinsLocked = !skinsSectionEnabled
-  const teamsLocked = !teamsAddEnabled
-  const groupsLocked = !mixedGroupsSectionEnabled
+  //
+  // During setup a section is in one of three states, and only one is open at a
+  // time so the step you're on is the only thing competing for attention:
+  //   locked — gray row saying what opens it
+  //   done   — green row showing what you saved; tap to reopen and change it
+  //   open   — the full card
+  // A live round is always 'open': nothing collapses once the round is running.
+  const [reopenedStep, setReopenedStep] = useState<string | null>(null)
+  type StepState = 'locked' | 'done' | 'open'
+  function stepState(key: string, locked: boolean, done: boolean): StepState {
+    if (!showSetupStrip) return 'open'
+    if (locked) return 'locked'
+    if (done && reopenedStep !== key) return 'done'
+    return 'open'
+  }
+  const payoutStep = stepState('payout', !payoutSectionEnabled, effectivePayoutSaved)
+  const skinsStep = stepState('skins', !skinsSectionEnabled, skinsSaved)
+  const teamsStep = stepState('teams', !teamsAddEnabled, teamsSaved)
+  const groupsStep = stepState('groups', !mixedGroupsSectionEnabled, mixedGroupsSaved)
+
+  const payoutLabel = isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value'
+  const teamsLabel = isStandard ? `${ballsCount} Ball Teams` : 'Groups'
+  const stepSummary = {
+    payout: `$${ballVals[1] ?? 0} per ${isDaytona ? 'point' : 'ball'}`,
+    skins: skinsEnabled ? `On · $${skinsAmount} ${skinsMode === 'pot' ? 'pot' : 'per skin'}` : 'Off',
+    teams: `${teams.length} ${isStandard ? 'teams' : 'groups'} · ${teamPlayers.length} players`,
+    groups: `${livePlayingGroups.length} group${livePlayingGroups.length === 1 ? '' : 's'}`,
+  }
+
   const newRoundFirst = 'unlocks once the new round is saved'
-  function lockedRow(label: string, opens: string, spine: string, ref: React.RefObject<HTMLDivElement | null>) {
-    return (
-      <div ref={ref} style={JUMP_OFFSET}
-        className={`bg-white rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 ${spine}`}>
+  function lockedRow(label: string, opens: string, spine: string, ref: React.RefObject<HTMLDivElement | null>, onTap?: () => void) {
+    const inner = (
+      <>
         <h3 className="font-semibold text-gray-400 text-sm truncate">{label}</h3>
         <span className="text-[11px] text-gray-400 flex-shrink-0">{creatingNewRound ? newRoundFirst : opens}</span>
+      </>
+    )
+    const box = `bg-gray-100 rounded-2xl border border-gray-200 px-4 py-3 flex items-center justify-between gap-3 ${spine} opacity-70`
+    return (
+      <div ref={ref} style={JUMP_OFFSET}>
+        {onTap
+          ? <button type="button" onClick={onTap} className={`w-full text-left ${box}`}>{inner}</button>
+          : <div className={box}>{inner}</div>}
+      </div>
+    )
+  }
+  // Tap to reopen — a finished step stays changeable, it just stops taking up
+  // the screen. Spine stays the section's own; the fill carries the state.
+  function doneRow(key: string, label: string, summary: string, spine: string, ref: React.RefObject<HTMLDivElement | null>) {
+    return (
+      <div ref={ref} style={JUMP_OFFSET}>
+        <button type="button" onClick={() => setReopenedStep(key)}
+          className={`w-full bg-green-50 rounded-2xl border border-green-200 px-4 py-3 flex items-center justify-between gap-3 text-left transition hover:bg-green-100 ${spine}`}>
+          <h3 className="font-semibold text-green-800 text-sm truncate">✓ {label}</h3>
+          <span className="text-[11px] font-medium text-green-700 flex-shrink-0">{summary}</span>
+        </button>
       </div>
     )
   }
@@ -1680,6 +1751,9 @@ export default function AdminDashboard({
     }
     if (skinsNeedsParticipants) activateMissingItems.push('Skins Game is enabled but fewer than 2 skins participants are selected — mark at least 2 players with the Skins button in the Teams / Groups → Players section, or disable the Skins Game')
   }
+  // Activate is never 'done' during setup — it's either not ready yet or it's
+  // the step you're on. Declared here because it reads canActivate.
+  const activateStep: StepState = (!showSetupStrip || canActivate || reopenedStep === 'activate') ? 'open' : 'locked'
 
   useEffect(() => {
     const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
@@ -3166,9 +3240,11 @@ export default function AdminDashboard({
             )}
 
             {/* ── Per Ball / Per Point Payout Value — not shown for formats with no ball pool ── */}
-            {round && !hasNoBallPool && payoutLocked &&
-              lockedRow(isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value', 'unlocks once the round is saved', SPINE.payout, payoutSectionRef)}
-            {round && !hasNoBallPool && !payoutLocked && (
+            {round && !hasNoBallPool && payoutStep === 'locked' &&
+              lockedRow(payoutLabel, 'unlocks once the round is saved', SPINE.payout, payoutSectionRef)}
+            {round && !hasNoBallPool && payoutStep === 'done' &&
+              doneRow('payout', payoutLabel, stepSummary.payout, SPINE.payout, payoutSectionRef)}
+            {round && !hasNoBallPool && payoutStep === 'open' && (
               <div ref={payoutSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative ${SPINE.payout} ${stepRing('payout')}`}>
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">
                   {isDaytona ? 'Per Point Payout Value' : 'Per Ball Payout Value'}
@@ -3217,9 +3293,11 @@ export default function AdminDashboard({
             )}
 
             {/* ── Skins Game ── */}
-            {round && skinsLocked &&
+            {round && skinsStep === 'locked' &&
               lockedRow('Skins Game', hasNoBallPool ? 'unlocks once the round is saved' : 'unlocks after Payout', SPINE.skins, skinsSectionRef)}
-            {round && !skinsLocked && (
+            {round && skinsStep === 'done' &&
+              doneRow('skins', 'Skins Game', stepSummary.skins, SPINE.skins, skinsSectionRef)}
+            {round && skinsStep === 'open' && (
               <div ref={skinsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 relative ${SPINE.skins} ${stepRing('skins')}`}>
                 <h3 className="font-semibold text-gray-900 mb-3 text-sm">Skins Game</h3>
                 <form action={skinsAction} ref={skinsFormRef} className="space-y-4"
@@ -3335,37 +3413,6 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Handicap Settings (auto strokes + rounding) — during setup too for Daytona/Banker, which auto-stroke by default ── */}
-            {round && (round.is_started || isDaytona || isBankerRound) && (
-              <div className={`bg-white rounded-2xl border p-5 ${SPINE.handicap}`}>
-                <h3 className="font-semibold text-gray-900 text-sm mb-3">Handicap Settings</h3>
-                {(isDaytona || round.format === 'banker') && (
-                  <div className="flex items-center gap-3 cursor-pointer mb-4" onClick={handleToggleAutoHandicap}>
-                    <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
-                      <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
-                      <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium text-gray-800 mb-1">Stroke Rounding</p>
-                  <p className="text-xs text-gray-400 mb-2">How decimal handicaps become whole strokes. Round Down: 7.9 → 7. Round Up: 7.4 → 7, 7.5 → 8.</p>
-                  <div className="flex gap-1.5">
-                    {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, label]) => (
-                      <button key={mode} type="button" onClick={() => handleSetHcpRounding(mode)}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition"
-                        style={hcpRounding === mode ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* ── Hammer Matchups (standalone Hammer format only) ── */}
             {round && round.format === 'hammer' && round.is_started && (
               <div className={`bg-white rounded-2xl border p-5 space-y-3 ${SPINE.hammer}`}>
@@ -3430,9 +3477,11 @@ export default function AdminDashboard({
             )}
 
             {/* ── Teams / Groups section ── */}
-            {round && teamsLocked &&
-              lockedRow(isStandard ? `${ballsCount} Ball Teams` : 'Groups', 'unlocks after Skins', SPINE.teams, teamsSectionRef)}
-            {round && !teamsLocked && (
+            {round && teamsStep === 'locked' &&
+              lockedRow(teamsLabel, 'unlocks after Skins', SPINE.teams, teamsSectionRef)}
+            {round && teamsStep === 'done' &&
+              doneRow('teams', teamsLabel, stepSummary.teams, SPINE.teams, teamsSectionRef)}
+            {round && teamsStep === 'open' && (
               <div ref={teamsSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border overflow-hidden relative ${SPINE.teams} ${stepRing('teams')}`}>
                 {/* Mixed Groups question — must be answered before team building (3/4 ball only) */}
                 {isStandard && roundIsSettingUp && (
@@ -3778,6 +3827,23 @@ export default function AdminDashboard({
                             </button>
                           </div>
                         </div>
+                        {/* Bulk skins, so opting a whole field in or out isn't
+                            one tap per player */}
+                        {skinsEnabled === true && generatedTeams && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-gray-500">Skins:</span>
+                            <button type="button"
+                              onClick={() => setGenSkinsIds(new Set(generatedTeams.flatMap(t => t.players.map(p => p.id))))}
+                              className="text-[11px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
+                              All in
+                            </button>
+                            <button type="button" onClick={() => setGenSkinsIds(new Set())}
+                              className="text-[11px] font-semibold text-gray-500 bg-gray-100 border border-gray-300 rounded-full px-2 py-0.5">
+                              None
+                            </button>
+                            <span className="text-[11px] text-gray-400">{genSkinsIds.size} in</span>
+                          </div>
+                        )}
 
                         {generatedTeams.map((team, i) => (
                           <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
@@ -4069,10 +4135,13 @@ export default function AdminDashboard({
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <input type="text" name="name" placeholder={(isDaytona || isTraditional) ? 'Group name' : 'Team name'} required
+                        {/* Prefilled so a first-timer doesn't have to invent a
+                            name and a PIN for every team — both stay editable */}
+                        <input key={`n${teams.length}`} type="text" name="name" defaultValue={`${(isDaytona || isTraditional) ? 'Group' : 'Team'} ${teams.length + 1}`}
+                          placeholder={(isDaytona || isTraditional) ? 'Group name' : 'Team name'} required
                           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                         {!mixedGroups && (
-                          <input type="text" name="pin" placeholder="PIN" maxLength={4} inputMode="numeric" required
+                          <input key={`p${teams.length}`} type="text" name="pin" defaultValue={DEFAULT_PIN} placeholder="PIN" maxLength={4} inputMode="numeric" required
                             className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none" />
                         )}
                         {/* Disabled only while the create action is in-flight (roundId not known yet) */}
@@ -4081,7 +4150,7 @@ export default function AdminDashboard({
                           className="text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
                           style={{ background: navy }}>{createPending ? '…' : 'Add'}</button>
                       </div>
-                      {!mixedGroups && <p className="text-xs text-gray-400">PIN must be 4 digits — share with the team.</p>}
+                      {!mixedGroups && <p className="text-xs text-gray-400">PIN must be 4 digits — share with the team. Defaults to {DEFAULT_PIN}.</p>}
                     </form>
                   </div>
                 )}
@@ -4360,6 +4429,16 @@ export default function AdminDashboard({
                                 {team.hammer_side_game && <> · <span className="font-medium text-orange-700">Hammer · {team.hammer_format === 'match' ? 'Match' : 'Stroke'} · ${team.hammer_base_bet ?? 1}/hole</span></>}
                                 {team.is_admin && <span className="ml-1 text-amber-600 font-medium">· Admin</span>}
                               </p>
+                              {/* With every side game off there was nothing on the card to
+                                  say they exist — you had to know to press Edit. When one is
+                                  on it already shows in the line above, so this only appears
+                                  when there's nothing to show. */}
+                              {!team.daytona_variant && !team.banker_side_game && !team.hammer_side_game && (
+                                <button type="button" onClick={() => beginEditTeam(team)}
+                                  className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded-full px-2 py-0.5 mt-1 hover:bg-amber-100 transition">
+                                  + Side Game
+                                </button>
+                              )}
                               <p className="text-xs mt-0.5">
                                 {(() => {
                                   if (isTraditional) {
@@ -4392,26 +4471,7 @@ export default function AdminDashboard({
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <button onClick={() => {
-                                const v = team.daytona_variant ?? (isDaytona ? (round?.daytona_variant ?? '') : '')
-                                const [variant, payout] = v.includes('|') ? v.split('|') : [v, '']
-                                setEditingTeamId(team.id)
-                                setEditName(team.name)
-                                setEditPin(team.pin)
-                                setEditDaytonaEnabled(!!v)
-                                setEditDaytonaType(variant.startsWith('5man') ? '5' : variant === '4man' ? '4' : '')
-                                setEditDaytonaSubVariant(variant === '5man-flares' ? 'flares' : variant === '5man-normal' ? 'normal' : '')
-                                setEditDaytonaPayout(payout || '')
-                                setEditDaytonaBack9(team.daytona_variant_back9 ?? '')
-                                setEditBankerEnabled(!!team.banker_side_game)
-                                setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
-                                setEditBankerMaxBet(team.banker_side_game_max_bet != null ? String(team.banker_side_game_max_bet) : '')
-                                setEditAutoStrokes(!!team.auto_strokes)
-                                setEditHammerEnabled(!!team.hammer_side_game)
-                                setEditHammerBaseBet(team.hammer_base_bet != null ? String(team.hammer_base_bet) : '1')
-                                setEditHammerFormat(team.hammer_format ?? 'stroke')
-                                setEditTeamStrokeRounding(team.stroke_rounding ?? hcpRounding)
-                              }}
+                              <button onClick={() => beginEditTeam(team)}
                                 className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">
                                 Edit
                               </button>
@@ -4522,6 +4582,7 @@ export default function AdminDashboard({
                                 )}
                                 <form action={addPlayerAction} className="flex flex-col gap-2">
                                   <input type="hidden" name="teamId" value={team.id} />
+                                  <input type="hidden" name="orgId" value={orgId} />
                                   {addPlayerState?.error && <p className="text-xs text-red-500">{addPlayerState.error}</p>}
                                   <input type="text" name="name" placeholder="Or enter name manually" required
                                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
@@ -4539,6 +4600,14 @@ export default function AdminDashboard({
                                       className="text-white px-4 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60 ml-auto"
                                       style={{ background: navy }}>Add</button>
                                   </div>
+                                  {/* On by default — otherwise this player exists
+                                      for one round only and has to be retyped next
+                                      week, with no roster row for GHIN sync */}
+                                  <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
+                                    <input type="checkbox" name="add_to_roster" value="true" defaultChecked
+                                      className="w-3.5 h-3.5 accent-sky-600" />
+                                    Also add to the Player Roster
+                                  </label>
                                 </form>
                               </div>
                             )}
@@ -4559,7 +4628,7 @@ export default function AdminDashboard({
                     <button
                       type="button"
                       onClick={() => {
-                        setTeamsSaved(true); setSetupLS(round?.id, 'teamsSaved', true)
+                        setTeamsSaved(true); setSetupLS(round?.id, 'teamsSaved', true); setReopenedStep(null)
                         // Skins enabled with fewer than 2 participants marked — warn now (activation stays gated too)
                         if (skinsEnabled === true && skinsParticipants.length < 2 && roundIsSettingUp) {
                           setSkinsFewParticipantsWarning(true)
@@ -4593,9 +4662,11 @@ export default function AdminDashboard({
             )}
 
             {/* ── Playing Groups (standard format, mixed groups = Yes only) ── */}
-            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsLocked &&
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsStep === 'locked' &&
               lockedRow('Playing Groups', 'unlocks after Teams', SPINE.groups, mixedGroupsSectionRef)}
-            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && !groupsLocked && (
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsStep === 'done' &&
+              doneRow('groups', 'Playing Groups', stepSummary.groups, SPINE.groups, mixedGroupsSectionRef)}
+            {round && round.format === 'standard' && mixedGroups === true && mixedGroupsAnswered && groupsStep === 'open' && (
               <div ref={mixedGroupsSectionRef} className={`bg-white rounded-2xl border p-5 space-y-4 relative ${SPINE.groups} ${stepRing('groups')}`} style={JUMP_OFFSET}>
                 {showAssignGroupsNotice && roundIsSettingUp && (
                   <p className="text-xs font-medium text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
@@ -4659,7 +4730,7 @@ export default function AdminDashboard({
                         {livePlayingGroups.length < targetGroupCount ? (
                           <div className="flex gap-2 flex-wrap">
                             <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-                              placeholder="Group name" className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                              placeholder={`Group ${livePlayingGroups.length + 1}`} className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
                             <div className="relative">
                               <input type={showNewGroupPin ? 'text' : 'password'} value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
                                 placeholder="4-digit PIN" maxLength={4} inputMode="numeric"
@@ -5250,11 +5321,21 @@ export default function AdminDashboard({
               </div>
             )}
 
-            {/* ── Matchup Results — sits down here with the other
-                round-wide switches, after the playing groups ── */}
+            {/* ── Optional Settings — nothing in here blocks activation, so it
+                stays folded away and out of the required run of steps ── */}
             {round && (
-              <div className={`bg-white rounded-2xl border p-5 ${SPINE.matchups}`}>
-                <h3 className="font-semibold text-gray-900 text-sm mb-3">Matchup Results</h3>
+              <div className={`bg-white rounded-2xl border overflow-hidden ${SPINE.matchups}`}>
+                <button type="button" onClick={() => setShowOptionalSettings(v => !v)}
+                  className="w-full flex items-center justify-between px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-semibold text-gray-900 text-sm">Optional Settings</h3>
+                    <span className="text-[11px] text-gray-400">nothing here is required</span>
+                  </div>
+                  <span className="text-gray-400 text-sm">{showOptionalSettings ? '▲' : '▼'}</span>
+                </button>
+                {showOptionalSettings && (
+                <div className="border-t border-gray-100 px-5 py-4 space-y-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Matchup Results</p>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-600">Exclude from Payouts &amp; Settlements</span>
                   <button type="button"
@@ -5287,7 +5368,28 @@ export default function AdminDashboard({
                   {roundExcludeMatchupsSaved && <span className="text-xs text-green-600 font-medium">Saved ✓</span>}
                 </div>
                 {roundExcludeMatchups && (
-                  <p className="text-xs text-gray-400 mt-2">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
+                  <p className="text-xs text-gray-400">Matchup Results are hidden from Payouts and excluded from Combined Settlements.</p>
+                )}
+                {/* The switch governs matchups, but they're built on another
+                    screen — with no link there was no way to know where */}
+                <a href={`/${orgSlug}/matchup`}
+                  className="inline-block text-xs font-semibold text-blue-600 hover:underline">
+                  Head-to-head, Best Ball &amp; Medley matchups are set up here →
+                </a>
+                {(isDaytona || isBankerRound) && (
+                  <div className="border-t border-gray-100 pt-3">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
+                      <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
+                        <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
+                        <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                </div>
                 )}
               </div>
             )}
@@ -5335,8 +5437,14 @@ export default function AdminDashboard({
             )}
 
             {/* ── Activate Round (bottom) — only when round exists but not yet started ── */}
-            {roundIsSettingUp && round && (
-              <div ref={activateSectionRef} style={JUMP_OFFSET} className={`bg-white rounded-2xl border p-5 ${SPINE.activate} ${stepRing('activate')}`}>
+            {/* Collapsed until the steps above are done, so it reads as not-yet
+                rather than as a button that mysteriously won't press. Tapping
+                opens it to show exactly what's still needed. */}
+            {roundIsSettingUp && round && activateStep === 'locked' &&
+              lockedRow('Activate Round', `${activateMissingItems.length} step${activateMissingItems.length === 1 ? '' : 's'} left`,
+                SPINE.activate, activateSectionRef, () => setReopenedStep('activate'))}
+            {roundIsSettingUp && round && activateStep === 'open' && (
+              <div ref={activateSectionRef} style={JUMP_OFFSET} className={`rounded-2xl border p-5 ${canActivate ? 'bg-white' : 'bg-gray-100'} ${SPINE.activate} ${stepRing('activate')}`}>
                 <h3 className="font-semibold text-gray-900 text-sm mb-2">Activate Round</h3>
                 <p className="text-xs text-gray-500 mb-3">
                   {canActivate
