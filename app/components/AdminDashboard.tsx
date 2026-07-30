@@ -1858,6 +1858,32 @@ export default function AdminDashboard({
     return () => ro.disconnect()
   }, [])
 
+  // The step chips always stay on one line. Mixed Groups adds a sixth chip,
+  // which is what pushes them past the width of a phone — so instead of
+  // wrapping, the row scales down to whatever fits.
+  const stripWrapRef = useRef<HTMLDivElement>(null)
+  const stripInnerRef = useRef<HTMLDivElement>(null)
+  const [stripFit, setStripFit] = useState<{ scale: number; height: number }>({ scale: 1, height: 0 })
+  const stripSig = setupSteps.map(s => `${s.label}${s.done ? '✓' : ''}`).join('|')
+  useEffect(() => {
+    const wrap = stripWrapRef.current
+    const inner = stripInnerRef.current
+    if (!wrap || !inner) return
+    const measure = () => {
+      const avail = wrap.clientWidth
+      const natural = inner.scrollWidth
+      if (!avail || !natural) return
+      const scale = Math.min(1, avail / natural)
+      const height = Math.ceil(inner.offsetHeight * scale)
+      setStripFit(prev => (Math.abs(prev.scale - scale) < 0.005 && prev.height === height) ? prev : { scale, height })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(wrap)
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [showSetupStrip, stripSig])
+
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
 
@@ -2777,12 +2803,14 @@ export default function AdminDashboard({
         <div ref={stickyBarRef} className="sticky z-20 -mx-4 px-4 pb-2" style={{ top: 'var(--admin-hdr, 104px)', background: '#f8fafc' }}>
           <h2 className={`text-lg font-bold text-gray-900 ${showSetupStrip ? 'mb-1.5' : ''}`}>Admin Hub</h2>
           {showSetupStrip && (
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <div ref={stripWrapRef} className="overflow-hidden" style={stripFit.height ? { height: stripFit.height } : undefined}>
+            <div ref={stripInnerRef} className="flex items-center gap-x-1.5 w-max"
+              style={stripFit.scale < 1 ? { transform: `scale(${stripFit.scale})`, transformOrigin: 'left top' } : undefined}>
               {setupSteps.map((s, i) => {
                 const current = s.key === currentStepKey
                 return (
                   <button key={s.key} type="button" onClick={() => jumpTo(s.ref)}
-                    className="flex items-center gap-1">
+                    className="flex items-center gap-1 flex-shrink-0">
                     {/* Number outside the pill — it reads as the step's index
                         rather than part of its name */}
                     <span className={`text-[11px] font-bold ${s.done ? 'text-green-600' : current ? 'text-gray-900' : 'text-gray-300'}`}>
@@ -2798,6 +2826,7 @@ export default function AdminDashboard({
                   </button>
                 )
               })}
+            </div>
             </div>
           )}
         </div>
