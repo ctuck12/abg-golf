@@ -4775,8 +4775,16 @@ export default function AdminDashboard({
                             everyone is placed, not at a preset count */}
                         {(unassignedPlayers.length > 0 || livePlayingGroups.length === 0) && (targetGroupCount === 0 || livePlayingGroups.length < targetGroupCount) ? (
                           <div className="flex gap-2 flex-wrap">
+                            {/* "Group 2" is a suggestion, not a value — the
+                                field is empty and + Add stays disabled until
+                                it's filled. Amber while empty says so without
+                                a word of explanation or a taller box. */}
                             <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-                              placeholder={`Group ${livePlayingGroups.length + 1}`} className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+                              placeholder={`Group ${livePlayingGroups.length + 1}`}
+                              className={`flex-1 min-w-0 border rounded-lg px-3 py-1.5 text-sm focus:outline-none placeholder:italic ${
+                                newGroupName.trim()
+                                  ? 'border-gray-300'
+                                  : 'border-amber-400 bg-amber-50/50 placeholder:text-amber-700/70'}`} />
                             <input type="text" value={newGroupPin} onChange={(e) => setNewGroupPin(e.target.value)}
                               placeholder="PIN" maxLength={4} inputMode="numeric"
                               className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none" />
