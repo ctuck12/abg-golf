@@ -443,8 +443,7 @@ export default function AdminDashboard({
   // 0 = no fixed count, which is the default: the number of groups follows
   // from placing everyone. Non-zero means the admin pinned it deliberately.
   const [targetGroupCount, setTargetGroupCount] = useState(round?.playing_group_count ?? 0)
-  const [groupCountDraft, setGroupCountDraft] = useState('')
-  const [showGroupCountOverride, setShowGroupCountOverride] = useState(false)
+  const [groupCountSaving, setGroupCountSaving] = useState(false)
   // Side game configured while creating a new playing group (saved on create)
   const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', bankerMaxBet: '', autoStrokes: false, strokeRounding: round?.handicap_rounding ?? 'down' }
   const [newGroupSG, setNewGroupSG] = useState(emptyNewGroupSG)
@@ -4707,46 +4706,46 @@ export default function AdminDashboard({
                       )}
                     </div>
 
-                    {/* Escape hatch — the count normally follows from placing
-                        everyone, but an admin who knows they want exactly N
-                        carts can pin it and have the form stop there. */}
-                    {targetGroupCount > 0 ? (
-                      <button type="button"
-                        onClick={async () => {
-                          setTargetGroupCount(0)
-                          if (round) await setPlayingGroupCount(round.id, 0)
-                        }}
-                        className="text-[11px] text-gray-400 hover:text-gray-600 underline">
-                        Fixed at {targetGroupCount} groups — remove the limit
-                      </button>
-                    ) : showGroupCountOverride ? (
-                      <div className="flex items-center gap-2">
-                        <input type="number" min="1" max="20" autoFocus
-                          value={groupCountDraft}
-                          onChange={e => setGroupCountDraft(e.target.value)}
-                          placeholder="e.g. 4"
-                          className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none" />
-                        <button type="button"
-                          onClick={async () => {
-                            const n = Math.max(0, parseInt(groupCountDraft) || 0)
-                            if (!round || n === 0) return
-                            setTargetGroupCount(n)
-                            setShowGroupCountOverride(false)
-                            setGroupCountDraft('')
-                            await setPlayingGroupCount(round.id, n)
-                          }}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white" style={{ background: navy }}>
-                          Set
-                        </button>
-                        <button type="button" onClick={() => { setShowGroupCountOverride(false); setGroupCountDraft('') }}
-                          className="text-[11px] text-gray-400">Cancel</button>
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => setShowGroupCountOverride(true)}
-                        className="text-[11px] text-gray-400 hover:text-gray-600 underline">
-                        Need an exact number of groups?
-                      </button>
-                    )}
+                    {/* The count normally follows from placing everyone. Pinning
+                        one is a single tap, and once pinned the number is always
+                        on screen — it only moves when you move it. */}
+                    {(() => {
+                      const applyCount = (n: number) => {
+                        setTargetGroupCount(n)
+                        if (!round) return
+                        setGroupCountSaving(true)
+                        void setPlayingGroupCount(round.id, n).finally(() => setGroupCountSaving(false))
+                      }
+                      // Groups hold 3-5, so four apiece is the natural starting
+                      // guess; never suggest fewer than already exist.
+                      const suggested = Math.max(1, livePlayingGroups.length, Math.ceil(teamPlayers.length / 4))
+                      return (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] text-gray-500">Number of groups:</span>
+                          {targetGroupCount > 0 ? (
+                            <>
+                              <div className="flex items-center gap-1">
+                                <button type="button" disabled={groupCountSaving || targetGroupCount <= Math.max(1, livePlayingGroups.length)}
+                                  onClick={() => applyCount(targetGroupCount - 1)}
+                                  className="w-6 h-6 rounded-md border border-gray-300 text-gray-600 text-sm leading-none disabled:opacity-30">−</button>
+                                <span className="text-sm font-semibold text-gray-900 w-5 text-center">{targetGroupCount}</span>
+                                <button type="button" disabled={groupCountSaving || targetGroupCount >= 20}
+                                  onClick={() => applyCount(targetGroupCount + 1)}
+                                  className="w-6 h-6 rounded-md border border-gray-300 text-gray-600 text-sm leading-none disabled:opacity-30">+</button>
+                              </div>
+                              <button type="button" onClick={() => applyCount(0)}
+                                className="text-[11px] text-gray-400 hover:text-gray-600 underline">use automatic</button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-sm font-semibold text-gray-900">Automatic</span>
+                              <button type="button" onClick={() => applyCount(suggested)}
+                                className="text-[11px] text-gray-400 hover:text-gray-600 underline">set an exact number</button>
+                            </>
+                          )}
+                        </div>
+                      )
+                    })()}
 
                     {
                       <>
