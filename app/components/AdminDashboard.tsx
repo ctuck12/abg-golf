@@ -439,7 +439,9 @@ export default function AdminDashboard({
   const [genPoolOpen, setGenPoolOpen] = useState(true)
   // Players picked while creating a new playing group (assigned on create)
   const [newGroupPlayerIds, setNewGroupPlayerIds] = useState<Set<string>>(new Set())
-  const [newGroupSGOpen, setNewGroupSGOpen] = useState(false)
+  // Open by default — folding it away hid settings that are normally set while
+  // the group is being built. The caret still collapses it.
+  const [newGroupSGOpen, setNewGroupSGOpen] = useState(true)
   // The name comes pre-filled, so it's read-only until Edit is pressed —
   // that's what makes it read as already set rather than waiting on you.
   const [editingGroupName, setEditingGroupName] = useState(false)
