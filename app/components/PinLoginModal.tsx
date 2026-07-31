@@ -75,11 +75,11 @@ export default function PinLoginModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto"
       style={{ background: 'rgba(0,0,0,0.5)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 my-auto flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-gray-900">Choose {entityLabel} &amp; Enter Pin</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
@@ -128,6 +128,8 @@ export default function PinLoginModal({
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{entityLabel} PIN</label>
+            {/* 16px — anything smaller and iOS zooms the page on focus, which
+                shoves the card up under the status bar */}
             <input
               type="text"
               name="pin"
@@ -135,7 +137,8 @@ export default function PinLoginModal({
               maxLength={4}
               required
               placeholder="4-digit PIN"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 focus:outline-none"
+              style={{ fontSize: '16px' }}
             />
           </div>
           <button

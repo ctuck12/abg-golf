@@ -981,7 +981,8 @@ export default function ScoreEntry({
                     maxLength={4}
                     required
                     placeholder="4-digit PIN"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 focus:outline-none"
+                    style={{ fontSize: '16px' }}
                   />
                 </div>
               </div>
