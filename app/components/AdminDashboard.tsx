@@ -47,7 +47,6 @@ import {
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 import RoundHistory from './RoundHistory'
-import { stickyOffset } from '../../lib/viewport-offset'
 import TeamGeneratorPanel from './TeamGeneratorPanel'
 import {
   generateBalancedTeams, randomPin, teamsSignature, parseHcpInput, fmtHcp,
@@ -1885,35 +1884,18 @@ export default function AdminDashboard({
     const header = headerRef.current
     if (!header) return
     const ro = new ResizeObserver(() => {
+      // The chips are part of the header now, so one measurement covers both:
+      // the spacer that holds the content down, and the offset a jump needs to
+      // clear so a section lands below the chips rather than behind them.
       if (spacerRef.current) spacerRef.current.style.height = `${header.offsetHeight}px`
-      // --admin-hdr positions the sticky step bar directly under the header.
-      // --admin-stick is header + that bar, so a jump clears both and lands on
-      // the section's heading rather than behind the chips.
       document.documentElement.style.setProperty('--admin-hdr', `${header.offsetHeight}px`)
-      document.documentElement.style.setProperty('--admin-stick', `${header.offsetHeight + (stickyBarRef.current?.offsetHeight ?? 0)}px`)
+      document.documentElement.style.setProperty('--admin-stick', `${header.offsetHeight}px`)
     })
     ro.observe(header)
     if (stickyBarRef.current) ro.observe(stickyBarRef.current)
     return () => ro.disconnect()
   }, [])
 
-  // Keeps the header and step chips on screen when the keyboard pushes the
-  // layout viewport around. See lib/viewport-offset.ts for the rule.
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const apply = () => {
-      document.documentElement.style.setProperty('--vv-top', `${stickyOffset(window.innerHeight, vv.height, vv.offsetTop)}px`)
-    }
-    apply()
-    vv.addEventListener('resize', apply)
-    vv.addEventListener('scroll', apply)
-    return () => {
-      vv.removeEventListener('resize', apply)
-      vv.removeEventListener('scroll', apply)
-      document.documentElement.style.setProperty('--vv-top', '0px')
-    }
-  }, [])
 
   // Just activated: hold the confirmation on screen a beat, then hand the
   // admin off to the live leaderboard. Only fires for the round the marker was
@@ -2880,7 +2862,8 @@ export default function AdminDashboard({
         </div>
       )}
 
-      <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))', transform: 'translateY(var(--vv-top, 0px))' }}>
+      <header ref={headerRef} className="shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: '#f8fafc' }}>
+      <div className="text-white px-4 pb-4" style={{ background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
@@ -2904,25 +2887,11 @@ export default function AdminDashboard({
             </button>
           </div>
         </div>
-      </header>
-      <div ref={spacerRef} />
-
-      <div className="max-w-2xl mx-auto px-4 pt-4">
-
-        {/* No-round notice */}
-        {!round && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
-            <p className="text-amber-800 font-medium text-sm">No active round. Use the form below to create one.</p>
-          </div>
-        )}
-
-        {/* Admin Hub header + setup progress. The strip sits here rather than
-            inside a card so it holds one spot for the whole setup — including
-            the first screen, before any round exists to hang it off. */}
-        {/* Sticky so the step you're on stays on screen through a long
-            section. Sits directly under the fixed app header, whose measured
-            height --admin-hdr also drives the jump offset below. */}
-        <div ref={stickyBarRef} className="sticky z-20 -mx-4 px-4 pb-2 border-b border-slate-200" style={{ top: 'calc(var(--admin-hdr, 104px) + var(--vv-top, 0px))', background: '#f8fafc' }}>
+      </div>
+      {/* Title + step chips live inside the fixed header rather than sticking
+          below it. One element means they can't drift apart or jitter against
+          each other while the page or the keyboard moves. */}
+      <div ref={stickyBarRef} className="max-w-2xl mx-auto px-4 pb-2 pt-3 border-b border-slate-200">
           <h2 className={`text-lg font-bold text-gray-900 ${showSetupStrip ? 'mb-1.5' : ''}`}>Admin Hub</h2>
           {showSetupStrip && (
             <div ref={stripWrapRef} className="overflow-hidden" style={stripFit.height ? { height: stripFit.height } : undefined}>
@@ -2952,8 +2921,19 @@ export default function AdminDashboard({
             </div>
             </div>
           )}
-        </div>
-        <div className="h-4" />
+      </div>
+      </header>
+      <div ref={spacerRef} />
+
+      <div className="max-w-2xl mx-auto px-4 pt-4">
+
+        {/* No-round notice */}
+        {!round && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+            <p className="text-amber-800 font-medium text-sm">No active round. Use the form below to create one.</p>
+          </div>
+        )}
+
 
         {/* ── CONTENT ──────────────────────────────────────────────────── */}
         <div className="space-y-4">
