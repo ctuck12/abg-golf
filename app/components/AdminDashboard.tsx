@@ -752,6 +752,22 @@ export default function AdminDashboard({
     return round?.skins_enabled ?? null
   })
   const [skinsAmount, setSkinsAmount] = useState(round?.skins_amount ?? 0)
+  // Dollar fields keep their own text. Backed by a number, clearing the box
+  // snapped it straight back to 0 — you could never actually empty it.
+  const [ballInput, setBallInput] = useState('')
+  const [skinsAmountInput, setSkinsAmountInput] = useState('')
+  const [requiredValueMsg, setRequiredValueMsg] = useState<string | null>(null)
+
+  // Mirror the stored numbers into the text fields whenever they change from
+  // outside (round switch, format switch). Text the admin typed is left alone
+  // — including an empty box, which is why the compare is on the parsed value.
+  useEffect(() => {
+    const n = ballVals[1] ?? 0
+    setBallInput(prev => (parseFloat(prev) === n ? prev : n === 0 ? '' : String(n)))
+  }, [ballVals])
+  useEffect(() => {
+    setSkinsAmountInput(prev => (parseFloat(prev) === skinsAmount ? prev : skinsAmount === 0 ? '' : String(skinsAmount)))
+  }, [skinsAmount])
   const [skinsMode, setSkinsMode] = useState<string>(round?.skins_mode ?? 'per_hole')
 
   // Live state — kept in sync with server props and updated by real-time subscriptions
@@ -1844,10 +1860,10 @@ export default function AdminDashboard({
   const hasOptionalSettings = isDaytona || isBankerRound
 
   useEffect(() => {
-    const locked = showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
+    const locked = !!requiredValueMsg || showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm, skinsSaveConfirm, confirmRemoveHammerId, liveChangeConfirm])
+  }, [requiredValueMsg, showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm, skinsSaveConfirm, confirmRemoveHammerId, liveChangeConfirm])
 
   useEffect(() => () => window.clearTimeout(lockedNudgeTimer.current), [])
 
@@ -2614,6 +2630,25 @@ export default function AdminDashboard({
       })()}
 
       {/* ── Remove Playing Group confirmation modal ── */}
+      {/* ── Missing dollar value — a save that would have written a silent 0 ── */}
+      {requiredValueMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg font-bold">$</div>
+              <div>
+                <h2 className="font-semibold text-gray-900 text-base leading-snug">Value required</h2>
+                <p className="text-sm text-gray-500 mt-1 leading-relaxed">{requiredValueMsg}</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => setRequiredValueMsg(null)}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition" style={{ background: navy }}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
       {confirmRemoveGroupId && (() => {
         const grpName = livePlayingGroups.find(g => g.id === confirmRemoveGroupId)?.name ?? 'this group'
         return (
@@ -3341,6 +3376,13 @@ export default function AdminDashboard({
                 </div>
                 <form action={ballAction} ref={ballFormRef} className="space-y-3"
                   onSubmit={(e) => {
+                    if (!ballInput.trim()) {
+                      e.preventDefault()
+                      setRequiredValueMsg(isDaytona
+                        ? 'Enter a value per point before saving — the box can\u2019t be left empty.'
+                        : 'Enter a value per ball before saving — the box can\u2019t be left empty.')
+                      return
+                    }
                     if (ballConfirmBypass.current || !round.is_started) { ballConfirmBypass.current = false; return }
                     e.preventDefault()
                     setLiveChangeConfirm({
@@ -3356,9 +3398,9 @@ export default function AdminDashboard({
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Value Per Point ($)</label>
                       <input type="number" name="ball_1" min="0" step="0.25"
-                        value={!payoutSaved && (ballVals[1] ?? 0) === 0 ? '' : (ballVals[1] ?? 0.25)}
+                        value={ballInput}
                         placeholder="e.g. 0.25"
-                        onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
+                        onChange={(e) => { setBallInput(e.target.value); setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 })) }}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                       <p className="text-xs text-gray-400 mt-1">Each point = this dollar amount. Points are the DT score difference per hole per player.</p>
                     </div>
@@ -3366,9 +3408,9 @@ export default function AdminDashboard({
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Value Per Ball ($)</label>
                       <input type="number" name="ball_1" min="0" step="1"
-                        value={!payoutSaved && (ballVals[1] ?? 0) === 0 ? '' : (ballVals[1] ?? 5)}
+                        value={ballInput}
                         placeholder="e.g. 5"
-                        onChange={(e) => setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 }))}
+                        onChange={(e) => { setBallInput(e.target.value); setBallVals((v) => ({ ...v, 1: parseFloat(e.target.value) || 0 })) }}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                       <p className="text-xs text-gray-400 mt-1">Dollar amount each ball result is worth per player. Winning team splits the pot. Ties wash.</p>
                     </div>
@@ -3395,6 +3437,13 @@ export default function AdminDashboard({
                 </div>
                 <form action={skinsAction} ref={skinsFormRef} className="space-y-4"
                   onSubmit={(e) => {
+                    if (skinsEnabled && !skinsAmountInput.trim()) {
+                      e.preventDefault()
+                      setRequiredValueMsg(skinsMode === 'pot'
+                        ? 'Enter a buy-in per player before saving — the box can\u2019t be left empty.'
+                        : 'Enter an amount per skin before saving — the box can\u2019t be left empty.')
+                      return
+                    }
                     if (skinsConfirmBypass.current) { skinsConfirmBypass.current = false; return }
                     // Only confirm changes to a live round — during setup (and on the
                     // first save, when nothing is stored yet) saves apply directly.
@@ -3481,9 +3530,9 @@ export default function AdminDashboard({
                     <label className="block text-xs font-medium text-gray-600 mb-1">{skinsMode === 'pot' ? 'Buy-In Per Player ($)' : 'Amount Per Skin ($)'}</label>
                     <input
                       type="number" name="skins_amount" min="0" step="1"
-                      value={skinsAmount === 0 ? '' : skinsAmount}
+                      value={skinsAmountInput}
                       placeholder={skinsMode === 'pot' ? 'e.g. 10' : 'e.g. 5'}
-                      onChange={(e) => setSkinsAmount(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => { setSkinsAmountInput(e.target.value); setSkinsAmount(parseFloat(e.target.value) || 0) }}
                       disabled={!skinsEnabled}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none disabled:opacity-40 disabled:bg-gray-50" />
                     <p className="text-xs text-gray-400 mt-1">
@@ -5511,6 +5560,16 @@ export default function AdminDashboard({
                                   <button type="button"
                                     disabled={sg.saving || (sg.daytonaEnabled && !sg.daytonaType)}
                                     onClick={() => {
+                                      // Both of these feed a dollar figure into the
+                                      // side game's math — an empty box is a silent 0
+                                      if (sg.daytonaEnabled && !sg.daytonaPayout.trim()) {
+                                        setRequiredValueMsg('Enter an amount per point for the Daytona side game before saving.')
+                                        return
+                                      }
+                                      if (sg.bankerEnabled && !sg.bankerMinBet.trim()) {
+                                        setRequiredValueMsg('Enter a minimum bet for the Banker side game before saving.')
+                                        return
+                                      }
                                       const doSave = async () => {
                                         updateGroupSG(g.id, { saving: true, saved: false })
                                         const daytonaVariant = sg.daytonaEnabled
