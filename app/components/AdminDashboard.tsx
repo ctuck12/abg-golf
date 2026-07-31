@@ -47,6 +47,7 @@ import {
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 import RoundHistory from './RoundHistory'
+import { stickyOffset } from '../../lib/viewport-offset'
 import TeamGeneratorPanel from './TeamGeneratorPanel'
 import {
   generateBalancedTeams, randomPin, teamsSignature, parseHcpInput, fmtHcp,
@@ -1896,15 +1897,13 @@ export default function AdminDashboard({
     return () => ro.disconnect()
   }, [])
 
-  // iOS scrolls the layout viewport to reveal a focused input, which carries
-  // position:fixed and sticky elements off the top of the screen with it. The
-  // visual viewport's offset is exactly how far to push them back down.
+  // Keeps the header and step chips on screen when the keyboard pushes the
+  // layout viewport around. See lib/viewport-offset.ts for the rule.
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
     const apply = () => {
-      const top = Math.max(0, vv.offsetTop)
-      document.documentElement.style.setProperty('--vv-top', `${top}px`)
+      document.documentElement.style.setProperty('--vv-top', `${stickyOffset(window.innerHeight, vv.height, vv.offsetTop)}px`)
     }
     apply()
     vv.addEventListener('resize', apply)
