@@ -13,9 +13,7 @@ import {
   computeAllMatchupPayouts,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
-
-// Asked once per round per device: scorekeeper or just watching.
-const roleKey = (roundId: string) => `abg_role_${roundId}`
+import { readRoundRole, writeRoundRole } from '../../lib/round-role'
 import { ScoreNotation } from './ScoreNotation'
 
 type Team = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null }
@@ -242,20 +240,21 @@ export default function LeaderboardClient({
   }
 
   // First look at this round on this device: ask which way they're using it.
-  // Already signed into a team or group answers the question by itself.
+  // The answer is kept per round, so this only ever runs once. Already being
+  // signed into a team or group answers the question by itself.
   useEffect(() => {
     if (!roundId) return
+    const store = typeof window === 'undefined' ? null : window.localStorage
     if (scorecardTeamId || scorecardGroupId) {
-      try { localStorage.setItem(roleKey(roundId), 'scorekeeper') } catch { /* private mode */ }
+      writeRoundRole(store, roundId, 'scorekeeper')
+      setRolePrompt(false)
       return
     }
-    let stored: string | null = null
-    try { stored = localStorage.getItem(roleKey(roundId)) } catch { /* private mode */ }
-    if (!stored) setRolePrompt(true)
+    if (!readRoundRole(store, roundId)) setRolePrompt(true)
   }, [roundId, scorecardTeamId, scorecardGroupId])
 
   function chooseRole(role: 'scorekeeper' | 'viewer') {
-    try { localStorage.setItem(roleKey(roundId), role) } catch { /* private mode */ }
+    writeRoundRole(typeof window === 'undefined' ? null : window.localStorage, roundId, role)
     setRolePrompt(false)
     if (role === 'scorekeeper') setShowPin(true)
   }
