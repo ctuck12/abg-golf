@@ -653,10 +653,15 @@ export default function AdminDashboard({
       (round?.is_started ?? false) || round?.format === 'traditional' || round != null
     ))
     const hasRealBallValue = ballValues.some(bv => bv.value_dollars > 0)
-    setPayoutSaved(ls.payoutSaved ?? (hasRealBallValue || ['traditional', 'banker', 'hammer'].includes(round?.format ?? '')))
-    setSkinsSaved(ls.skinsSaved ?? false)
-    setTeamsSaved(ls.teamsSaved ?? false)
-    setGroupsSaved(ls.groupsSaved ?? false)
+    // A round that's already live had every step completed to get there — on a
+    // device with no localStorage for it, read that from the round itself so
+    // the sections come up collapsed rather than all expanded.
+    const wasActivated = round?.is_started ?? false
+    setPayoutSaved(ls.payoutSaved ?? (hasRealBallValue || wasActivated || ['traditional', 'banker', 'hammer'].includes(round?.format ?? '')))
+    setSkinsSaved(ls.skinsSaved ?? (wasActivated && round?.skins_enabled != null))
+    setTeamsSaved(ls.teamsSaved ?? (wasActivated && teams.length > 0))
+    setGroupsSaved(ls.groupsSaved ?? (wasActivated && playingGroups.length > 0 &&
+      players.filter(p => p.team_id !== null).every(p => playingGroupPlayers.some(gp => gp.player_id === p.id))))
     setMixedGroupsAnswered(ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true))
     setMixedGroups(round?.mixed_groups ?? null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1727,11 +1732,11 @@ export default function AdminDashboard({
   //   locked — gray row saying what opens it
   //   done   — green row showing what you saved; tap to reopen and change it
   //   open   — the full card
-  // A live round is always 'open': nothing collapses once the round is running.
+  // Activation doesn't undo the setup — a finished step stays folded into its
+  // row once the round goes live, and still reopens on a tap.
   const [reopenedStep, setReopenedStep] = useState<string | null>(null)
   type StepState = 'locked' | 'done' | 'open'
   function stepState(key: string, locked: boolean, done: boolean): StepState {
-    if (!showSetupStrip) return 'open'
     if (locked) return 'locked'
     if (done && reopenedStep !== key) return 'done'
     return 'open'
@@ -1795,7 +1800,7 @@ export default function AdminDashboard({
   // it (those handlers clear reopenedStep themselves); this is for backing out
   // without changing anything.
   function collapseCaret(key: string, done: boolean) {
-    if (!showSetupStrip || !done || reopenedStep !== key) return null
+    if (!done || reopenedStep !== key) return null
     return (
       <button type="button" onClick={() => setReopenedStep(null)}
         aria-label="Collapse section"
