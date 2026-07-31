@@ -6,9 +6,10 @@ type Team = { id: string; name: string }
 type PlayingGroup = { id: string; name: string }
 
 const navy = '#0f172a'
+const gold = '#f59e0b'
 
 export default function PinLoginModal({
-  teams, onClose, isGroup = false, orgSlug, onBeforeNavigate, playingGroups,
+  teams, onClose, isGroup = false, orgSlug, onBeforeNavigate, playingGroups, memberNames = {},
 }: {
   teams: Team[]
   onClose: () => void
@@ -16,10 +17,14 @@ export default function PinLoginModal({
   orgSlug: string
   onBeforeNavigate?: () => Promise<void>
   playingGroups?: PlayingGroup[]
+  /** entity id → player names, listed under each choice so a scorekeeper can
+   *  tell the groups apart without knowing which number they were given. */
+  memberNames?: Record<string, string[]>
 }) {
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const [showPin, setShowPin] = useState(false)
+  const [selectedId, setSelectedId] = useState('')
 
   const useMixedGroups = !!(playingGroups && playingGroups.length > 0)
 
@@ -28,8 +33,9 @@ export default function PinLoginModal({
     setError('')
     setPending(true)
     const form = e.currentTarget
-    const id = (form.elements.namedItem('entityId') as HTMLSelectElement).value
+    const id = selectedId
     const pin = (form.elements.namedItem('pin') as HTMLInputElement).value
+    if (!id) { setPending(false); setError('Pick your ' + (useMixedGroups || isGroup ? 'group' : 'team') + ' first.'); return }
     try {
       if (useMixedGroups) {
         const res = await fetch('/api/playing-group-login', {
@@ -74,7 +80,7 @@ export default function PinLoginModal({
       style={{ background: 'rgba(0,0,0,0.5)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-gray-900">Enter {entityLabel} PIN</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
@@ -88,15 +94,37 @@ export default function PinLoginModal({
           )}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Your {entityLabel}</label>
-            <select
-              name="entityId"
-              required
-              defaultValue=""
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 bg-white text-gray-900 text-sm focus:outline-none"
-            >
-              <option value="" disabled>Select your {entityLabel.toLowerCase()}…</option>
-              {options.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            {/* A list rather than a <select>: native options are one line of
+                plain text, so the roster couldn't be shown under the name. */}
+            <div className="space-y-1.5 max-h-64 overflow-y-auto -mx-0.5 px-0.5 py-0.5">
+              {options.map((t) => {
+                const roster = memberNames[t.id] ?? []
+                const rosterLine = roster.join(' · ')
+                // Long rosters step down a size rather than wrapping — a full
+                // five names of ordinary length still land on one line.
+                const rosterSize = rosterLine.length > 56 ? 'text-[9px]' : 'text-[10px]'
+                const picked = selectedId === t.id
+                return (
+                  <button key={t.id} type="button" onClick={() => { setSelectedId(t.id); setError('') }}
+                    aria-pressed={picked}
+                    className="w-full text-left rounded-xl px-3 py-2 transition"
+                    style={{
+                      border: `2px solid ${picked ? navy : '#e5e7eb'}`,
+                      background: picked ? '#f8fafc' : 'white',
+                    }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold flex-1 min-w-0 truncate" style={{ color: navy }}>{t.name}</span>
+                      {picked && <span className="text-xs font-bold flex-shrink-0" style={{ color: gold }}>✓</span>}
+                    </div>
+                    {roster.length > 0 && (
+                      <p className={`${rosterSize} text-gray-500 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis`}>
+                        {rosterLine}
+                      </p>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{entityLabel} PIN</label>
