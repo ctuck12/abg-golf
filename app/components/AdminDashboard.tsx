@@ -60,6 +60,9 @@ import { CSS } from '@dnd-kit/utilities'
 // Every team and group starts on this PIN — an admin shouldn't have to invent
 // one per team, and it's shared with the players anyway. Still editable.
 const DEFAULT_PIN = '1234'
+// Survives the redirect activateRound does, so the hub knows the admin just
+// activated rather than merely opened a round that was already live.
+const ACTIVATED_KEY = 'abg_just_activated'
 const navy = '#0f172a'
 const gold = '#f59e0b'
 
@@ -762,6 +765,7 @@ export default function AdminDashboard({
   const [ballInput, setBallInput] = useState('')
   const [skinsAmountInput, setSkinsAmountInput] = useState('')
   const [requiredValueMsg, setRequiredValueMsg] = useState<string | null>(null)
+  const [justActivated, setJustActivated] = useState(false)
 
   // Mirror the stored numbers into the text fields whenever they change from
   // outside (round switch, format switch). Text the admin typed is left alone
@@ -1865,10 +1869,10 @@ export default function AdminDashboard({
   const hasOptionalSettings = isDaytona || isBankerRound
 
   useEffect(() => {
-    const locked = !!requiredValueMsg || showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
+    const locked = justActivated || !!requiredValueMsg || showOptions || showPinModal || !!rosterPickerTeamId || showNewRoundWarning || !!confirmRemoveTeamId || !!confirmRemovePlayerId || !!confirmRemoveRosterId || !!confirmRemoveGroupId || !!confirmRemoveGroupPlayer || !!confirmDisableSideGame || editScoreClearConfirm || !!holesRangeConfirm || !!skinsSaveConfirm || !!confirmRemoveHammerId || !!liveChangeConfirm
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [requiredValueMsg, showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm, skinsSaveConfirm, confirmRemoveHammerId, liveChangeConfirm])
+  }, [justActivated, requiredValueMsg, showOptions, showPinModal, rosterPickerTeamId, showNewRoundWarning, confirmRemoveTeamId, confirmRemovePlayerId, confirmRemoveRosterId, confirmRemoveGroupId, confirmRemoveGroupPlayer, confirmDisableSideGame, editScoreClearConfirm, holesRangeConfirm, skinsSaveConfirm, confirmRemoveHammerId, liveChangeConfirm])
 
   useEffect(() => () => window.clearTimeout(lockedNudgeTimer.current), [])
 
@@ -1890,6 +1894,20 @@ export default function AdminDashboard({
     if (stickyBarRef.current) ro.observe(stickyBarRef.current)
     return () => ro.disconnect()
   }, [])
+
+  // Just activated: hold the confirmation on screen a beat, then hand the
+  // admin off to the live leaderboard. Only fires for the round the marker was
+  // set on, so simply opening the hub on a live round doesn't bounce you out.
+  useEffect(() => {
+    if (!round?.id || !round.is_started) return
+    let marker: string | null = null
+    try { marker = sessionStorage.getItem(ACTIVATED_KEY) } catch {}
+    if (marker !== round.id) return
+    try { sessionStorage.removeItem(ACTIVATED_KEY) } catch {}
+    setJustActivated(true)
+    const t = window.setTimeout(() => { window.location.href = `/${orgSlug}` }, 2200)
+    return () => window.clearTimeout(t)
+  }, [round?.id, round?.is_started, orgSlug])
 
   // The step chips always stay on one line. Mixed Groups adds a sixth chip,
   // which is what pushes them past the width of a phone — so instead of
@@ -2102,7 +2120,10 @@ export default function AdminDashboard({
               </div>
             </div>
             <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
-              <form action={activateRound.bind(null, round.id, orgSlug)} className="flex-1">
+              {/* activateRound redirects back here, so the "it worked" moment
+                  has to be flagged across that navigation */}
+              <form action={activateRound.bind(null, round.id, orgSlug)} className="flex-1"
+                onSubmit={() => { try { sessionStorage.setItem(ACTIVATED_KEY, round.id) } catch {} }}>
                 <button type="submit"
                   className="w-full py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: '#16a34a' }}>
                   Confirm &amp; Activate
@@ -2639,6 +2660,19 @@ export default function AdminDashboard({
       })()}
 
       {/* ── Remove Playing Group confirmation modal ── */}
+      {/* ── Round activated — held briefly, then off to the leaderboard ── */}
+      {justActivated && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm px-6 py-7 flex flex-col items-center text-center gap-3">
+            <div className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center text-white text-3xl font-bold">✓</div>
+            <h2 className="font-bold text-gray-900 text-lg leading-snug">Round Activated!</h2>
+            <p className="text-sm text-gray-500 leading-relaxed">The leaderboard is live — players can enter scores.</p>
+            <p className="text-xs text-gray-400">Taking you to the leaderboard…</p>
+            <a href={`/${orgSlug}`} className="text-xs font-semibold text-blue-600 hover:underline">Go now →</a>
+          </div>
+        </div>
+      )}
+
       {/* ── Missing dollar value — a save that would have written a silent 0 ── */}
       {requiredValueMsg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
