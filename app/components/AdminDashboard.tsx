@@ -1970,14 +1970,18 @@ export default function AdminDashboard({
 
       {/* ── Activate Round confirmation modal — full setup summary ── */}
       {showActivateConfirm && round && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.45)' }}
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-5" style={{ background: 'rgba(15,23,42,0.55)' }}
           onClick={() => setShowActivateConfirm(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 flex flex-col" style={{ maxHeight: '85vh' }} onClick={(e) => e.stopPropagation()}>
-            <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-              <h3 className="font-bold text-gray-900 text-base">Ready to Activate?</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Review everything below, then confirm or go back and edit.</p>
+          {/* Same shell as the scorekeeper/viewer card on the leaderboard:
+              gold-bordered white sheet, mark and headline centred up top. */}
+          <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-sm mx-4 flex flex-col overflow-hidden"
+            style={{ maxHeight: '85vh', border: `3px solid ${gold}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center">
+              <img src="/abg-logo-mark.png" alt="ABG" className="w-20 h-20" />
+              <h3 className="font-extrabold text-xl leading-snug mt-3" style={{ color: navy }}>Ready to Activate?</h3>
+              <p className="text-sm text-gray-500 mt-1">Review everything below, then confirm or go back and edit.</p>
             </div>
-            <div className="px-5 py-3 overflow-y-auto space-y-3 text-sm">
+            <div className="px-6 py-4 overflow-y-auto space-y-3 text-sm border-t border-gray-100">
               {/* Round */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Round</p>
@@ -2121,18 +2125,20 @@ export default function AdminDashboard({
                 })()}
               </div>
             </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
+            <div className="px-6 pt-4 pb-6 border-t border-gray-100 flex flex-col gap-2.5">
               {/* activateRound redirects back here, so the "it worked" moment
                   has to be flagged across that navigation */}
-              <form action={activateRound.bind(null, round.id, orgSlug)} className="flex-1"
+              <form action={activateRound.bind(null, round.id, orgSlug)}
                 onSubmit={() => { try { sessionStorage.setItem(ACTIVATED_KEY, round.id) } catch {} }}>
                 <button type="submit"
-                  className="w-full py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: '#16a34a' }}>
+                  className="w-full py-3.5 rounded-2xl text-base font-bold text-white shadow-sm active:scale-[0.99] transition"
+                  style={{ background: '#16a34a', border: '2px solid #16a34a' }}>
                   Confirm &amp; Activate
                 </button>
               </form>
               <button onClick={() => setShowActivateConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-600 border border-gray-300 bg-white">
+                className="w-full py-3.5 rounded-2xl text-base font-bold active:scale-[0.99] transition"
+                style={{ background: '#fdf6e7', border: `2px solid ${gold}`, color: '#b45309' }}>
                 Go Back &amp; Edit
               </button>
             </div>
