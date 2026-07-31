@@ -93,7 +93,8 @@ export default function PinLoginModal({
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Your {entityLabel}</label>
+            {/* No heading — the modal title already says which PIN this is, and
+                the cards are self-evidently the groups to pick from. */}
             {/* A list rather than a <select>: native options are one line of
                 plain text, so the roster couldn't be shown under the name. */}
             <div className="space-y-1.5 max-h-64 overflow-y-auto -mx-0.5 px-0.5 py-0.5">
