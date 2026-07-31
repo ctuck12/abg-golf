@@ -15,6 +15,7 @@ import {
 } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
+import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
 
 type Player = { id: string; name: string; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
@@ -1886,7 +1887,7 @@ export default function ScoreEntry({
                     const maxBetDraftNum = parseFloat(maxBetDraft[hole.hole_number] ?? '')
                     const effectiveMaxBet = !isNaN(maxBetDraftNum) && maxBetDraftNum >= bankerMinBet ? maxBetDraftNum : hd.maxBet
                     const isLastTwo = hole.hole_number >= (holes.length > 9 ? 17 : holes[holes.length - 2]?.hole_number ?? 17)
-                    const isFirstHole = hole.hole_number === (holes[0]?.hole_number ?? 1)
+                    const isFirstHole = isFirstPlayedHole(holes, hole.hole_number)
                     const suggestedBankerId = isLastTwo
                       ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
                       : null
@@ -1914,7 +1915,7 @@ export default function ScoreEntry({
                                 coin toss either way — this just makes the toss
                                 visible instead of someone deciding. Gone once a
                                 banker is set. */}
-                            {isFirstHole && !hd.bankerPlayerId && holeActivePlayers.length > 0 && (
+                            {shouldOfferRandomBanker({ isFirstPlayedHole: isFirstHole, bankerPlayerId: hd.bankerPlayerId, poolSize: holeActivePlayers.length }) && (
                               <button type="button"
                                 onClick={() => {
                                   const pick = holeActivePlayers[Math.floor(Math.random() * holeActivePlayers.length)]
