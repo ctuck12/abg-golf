@@ -5660,9 +5660,11 @@ export default function AdminDashboard({
                                     style={{ background: navy }}>
                                     {sg.saving ? 'Saving…' : 'Save Side Game'}
                                   </button>
+                                  {/* Save Groups is a setup-only button — once the
+                                      round is live there's nothing left but Done */}
                                   {sg.saved && (
                                     <span className="text-[10px] text-gray-400 italic">
-                                      <span className="text-green-600 not-italic font-bold">✓</span> Hit Done then Save Groups buttons
+                                      <span className="text-green-600 not-italic font-bold">✓</span> {roundIsSettingUp ? 'Hit Done then Save Groups buttons' : 'Hit Done button at the top'}
                                     </span>
                                   )}
                                 </div>
