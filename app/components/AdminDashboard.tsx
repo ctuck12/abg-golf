@@ -4375,6 +4375,25 @@ export default function AdminDashboard({
                 <div className="p-3 space-y-2">
                 {teams.map((team) => {
                   const teamPlayers = sortedTeamPlayers(team.id)
+                  // Sits beside the team name — reads as part of the heading rather
+                  // than a stray line under it. Every format wants the same sentence;
+                  // only the legal size differs.
+                  const playerCountLabel = (() => {
+                    const sizeOf = (v: string) => v.startsWith('5man') ? 5 : 4
+                    let minReq: number, maxReq: number
+                    if (isDaytona || (isTraditional && team.daytona_variant)) {
+                      const front = sizeOf((team.daytona_variant ?? '4man').split('|')[0])
+                      const back = team.daytona_variant_back9 ? sizeOf(team.daytona_variant_back9) : front
+                      minReq = Math.min(front, back); maxReq = Math.max(front, back)
+                    } else if (isTraditional) {
+                      minReq = 2; maxReq = 5
+                    } else {
+                      minReq = round?.balls_count ?? 3; maxReq = 5
+                    }
+                    const n = teamPlayers.length
+                    const ok = n >= minReq && n <= maxReq
+                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{n} players{n > maxReq ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
+                  })()
                   const isRenaming = renamingTeam === team.id
                   const maxPlayers = (isDaytona || (isTraditional && team.daytona_variant))
                     ? ((team.daytona_variant ?? '4man').split('|')[0].startsWith('5man') || team.daytona_variant_back9?.startsWith('5man')) ? 5 : 4
@@ -4626,7 +4645,10 @@ export default function AdminDashboard({
                         ) : (
                           <div className="flex items-start gap-2">
                             <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontSize: 'clamp(10px, 3.4vw, 14px)' }}>{team.name}</p>
+                              <div className="flex items-baseline gap-2 min-w-0">
+                                <p className="font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" style={{ fontSize: 'clamp(10px, 3.4vw, 14px)' }}>{team.name}</p>
+                                <span className="text-xs flex-shrink-0">{playerCountLabel}</span>
+                              </div>
                               <p className="text-xs text-gray-500">
                                 {!mixedGroups && <>PIN: <span className="font-mono font-bold text-gray-800">{team.pin}</span></>}
                                 {team.daytona_variant && (() => {
@@ -4649,42 +4671,6 @@ export default function AdminDashboard({
                                   Not with Mixed Groups on: side games belong to the playing
                                   groups then, and the edit form drops them too, so this
                                   chip would open onto nothing. */}
-                              {!mixedGroups && !team.daytona_variant && !team.banker_side_game && !team.hammer_side_game && (
-                                <button type="button" onClick={() => beginEditTeam(team)}
-                                  className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded-full px-2 py-0.5 mt-1 hover:bg-amber-100 transition">
-                                  + Side Game
-                                </button>
-                              )}
-                              <p className="text-xs mt-0.5">
-                                {(() => {
-                                  if (isTraditional) {
-                                    if (team.daytona_variant) {
-                                      const frontReq = team.daytona_variant.split('|')[0].startsWith('5man') ? 5 : 4
-                                      const backReq = team.daytona_variant_back9 ? (team.daytona_variant_back9.startsWith('5man') ? 5 : 4) : frontReq
-                                      const minReq = Math.min(frontReq, backReq), maxReq = Math.max(frontReq, backReq)
-                                      const ok = teamPlayers.length >= minReq && teamPlayers.length <= maxReq
-                                      const over = teamPlayers.length > maxReq
-                                      return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
-                                    }
-                                    const ok = teamPlayers.length >= 2 && teamPlayers.length <= 5
-                                    const over = teamPlayers.length > 5
-                                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
-                                  }
-                                  if (isDaytona) {
-                                    const teamVariant = (team.daytona_variant ?? '4man').split('|')[0]
-                                    const frontReq = teamVariant.startsWith('5man') ? 5 : 4
-                                    const backReq = team.daytona_variant_back9 ? (team.daytona_variant_back9.startsWith('5man') ? 5 : 4) : frontReq
-                                    const minReq = Math.min(frontReq, backReq), maxReq = Math.max(frontReq, backReq)
-                                    const ok = teamPlayers.length >= minReq && teamPlayers.length <= maxReq
-                                    const over = teamPlayers.length > maxReq
-                                    return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
-                                  }
-                                  const required = round?.balls_count ?? 3
-                                  const ok = teamPlayers.length >= required && teamPlayers.length <= 5
-                                  const over = teamPlayers.length > 5
-                                  return <span className={`font-semibold ${ok ? 'text-green-600' : 'text-red-500'}`}>{teamPlayers.length} players{over ? ' ↑ too many' : ok ? ' ✓' : ''}</span>
-                                })()}
-                              </p>
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               <button onClick={() => beginEditTeam(team)}
@@ -4769,6 +4755,14 @@ export default function AdminDashboard({
                             )}
                             {/* Add player + reset — lived in the old expandable Players panel */}
                             <div className="flex items-center gap-2 mt-2.5">
+                              {/* Side games are the team's own only when carts ride as teams;
+                                  with Mixed Groups on they belong to the playing groups. */}
+                              {!mixedGroups && !team.daytona_variant && !team.banker_side_game && !team.hammer_side_game && (
+                                <button type="button" onClick={() => beginEditTeam(team)}
+                                  className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition">
+                                  + Side Game
+                                </button>
+                              )}
                               {teamPlayers.length < maxPlayers && (
                                 <button type="button"
                                   onClick={() => setAddPlayerTeamId(addPlayerTeamId === team.id ? null : team.id)}
