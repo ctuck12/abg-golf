@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 type Team = { id: string; name: string }
 type PlayingGroup = { id: string; name: string }
@@ -24,6 +24,26 @@ export default function PinLoginModal({
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const [selectedId, setSelectedId] = useState('')
+
+  // iOS scrolls the layout viewport to reveal a focused input, and a
+  // position:fixed overlay is anchored to that layout viewport — so opening the
+  // keyboard carried this card up off the top of the screen. Sizing the overlay
+  // to the *visual* viewport instead keeps it centred in what's actually
+  // visible. Safe here in a way it wasn't for the page header: the modal locks
+  // body scroll, so there's no scrolling for the offset to chase.
+  const [vv, setVv] = useState<{ top: number; height: number } | null>(null)
+  useEffect(() => {
+    const v = window.visualViewport
+    if (!v) return
+    const apply = () => setVv({ top: v.offsetTop, height: v.height })
+    apply()
+    v.addEventListener('resize', apply)
+    v.addEventListener('scroll', apply)
+    return () => {
+      v.removeEventListener('resize', apply)
+      v.removeEventListener('scroll', apply)
+    }
+  }, [])
 
   const useMixedGroups = !!(playingGroups && playingGroups.length > 0)
 
@@ -75,8 +95,10 @@ export default function PinLoginModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
+      className="fixed left-0 right-0 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto"
+      style={vv
+        ? { background: 'rgba(0,0,0,0.5)', top: vv.top, height: vv.height }
+        : { background: 'rgba(0,0,0,0.5)', top: 0, bottom: 0 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 my-auto flex-shrink-0">
