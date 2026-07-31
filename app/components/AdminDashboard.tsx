@@ -1896,6 +1896,26 @@ export default function AdminDashboard({
     return () => ro.disconnect()
   }, [])
 
+  // iOS scrolls the layout viewport to reveal a focused input, which carries
+  // position:fixed and sticky elements off the top of the screen with it. The
+  // visual viewport's offset is exactly how far to push them back down.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const apply = () => {
+      const top = Math.max(0, vv.offsetTop)
+      document.documentElement.style.setProperty('--vv-top', `${top}px`)
+    }
+    apply()
+    vv.addEventListener('resize', apply)
+    vv.addEventListener('scroll', apply)
+    return () => {
+      vv.removeEventListener('resize', apply)
+      vv.removeEventListener('scroll', apply)
+      document.documentElement.style.setProperty('--vv-top', '0px')
+    }
+  }, [])
+
   // Just activated: hold the confirmation on screen a beat, then hand the
   // admin off to the live leaderboard. Only fires for the round the marker was
   // set on, so simply opening the hub on a live round doesn't bounce you out.
@@ -2861,7 +2881,7 @@ export default function AdminDashboard({
         </div>
       )}
 
-      <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+      <header ref={headerRef} className="text-white px-4 pb-4 shadow-md z-10" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))', transform: 'translateY(var(--vv-top, 0px))' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
@@ -2903,7 +2923,7 @@ export default function AdminDashboard({
         {/* Sticky so the step you're on stays on screen through a long
             section. Sits directly under the fixed app header, whose measured
             height --admin-hdr also drives the jump offset below. */}
-        <div ref={stickyBarRef} className="sticky z-20 -mx-4 px-4 pb-2" style={{ top: 'var(--admin-hdr, 104px)', background: '#f8fafc' }}>
+        <div ref={stickyBarRef} className="sticky z-20 -mx-4 px-4 pb-2 border-b border-slate-200" style={{ top: 'calc(var(--admin-hdr, 104px) + var(--vv-top, 0px))', background: '#f8fafc' }}>
           <h2 className={`text-lg font-bold text-gray-900 ${showSetupStrip ? 'mb-1.5' : ''}`}>Admin Hub</h2>
           {showSetupStrip && (
             <div ref={stripWrapRef} className="overflow-hidden" style={stripFit.height ? { height: stripFit.height } : undefined}>
@@ -2916,14 +2936,15 @@ export default function AdminDashboard({
                     className="flex items-center gap-1 flex-shrink-0">
                     {/* Number outside the pill — it reads as the step's index
                         rather than part of its name */}
-                    <span className={`text-[11px] font-bold ${s.done ? 'text-green-600' : current ? 'text-gray-900' : 'text-gray-300'}`}>
+                    <span className={`text-[11px] font-bold ${s.done ? 'text-green-600' : current ? '' : 'text-gray-400'}`}
+                      style={current ? { color: gold } : undefined}>
                       {s.done ? '✓' : i + 1}
                     </span>
-                    <span className={`text-[11px] font-semibold px-2 py-1 rounded-full border transition ${
-                      s.done ? 'bg-green-50 text-green-700 border-green-200'
-                        : current ? 'text-white border-transparent shadow-sm ring-2 ring-slate-900/20'
-                        : 'bg-gray-50 text-gray-400 border-gray-200'}`}
-                      style={current ? { background: navy } : undefined}>
+                    <span className={`text-[11px] font-bold px-2 py-1 rounded-full border transition ${
+                      s.done ? 'bg-green-100 text-green-800 border-green-300'
+                        : current ? 'text-white shadow-md'
+                        : 'bg-white text-gray-500 border-gray-300'}`}
+                      style={current ? { background: navy, borderColor: gold, boxShadow: `0 0 0 2px ${gold}55` } : undefined}>
                       {s.label}
                     </span>
                   </button>
