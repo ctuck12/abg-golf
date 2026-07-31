@@ -1016,30 +1016,35 @@ export default function LeaderboardClient({
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {/* ── Scorekeeper or viewer — asked once per round ── */}
       {rolePrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.65)' }}>
-          <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl" style={{ border: `2px solid ${gold}` }}>
-            {/* Navy band — the mark's gold ring needs a dark field to read against */}
-            <div className="px-6 pt-6 pb-5 flex flex-col items-center text-center" style={{ background: navy, borderBottom: `2px solid ${gold}` }}>
-              <img src="/abg-logo-mark.png" alt="ABG" className="w-20 h-20 mb-3" style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.45))' }} />
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: gold }}>{orgName}</p>
-              <h2 className="text-white font-bold text-lg leading-snug mt-1.5">How are you using the app today?</h2>
-              <p className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.55)' }}>{roundName}</p>
-            </div>
-            <div className="bg-white px-6 py-5 flex flex-col gap-2.5">
-              <button type="button" onClick={() => chooseRole('scorekeeper')}
-                className="w-full py-3 rounded-xl text-sm font-bold shadow-sm active:scale-[0.99] transition"
-                style={{ background: gold, color: navy }}>
-                Scorekeeper
-              </button>
-              <button type="button" onClick={() => chooseRole('viewer')}
-                className="w-full py-3 rounded-xl text-sm font-bold border-2 bg-white active:scale-[0.99] transition"
-                style={{ borderColor: navy, color: navy }}>
-                Viewer
-              </button>
-              <p className="text-[11px] text-gray-400 leading-relaxed text-center mt-0.5">
-                Scorekeepers enter scores for their {isMixedGroups || isDaytona || isTraditional ? 'group' : 'team'} with a PIN. Viewers just follow the leaderboard.
-              </p>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5" style={{ background: 'rgba(15,23,42,0.55)' }}>
+          <div className="w-full max-w-sm bg-white rounded-[28px] shadow-2xl px-6 pt-7 pb-6 flex flex-col items-center text-center"
+            style={{ border: `3px solid ${gold}` }}>
+            <img src="/abg-logo-mark.png" alt="ABG" className="w-28 h-28" />
+            <h2 className="font-extrabold text-xl leading-snug mt-4" style={{ color: navy }}>{roundName} Is Live!</h2>
+            <p className="text-sm text-gray-500 mt-1">How are you using the app today?</p>
+
+            <button type="button" onClick={() => chooseRole('scorekeeper')}
+              className="w-full mt-5 py-3.5 rounded-2xl text-base font-bold text-white flex items-center justify-center gap-2.5 shadow-sm active:scale-[0.99] transition"
+              style={{ background: navy, border: `2px solid ${navy}` }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
+                <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z" />
+                <path d="M16 6h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h2" />
+                <path d="M9 13l2 2 4-4" />
+              </svg>
+              Scorekeeper
+            </button>
+
+            <button type="button" onClick={() => chooseRole('viewer')}
+              className="w-full mt-3 py-3.5 rounded-2xl text-base font-bold flex items-center justify-center gap-2.5 active:scale-[0.99] transition"
+              style={{ background: '#fdf6e7', border: `2px solid ${gold}`, color: '#b45309' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
+                <path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1" />
+                <circle cx="9.5" cy="8" r="3" />
+                <path d="M21 19v-1a4 4 0 0 0-3-3.87" />
+                <path d="M16.5 5.13a3 3 0 0 1 0 5.74" />
+              </svg>
+              Viewer
+            </button>
           </div>
         </div>
       )}
