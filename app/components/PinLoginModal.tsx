@@ -149,7 +149,9 @@ export default function PinLoginModal({
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{entityLabel} PIN</label>
+            {/* The PIN belongs to a particular group, so there's nothing to type
+                against until one is picked */}
+            <label className={`block text-xs font-medium mb-1 ${selectedId ? 'text-gray-600' : 'text-gray-400'}`}>{entityLabel} PIN</label>
             {/* 16px — anything smaller and iOS zooms the page on focus, which
                 shoves the card up under the status bar */}
             <input
@@ -158,14 +160,15 @@ export default function PinLoginModal({
               inputMode="numeric"
               maxLength={4}
               required
-              placeholder="4-digit PIN"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 focus:outline-none"
+              disabled={!selectedId}
+              placeholder={selectedId ? '4-digit PIN' : `Choose your ${entityLabel.toLowerCase()} first`}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
               style={{ fontSize: '16px' }}
             />
           </div>
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || !selectedId}
             className="w-full text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-60 transition active:scale-95"
             style={{ background: navy }}
           >
