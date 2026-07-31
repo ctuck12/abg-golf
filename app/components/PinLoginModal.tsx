@@ -129,7 +129,7 @@ export default function PinLoginModal({
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">{entityLabel} PIN</label>
             <input
-              type="password"
+              type="text"
               name="pin"
               inputMode="numeric"
               maxLength={4}
