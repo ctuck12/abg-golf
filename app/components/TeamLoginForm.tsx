@@ -64,7 +64,7 @@ export default function TeamLoginForm({ teams, round }: { teams: Team[]; round: 
               <div className="relative">
                 <input type="text" name="pin" inputMode="numeric" maxLength={4} required
                   placeholder="4-digit PIN"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 focus:outline-none" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 focus:outline-none" style={{ fontSize: '16px' }} />
               </div>
               <p className="text-xs text-gray-500 mt-1">Your PIN was set when the team was created.</p>
             </div>
