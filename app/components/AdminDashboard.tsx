@@ -2000,7 +2000,11 @@ export default function AdminDashboard({
               {/* Teams / groups + players + side games */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                  {(isDaytona || isTraditional) ? `Groups (${teams.length})` : `Teams (${teams.length})`}
+                  {(isDaytona || isTraditional)
+                    ? `Groups (${teams.length})`
+                    : isStandard
+                    ? `${ballsCount} Ball Teams (${teams.length})`
+                    : `Teams (${teams.length})`}
                 </p>
                 <div className="space-y-1">
                   {teams.map((t) => {
