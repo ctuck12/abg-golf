@@ -333,34 +333,29 @@ export default function PlayingGroupScoreEntry({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId])
 
-  // Auto-assign a random banker on the first hole if none is set yet.
-  // Paints the pick immediately (no waiting on the network), then confirms with
-  // the server, which refuses to overwrite a banker that is already locked in.
-  useEffect(() => {
-    if (!isBanker || !isStarted || players.length === 0 || holes.length === 0) return
-    const firstHole = holes[0].hole_number
-    if (bankerHoles[firstHole]?.bankerPlayerId) return
-    // A pick already made on this device stays put even if the page was
-    // reopened before hole 1 was saved and came back without the server row.
-    const lockedId = readBankerLock(firstHole)
-    const pick = players.find((p) => p.id === lockedId) ?? players[Math.floor(Math.random() * players.length)]
-    setBankerHoles((prev) => prev[firstHole]?.bankerPlayerId ? prev : { ...prev, [firstHole]: { bankerPlayerId: pick.id, maxBet: defaultMaxBet } })
-    writeBankerLock(firstHole, pick.id)
+  // Hole 1 has no standings to go on, so the banker is a toss-up either way.
+  // The scorekeeper rolls for it with the Random button rather than the app
+  // quietly deciding. ensureBankerHole refuses to overwrite a banker already
+  // claimed, so two devices rolling at once still converge on one pick.
+  function pickRandomBanker(holeNumber: number, pool: { id: string }[], maxBet: number) {
+    if (pool.length === 0) return
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+    setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId: pick.id, maxBet } }))
+    writeBankerLock(holeNumber, pick.id)
     void (async () => {
-      const res = await ensureBankerHole(roundId, groupId, firstHole, pick.id, defaultMaxBet).catch(() => null)
+      const res = await ensureBankerHole(roundId, groupId, holeNumber, pick.id, maxBet).catch(() => null)
       const settled = res && 'bankerPlayerId' in res ? res : null
       if (!settled?.bankerPlayerId) {
         // Offline or the action failed — queue the pick so it lands on reconnect.
-        void runOrQueue('saveBankerHole', [roundId, groupId, firstHole, pick.id, defaultMaxBet])
+        void runOrQueue('saveBankerHole', [roundId, groupId, holeNumber, pick.id, maxBet])
         return
       }
       if (settled.bankerPlayerId === pick.id) return
-      // Someone else claimed hole 1 first — their banker wins.
-      writeBankerLock(firstHole, settled.bankerPlayerId)
-      setBankerHoles((prev) => ({ ...prev, [firstHole]: { bankerPlayerId: settled.bankerPlayerId, maxBet: settled.maxBet ?? defaultMaxBet } }))
+      // Someone else claimed the hole first — their banker wins.
+      writeBankerLock(holeNumber, settled.bankerPlayerId)
+      setBankerHoles((prev) => ({ ...prev, [holeNumber]: { bankerPlayerId: settled.bankerPlayerId, maxBet: settled.maxBet ?? maxBet } }))
     })()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }
 
   // Backfill: persist auto-handicap strokes to DB for all already-saved holes on mount
   useEffect(() => {
@@ -503,13 +498,10 @@ export default function PlayingGroupScoreEntry({
     await handleSaveBankerBets(holeNumber, newBets)
   }
 
-  // The auto-assigned hole-1 banker is remembered on the device so reopening
-  // score entry before the round row lands never re-rolls the pick.
+  // The hole-1 banker is remembered on the device so reopening score entry
+  // before the round row lands never loses the pick.
   function bankerLockKey(holeNumber: number) {
     return `abg-banker-hole:${roundId}:${groupId}:${holeNumber}`
-  }
-  function readBankerLock(holeNumber: number): string | null {
-    try { return window.localStorage.getItem(bankerLockKey(holeNumber)) } catch { return null }
   }
   function writeBankerLock(holeNumber: number, playerId: string | null) {
     try {
@@ -1494,6 +1486,7 @@ export default function PlayingGroupScoreEntry({
                     const maxBetDraftNum = parseFloat(maxBetDraft[hole.hole_number] ?? '')
                     const effectiveMaxBet = !isNaN(maxBetDraftNum) && maxBetDraftNum >= bankerMinBet ? maxBetDraftNum : hd.maxBet
                     const isLastTwo = hole.hole_number >= (holes.length > 9 ? 17 : holes[holes.length - 2]?.hole_number ?? 17)
+                    const isFirstHole = hole.hole_number === (holes[0]?.hole_number ?? 1)
                     const suggestedBankerId = isLastTwo
                       ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
                       : null
@@ -1516,6 +1509,18 @@ export default function PlayingGroupScoreEntry({
                                 </button>
                               )
                             })}
+                            {/* First hole has no standings to pick from, so it's a
+                                coin toss either way — this just makes the toss
+                                visible instead of someone deciding. Gone once a
+                                banker is set. */}
+                            {isFirstHole && !hd.bankerPlayerId && holeActivePlayers.length > 0 && (
+                              <button type="button"
+                                onClick={() => pickRandomBanker(hole.hole_number, holeActivePlayers, hd.maxBet)}
+                                className="text-xs px-2.5 py-1.5 rounded-lg font-semibold border transition"
+                                style={{ borderColor: '#f59e0b', background: '#fffbeb', color: '#92400e' }}>
+                                🎲 Random
+                              </button>
+                            )}
                             {hd.bankerPlayerId && (
                               <button type="button" onClick={() => handleSaveBankerHole(hole.hole_number, null, hd.maxBet)}
                                 className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-400">Clear</button>
