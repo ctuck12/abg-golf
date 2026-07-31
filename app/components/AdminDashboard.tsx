@@ -247,6 +247,7 @@ export default function AdminDashboard({
   const [showOptions, setShowOptions] = useState(false)
   // Optional Settings stays folded by default — none of it blocks activation
   const [showOptionalSettings, setShowOptionalSettings] = useState(false)
+  const [showClearScores, setShowClearScores] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
   const [addPlayerTeamId, setAddPlayerTeamId] = useState<string | null>(null)
   const [playerOrderOverrides, setPlayerOrderOverrides] = useState<Record<string, string[]>>({})
@@ -5755,8 +5756,15 @@ export default function AdminDashboard({
 
             {/* ── Clear All Scores (any format, once started) — last card before activation/banner ── */}
             {round && round.is_started && (
-              <div className={`bg-white rounded-2xl border p-5 ${SPINE.clear}`}>
-                <h3 className="font-semibold text-gray-900 text-sm mb-1">Clear All Scores</h3>
+              <div className={`bg-white rounded-2xl border overflow-hidden ${SPINE.clear}`}>
+                <button type="button"
+                  onClick={() => setShowClearScores(v => { if (v) setConfirmClearScores(false); return !v })}
+                  className="w-full flex items-center justify-between px-5 py-4">
+                  <h3 className="font-semibold text-gray-900 text-sm">Clear All Scores</h3>
+                  <span className="text-gray-400 text-sm">{showClearScores ? '▲' : '▼'}</span>
+                </button>
+                {showClearScores && (
+                <div className="border-t border-gray-100 px-5 pb-5 pt-3">
                 <p className="text-xs text-gray-400 mb-3">Deletes every saved score in this round for all teams and groups. Teams, matchups, and settings are kept.</p>
                 {confirmClearScores ? (
                   <div className="space-y-2">
@@ -5777,6 +5785,8 @@ export default function AdminDashboard({
                     className="text-sm font-semibold px-4 py-2 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition">
                     Clear All Scores
                   </button>
+                )}
+                </div>
                 )}
               </div>
             )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 type RoundEvent = { id: string; actor: string; action: string; detail: string; created_at: string }
 
@@ -26,6 +26,10 @@ export default function RoundHistory({ roundId }: { roundId: string }) {
     setLoading(false)
   }
 
+  // Fetch once on mount so the collapsed row can show the count — otherwise
+  // you had to expand the card and close it again to find out.
+  useEffect(() => { void load() }, [roundId])   // eslint-disable-line react-hooks/exhaustive-deps
+
   function toggle() {
     setOpen((v) => {
       if (!v) load()
@@ -46,7 +50,9 @@ export default function RoundHistory({ roundId }: { roundId: string }) {
       <button type="button" onClick={toggle} className="w-full flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-3">
           <h3 className="font-semibold text-gray-900 text-sm">Round History</h3>
-          {events !== null && (
+          {/* Suppressed on a failed load — 0 would read as "nothing changed"
+              when the truth is we couldn't tell */}
+          {events !== null && !loadError && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{events.length} change{events.length === 1 ? '' : 's'}</span>
           )}
         </div>
