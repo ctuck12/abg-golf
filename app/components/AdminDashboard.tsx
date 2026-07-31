@@ -4645,8 +4645,11 @@ export default function AdminDashboard({
                               {/* With every side game off there was nothing on the card to
                                   say they exist — you had to know to press Edit. When one is
                                   on it already shows in the line above, so this only appears
-                                  when there's nothing to show. */}
-                              {!team.daytona_variant && !team.banker_side_game && !team.hammer_side_game && (
+                                  when there's nothing to show.
+                                  Not with Mixed Groups on: side games belong to the playing
+                                  groups then, and the edit form drops them too, so this
+                                  chip would open onto nothing. */}
+                              {!mixedGroups && !team.daytona_variant && !team.banker_side_game && !team.hammer_side_game && (
                                 <button type="button" onClick={() => beginEditTeam(team)}
                                   className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded-full px-2 py-0.5 mt-1 hover:bg-amber-100 transition">
                                   + Side Game
