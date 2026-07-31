@@ -1914,6 +1914,52 @@ export default function AdminDashboard({
   // The step chips always stay on one line. Mixed Groups adds a sixth chip,
   // which is what pushes them past the width of a phone — so instead of
   // wrapping, the row scales down to whatever fits.
+  // Re-fit when what's in the summary changes, not on every render.
+  const activateSummarySig = [
+    teams.length, teams.reduce((n, t) => n + sortedTeamPlayers(t.id).length, 0),
+    livePlayingGroups.length, liveGroupPlayers.length,
+    mixedGroups ? 1 : 0, skinsEnabled ? 1 : 0, round?.id ?? '',
+  ].join('|')
+
+  // The activation summary must never need scrolling — it's the last look at
+  // the whole round before it goes live. The card takes what height it can and
+  // the summary scales down to whatever is left, so a long one still lands in
+  // a single view on any phone.
+  const activateBoxRef = useRef<HTMLDivElement>(null)
+  const activateInnerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showActivateConfirm) return
+    let raf = 0
+    const measure = () => {
+      const box = activateBoxRef.current
+      const inner = activateInnerRef.current
+      if (!box || !inner) return
+      inner.style.width = '100%'
+      inner.style.transform = 'none'
+      const avail = box.clientHeight
+      if (!avail || !inner.scrollHeight) return
+      // Scaling shrinks the width too, so the content is widened by 1/k first
+      // and the text rewraps to fewer lines — which changes the height, hence
+      // the settle loop. The clamp afterwards is what guarantees the fit: it
+      // measures the height actually in effect rather than a predicted one.
+      let k = 1
+      for (let pass = 0; pass < 4; pass++) {
+        const fit = Math.min(1, avail / inner.scrollHeight)
+        if (Math.abs(fit - k) < 0.005) { k = fit; break }
+        k = fit
+        inner.style.width = k < 1 ? `${100 / k}%` : '100%'
+      }
+      k = Math.min(k, avail / inner.scrollHeight)
+      inner.style.width = k < 1 ? `${100 / k}%` : '100%'
+      inner.style.transformOrigin = 'top left'
+      inner.style.transform = k < 1 ? `scale(${k})` : 'none'
+    }
+    raf = requestAnimationFrame(measure)
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure) })
+    if (activateBoxRef.current) ro.observe(activateBoxRef.current)
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+  }, [showActivateConfirm, activateSummarySig])
+
   const stripWrapRef = useRef<HTMLDivElement>(null)
   const stripInnerRef = useRef<HTMLDivElement>(null)
   const [stripFit, setStripFit] = useState<{ scale: number; height: number }>({ scale: 1, height: 0 })
@@ -1974,14 +2020,18 @@ export default function AdminDashboard({
           onClick={() => setShowActivateConfirm(false)}>
           {/* Same shell as the scorekeeper/viewer card on the leaderboard:
               gold-bordered white sheet, mark and headline centred up top. */}
-          <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-sm mx-4 flex flex-col overflow-hidden"
-            style={{ maxHeight: '85vh', border: `3px solid ${gold}` }} onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center">
-              <img src="/abg-logo-mark.png" alt="ABG" className="w-20 h-20" />
-              <h3 className="font-extrabold text-xl leading-snug mt-3" style={{ color: navy }}>Ready to Activate?</h3>
-              <p className="text-sm text-gray-500 mt-1">Review everything below, then confirm or go back and edit.</p>
+          <div className="bg-white rounded-[28px] shadow-2xl w-full flex flex-col overflow-hidden"
+            style={{ maxWidth: 'min(94vw, 30rem)', maxHeight: '92vh', border: `3px solid ${gold}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-3 flex flex-col items-center text-center flex-shrink-0">
+              <img src="/abg-logo-mark.png" alt="ABG" className="w-16 h-16" />
+              <h3 className="font-extrabold text-xl leading-snug mt-2.5" style={{ color: navy }}>Ready to Activate?</h3>
+              <p className="text-xs text-gray-500 mt-1">Review everything below &amp; confirm</p>
             </div>
-            <div className="px-6 py-4 overflow-y-auto space-y-3 text-sm border-t border-gray-100">
+            {/* Padding lives on the inner element, not the box: box.clientHeight
+                has to be exactly the room the content gets, or the fit is off
+                by the padding and the last rows clip. */}
+            <div ref={activateBoxRef} className="flex-1 min-h-0 overflow-hidden border-t border-gray-100">
+            <div ref={activateInnerRef} className="space-y-3 text-sm px-6 py-3">
               {/* Round */}
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Round</p>
@@ -2125,19 +2175,20 @@ export default function AdminDashboard({
                 })()}
               </div>
             </div>
-            <div className="px-6 pt-4 pb-6 border-t border-gray-100 flex flex-col gap-2.5">
+            </div>
+            <div className="px-6 pt-3 pb-5 border-t border-gray-100 flex flex-col gap-2 flex-shrink-0">
               {/* activateRound redirects back here, so the "it worked" moment
                   has to be flagged across that navigation */}
               <form action={activateRound.bind(null, round.id, orgSlug)}
                 onSubmit={() => { try { sessionStorage.setItem(ACTIVATED_KEY, round.id) } catch {} }}>
                 <button type="submit"
-                  className="w-full py-3.5 rounded-2xl text-base font-bold text-white shadow-sm active:scale-[0.99] transition"
+                  className="w-full py-3 rounded-2xl text-sm font-bold text-white shadow-sm active:scale-[0.99] transition"
                   style={{ background: '#16a34a', border: '2px solid #16a34a' }}>
                   Confirm &amp; Activate
                 </button>
               </form>
               <button onClick={() => setShowActivateConfirm(false)}
-                className="w-full py-3.5 rounded-2xl text-base font-bold active:scale-[0.99] transition"
+                className="w-full py-3 rounded-2xl text-sm font-bold active:scale-[0.99] transition"
                 style={{ background: '#fdf6e7', border: `2px solid ${gold}`, color: '#b45309' }}>
                 Go Back &amp; Edit
               </button>
