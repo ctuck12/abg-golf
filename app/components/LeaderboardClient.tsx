@@ -992,10 +992,10 @@ export default function LeaderboardClient({
   })
 
   useEffect(() => {
-    const locked = showOptions || showPayouts || showAllScorecards || !!showPin || !!breakdownPlayerId || !!rosterPopup
+    const locked = rolePrompt || showOptions || showPayouts || showAllScorecards || !!showPin || !!breakdownPlayerId || !!rosterPopup
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showPayouts, showAllScorecards, showPin, breakdownPlayerId, rosterPopup])
+  }, [rolePrompt, showOptions, showPayouts, showAllScorecards, showPin, breakdownPlayerId, rosterPopup])
 
   const headerRef = useRef<HTMLElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
