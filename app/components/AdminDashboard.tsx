@@ -2800,7 +2800,22 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {showPinModal && <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} playingGroups={mixedGroups === true ? livePlayingGroups : undefined} />}
+      {showPinModal && (() => {
+        // Rosters under each choice, same as on the leaderboard
+        const known = new Map([...players, ...liveManualPlayers].map((p) => [p.id, p.name]))
+        const memberNames: Record<string, string[]> = {}
+        if (mixedGroups === true) {
+          for (const g of livePlayingGroups) {
+            memberNames[g.id] = liveGroupPlayers
+              .filter((gp) => gp.playing_group_id === g.id)
+              .map((gp) => known.get(gp.player_id))
+              .filter((n): n is string => !!n)
+          }
+        } else {
+          for (const t of teams) memberNames[t.id] = players.filter((p) => p.team_id === t.id).map((p) => p.name)
+        }
+        return <PinLoginModal teams={teams} onClose={() => setShowPinModal(false)} orgSlug={orgSlug} isGroup={isDaytona || isTraditional} playingGroups={mixedGroups === true ? livePlayingGroups : undefined} memberNames={memberNames} />
+      })()}
       {showOptions && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowOptions(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>

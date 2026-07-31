@@ -234,6 +234,22 @@ export default function LeaderboardClient({
     return 1
   }
 
+  // Rosters for the PIN modal, so each choice shows who's in it.
+  const pinMemberNames = useMemo(() => {
+    const byId = new Map(players.map((p) => [p.id, p.name]))
+    const out: Record<string, string[]> = {}
+    if (isMixedGroups) {
+      for (const g of playingGroups ?? []) {
+        out[g.id] = (groupPlayerMap[g.id] ?? []).map((pid) => byId.get(pid)).filter((n): n is string => !!n)
+      }
+    } else {
+      for (const t of initialTeams) {
+        out[t.id] = players.filter((p) => p.team_id === t.id).map((p) => p.name)
+      }
+    }
+    return out
+  }, [players, initialTeams, playingGroups, groupPlayerMap, isMixedGroups])
+
   function handleChangeTeam() {
     setShowOptions(false)
     setShowPin(true)
@@ -1049,7 +1065,7 @@ export default function LeaderboardClient({
         </div>
       )}
 
-      {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} isGroup={isDaytona || isTraditional} orgSlug={orgSlug} onBeforeNavigate={scorecardTeamId ? logoutCurrentTeam : undefined} playingGroups={isMixedGroups ? (playingGroups ?? []) : undefined} />}
+      {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} isGroup={isDaytona || isTraditional} orgSlug={orgSlug} onBeforeNavigate={scorecardTeamId ? logoutCurrentTeam : undefined} playingGroups={isMixedGroups ? (playingGroups ?? []) : undefined} memberNames={pinMemberNames} />}
 
       {showOptions && (
         <div
