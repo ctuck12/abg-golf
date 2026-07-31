@@ -8,6 +8,7 @@ import OfflineSyncBanner from './OfflineSyncBanner'
 import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan, computePlayerDaytonaPoints, playerCoversHole, roundHcp } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
+import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -1486,7 +1487,7 @@ export default function PlayingGroupScoreEntry({
                     const maxBetDraftNum = parseFloat(maxBetDraft[hole.hole_number] ?? '')
                     const effectiveMaxBet = !isNaN(maxBetDraftNum) && maxBetDraftNum >= bankerMinBet ? maxBetDraftNum : hd.maxBet
                     const isLastTwo = hole.hole_number >= (holes.length > 9 ? 17 : holes[holes.length - 2]?.hole_number ?? 17)
-                    const isFirstHole = hole.hole_number === (holes[0]?.hole_number ?? 1)
+                    const isFirstHole = isFirstPlayedHole(holes, hole.hole_number)
                     const suggestedBankerId = isLastTwo
                       ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
                       : null
@@ -1513,7 +1514,7 @@ export default function PlayingGroupScoreEntry({
                                 coin toss either way — this just makes the toss
                                 visible instead of someone deciding. Gone once a
                                 banker is set. */}
-                            {isFirstHole && !hd.bankerPlayerId && holeActivePlayers.length > 0 && (
+                            {shouldOfferRandomBanker({ isFirstPlayedHole: isFirstHole, bankerPlayerId: hd.bankerPlayerId, poolSize: holeActivePlayers.length }) && (
                               <button type="button"
                                 onClick={() => pickRandomBanker(hole.hole_number, holeActivePlayers, hd.maxBet)}
                                 className="text-xs px-2.5 py-1.5 rounded-lg font-semibold border transition"
