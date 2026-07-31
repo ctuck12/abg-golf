@@ -1016,26 +1016,30 @@ export default function LeaderboardClient({
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
       {/* ── Scorekeeper or viewer — asked once per round ── */}
       {rolePrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm px-6 py-7 flex flex-col items-center text-center gap-4">
-            <div className="w-20 h-20 rounded-3xl overflow-hidden flex-shrink-0">
-              <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.65)' }}>
+          <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl" style={{ border: `2px solid ${gold}` }}>
+            {/* Navy band — the mark's gold ring needs a dark field to read against */}
+            <div className="px-6 pt-6 pb-5 flex flex-col items-center text-center" style={{ background: navy, borderBottom: `2px solid ${gold}` }}>
+              <img src="/abg-logo-mark.png" alt="ABG" className="w-20 h-20 mb-3" style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.45))' }} />
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: gold }}>{orgName}</p>
+              <h2 className="text-white font-bold text-lg leading-snug mt-1.5">How are you using the app today?</h2>
+              <p className="text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.55)' }}>{roundName}</p>
             </div>
-            <div>
-              <h2 className="font-bold text-gray-900 text-lg leading-snug">How are you using the app today?</h2>
-              <p className="text-sm text-gray-500 mt-1 leading-relaxed">{roundName}</p>
-            </div>
-            <div className="w-full flex flex-col gap-2">
+            <div className="bg-white px-6 py-5 flex flex-col gap-2.5">
               <button type="button" onClick={() => chooseRole('scorekeeper')}
-                className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: gold, color: navy }}>
+                className="w-full py-3 rounded-xl text-sm font-bold shadow-sm active:scale-[0.99] transition"
+                style={{ background: gold, color: navy }}>
                 Scorekeeper
               </button>
               <button type="button" onClick={() => chooseRole('viewer')}
-                className="w-full py-3 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">
+                className="w-full py-3 rounded-xl text-sm font-bold border-2 bg-white active:scale-[0.99] transition"
+                style={{ borderColor: navy, color: navy }}>
                 Viewer
               </button>
+              <p className="text-[11px] text-gray-400 leading-relaxed text-center mt-0.5">
+                Scorekeepers enter scores for their {isMixedGroups || isDaytona || isTraditional ? 'group' : 'team'} with a PIN. Viewers just follow the leaderboard.
+              </p>
             </div>
-            <p className="text-xs text-gray-400 leading-relaxed">Scorekeepers enter scores for their {isMixedGroups || isDaytona || isTraditional ? 'group' : 'team'} with a PIN. Viewers just follow the leaderboard.</p>
           </div>
         </div>
       )}
