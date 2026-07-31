@@ -13,6 +13,9 @@ import {
   computeAllMatchupPayouts,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
+
+// Asked once per round per device: scorekeeper or just watching.
+const roleKey = (roundId: string) => `abg_role_${roundId}`
 import { ScoreNotation } from './ScoreNotation'
 
 type Team = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null }
@@ -178,6 +181,7 @@ export default function LeaderboardClient({
   const [liveHoleValues, setLiveHoleValues] = useState<Record<string, Record<number, number>>>(initialHoleValues)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [showPin, setShowPin] = useState(false)
+  const [rolePrompt, setRolePrompt] = useState(false)
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null)
   const [showPayouts, setShowPayouts] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('payouts') === '1')
   const [showAllScorecards, setShowAllScorecards] = useState(false)
@@ -235,6 +239,25 @@ export default function LeaderboardClient({
   function handleChangeTeam() {
     setShowOptions(false)
     setShowPin(true)
+  }
+
+  // First look at this round on this device: ask which way they're using it.
+  // Already signed into a team or group answers the question by itself.
+  useEffect(() => {
+    if (!roundId) return
+    if (scorecardTeamId || scorecardGroupId) {
+      try { localStorage.setItem(roleKey(roundId), 'scorekeeper') } catch { /* private mode */ }
+      return
+    }
+    let stored: string | null = null
+    try { stored = localStorage.getItem(roleKey(roundId)) } catch { /* private mode */ }
+    if (!stored) setRolePrompt(true)
+  }, [roundId, scorecardTeamId, scorecardGroupId])
+
+  function chooseRole(role: 'scorekeeper' | 'viewer') {
+    try { localStorage.setItem(roleKey(roundId), role) } catch { /* private mode */ }
+    setRolePrompt(false)
+    if (role === 'scorekeeper') setShowPin(true)
   }
 
   async function logoutCurrentTeam() {
@@ -992,6 +1015,32 @@ export default function LeaderboardClient({
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc' }}>
+      {/* ── Scorekeeper or viewer — asked once per round ── */}
+      {rolePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm px-6 py-7 flex flex-col items-center text-center gap-4">
+            <div className="w-20 h-20 rounded-3xl overflow-hidden flex-shrink-0">
+              <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900 text-lg leading-snug">How are you using the app today?</h2>
+              <p className="text-sm text-gray-500 mt-1 leading-relaxed">{roundName}</p>
+            </div>
+            <div className="w-full flex flex-col gap-2">
+              <button type="button" onClick={() => chooseRole('scorekeeper')}
+                className="w-full py-3 rounded-xl text-sm font-bold" style={{ background: gold, color: navy }}>
+                Scorekeeper
+              </button>
+              <button type="button" onClick={() => chooseRole('viewer')}
+                className="w-full py-3 rounded-xl text-sm font-semibold border border-gray-300 text-gray-700 bg-white">
+                Viewer
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed">Scorekeepers enter scores for their {isMixedGroups || isDaytona || isTraditional ? 'group' : 'team'} with a PIN. Viewers just follow the leaderboard.</p>
+          </div>
+        </div>
+      )}
+
       {showPin && <PinLoginModal teams={initialTeams} onClose={() => setShowPin(false)} isGroup={isDaytona || isTraditional} orgSlug={orgSlug} onBeforeNavigate={scorecardTeamId ? logoutCurrentTeam : undefined} playingGroups={isMixedGroups ? (playingGroups ?? []) : undefined} />}
 
       {showOptions && (
