@@ -1145,7 +1145,13 @@ export default function PlayingGroupScoreEntry({
                       <div key={p.id} className="py-2 border-t border-gray-100">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-semibold text-gray-800">
-                            {p.name.split(' ')[0]} <span className="text-xs font-normal text-gray-400">{fmtH(p.handicap)} → {fmtH(pEff)}</span>
+                            {p.name.split(' ')[0]}{' '}
+                            <span className="text-xs font-normal text-gray-400">
+                              {fmtH(p.handicap)} HCP
+                              {/* What the group's rounding actually makes them play to */}
+                              <span className="text-gray-300"> → </span>
+                              <span className="font-semibold text-gray-600">{fmtH(pEff)}</span>
+                            </span>
                           </p>
                           <p className={`text-sm font-semibold ${rel > 0 ? 'text-green-700' : 'text-gray-400'}`}>
                             {rel > 0 ? `${rel} stroke${rel !== 1 ? 's' : ''}` : 'Group low'}
