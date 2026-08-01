@@ -10,7 +10,7 @@ import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
 import { doublingAllowedOnHole, type BankerDoubleScope } from '../../lib/banker-doubles'
-import { bankerStrokeMatrix } from '../../lib/banker-strokes'
+import { bankerStrokeMatrix, effectiveHcp } from '../../lib/banker-strokes'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -1082,7 +1082,15 @@ export default function PlayingGroupScoreEntry({
                       return (
                         <div key={p.id} className="flex items-start justify-between py-2 border-t border-gray-100 gap-2">
                           <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">
-                            {p.name.split(' ')[0]} {p.handicap != null && <span className="text-xs font-normal text-gray-400">{fmtH(p.handicap)} HCP</span>}
+                            {p.name.split(' ')[0]}{' '}
+                            {p.handicap != null && (
+                              <span className="text-xs font-normal text-gray-400">
+                                {fmtH(p.handicap)} HCP
+                                {/* What the rounding actually makes them play to */}
+                                <span className="text-gray-300"> → </span>
+                                <span className="font-semibold text-gray-600">{effectiveHcp(p.handicap, handicapRounding)}</span>
+                              </span>
+                            )}
                           </p>
                           {effHoleNums.length > 0
                             ? <div className="flex flex-wrap gap-1 justify-end">{effHoleNums.map((hn) => <span key={hn} className="text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-full px-2 py-0.5">{hn}</span>)}</div>
