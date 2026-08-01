@@ -10,7 +10,7 @@ import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
 import { doublingAllowedOnHole, type BankerDoubleScope } from '../../lib/banker-doubles'
-import { bankerStrokeMatrix, effectiveHcp } from '../../lib/banker-strokes'
+import { bankerStrokeMatrix, effectiveHcp, playerBankerStrokes } from '../../lib/banker-strokes'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -919,6 +919,46 @@ export default function PlayingGroupScoreEntry({
                       Whoever has the higher handicap gets a stroke on holes whose difficulty rank is within the difference — so your strokes change as the Banker changes.
                     </p>
                     <p className="text-xs text-gray-500">Rounding for this round: <span className="font-semibold text-gray-700">{roundingLabel}</span></p>
+
+                    {/* Every pairing this player is in. Taking the bank doesn't
+                        change a handicap, so one row per opponent covers both
+                        "when they bank" and "when the other player banks". */}
+                    {(() => {
+                      const view = playerBankerStrokes(p.id, players, holes, handicapRounding)
+                      if (!view || view.rows.length === 0) return null
+                      const me = p.name.split(' ')[0]
+                      return (
+                        <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1.5">
+                          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                            {me} plays to {fmtH(view.playingHcp)} — whoever has the bank
+                          </p>
+                          {view.rows.map((r) => (
+                            <div key={r.opponentId} className="flex items-start justify-between gap-2">
+                              <p className="text-xs whitespace-nowrap pt-0.5">
+                                <span className="font-semibold text-gray-800">{r.opponentName.split(' ')[0]}</span>
+                                <span className="text-gray-400"> {fmtH(r.opponentHcp)}</span>
+                                {r.direction === 'even'
+                                  ? <span className="text-gray-500"> — head up</span>
+                                  : r.direction === 'gets'
+                                  ? <span className="text-green-700"> — {me} gets {r.strokes}</span>
+                                  : <span className="text-blue-700"> — {me} gives {r.strokes}</span>}
+                              </p>
+                              {r.holes.length > 0 && (
+                                <div className="flex flex-wrap gap-1 justify-end">
+                                  {r.holes.map((hn) => (
+                                    <span key={hn}
+                                      className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 border ${r.direction === 'gets' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                      {hn}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })()}
+
                     {effHoleNums.length > 0
                       ? <>
                           <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1.5">So far {p.name.split(' ')[0]} gets a stroke on hole{effHoleNums.length !== 1 ? 's' : ''} {effHoleNums.join(', ')}.</p>
