@@ -56,6 +56,7 @@ import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSens
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { bankerDoubleScope } from '../../lib/banker-doubles'
 
 // Every team and group starts on this PIN — an admin shouldn't have to invent
 // one per team, and it's shared with the players anyway. Still editable.
@@ -144,12 +145,12 @@ const COURSE_PARS_CLIENT: Record<string, number[]> = {
   canyonwest: [4, 4, 4, 5, 4, 3, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5],
 }
 
-type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; skins_mode?: string | null; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; banker_default_max_bet?: number | null; mixed_groups?: boolean; playing_group_count?: number } | null
+type Round = { id: string; name: string; date: string; course: string; balls_count: number; format: string; daytona_variant: string | null; is_started: boolean; include_total: boolean; skins_enabled: boolean; skins_amount: number; skins_mode?: string | null; auto_handicap?: boolean; handicap_rounding?: string | null; banker_min_bet?: number | null; banker_default_max_bet?: number | null; banker_double_scope?: string | null; mixed_groups?: boolean; playing_group_count?: number } | null
 type PlayingGroup = { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; banker_side_game_max_bet?: number | null; auto_strokes?: boolean; stroke_rounding?: string | null }
 type PlayingGroupPlayer = { playing_group_id: string; player_id: string }
 type RosterPlayer = { id: string; name: string; ghin_number?: string | null; handicap_index?: number | null; email?: string | null }
 type HammerMatchup = { id: string; team1_id: string; team2_id: string; base_bet: number; auto_handicap: boolean }
-type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; daytona_variant_back9?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; banker_side_game_max_bet?: number | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null; stroke_rounding?: string | null }
+type Team = { id: string; name: string; pin: string; is_admin: boolean; daytona_variant?: string | null; daytona_variant_back9?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; banker_side_game_max_bet?: number | null; banker_double_scope?: string | null; auto_strokes?: boolean; hammer_side_game?: boolean; hammer_base_bet?: number | null; hammer_format?: string | null; stroke_rounding?: string | null }
 type Player = { id: string; team_id: string | null; name: string; position: number | null; skins_participant: boolean; handicap?: number | null; holes_range?: string | null; roster_player_id?: string | null }
 type Hole = { hole_number: number; par: number }
 type BallValue = { ball_number: number; value_dollars: number }
@@ -386,6 +387,7 @@ export default function AdminDashboard({
   const [newTeamBankerEnabled, setNewTeamBankerEnabled] = useState(false)
   const [newTeamBankerMinBet, setNewTeamBankerMinBet] = useState('2')
   const [newTeamBankerMaxBet, setNewTeamBankerMaxBet] = useState('')
+  const [newTeamBankerDoubles, setNewTeamBankerDoubles] = useState<'par3' | 'all'>('par3')
   const [newTeamAutoStrokes, setNewTeamAutoStrokes] = useState(false)
   const [newTeamStrokeRounding, setNewTeamStrokeRounding] = useState('down')
   const [newTeamHammerEnabled, setNewTeamHammerEnabled] = useState(false)
@@ -394,6 +396,7 @@ export default function AdminDashboard({
   const [editBankerEnabled, setEditBankerEnabled] = useState(false)
   const [editBankerMinBet, setEditBankerMinBet] = useState('2')
   const [editBankerMaxBet, setEditBankerMaxBet] = useState('')
+  const [editBankerDoubles, setEditBankerDoubles] = useState<'par3' | 'all'>('par3')
   const [editAutoStrokes, setEditAutoStrokes] = useState(false)
   const [editTeamStrokeRounding, setEditTeamStrokeRounding] = useState('down')
   const [editHammerEnabled, setEditHammerEnabled] = useState(false)
@@ -469,7 +472,7 @@ export default function AdminDashboard({
   const [editingGroupCount, setEditingGroupCount] = useState(false)
   const [groupCountDraft, setGroupCountDraft] = useState(0)
   // Side game configured while creating a new playing group (saved on create)
-  const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', bankerMaxBet: '', autoStrokes: false, strokeRounding: round?.handicap_rounding ?? 'down' }
+  const emptyNewGroupSG = { daytonaEnabled: false, daytonaType: '', daytonaSubVariant: '', daytonaPayout: '', bankerEnabled: false, bankerMinBet: '2', bankerMaxBet: '', bankerDoubles: 'par3', autoStrokes: false, strokeRounding: round?.handicap_rounding ?? 'down' }
   const [newGroupSG, setNewGroupSG] = useState(emptyNewGroupSG)
   const [genEditNames, setGenEditNames] = useState<string[]>([])
   const [genEditPins, setGenEditPins] = useState<string[]>([])
@@ -487,6 +490,7 @@ export default function AdminDashboard({
   const [hammerError, setHammerError] = useState('')
 
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
+  const [bankerDoublesInput, setBankerDoublesInput] = useState<'par3' | 'all'>('par3')
   const [bankerMaxBetInput, setBankerMaxBetInput] = useState('')
   const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
   const [hcpRounding, setHcpRounding] = useState(round?.handicap_rounding ?? 'down')
@@ -526,7 +530,7 @@ export default function AdminDashboard({
   const [groupIdentityError, setGroupIdentityError] = useState<{ id: string; msg: string } | null>(null)
   const [liveManualPlayers, setLiveManualPlayers] = useState<Player[]>([])
   const [expandedGroupSideGame, setExpandedGroupSideGame] = useState<string | null>(null)
-  type GroupSideGame = { daytonaEnabled: boolean; daytonaType: string; daytonaSubVariant: string; daytonaPayout: string; bankerEnabled: boolean; bankerMinBet: string; bankerMaxBet: string; autoStrokes: boolean; strokeRounding: string; saving: boolean; saved: boolean }
+  type GroupSideGame = { daytonaEnabled: boolean; daytonaType: string; daytonaSubVariant: string; daytonaPayout: string; bankerEnabled: boolean; bankerMinBet: string; bankerMaxBet: string; bankerDoubles: string; autoStrokes: boolean; strokeRounding: string; saving: boolean; saved: boolean }
   const initGroupSideGame = (g: PlayingGroup): GroupSideGame => {
     const raw = g.daytona_variant ?? ''
     const [variant, payout] = raw.includes('|') ? raw.split('|') : [raw, '']
@@ -538,6 +542,7 @@ export default function AdminDashboard({
       bankerEnabled: !!g.banker_side_game,
       bankerMinBet: g.banker_side_game_min_bet != null ? String(g.banker_side_game_min_bet) : '2',
       bankerMaxBet: g.banker_side_game_max_bet != null ? String(g.banker_side_game_max_bet) : '',
+      bankerDoubles: bankerDoubleScope((g as { banker_double_scope?: string | null }).banker_double_scope),
       autoStrokes: !!g.auto_strokes,
       strokeRounding: g.stroke_rounding ?? (round?.handicap_rounding ?? 'down'),
       saving: false, saved: false,
@@ -1224,6 +1229,7 @@ export default function AdminDashboard({
         banker_side_game: newGroupSG.bankerEnabled,
         banker_side_game_min_bet: newGroupSG.bankerEnabled ? (parseFloat(newGroupSG.bankerMinBet) || 2) : null,
         banker_side_game_max_bet: newGroupSG.bankerEnabled ? (parseFloat(newGroupSG.bankerMaxBet) || null) : null,
+        banker_double_scope: newGroupSG.bankerEnabled ? newGroupSG.bankerDoubles : null,
         auto_strokes: newGroupSG.autoStrokes,
         stroke_rounding: newGroupSG.strokeRounding,
       })
@@ -1549,6 +1555,7 @@ export default function AdminDashboard({
     setSelectedHoleCount(String(holes.length || 18))
     setSelectedStartHole(String(holes.length > 0 ? holes[0].hole_number : 1))
     setBankerMinBetInput(String(round.banker_min_bet ?? 2))
+    setBankerDoublesInput(bankerDoubleScope((round as { banker_double_scope?: string | null }).banker_double_scope))
     setBankerMaxBetInput(round.banker_default_max_bet != null ? String(round.banker_default_max_bet) : '')
     setEditRoundError('')
     setEditingRoundSettings(true)
@@ -1716,6 +1723,7 @@ export default function AdminDashboard({
     setEditBankerEnabled(!!team.banker_side_game)
     setEditBankerMinBet(team.banker_side_game_min_bet != null ? String(team.banker_side_game_min_bet) : '2')
     setEditBankerMaxBet(team.banker_side_game_max_bet != null ? String(team.banker_side_game_max_bet) : '')
+    setEditBankerDoubles(bankerDoubleScope((team as { banker_double_scope?: string | null }).banker_double_scope))
     setEditAutoStrokes(!!team.auto_strokes)
     setEditHammerEnabled(!!team.hammer_side_game)
     setEditHammerBaseBet(team.hammer_base_bet != null ? String(team.hammer_base_bet) : '1')
@@ -1797,6 +1805,23 @@ export default function AdminDashboard({
             <span className="text-green-600 text-sm leading-none">▼</span>
           </span>
         </button>
+      </div>
+    )
+  }
+
+  // Where the manual 2x doublers are offered. The automatic birdie 2x /
+  // eagle 3x on the winning score is separate and always on every hole.
+  function doubleScopeToggle(value: string, onPick: (v: 'par3' | 'all') => void) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Double Bets</span>
+        {([['par3', 'Par 3s Only'], ['all', 'All Holes']] as const).map(([v, label]) => (
+          <button key={v} type="button" onClick={() => onPick(v)}
+            className="text-xs font-semibold px-2.5 py-0.5 rounded-full border transition"
+            style={value === v ? { background: navy, color: 'white', borderColor: navy } : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
+            {label}
+          </button>
+        ))}
       </div>
     )
   }
@@ -3293,6 +3318,20 @@ export default function AdminDashboard({
                         <p className="text-xs text-gray-400 mt-0.5">Starting max bet on every hole — the scorekeeper can still change it hole by hole</p>
                       </div>
                       <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Double Bets</label>
+                        <div className="flex gap-2">
+                          {([['par3', 'Par 3s Only'], ['all', 'All Holes']] as const).map(([v, label]) => (
+                            <button key={v} type="button" onClick={() => setBankerDoublesInput(v)}
+                              className={`flex-1 py-2 rounded-lg text-sm font-semibold border-2 transition ${bankerDoublesInput === v ? 'border-transparent text-white' : 'border-gray-200 bg-white text-gray-500'}`}
+                              style={bankerDoublesInput === v ? { background: navy } : undefined}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        <input type="hidden" name="banker_double_scope" value={bankerDoublesInput} />
+                        <p className="text-xs text-gray-400 mt-1">Which holes let players and the banker press 2x. A birdie still pays double and an eagle triple on every hole.</p>
+                      </div>
+                      <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1.5">Holes</label>
                         <div className="flex gap-2">
                           {(['18', '9'] as const).map((hc) => (
@@ -4335,11 +4374,13 @@ export default function AdminDashboard({
                                     className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none" />
                                 </div>
                               )}
+                              {newTeamBankerEnabled && doubleScopeToggle(newTeamBankerDoubles, setNewTeamBankerDoubles)}
                             </>
                           )}
                           <input type="hidden" name="banker_side_game" value={newTeamBankerEnabled ? 'true' : 'false'} />
                           {newTeamBankerEnabled && <input type="hidden" name="banker_side_game_min_bet" value={newTeamBankerMinBet} />}
                           {newTeamBankerEnabled && <input type="hidden" name="banker_side_game_max_bet" value={newTeamBankerMaxBet} />}
+                          {newTeamBankerEnabled && <input type="hidden" name="banker_double_scope" value={newTeamBankerDoubles} />}
                           {/* Auto Strokes — shown when either side game is On */}
                           {(newTeamDaytonaEnabled || newTeamBankerEnabled) && (
                             <div className="flex items-center gap-2 pt-1">
@@ -4622,11 +4663,13 @@ export default function AdminDashboard({
                                           className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
                                       </div>
                                     )}
+                                {editBankerEnabled && doubleScopeToggle(editBankerDoubles, setEditBankerDoubles)}
                                   </>
                                 )}
                                 <input type="hidden" name="banker_side_game" value={editBankerEnabled ? 'true' : 'false'} />
                                 {editBankerEnabled && <input type="hidden" name="banker_side_game_min_bet" value={editBankerMinBet} />}
                                 {editBankerEnabled && <input type="hidden" name="banker_side_game_max_bet" value={editBankerMaxBet} />}
+                                {editBankerEnabled && <input type="hidden" name="banker_double_scope" value={editBankerDoubles} />}
                                 {/* Auto Strokes — shown when either side game is On */}
                                 {(editDaytonaEnabled || editBankerEnabled) && (
                                   <div className="flex items-center gap-2 pt-1">
@@ -5185,6 +5228,7 @@ export default function AdminDashboard({
                                         className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
                                     </div>
                                   )}
+                                  {newGroupSG.bankerEnabled && doubleScopeToggle(newGroupSG.bankerDoubles, (v) => setNewGroupSG(sg => ({ ...sg, bankerDoubles: v })))}
                                 </>
                               )}
                               {(newGroupSG.daytonaEnabled || newGroupSG.bankerEnabled) && (
@@ -5556,6 +5600,7 @@ export default function AdminDashboard({
                                                 banker_side_game: captured.bankerEnabled,
                                                 banker_side_game_min_bet: captured.bankerEnabled ? (parseFloat(captured.bankerMinBet) || 2) : null,
                                                 banker_side_game_max_bet: captured.bankerEnabled ? (parseFloat(captured.bankerMaxBet) || null) : null,
+                                                banker_double_scope: captured.bankerEnabled ? captured.bankerDoubles : null,
                                                 auto_strokes: false,
                                               })
                                               updateGroupSG(g.id, { saving: false, saved: true })
@@ -5615,6 +5660,7 @@ export default function AdminDashboard({
                                                 banker_side_game: false,
                                                 banker_side_game_min_bet: null,
                                                 banker_side_game_max_bet: null,
+                                                banker_double_scope: null,
                                                 auto_strokes: false,
                                               })
                                               updateGroupSG(g.id, { saving: false, saved: true })
@@ -5637,6 +5683,7 @@ export default function AdminDashboard({
                                           className="w-20 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none" />
                                       </div>
                                     )}
+                                  {sg.bankerEnabled && doubleScopeToggle(sg.bankerDoubles, (v) => updateGroupSG(g.id, { bankerDoubles: v }))}
                                   </>
                                 )}
 
@@ -5693,6 +5740,7 @@ export default function AdminDashboard({
                                           banker_side_game: sg.bankerEnabled,
                                           banker_side_game_min_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMinBet) || 2) : null,
                                           banker_side_game_max_bet: sg.bankerEnabled ? (parseFloat(sg.bankerMaxBet) || null) : null,
+                                          banker_double_scope: sg.bankerEnabled ? sg.bankerDoubles : null,
                                           auto_strokes: (sg.daytonaEnabled || sg.bankerEnabled) ? sg.autoStrokes : false,
                                           stroke_rounding: sg.strokeRounding,
                                         })

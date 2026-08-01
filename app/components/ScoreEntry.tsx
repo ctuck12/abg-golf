@@ -16,6 +16,7 @@ import {
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
+import { doublingAllowedOnHole, type BankerDoubleScope } from '../../lib/banker-doubles'
 
 type Player = { id: string; name: string; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
@@ -113,7 +114,7 @@ function defaultAssignmentForHole(players: Player[], holeNumber: number, existin
 
 export default function ScoreEntry({
   orgSlug, orgId, orgName, isMaster = false,
-  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', daytonaVariantBack9 = null, isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerDefaultMaxBet = null, bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds, handicapRounding = 'down',
+  team, players, holes, initialScores, ballsCount, format = 'standard', daytonaVariant = '4man', daytonaVariantBack9 = null, isAdmin, isStarted = true, roundId = '', initialAssignments = [], roundPlayerIds = [], includeTotal = false, initialHoleValues = {}, defaultDtPayoutValue = 0.25, isDaytonaSideGame = false, autoHandicap = false, allRoundPlayerHandicaps = {}, initialHoleStrokes = {}, bankerMinBet = 2, bankerDefaultMaxBet = null, bankerDoubleScope = 'par3', bankerSideGame = false, initialBankerHoles = {}, initialBankerBets = {}, sideGameGroupScores, sideGameGroupPlayerIds, handicapRounding = 'down',
 }: {
   orgSlug: string
   orgId: string
@@ -142,6 +143,7 @@ export default function ScoreEntry({
   bankerMinBet?: number
   /** Admin-set starting max bet for each hole; the scorekeeper can still change it per hole. */
   bankerDefaultMaxBet?: number | null
+  bankerDoubleScope?: BankerDoubleScope
   bankerSideGame?: boolean
   initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
@@ -1888,6 +1890,9 @@ export default function ScoreEntry({
                     const effectiveMaxBet = !isNaN(maxBetDraftNum) && maxBetDraftNum >= bankerMinBet ? maxBetDraftNum : hd.maxBet
                     const isLastTwo = hole.hole_number >= (holes.length > 9 ? 17 : holes[holes.length - 2]?.hole_number ?? 17)
                     const isFirstHole = isFirstPlayedHole(holes, hole.hole_number)
+                    // Manual doublers are a par-3 thing by default; the automatic
+                    // birdie/eagle multiplier is unaffected and still applies here.
+                    const canDouble = doublingAllowedOnHole(bankerDoubleScope, hole.par)
                     const suggestedBankerId = isLastTwo
                       ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
                       : null
@@ -2016,17 +2021,17 @@ export default function ScoreEntry({
                                           }}
                                         />
                                       </div>
-                                      <button type="button"
+                                      {canDouble && <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
                                         className={`text-sm w-10 py-1 rounded border font-semibold transition flex-shrink-0 ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
                                         2×
-                                      </button>
+                                      </button>}
                                     </div>
                                   </div>
                                 )
                               })}
                               {/* Banker doubles ALL bets */}
-                              {(() => {
+                              {canDouble && (() => {
                                 const isDoubled = Object.values(bets).some((b) => b.bankerDoubled)
                                 return (
                                   <button type="button"

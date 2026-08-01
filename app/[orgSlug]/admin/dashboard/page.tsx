@@ -19,7 +19,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
   const [{ data: orgRow }, { data: roundRows }] = await Promise.all([
     sb.from('organizations').select('name').eq('id', orgId).single(),
     sb.from('rounds')
-      .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, skins_mode, auto_handicap, handicap_rounding, mixed_groups, playing_group_count')
+      .select('id, name, date, course, balls_count, format, daytona_variant, is_started, include_total, skins_enabled, skins_amount, skins_mode, auto_handicap, handicap_rounding, mixed_groups, playing_group_count, banker_double_scope')
       .eq('is_active', true)
       .eq('org_id', orgId)
       .order('created_at', { ascending: false })
@@ -33,7 +33,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
 
   // Wave 2: everything that only needs the round id
   const [teamsRes, holesRes, ballValuesRes, assignmentsRes, matchupsRaw, bestBallRes, holeValuesRes, coursesRes, playingGroupsRes, rosterRes, hammerRes, medleyRes] = await Promise.all([
-    roundId ? sb.from('teams').select('id, name, pin, is_admin, daytona_variant, daytona_variant_back9, banker_side_game, banker_side_game_min_bet, auto_strokes, hammer_side_game, hammer_base_bet, hammer_format, stroke_rounding').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
+    roundId ? sb.from('teams').select('id, name, pin, is_admin, daytona_variant, daytona_variant_back9, banker_side_game, banker_side_game_min_bet, banker_side_game_max_bet, banker_double_scope, auto_strokes, hammer_side_game, hammer_base_bet, hammer_format, stroke_rounding').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] }),
     roundId ? sb.from('holes').select('hole_number, par, stroke_index').eq('round_id', roundId).order('hole_number') : Promise.resolve({ data: [] }),
     roundId ? sb.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number') : Promise.resolve({ data: [] }),
     roundId && isDaytona ? sb.from('daytona_hole_assignments').select('player_id, hole_number, side').eq('round_id', roundId) : Promise.resolve({ data: [] }),
@@ -41,7 +41,7 @@ export default async function OrgAdminDashboardPage({ params }: { params: Promis
     roundId ? sb.from('best_ball_matchups').select('id, team1_player1_id, team1_player2_id, team2_player1_id, team2_player2_id, bet, press, hole_range, player_strokes').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
     roundId && isDaytona ? sb.from('daytona_hole_values').select('team_id, hole_number, value_per_point').eq('round_id', roundId) : Promise.resolve({ data: [] }),
     sb.from('courses').select('name, slug, pars').eq('is_active', true).order('name'),
-    roundId ? sb.from('playing_groups').select('id, name, pin, daytona_variant, banker_side_game, banker_side_game_min_bet, auto_strokes, stroke_rounding').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] as { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; auto_strokes?: boolean; stroke_rounding?: string | null }[] }),
+    roundId ? sb.from('playing_groups').select('id, name, pin, daytona_variant, banker_side_game, banker_side_game_min_bet, banker_side_game_max_bet, banker_double_scope, auto_strokes, stroke_rounding').eq('round_id', roundId).order('name') : Promise.resolve({ data: [] as { id: string; name: string; pin: string; daytona_variant?: string | null; banker_side_game?: boolean; banker_side_game_min_bet?: number | null; banker_side_game_max_bet?: number | null; banker_double_scope?: string | null; auto_strokes?: boolean; stroke_rounding?: string | null }[] }),
     sb.from('org_players').select('id, name, ghin_number, handicap_index, email').eq('org_id', orgId).order('name'),
     roundId ? sb.from('hammer_matchups').select('id, team1_id, team2_id, base_bet, auto_handicap').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),
     roundId ? sb.from('medley_matchups').select('id, players, bet_type, amount, press').eq('round_id', roundId).order('created_at') : Promise.resolve({ data: [] }),

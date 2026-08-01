@@ -9,6 +9,7 @@ import { computeTeamBallSummary, computeHoleBallScores, computeHoleDaytonaWithSi
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
+import { doublingAllowedOnHole, type BankerDoubleScope } from '../../lib/banker-doubles'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -45,7 +46,7 @@ export default function PlayingGroupScoreEntry({
   ballsCount, teamPlayerMap, teamMap, includeTotal, ballValues, isStarted,
   daytonaVariant, isDaytonaSideGame, defaultDtPayoutValue, initialAssignments,
   initialHoleStrokes = {}, initialHoleValues = {},
-  bankerSideGame = false, bankerMinBet = 2, bankerDefaultMaxBet = null, initialBankerHoles = {}, initialBankerBets = {},
+  bankerSideGame = false, bankerMinBet = 2, bankerDefaultMaxBet = null, bankerDoubleScope = 'par3', initialBankerHoles = {}, initialBankerBets = {},
   autoStrokes = false,
   handicapRounding = 'down',
 }: {
@@ -62,6 +63,7 @@ export default function PlayingGroupScoreEntry({
   bankerMinBet?: number
   /** Admin-set starting max bet for each hole; the scorekeeper can still change it per hole. */
   bankerDefaultMaxBet?: number | null
+  bankerDoubleScope?: BankerDoubleScope
   initialBankerHoles?: Record<number, { bankerPlayerId: string | null; maxBet: number }>
   initialBankerBets?: Record<number, Record<string, { baseBet: number; playerDoubled: boolean; bankerDoubled: boolean }>>
   autoStrokes?: boolean
@@ -1488,6 +1490,9 @@ export default function PlayingGroupScoreEntry({
                     const effectiveMaxBet = !isNaN(maxBetDraftNum) && maxBetDraftNum >= bankerMinBet ? maxBetDraftNum : hd.maxBet
                     const isLastTwo = hole.hole_number >= (holes.length > 9 ? 17 : holes[holes.length - 2]?.hole_number ?? 17)
                     const isFirstHole = isFirstPlayedHole(holes, hole.hole_number)
+                    // Manual doublers are a par-3 thing by default; the automatic
+                    // birdie/eagle multiplier is unaffected and still applies here.
+                    const canDouble = doublingAllowedOnHole(bankerDoubleScope, hole.par)
                     const suggestedBankerId = isLastTwo
                       ? Object.entries(bankerRunningTotals).sort((a, b) => (a[1] as number) - (b[1] as number))[0]?.[0] ?? null
                       : null
@@ -1608,17 +1613,17 @@ export default function PlayingGroupScoreEntry({
                                           }}
                                         />
                                       </div>
-                                      <button type="button"
+                                      {canDouble && <button type="button"
                                         onClick={() => handleSaveBankerBets(hole.hole_number, { ...bets, [p.id]: { ...pb, playerDoubled: !pb.playerDoubled } })}
                                         className={`text-xs w-9 py-1 rounded border font-semibold transition flex-shrink-0 ${pb.playerDoubled ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
                                         2×
-                                      </button>
+                                      </button>}
                                     </div>
                                   </div>
                                 )
                               })}
                               {/* Banker doubles ALL bets */}
-                              {(() => {
+                              {canDouble && (() => {
                                 const isDoubled = Object.values(bets).some((b) => b.bankerDoubled)
                                 return (
                                   <button type="button"

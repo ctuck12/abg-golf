@@ -4,6 +4,7 @@ import { getOrgAuth } from '@/lib/org-auth'
 import { createServerClient } from '@/lib/supabase-server'
 import PlayingGroupScoreEntry from '@/app/components/PlayingGroupScoreEntry'
 import { sortPlayersForDisplay, sortRoundPlayersByTeam } from '@/lib/scoring'
+import { bankerDoubleScope } from '@/lib/banker-doubles'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ export default async function PlayingGroupScorecardPage({
 
   const { data: group } = await sb
     .from('playing_groups')
-    .select('id, name, round_id, daytona_variant, banker_side_game, banker_side_game_min_bet, banker_side_game_max_bet, auto_strokes, stroke_rounding')
+    .select('id, name, round_id, daytona_variant, banker_side_game, banker_side_game_min_bet, banker_side_game_max_bet, banker_double_scope, auto_strokes, stroke_rounding')
     .eq('id', groupId)
     .single()
   if (!group) redirect(`/${orgSlug}`)
@@ -65,6 +66,7 @@ export default async function PlayingGroupScorecardPage({
   const isBankerSideGame = !!(group as { banker_side_game?: boolean }).banker_side_game
   const bankerMinBet = (group as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
   const bankerDefaultMaxBet = (group as { banker_side_game_max_bet?: number | null }).banker_side_game_max_bet ?? null
+  const bankerDoubles = bankerDoubleScope((group as { banker_double_scope?: string | null }).banker_double_scope)
   const autoStrokes = !!(group as { auto_strokes?: boolean }).auto_strokes
 
   // Fetch all teams in this round to get full team rosters for ball score popup
@@ -167,6 +169,7 @@ export default async function PlayingGroupScorecardPage({
       bankerSideGame={isBankerSideGame}
       bankerMinBet={bankerMinBet}
       bankerDefaultMaxBet={bankerDefaultMaxBet}
+      bankerDoubleScope={bankerDoubles}
       initialBankerHoles={initialBankerHoles}
       initialBankerBets={initialBankerBets}
       autoStrokes={autoStrokes}
