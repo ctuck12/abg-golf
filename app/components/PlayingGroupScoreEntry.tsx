@@ -819,11 +819,22 @@ export default function PlayingGroupScoreEntry({
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-gray-900">{popupPlayer.name}</h3>
-                {popupPlayer.handicap != null && (
-                  <span className="text-xs text-gray-400">
-                    {popupPlayer.handicap < 0 ? `+${Math.abs(popupPlayer.handicap)}` : popupPlayer.handicap} HCP
-                  </span>
-                )}
+                {popupPlayer.handicap != null && (() => {
+                  // Actual handicap, then what the round's rounding makes them play to.
+                  // Only meaningful when automatic strokes are on, and only worth
+                  // showing when rounding actually moves the number.
+                  const fmt = (h: number) => h < 0 ? `+${Math.abs(h)}` : `${h}`
+                  const raw = fmt(popupPlayer.handicap)
+                  const playing = fmt(effectiveHcp(popupPlayer.handicap, handicapRounding))
+                  return (
+                    <span className="text-xs text-gray-400">
+                      {raw} HCP
+                      {autoStrokes && playing !== raw && (
+                        <> <span className="text-gray-300">→</span> <span className="font-semibold text-gray-600">{playing}</span></>
+                      )}
+                    </span>
+                  )
+                })()}
               </div>
               <button onClick={() => setPlayerPopup(null)} className="text-gray-400 text-xl leading-none">✕</button>
             </div>
@@ -914,10 +925,6 @@ export default function PlayingGroupScoreEntry({
                 return section(
                   <div className="space-y-1.5">
                     <p className="text-sm font-semibold text-gray-700">Banker game — strokes are per hole, vs. the Banker</p>
-                    <p className="text-xs text-gray-500">
-                      Each hole compares your handicap to that hole&apos;s Banker (whole strokes, decimals dropped).
-                      Whoever has the higher handicap gets a stroke on holes whose difficulty rank is within the difference — so your strokes change as the Banker changes.
-                    </p>
                     <p className="text-xs text-gray-500">Rounding for this round: <span className="font-semibold text-gray-700">{roundingLabel}</span></p>
 
                     {/* Every pairing this player is in. Taking the bank doesn't
