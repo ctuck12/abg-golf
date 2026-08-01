@@ -72,3 +72,48 @@ export function bankerStrokeMatrix(players: P[], holes: H[], rounding: string | 
     return { bankerId: banker.id, bankerName: banker.name, rows }
   })
 }
+
+export type PlayerStrokeRow = {
+  opponentId: string
+  opponentName: string
+  /** The opponent's playing handicap, for showing why the row lands as it does. */
+  opponentHcp: number
+  /** From this player's point of view. */
+  direction: 'gets' | 'gives' | 'even'
+  strokes: number
+  holes: number[]
+}
+
+/** One player's side of the matrix.
+ *
+ *  The pairing is the same whichever of the two ends up with the bank: the
+ *  differential decides who takes the shot, and taking the bank doesn't change
+ *  a handicap. So this is one list per opponent, not one per banker.
+ */
+export function playerBankerStrokes(
+  playerId: string,
+  players: P[],
+  holes: H[],
+  rounding: string | null | undefined,
+): { playingHcp: number; rows: PlayerStrokeRow[] } | null {
+  const me = players.find((p) => p.id === playerId)
+  if (!me || me.handicap == null) return null
+  const myHcp = effectiveHcp(me.handicap, rounding)
+  const rows = players
+    .filter((p) => p.id !== playerId && p.handicap != null)
+    .map((opponent) => {
+      const oHcp = effectiveHcp(opponent.handicap!, rounding)
+      const diff = myHcp - oHcp
+      const direction = diff > 0 ? 'gets' : diff < 0 ? 'gives' : 'even'
+      const strokes = Math.abs(diff)
+      return {
+        opponentId: opponent.id,
+        opponentName: opponent.name,
+        opponentHcp: oHcp,
+        direction: direction as PlayerStrokeRow['direction'],
+        strokes,
+        holes: strokeHolesFor(strokes, holes),
+      }
+    })
+  return { playingHcp: myHcp, rows }
+}

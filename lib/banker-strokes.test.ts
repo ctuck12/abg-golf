@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { bankerStrokeMatrix, effectiveHcp, strokeHolesFor } from './banker-strokes'
+import { bankerStrokeMatrix, effectiveHcp, playerBankerStrokes, strokeHolesFor } from './banker-strokes'
 
 // A real foursome: the handicaps from the group in the screenshots.
 const PLAYERS = [
@@ -155,5 +155,60 @@ describe('bankerStrokeMatrix', () => {
     // ...but Round Up makes Tyler 5, so he takes one
     expect(rowFor(blocks, 'bacon', 'tyler').direction).toBe('opponent')
     expect(rowFor(blocks, 'bacon', 'tyler').strokes).toBe(1)
+  })
+})
+
+const blocks2 = bankerStrokeMatrix(PLAYERS, HOLES, 'nearest')
+
+describe('playerBankerStrokes', () => {
+  it('reads from that player’s point of view', () => {
+    // Luke plays to 4: level with Bacon, gives 1 to Tyler, gives 5 to Kirby
+    const luke = playerBankerStrokes('luke', PLAYERS, HOLES, 'nearest')!
+    expect(luke.playingHcp).toBe(4)
+    expect(luke.rows.map((r) => [r.opponentId, r.direction, r.strokes])).toEqual([
+      ['bacon', 'even', 0],
+      ['tyler', 'gives', 1],
+      ['kirby', 'gives', 5],
+    ])
+  })
+
+  it('flips for the player on the other side of the pair', () => {
+    const kirby = playerBankerStrokes('kirby', PLAYERS, HOLES, 'nearest')!
+    expect(kirby.rows.map((r) => [r.opponentId, r.direction, r.strokes])).toEqual([
+      ['luke', 'gets', 5],
+      ['bacon', 'gets', 5],
+      ['tyler', 'gets', 4],
+    ])
+  })
+
+  it('matches the banker matrix — the bank does not change the pairing', () => {
+    for (const p of PLAYERS) {
+      const view = playerBankerStrokes(p.id, PLAYERS, HOLES, 'nearest')!
+      for (const row of view.rows) {
+        // this player banking
+        const asBanker = rowFor(blocks2, p.id, row.opponentId)
+        expect(asBanker.strokes).toBe(row.strokes)
+        expect(asBanker.direction).toBe(
+          row.direction === 'even' ? 'even' : row.direction === 'gets' ? 'banker' : 'opponent',
+        )
+        // the opponent banking — same shots, described from the other chair
+        const theirBank = rowFor(blocks2, row.opponentId, p.id)
+        expect(theirBank.strokes).toBe(row.strokes)
+        expect(theirBank.holes).toEqual(row.holes)
+      }
+    }
+  })
+
+  it('carries the opponent’s playing handicap for context', () => {
+    const luke = playerBankerStrokes('luke', PLAYERS, HOLES, 'nearest')!
+    expect(luke.rows.find((r) => r.opponentId === 'kirby')!.opponentHcp).toBe(9)
+  })
+
+  it('has nothing to say for a player with no handicap', () => {
+    const withUnknown = [...PLAYERS, { id: 'guest', name: 'Guest', handicap: null }]
+    expect(playerBankerStrokes('guest', withUnknown, HOLES, 'nearest')).toBeNull()
+    // ...and that player is left out of everyone else's list
+    const luke = playerBankerStrokes('luke', withUnknown, HOLES, 'nearest')!
+    expect(luke.rows.map((r) => r.opponentId)).not.toContain('guest')
   })
 })
