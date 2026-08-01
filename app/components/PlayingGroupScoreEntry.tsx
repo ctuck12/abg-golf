@@ -820,16 +820,18 @@ export default function PlayingGroupScoreEntry({
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-gray-900">{popupPlayer.name}</h3>
                 {popupPlayer.handicap != null && (() => {
-                  // Actual handicap, then what the round's rounding makes them play to.
-                  // Only meaningful when automatic strokes are on, and only worth
-                  // showing when rounding actually moves the number.
+                  // Actual handicap, then what the round's rounding makes them play
+                  // to. Shown wherever the strokes breakdown is — including with
+                  // automatic strokes off, since the scorekeeper works from it —
+                  // and only when rounding actually moves the number.
                   const fmt = (h: number) => h < 0 ? `+${Math.abs(h)}` : `${h}`
                   const raw = fmt(popupPlayer.handicap)
                   const playing = fmt(effectiveHcp(popupPlayer.handicap, handicapRounding))
+                  const showsStrokes = isDaytonaMode || isBanker || autoStrokes
                   return (
                     <span className="text-xs text-gray-400">
                       {raw} HCP
-                      {autoStrokes && playing !== raw && (
+                      {showsStrokes && playing !== raw && (
                         <> <span className="text-gray-300">→</span> <span className="font-semibold text-gray-600">{playing}</span></>
                       )}
                     </span>
@@ -876,31 +878,30 @@ export default function PlayingGroupScoreEntry({
               const roundingLabel = handicapRounding === 'nearest' ? 'Round Up (7.5 → 8)' : 'Round Down (7.9 → 7)'
               const hasSI = holes.some((h) => h.stroke_index != null)
 
-              const section = (body: ReactNode) => (
-                <div className="mt-4 border-t border-gray-100 pt-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Handicap Strokes</p>
-                  {body}
-                </div>
-              )
-
               // Manual (scorekeeper-set) stroke holes for this player
               const manualHoleNums = holes
                 .filter((h) => (holeStrokes[h.hole_number] ?? []).includes(p.id))
                 .map((h) => h.hole_number)
 
-              if (!autoStrokes) {
-                return section(
-                  <div className="space-y-1.5">
-                    <p className="text-sm font-semibold text-gray-700">Automatic handicap strokes are OFF for this group</p>
-                    <p className="text-xs text-gray-500">Scores count as gross unless the scorekeeper manually gives a stroke on a hole.</p>
-                    {manualHoleNums.length > 0 && (
-                      <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5">
-                        The scorekeeper has given {p.name.split(' ')[0]} a stroke on hole{manualHoleNums.length !== 1 ? 's' : ''} {manualHoleNums.join(', ')}.
-                      </p>
-                    )}
-                  </div>
-                )
-              }
+              // With automatic strokes off the scorekeeper gives strokes by hand,
+              // but the handicap breakdown is exactly what they set them from — so
+              // it stays on screen either way and this note says what's applied.
+              const manualNote = autoStrokes ? null : (
+                <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5 mb-2">
+                  Automatic strokes are OFF for this group — the scorekeeper gives strokes by hand, hole by hole.
+                  {manualHoleNums.length > 0
+                    ? ` So far ${p.name.split(' ')[0]} has been given a stroke on hole${manualHoleNums.length !== 1 ? 's' : ''} ${manualHoleNums.join(', ')}.`
+                    : ` ${p.name.split(' ')[0]} has no strokes yet.`}
+                </p>
+              )
+
+              const section = (body: ReactNode) => (
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Handicap Strokes</p>
+                  {manualNote}
+                  {body}
+                </div>
+              )
 
               if (p.handicap == null) {
                 return section(
@@ -1008,8 +1009,8 @@ export default function PlayingGroupScoreEntry({
                 <div className="space-y-2">
                   {rel > 0 ? (
                     <>
-                      <p className="text-sm font-semibold text-green-700">
-                        Receiving a stroke on {autoHoleNums.length} hole{autoHoleNums.length !== 1 ? 's' : ''}
+                      <p className={`text-sm font-semibold ${autoStrokes ? 'text-green-700' : 'text-gray-700'}`}>
+                        {autoStrokes ? 'Receiving' : 'Handicap gives'} a stroke on {autoHoleNums.length} hole{autoHoleNums.length !== 1 ? 's' : ''}
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {autoHoleNums.map((hn) => (
@@ -1041,7 +1042,9 @@ export default function PlayingGroupScoreEntry({
                       )}
                     </ul>
                   </div>
-                  {(addedByKeeper.length > 0 || removedByKeeper.length > 0) && (
+                  {/* Only an "override" when there was something automatic to
+                      override — with auto strokes off the note above covers it. */}
+                  {autoStrokes && (addedByKeeper.length > 0 || removedByKeeper.length > 0) && (
                     <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5">
                       Scorekeeper adjustments override the automatic strokes for {p.name.split(' ')[0]}:
                       {addedByKeeper.length > 0 && ` stroke added on hole${addedByKeeper.length !== 1 ? 's' : ''} ${addedByKeeper.join(', ')}`}
