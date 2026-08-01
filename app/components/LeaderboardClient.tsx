@@ -752,7 +752,7 @@ export default function LeaderboardClient({
             const bBets = liveBankerBets[pg.id] ?? {}
             const pgAutoStrokes = !!(pg as { auto_strokes?: boolean | null }).auto_strokes
             const pgMinBet = (pg as { banker_side_game_min_bet?: number | null }).banker_side_game_min_bet ?? 2
-            const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
+            const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
             for (const pid of pids) bankerTotals[pid] = 0
             for (const hole of holes) {
               const hd = bHoles[hole.hole_number]
@@ -2127,7 +2127,7 @@ export default function LeaderboardClient({
         const totalBankerAmtMap = new Map<string, number>()
         if (groupHasBanker) {
           const scPgAutoStrokes = !!(activePlayingGroup as { auto_strokes?: boolean | null } | null)?.auto_strokes
-          const scEffHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
+          const scEffHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
           for (const hole of [...scFrontNine, ...scBackNine]) {
             const hd = groupBankerHoles[hole.hole_number]
             if (!hd?.bankerPlayerId) continue

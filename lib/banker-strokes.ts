@@ -35,9 +35,10 @@ export type BankerStrokeBlock = {
 type P = { id: string; name: string; handicap?: number | null }
 type H = { hole_number: number; stroke_index?: number | null }
 
-/** Matches the score screens: rounding applies, then plus-handicaps floor at 0. */
+/** Matches the score screens: rounding applies, and a plus handicap stays
+ *  below scratch so it gives the extra shot it should. */
 export function effectiveHcp(handicap: number, rounding: string | null | undefined): number {
-  return Math.max(0, roundHcp(handicap, rounding, 'trunc'))
+  return roundHcp(handicap, rounding, 'trunc')
 }
 
 /** The `diff` hardest holes — the same `stroke_index <= diff` test the game uses. */
