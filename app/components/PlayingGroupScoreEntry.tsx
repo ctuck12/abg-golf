@@ -10,6 +10,7 @@ import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
 import { doublingAllowedOnHole, type BankerDoubleScope } from '../../lib/banker-doubles'
+import { bankerStrokeMatrix } from '../../lib/banker-strokes'
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -1026,11 +1027,56 @@ export default function PlayingGroupScoreEntry({
               }
 
               if (isBanker) {
+                const matrix = bankerStrokeMatrix(players, holes, handicapRounding)
                 return (
                   <div className="mt-2">
                     <p className="text-xs text-gray-500 mb-2">
-                      Banker game — strokes are per hole, vs. that hole&apos;s Banker. Rounding: <span className="font-semibold text-gray-700">{roundingLabel}</span>.
+                      Banker game — each bet is played separately against the Banker, so the shot goes to whoever of the two is the higher handicap. Rounding: <span className="font-semibold text-gray-700">{roundingLabel}</span>.
                     </p>
+                    <p className="text-[11px] text-gray-400 mb-2">
+                      <span className="font-semibold text-green-700">gets</span> = that player takes the shot ·{' '}
+                      <span className="font-semibold text-blue-700">gives</span> = the Banker takes it
+                    </p>
+
+                    {/* Every pairing, whoever ends up with the bank. Fixed for
+                        the round — only which pair is live changes hole to hole. */}
+                    {matrix.length > 1 && (
+                      <div className="space-y-2 mb-3">
+                        {matrix.map((block) => (
+                          <div key={block.bankerId} className="bg-gray-50 rounded-lg px-3 py-2">
+                            <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1">
+                              If {block.bankerName.split(' ')[0]} banks
+                            </p>
+                            <div className="space-y-1">
+                              {block.rows.map((r) => (
+                                <div key={r.opponentId} className="flex items-start justify-between gap-2">
+                                  <p className="text-xs whitespace-nowrap pt-0.5">
+                                    <span className="font-semibold text-gray-800">{r.opponentName.split(' ')[0]}</span>
+                                    {r.direction === 'even'
+                                      ? <span className="text-gray-500"> — head up</span>
+                                      : r.direction === 'opponent'
+                                      ? <span className="text-green-700"> gets {r.strokes}</span>
+                                      : <span className="text-blue-700"> gives {r.strokes}</span>}
+                                  </p>
+                                  {r.holes.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 justify-end">
+                                      {r.holes.map((hn) => (
+                                        <span key={hn}
+                                          className={`text-[10px] font-bold rounded-full px-1.5 py-0.5 border ${r.direction === 'opponent' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                          {hn}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1">Strokes assigned so far</p>
                     {players.map((p) => {
                       const effHoleNums = holes.filter((h) => effectiveStrokeIds(h.hole_number).includes(p.id)).map((h) => h.hole_number)
                       return (
