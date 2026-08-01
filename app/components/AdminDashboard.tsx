@@ -557,7 +557,10 @@ export default function AdminDashboard({
       const v = sg.daytonaType === '5' ? (sg.daytonaSubVariant === 'flares' ? 'Daytona 5-Man Flares' : 'Daytona 5-Man Normal') : 'Daytona 4-Man'
       return `${v}${sg.daytonaPayout && sg.daytonaPayout !== '0' ? ` · $${sg.daytonaPayout}/pt` : ''}`
     }
-    if (sg.bankerEnabled) return `Banker · $${sg.bankerMinBet || 2} min`
+    if (sg.bankerEnabled) {
+      const doubles = bankerDoubleScope(sg.bankerDoubles) === 'all' ? 'All Holes' : 'Par 3s Only'
+      return `Banker · $${sg.bankerMinBet || 2} min · Double Bets: ${doubles}`
+    }
     return null
   }
   function updateGroupSG(groupId: string, patch: Partial<GroupSideGame>) {
