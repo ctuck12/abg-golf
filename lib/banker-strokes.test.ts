@@ -38,8 +38,9 @@ describe('effectiveHcp', () => {
     expect(effectiveHcp(9.4, 'down')).toBe(9)
   })
 
-  it('floors a plus handicap at scratch', () => {
-    expect(effectiveHcp(-1.2, 'nearest')).toBe(0)
+  it('keeps a plus handicap below scratch so it gives the extra shot', () => {
+    expect(effectiveHcp(-1.2, 'nearest')).toBe(-1)
+    expect(effectiveHcp(-1.2, 'down')).toBe(-1)
   })
 })
 
@@ -116,6 +117,28 @@ describe('bankerStrokeMatrix', () => {
     expect(rowFor(blocks, 'kirby', 'luke').holes).toEqual([2, 3, 5, 6, 7])  // 1-5
     // Hole 6 is stroke index 5: Kirby strokes Luke there but not Tyler.
     expect(vsTyler.holes).not.toContain(6)
+  })
+
+  it('gives a plus-handicap banker the full differential', () => {
+    // A +1 banking against 3 / 4 / 5 gives 4, 5 and 6 — not 3, 4, 5, which is
+    // what flooring the plus at scratch used to produce.
+    const plus = [
+      { id: 'plus', name: 'Plus', handicap: -1 },
+      { id: 'three', name: 'Three', handicap: 3 },
+      { id: 'four', name: 'Four', handicap: 4 },
+      { id: 'five', name: 'Five', handicap: 5 },
+    ]
+    const b = bankerStrokeMatrix(plus, HOLES, 'down')
+    const bank = b.find((x) => x.bankerId === 'plus')!
+    expect(bank.rows.map((r) => [r.opponentId, r.direction, r.strokes])).toEqual([
+      ['three', 'opponent', 4],
+      ['four', 'opponent', 5],
+      ['five', 'opponent', 6],
+    ])
+    // and the mirror: the plus player banking or not, the differential holds
+    const asOpponent = b.find((x) => x.bankerId === 'three')!.rows.find((r) => r.opponentId === 'plus')!
+    expect(asOpponent.direction).toBe('banker')
+    expect(asOpponent.strokes).toBe(4)
   })
 
   it('leaves out players with no handicap on file', () => {

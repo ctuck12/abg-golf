@@ -425,7 +425,7 @@ export default function PlayingGroupScoreEntry({
     if (bankerGross === undefined || playerGross === undefined) return { bankerNet: undefined, playerNet: undefined }
     const effIds = effectiveStrokeIds(holeNumber)
     const pNet = playerGross - (effIds.includes(p.id) ? 1 : 0)
-    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
+    const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
     const bankerPlayer = players.find((pl) => pl.id === bankerId)
     const bHcpRaw = bankerPlayer?.handicap ?? null
     const pHcpRaw = p.handicap ?? null
@@ -538,7 +538,7 @@ export default function PlayingGroupScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = players.find((p) => p.id === bankerPlayerId)?.handicap ?? null
     if (bankerHcpRaw == null) return []
-    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
+    const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
     const bankerHcp = effHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
@@ -556,7 +556,7 @@ export default function PlayingGroupScoreEntry({
     if (!bankerPlayerId) return []
     const bankerHcpRaw = players.find((p) => p.id === bankerPlayerId)?.handicap ?? null
     if (bankerHcpRaw == null) return []
-    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
+    const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
     const bankerHcp = effHcp(bankerHcpRaw)
     return players.filter((p) => {
       if (p.id === bankerPlayerId) return false
