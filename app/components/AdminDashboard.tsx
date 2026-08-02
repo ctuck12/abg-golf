@@ -11,7 +11,6 @@ import {
   updatePlayerDetails,
   updatePlayerHolesRange,
   clearAllScores,
-  updateRoundAutoHandicap,
   toggleMixedGroups,
   createPlayingGroup,
   deletePlayingGroup,
@@ -492,10 +491,9 @@ export default function AdminDashboard({
   const [bankerMinBetInput, setBankerMinBetInput] = useState('2')
   const [bankerDoublesInput, setBankerDoublesInput] = useState<'par3' | 'all'>('par3')
   const [bankerMaxBetInput, setBankerMaxBetInput] = useState('')
-  const [autoHandicap, setAutoHandicap] = useState(round?.auto_handicap ?? false)
   const [hcpRounding, setHcpRounding] = useState(round?.handicap_rounding ?? 'down')
   // Re-sync when a different round loads (e.g. a new Daytona/Banker round created with auto handicap on)
-  useEffect(() => { setAutoHandicap(round?.auto_handicap ?? false); setHcpRounding(round?.handicap_rounding ?? 'down') }, [round?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setHcpRounding(round?.handicap_rounding ?? 'down') }, [round?.id])  // eslint-disable-line react-hooks/exhaustive-deps
   const [mixedGroups, setMixedGroups] = useState<boolean | null>(() => {
     const ls = getSetupLS(round?.id)
     const answered = ls.mixedGroupsAnswered ?? (teams.length > 0 || round?.mixed_groups === true)
@@ -1270,25 +1268,6 @@ export default function AdminDashboard({
       return groupId ? [...filtered, { playing_group_id: groupId, player_id: playerId }] : filtered
     })
     await setPlayerGroup(playerId, groupId)
-  }
-
-  async function handleToggleAutoHandicap() {
-    if (!round) return
-    const next = !autoHandicap
-    const apply = async () => {
-      setAutoHandicap(next)
-      await updateRoundAutoHandicap(round.id, next)
-      router.refresh()
-    }
-    if (round.is_started) {
-      setLiveChangeConfirm({
-        title: `Turn auto handicaps ${next ? 'on' : 'off'}?`,
-        changes: [`Auto Handicaps: ${autoHandicap ? 'On' : 'Off'} → ${next ? 'On' : 'Off'}`, 'Strokes recalculate for every player in the round.'],
-        onConfirm: () => { void apply() },
-      })
-      return
-    }
-    await apply()
   }
 
   // Once the round is live, a player's first holes-range change gets a confirm
@@ -2180,7 +2159,9 @@ export default function AdminDashboard({
                   const rLabel = (m?: string | null) => ((m ?? hcpRounding) === 'nearest' ? 'Round Up' : 'Round Down')
                   const rows: { key: string; label: string }[] = []
                   if (isDaytona || isBanker) {
-                    for (const t of teams) rows.push({ key: `t-${t.id}`, label: `${t.name}: ${rLabel(t.stroke_rounding)}` })
+                    for (const t of teams) {
+                      rows.push({ key: `t-${t.id}`, label: `${t.name}: Auto Handicap ${t.auto_strokes ? 'On' : 'Off'} · ${rLabel(t.stroke_rounding)}` })
+                    }
                   } else if (isStandard && mixedGroups === true) {
                     for (const g of livePlayingGroups) {
                       const sgv = groupSideGames[g.id] ?? initGroupSideGame(g)
@@ -2194,7 +2175,6 @@ export default function AdminDashboard({
                   return (
                     <div className="space-y-0.5">
                       <p className="text-xs text-gray-700">
-                        {(isDaytona || isBanker) && <>Auto Handicap <span className="font-semibold">{autoHandicap ? 'On' : 'Off'}</span> · </>}
                         Default Rounding: <span className="font-semibold">{rLabel(hcpRounding)}</span>
                       </p>
                       {rows.map((r) => <p key={r.key} className="text-xs text-gray-600 pl-2">{r.label}</p>)}
@@ -2407,7 +2387,6 @@ export default function AdminDashboard({
                   setTeamsSaved(false)
                   setMixedGroups(null)
                   setMixedGroupsAnswered(false)
-                  setAutoHandicap(false)
                 }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition"
                 style={{ background: '#b91c1c' }}>
@@ -3839,7 +3818,7 @@ export default function AdminDashboard({
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       type="button"
-                      onClick={() => { setShowAddTeamForm((v) => !v); setNewTeamStrokeRounding(hcpRounding) }}
+                      onClick={() => { setShowAddTeamForm((v) => !v); setNewTeamStrokeRounding(hcpRounding); if (isDaytona || isBankerRound) setNewTeamAutoStrokes(true) }}
                       className="px-3 py-1.5 rounded-lg text-sm font-medium transition text-white"
                       style={{ background: navy }}>
                       {(round.format === 'daytona' || round.format === 'traditional') ? 'Add Group +' : 'Add Team +'}
@@ -3847,22 +3826,6 @@ export default function AdminDashboard({
                     {collapseCaret('teams', teamsSaved)}
                   </div>
                 </div>
-                {/* ── Auto Handicap — round-wide, but it lives here because this
-                    is where the groups and their handicaps get set up. Buried in
-                    Optional Settings there was no sign it was already on. ── */}
-                {(isDaytona || isBankerRound) && (
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
-                      <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
-                        <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">Auto Handicap <span className="text-xs font-normal text-gray-400">· all groups</span></p>
-                        <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 {/* Mixed Groups only — spells out that these are the scoring
                     teams, not the carts, so this card can't be mistaken for
                     the Playing Groups card below */}
@@ -4301,6 +4264,18 @@ export default function AdminDashboard({
                         </div>
                       )}
                       {(isDaytona || isBankerRound) && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-xs font-medium text-gray-600">Auto Handicap</span>
+                          <button type="button"
+                            onClick={() => setNewTeamAutoStrokes(v => !v)}
+                            className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${newTeamAutoStrokes ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                            {newTeamAutoStrokes ? 'On' : 'Off'}
+                          </button>
+                          <span className="text-xs text-gray-400">Pre-fill strokes from handicaps</span>
+                          <input type="hidden" name="auto_strokes" value={newTeamAutoStrokes ? 'true' : 'false'} />
+                        </div>
+                      )}
+                      {(isDaytona || isBankerRound) && (
                         <div className="flex items-center gap-2 pt-1 flex-wrap">
                           <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
                           {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
@@ -4584,6 +4559,18 @@ export default function AdminDashboard({
                               </div>
                             )}
                             {(isDaytona || isBankerRound) && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <span className="text-xs font-medium text-gray-600">Auto Handicap</span>
+                                <button type="button"
+                                  onClick={() => setEditAutoStrokes(v => !v)}
+                                  className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold transition ${editAutoStrokes ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-300'}`}>
+                                  {editAutoStrokes ? 'On' : 'Off'}
+                                </button>
+                                <span className="text-xs text-gray-400">Pre-fill strokes from handicaps</span>
+                                <input type="hidden" name="auto_strokes" value={editAutoStrokes ? 'true' : 'false'} />
+                              </div>
+                            )}
+                            {(isDaytona || isBankerRound) && (
                               <div className="flex items-center gap-2 pt-1 flex-wrap">
                                 <span className="text-xs font-medium text-gray-600">Stroke Rounding</span>
                                 {([['down', 'Round Down'], ['nearest', 'Round Up']] as const).map(([mode, mlabel]) => (
@@ -4701,7 +4688,9 @@ export default function AdminDashboard({
                                     <span className="text-xs text-gray-400">Auto-calculate strokes from player handicaps</span>
                                   </div>
                                 )}
-                                <input type="hidden" name="auto_strokes" value={(editDaytonaEnabled || editBankerEnabled) && editAutoStrokes ? 'true' : 'false'} />
+                                {/* Daytona/Banker rounds carry their own Auto Handicap toggle above,
+                                    and two inputs of the same name would fight over the form value */}
+                                {!(isDaytona || isBankerRound) && <input type="hidden" name="auto_strokes" value={(editDaytonaEnabled || editBankerEnabled) && editAutoStrokes ? 'true' : 'false'} />}
                                 {/* Stroke rounding — per team */}
                                 {((((editDaytonaEnabled || editBankerEnabled) && editAutoStrokes) || editHammerEnabled)) && (
                                   <div className="flex items-center gap-2 pt-1 flex-wrap">
