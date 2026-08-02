@@ -31,6 +31,8 @@ type ScorecardTarget =
   | { type: 'h2h'; p1Id: string; p2Id: string; p1Name: string; p2Name: string; p1Handicap?: number | null; p2Handicap?: number | null; scoringType: ScoringType; betType: BetType | ''; handicapSide: string; handicapFront: number; handicapBack: number; handicapTotal: number }
   | { type: 'bestball'; p1Id: string; p2Id: string; teamName: string }
   | { type: 'bb-scorecards'; t1p1Id: string; t1p2Id: string; t2p1Id: string; t2p2Id: string; t1p1Name: string; t1p2Name: string; t2p1Name: string; t2p2Name: string; t1Name: string; t2Name: string; scoringType: ScoringType; betType: BetType | ''; handicapSide: string; handicapFront: number; handicapBack: number; handicapTotal: number; playerStrokes?: Record<string, number> | null; holeRange?: string }
+  /** Every medley player's card at once, already in the standings order the card shows. */
+  | { type: 'medley-scorecards'; title: string; entries: { id: string; name: string; strokes: { front: number; back: number; total: number } }[] }
 
 const navy = '#0f172a'
 const gold = '#f59e0b'
@@ -1301,6 +1303,7 @@ export default function MatchupClient({
                     </span>
                   )
                   : showScorecardFor.type === 'bb-scorecards' ? `${showScorecardFor.t1Name} vs ${showScorecardFor.t2Name}`
+                  : showScorecardFor.type === 'medley-scorecards' ? showScorecardFor.title
                   : showScorecardFor.teamName}
               </h3>
               <button onClick={() => setShowScorecardFor(null)}
@@ -1397,6 +1400,19 @@ export default function MatchupClient({
                       teamStarFor([target.t1p1Id, target.t1p2Id], [target.t1p1Name, target.t1p2Name]),
                       teamStarFor([target.t2p1Id, target.t2p2Id], [target.t2p1Name, target.t2p2Name]),
                     ]}
+                  />
+                )
+              })() : showScorecardFor.type === 'medley-scorecards' ? (() => {
+                const target = showScorecardFor
+                // Rows arrive in standings order, so the card reads top-down the
+                // same way the matchup table does
+                return (
+                  <HorizontalScorecardTable
+                    rows={target.entries.map((e) => ({ label: e.name, scoreMap: scoreMap[e.id] ?? {} }))}
+                    holes={holes}
+                    strokesInfo={target.entries.map((e) =>
+                      (e.strokes.front > 0 || e.strokes.back > 0 || e.strokes.total > 0) ? e.strokes : null)}
+                    onStrokesClick={setStrokesPopover}
                   />
                 )
               })() : (() => {
@@ -2991,6 +3007,16 @@ export default function MatchupClient({
                     const entries = (m.players ?? []).filter((e) => e && e.id && players.some((p) => p.id === e.id))
                     if (entries.length < 2) return null
                     const { segments: medSegs, lines, pressResults: medPressResults } = computeMedley({ ...m, players: entries }, scoreMap, holes)
+                    // Standings order — the table and the scorecards popup share it
+                    const rankedLines = [...lines].sort((a, b) => {
+                      // Lowest adjusted score to par first; ties (and no-score rows) alphabetical
+                      const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? ''
+                      if (a.total === null && b.total === null) return nameOf(a.id).localeCompare(nameOf(b.id))
+                      if (a.total === null) return 1
+                      if (b.total === null) return -1
+                      if (a.total !== b.total) return a.total - b.total
+                      return nameOf(a.id).localeCompare(nameOf(b.id))
+                    })
                     const segOf = (name: 'Front' | 'Back' | 'Total') => medSegs.find((s) => s.name === name)
                     const fSeg = segOf('Front'), bSeg = segOf('Back'), tSeg = segOf('Total')
                     const isNassauMed = m.bet_type === 'nassau'
@@ -3025,6 +3051,19 @@ export default function MatchupClient({
                                   className="flex items-center justify-center w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors touch-manipulation" style={{ fontSize: '1rem' }}>✎</button>
                               </span>
                             )}
+                            <button
+                              onClick={() => setShowScorecardFor({
+                                type: 'medley-scorecards',
+                                title: label,
+                                entries: rankedLines.map((l) => ({
+                                  id: l.id,
+                                  name: players.find((p) => p.id === l.id)?.name.split(' ')[0] ?? '?',
+                                  strokes: l.strokes,
+                                })),
+                              })}
+                              className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition">
+                              Scorecards
+                            </button>
                             <span className="flex-1" />
                             <button onClick={() => setConfirmDelete({ id: m.id, label, type: 'medley' })} className="text-xs text-gray-400 hover:text-red-500">✕</button>
                           </div>
@@ -3249,15 +3288,7 @@ export default function MatchupClient({
                                 </tr>
                               </thead>
                               <tbody>
-                                {[...lines].sort((a, b) => {
-                                  // Lowest adjusted score to par first; ties (and no-score rows) alphabetical
-                                  const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? ''
-                                  if (a.total === null && b.total === null) return nameOf(a.id).localeCompare(nameOf(b.id))
-                                  if (a.total === null) return 1
-                                  if (b.total === null) return -1
-                                  if (a.total !== b.total) return a.total - b.total
-                                  return nameOf(a.id).localeCompare(nameOf(b.id))
-                                }).map((line) => {
+                                {rankedLines.map((line) => {
                                   const lp = players.find((p) => p.id === line.id)
                                   const hasStrokes = line.strokes.front > 0 || line.strokes.back > 0 || line.strokes.total > 0
                                   const chk = <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>

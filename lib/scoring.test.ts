@@ -13,6 +13,8 @@ import {
   computeSkinsResults,
   computeSkinsPotResults,
   computePlayerDaytonaPointsSplit,
+  daytonaAutoStrokeIds,
+  bankerStrokeSplit,
 } from './scoring'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -105,6 +107,76 @@ describe('computePlayerDaytonaPointsSplit', () => {
     expect(pts.get('bacon')).toBe(-40)
     expect(pts.get('jon')).toBe(-40)
     expect(pts.get('chip')).toBe(40)
+  })
+})
+
+// ── Automatic stroke holes ───────────────────────────────────────────────────
+
+describe('daytonaAutoStrokeIds', () => {
+  // The group that surfaced this: rounding moves the low player, not the high
+  // one, so it shifts everybody's allowance by a stroke.
+  const group = [
+    { id: 'chip', handicap: 2.7 },
+    { id: 'bacon', handicap: 4.3 },
+    { id: 'tyler', handicap: 4.8 },
+    { id: 'dillon', handicap: 6.3 },
+    { id: 'jon', handicap: 12.3 },
+  ]
+  const hcps = group.map((p) => p.handicap)
+  const si = (stroke_index: number) => ({ hole_number: 5, par: 4, stroke_index })
+
+  it('rounds down: low plays to 2, so the 12.3 gets 10 and strokes on SI 10', () => {
+    expect(daytonaAutoStrokeIds(si(10), group, hcps, 'down')).toContain('jon')
+  })
+
+  it('rounds up: low plays to 3, so the 12.3 gets 9 and SI 10 is out of reach', () => {
+    expect(daytonaAutoStrokeIds(si(10), group, hcps, 'nearest')).toEqual([])
+    expect(daytonaAutoStrokeIds(si(9), group, hcps, 'nearest')).toEqual(['jon'])
+  })
+
+  it('gives the low player nothing and holes with no index nothing', () => {
+    expect(daytonaAutoStrokeIds(si(1), group, hcps, 'down')).not.toContain('chip')
+    expect(daytonaAutoStrokeIds({ hole_number: 5 }, group, hcps, 'down')).toEqual([])
+  })
+
+  it('strokes off the wider group when one is supplied', () => {
+    const team = [{ id: 'jon', handicap: 12.3 }]
+    // Alone, Jon is his own low; against the group he is 10 clear of Chip
+    expect(daytonaAutoStrokeIds(si(10), team, [12.3], 'down')).toEqual([])
+    expect(daytonaAutoStrokeIds(si(10), team, hcps, 'down')).toEqual(['jon'])
+  })
+
+  it('ignores players with no handicap on file', () => {
+    const withUnknown = [...group, { id: 'ghost', handicap: null }]
+    expect(daytonaAutoStrokeIds(si(10), withUnknown, hcps, 'down')).not.toContain('ghost')
+  })
+})
+
+describe('bankerStrokeSplit', () => {
+  const players = [
+    { id: 'banker', handicap: 9 },
+    { id: 'low', handicap: 4 },
+    { id: 'high', handicap: 14 },
+  ]
+  const at = (stroke_index: number) => ({ hole_number: 3, par: 4, stroke_index })
+
+  it('gives the shot to whoever of the pair is higher', () => {
+    const s = bankerStrokeSplit(at(3), players, 'banker', 'down')
+    expect(s.opponentsGetting).toEqual(['high'])   // 14 − 9 = 5, SI 3 ≤ 5
+    expect(s.bankerGettingFrom).toEqual(['low'])   // 9 − 4 = 5, SI 3 ≤ 5
+    // What gets stored: the opponent taking one, plus the banker taking one
+    expect(s.all).toEqual(['high', 'banker'])
+  })
+
+  it('drops both sides once the hole is easier than the differential', () => {
+    expect(bankerStrokeSplit(at(6), players, 'banker', 'down')).toEqual({
+      opponentsGetting: [], bankerGettingFrom: [], all: [],
+    })
+  })
+
+  it('is empty with no banker set or no index', () => {
+    expect(bankerStrokeSplit(at(3), players, null, 'down').all).toEqual([])
+    expect(bankerStrokeSplit({ hole_number: 3 }, players, 'banker', 'down').all).toEqual([])
   })
 })
 
