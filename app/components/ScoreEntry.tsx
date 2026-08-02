@@ -15,6 +15,7 @@ import {
 } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
+import GroupStrokesSheet from './GroupStrokesSheet'
 import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
 import { doublingAllowedOnHole, type BankerDoubleScope } from '../../lib/banker-doubles'
 
@@ -214,6 +215,7 @@ export default function ScoreEntry({
   const [showMatchupResultsModal, setShowMatchupResultsModal] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showScorecards, setShowScorecards] = useState(false)
+  const [showGroupStrokes, setShowGroupStrokes] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [showStrokesPanel, setShowStrokesPanel] = useState<number | null>(null)
   const [holeStrokes, setHoleStrokes] = useState<Record<number, string[]>>(initialHoleStrokes)
@@ -222,6 +224,16 @@ export default function ScoreEntry({
   const isBanker = format === 'banker' || bankerSideGame
   // Traditional/Banker rounds score individually — ball summaries are meaningless there
   const showBalls = !isDaytonaMode && format !== 'traditional' && format !== 'banker'
+
+  // Handicap breakdown behind the header — Daytona and Banker are the games here
+  // that assign strokes, so they're the ones with something to explain.
+  const showGroupStrokesTap = isDaytonaMode || isBanker
+  // The strokes use the round-wide handicap map, so the breakdown has to read it too
+  const strokeSheetPlayers = players.map((p) => ({ id: p.id, name: p.name, handicap: allRoundPlayerHandicaps[p.id] ?? p.handicap ?? null }))
+  // Daytona side game strokes come off the lowest handicap in the whole playing
+  // group, which can reach past this team — same set getDaytonaAutoStrokes uses.
+  const strokeSheetGroupHandicaps = (isDaytonaSideGame && sideGameGroupPlayerIds?.length ? sideGameGroupPlayerIds : players.map((p) => p.id))
+    .map((id) => allRoundPlayerHandicaps[id] ?? null)
 
   function bankerMultiplier(net: number, par: number): number {
     if (net <= par - 2) return 3  // eagle or better → 3×
@@ -872,10 +884,10 @@ export default function ScoreEntry({
   const savedCount = savedHoles.size
 
   useEffect(() => {
-    const locked = showOptions || showScorecards || showMatchupResultsModal
+    const locked = showOptions || showScorecards || showMatchupResultsModal || showGroupStrokes
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showScorecards, showMatchupResultsModal])
+  }, [showOptions, showScorecards, showMatchupResultsModal, showGroupStrokes])
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc', opacity: scrollReady ? 1 : 0 }}>
@@ -997,6 +1009,21 @@ export default function ScoreEntry({
         </div>
       )}
 
+      {/* Group handicap strokes popup — tap the team name in the header */}
+      {showGroupStrokes && (
+        <GroupStrokesSheet
+          title={team.name}
+          players={strokeSheetPlayers}
+          holes={holes}
+          handicapRounding={handicapRounding}
+          isBanker={isBanker}
+          isDaytonaMode={isDaytonaMode}
+          strokeIdsForHole={effectiveStrokeIds}
+          groupHandicaps={strokeSheetGroupHandicaps}
+          onClose={() => setShowGroupStrokes(false)}
+        />
+      )}
+
       {/* Header */}
       <header ref={headerRef} className="text-white px-4 pb-3 z-10 shadow-md" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: navy, paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <div className="max-w-lg mx-auto">
@@ -1005,7 +1032,10 @@ export default function ScoreEntry({
               <div className="w-[72px] h-[72px] flex-shrink-0 rounded-3xl overflow-hidden -my-1">
                 <img src="/abg-logo.jpg" alt="ABG" className="w-full h-full object-cover" />
               </div>
-              <div className="min-w-0">
+              {/* Tapping the team name opens the group's handicap breakdown —
+                  only offered for the games where strokes actually come into play. */}
+              <div className={`min-w-0 ${showGroupStrokesTap ? 'cursor-pointer select-none' : ''}`}
+                onClick={() => { if (showGroupStrokesTap) setShowGroupStrokes(true) }}>
                 <p className="text-xs uppercase tracking-wide" style={{ color: gold }}>Score Entry</p>
                 <h1 className="font-bold text-lg leading-tight">
                   {team.name}
