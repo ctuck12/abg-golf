@@ -16,8 +16,10 @@ import {
 import { ScoreNotation } from './ScoreNotation'
 import ScorecardBottomSheet from './ScorecardBottomSheet'
 import GroupStrokesSheet from './GroupStrokesSheet'
+import PlayerStrokesSection from './PlayerStrokesSection'
 import { isFirstPlayedHole, shouldOfferRandomBanker } from '../../lib/banker-first-hole'
 import { doublingAllowedOnHole, type BankerDoubleScope } from '../../lib/banker-doubles'
+import { effectiveHcp } from '../../lib/banker-strokes'
 
 type Player = { id: string; name: string; handicap?: number | null; holes_range?: string | null }
 type Hole = { hole_number: number; par: number; stroke_index?: number | null }
@@ -228,6 +230,8 @@ export default function ScoreEntry({
   // Handicap breakdown behind the header — Daytona and Banker are the games here
   // that assign strokes, so they're the ones with something to explain.
   const showGroupStrokesTap = isDaytonaMode || isBanker
+  // Same for the per-player popup, plus a plain auto-handicap round
+  const showsPlayerStrokes = isDaytonaMode || isBanker || autoHandicap
   // The strokes use the round-wide handicap map, so the breakdown has to read it too
   const strokeSheetPlayers = players.map((p) => ({ id: p.id, name: p.name, handicap: allRoundPlayerHandicaps[p.id] ?? p.handicap ?? null }))
   // Daytona side game strokes come off the lowest handicap in the whole playing
@@ -884,10 +888,11 @@ export default function ScoreEntry({
   const savedCount = savedHoles.size
 
   useEffect(() => {
-    const locked = showOptions || showScorecards || showMatchupResultsModal || showGroupStrokes
+    // The player popup scrolls internally now, so the page behind it stays put
+    const locked = showOptions || showScorecards || showMatchupResultsModal || showGroupStrokes || !!playerPopup
     document.body.style.overflow = locked ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [showOptions, showScorecards, showMatchupResultsModal, showGroupStrokes])
+  }, [showOptions, showScorecards, showMatchupResultsModal, showGroupStrokes, playerPopup])
 
   return (
     <div className="min-h-screen" style={{ background: '#f8fafc', opacity: scrollReady ? 1 : 0 }}>
@@ -1153,6 +1158,8 @@ export default function ScoreEntry({
       {playerPopup && (() => {
         const p = players.find((pl) => pl.id === playerPopup)
         if (!p) return null
+        // The round-wide map is what the stroke assignment reads, so the popup does too
+        const pHcp = allRoundPlayerHandicaps[p.id] ?? p.handicap ?? null
         const pScores = savedScores.filter((s) => s.player_id === p.id)
         const scoreMap = Object.fromEntries(pScores.map((s) => [s.hole_number, s.strokes]))
         const frontHoles = holes.filter((h) => h.hole_number <= 9).sort((a, b) => a.hole_number - b.hole_number)
@@ -1227,12 +1234,27 @@ export default function ScoreEntry({
         return (
           <div className="fixed inset-0 z-40" onClick={() => setPlayerPopup(null)}>
             <div
-              className={`absolute bg-white rounded-2xl shadow-xl border border-gray-200 ${popupShowScorecard ? 'left-2 right-2' : 'left-4 right-4 max-w-xs mx-auto'}`}
-              style={{ top: '5rem' }}
+              className={`absolute bg-white rounded-2xl shadow-xl border border-gray-200 overflow-y-auto ${popupShowScorecard ? 'left-2 right-2' : 'left-4 right-4 max-w-sm mx-auto'}`}
+              style={{ top: '5rem', maxHeight: 'calc(100dvh - 7rem)' }}
               onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-4 pt-4 pb-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
                   <p className="font-bold text-gray-900 text-sm">{p.name}</p>
+                  {pHcp != null && showsPlayerStrokes && (() => {
+                    // Actual handicap, then what the round's rounding makes them
+                    // play to — only when rounding actually moves the number.
+                    const fmtHcp = (h: number) => h < 0 ? `+${Math.abs(h)}` : `${h}`
+                    const raw = fmtHcp(pHcp)
+                    const playing = fmtHcp(effectiveHcp(pHcp, handicapRounding))
+                    return (
+                      <span className="text-xs text-gray-400">
+                        {raw} HCP
+                        {playing !== raw && (
+                          <> <span className="text-gray-300">→</span> <span className="font-semibold text-gray-600">{playing}</span></>
+                        )}
+                      </span>
+                    )
+                  })()}
                   <button
                     onClick={() => setPopupShowScorecard((v) => !v)}
                     className="text-xs font-semibold px-2 py-0.5 rounded-md border transition"
@@ -1244,7 +1266,7 @@ export default function ScoreEntry({
                 </div>
                 <button onClick={() => setPlayerPopup(null)} className="text-gray-400 text-lg font-bold leading-none">×</button>
               </div>
-              <div className="flex justify-around text-center px-4 pb-4">
+              <div className={`flex justify-around text-center px-4 ${showsPlayerStrokes ? 'pb-1' : 'pb-4'}`}>
                 {[{ label: 'Front 9', v: fVp }, { label: 'Back 9', v: bVp }, { label: 'Total', v: tVp }].map(({ label, v }) => (
                   <div key={label}>
                     <p className="text-xs text-gray-400 mb-1">{label}</p>
@@ -1252,6 +1274,22 @@ export default function ScoreEntry({
                   </div>
                 ))}
               </div>
+              {/* Handicap stroke transparency — spells out if/where/why strokes apply */}
+              <div className="px-4">
+                <PlayerStrokesSection
+                  player={{ id: p.id, name: p.name, handicap: pHcp }}
+                  players={strokeSheetPlayers}
+                  holes={holes}
+                  handicapRounding={handicapRounding}
+                  isDaytonaMode={isDaytonaMode}
+                  isBanker={isBanker}
+                  autoStrokes={autoHandicap}
+                  holeStrokes={holeStrokes}
+                  strokeIdsForHole={effectiveStrokeIds}
+                  groupHandicaps={strokeSheetGroupHandicaps}
+                />
+              </div>
+              {showsPlayerStrokes && <div className="pb-4" />}
               {popupShowScorecard && (
                 <div className="border-t border-gray-100 overflow-x-auto">
                   <table className="border-collapse" style={{ minWidth: '610px', width: '100%' }}>
