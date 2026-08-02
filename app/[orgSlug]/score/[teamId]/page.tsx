@@ -106,6 +106,12 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
     initialBankerBets[bb.hole_number][bb.player_id] = { baseBet: bb.base_bet, playerDoubled: bb.player_doubled, bankerDoubled: bb.banker_doubled }
   }
 
+  // Auto Handicap is a per-group setting now — the round-level flag only still
+  // answers for formats that have no per-group toggle
+  const autoHandicapForTeam = (isDaytona || isBanker || isDaytonaSideGame || teamBankerSideGame)
+    ? teamAutoStrokes
+    : (round.auto_handicap ?? false)
+
   const defaultDtPayoutValue = isDaytonaSideGame
     ? sideGamePayout
     : (isDaytona ? (ballValuesRaw ?? []).find((bv: { ball_number: number }) => bv.ball_number === 1) : null)?.value_dollars ?? 0.25
@@ -138,7 +144,7 @@ export default async function OrgScorePage({ params }: { params: Promise<{ orgSl
       includeTotal={round.include_total ?? false}
       initialHoleValues={initialHoleValues}
       defaultDtPayoutValue={defaultDtPayoutValue}
-      autoHandicap={isDaytonaSideGame ? teamAutoStrokes : teamBankerSideGame ? teamAutoStrokes : (round.auto_handicap ?? false)}
+      autoHandicap={autoHandicapForTeam}
       allRoundPlayerHandicaps={(() => {
         if (isDaytonaSideGame) {
           // For Daytona side game: include all playing group players so stroke suggestions

@@ -130,7 +130,11 @@ export async function recomputeTeamHoleStrokes(sb: Supabase, teamId: string): Pr
     groupHandicaps,
     isDaytonaMode: isDaytona || isDaytonaSideGame,
     isBanker: format === 'banker' || teamBankerSideGame,
-    autoStrokes: (isDaytonaSideGame || teamBankerSideGame) ? teamAutoStrokes : !!round.auto_handicap,
+    // Per group for every Daytona/Banker shape; the round flag only still
+    // answers for formats with no per-group toggle
+    autoStrokes: (isDaytona || format === 'banker' || isDaytonaSideGame || teamBankerSideGame)
+      ? teamAutoStrokes
+      : !!round.auto_handicap,
     rounding: (team as { stroke_rounding?: string | null }).stroke_rounding
       ?? (round as { handicap_rounding?: string | null }).handicap_rounding ?? 'down',
     bankerScopeId: teamId,

@@ -474,8 +474,9 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
     if (pin && pin !== before.pin) changes.push('PIN changed')
     if (changes.length) await logRoundEvent(supabase, before.round_id, 'Group settings', `${before.name}: ${changes.join(', ')}`)
     // Holes already played carry their strokes in hole_strokes, and that's what
-    // the leaderboard settles from — bring them onto the new rounding
-    if (strokeRounding && strokeRounding !== (before.stroke_rounding ?? '')) {
+    // the leaderboard settles from — bring them onto the new settings
+    const roundingChanged = !!strokeRounding && strokeRounding !== (before.stroke_rounding ?? '')
+    if (roundingChanged || !!before.auto_strokes !== autoStrokes) {
       const { holesChanged } = await recomputeTeamHoleStrokes(supabase, teamId)
       if (holesChanged.length) {
         await logRoundEvent(supabase, before.round_id, 'Handicap settings',
