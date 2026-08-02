@@ -1892,9 +1892,9 @@ export default function AdminDashboard({
   const optionalOpensAfter = (isStandard && mixedGroups === true && !mixedGroupsSaved)
     ? 'unlocks after Playing Groups'
     : `unlocks after ${isStandard ? 'Teams' : 'Groups'}`
-  // With the exclude-matchups toggle gone, Auto Handicap is the only thing
-  // left in here — and it's Daytona/Banker only. For every other format the
-  // card holds nothing to set, so it doesn't render at all.
+  // Just the pointer to the matchup screen now that Auto Handicap sits with the
+  // groups it applies to — and that pointer is Daytona/Banker only. For every
+  // other format the card holds nothing, so it doesn't render at all.
   const hasOptionalSettings = isDaytona || isBankerRound
 
   useEffect(() => {
@@ -3847,6 +3847,22 @@ export default function AdminDashboard({
                     {collapseCaret('teams', teamsSaved)}
                   </div>
                 </div>
+                {/* ── Auto Handicap — round-wide, but it lives here because this
+                    is where the groups and their handicaps get set up. Buried in
+                    Optional Settings there was no sign it was already on. ── */}
+                {(isDaytona || isBankerRound) && (
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
+                      <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
+                        <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">Auto Handicap <span className="text-xs font-normal text-gray-400">· all groups</span></p>
+                        <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Mixed Groups only — spells out that these are the scoring
                     teams, not the carts, so this card can't be mistaken for
                     the Playing Groups card below */}
@@ -5839,19 +5855,6 @@ export default function AdminDashboard({
                   className="inline-block text-xs font-semibold text-blue-600 hover:underline">
                   Head-to-head, Best Ball &amp; Medley matchups are set up here →
                 </a>
-                {(isDaytona || isBankerRound) && (
-                  <div className="border-t border-gray-100 pt-3">
-                    <div className="flex items-center gap-3 cursor-pointer" onClick={handleToggleAutoHandicap}>
-                      <div className={`w-8 h-5 rounded-full transition-colors flex-shrink-0 flex items-center ${autoHandicap ? 'bg-green-500' : 'bg-gray-300'}`}>
-                        <div className={`w-3.5 h-3.5 bg-white rounded-full shadow transition-transform mx-0.5 ${autoHandicap ? 'translate-x-3' : 'translate-x-0'}`} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">Auto Handicap</p>
-                        <p className="text-xs text-gray-400">Automatically pre-fill strokes on each hole based on player handicaps and course stroke indexes</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 </div>
                 )}
               </div>
