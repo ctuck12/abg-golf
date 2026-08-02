@@ -7,6 +7,7 @@ import { createServerClient } from '@/lib/supabase-server'
 import { sendEmailNotification, sendPushToAll } from '@/lib/notify'
 import { logRoundEvent, playerAuditContext, playerNames, firstName, fmtHcp, matchupLabel, bestBallLabel } from '@/lib/audit'
 import { requireAdminAuth, requireAnyLogin } from '@/lib/org-auth'
+import { recomputeTeamHoleStrokes, recomputePlayingGroupHoleStrokes } from '@/lib/recompute-strokes'
 
 const FORMAT_LABELS: Record<string, string> = {
   daytona: 'Daytona', banker: 'Banker', traditional: 'Traditional', hammer: 'Hammer',
@@ -472,6 +473,15 @@ export async function updateTeamSettings(_prev: unknown, formData: FormData) {
     if (strokeRounding && strokeRounding !== (before.stroke_rounding ?? '')) changes.push(`stroke rounding → ${strokeRounding}`)
     if (pin && pin !== before.pin) changes.push('PIN changed')
     if (changes.length) await logRoundEvent(supabase, before.round_id, 'Group settings', `${before.name}: ${changes.join(', ')}`)
+    // Holes already played carry their strokes in hole_strokes, and that's what
+    // the leaderboard settles from — bring them onto the new rounding
+    if (strokeRounding && strokeRounding !== (before.stroke_rounding ?? '')) {
+      const { holesChanged } = await recomputeTeamHoleStrokes(supabase, teamId)
+      if (holesChanged.length) {
+        await logRoundEvent(supabase, before.round_id, 'Handicap settings',
+          `${before.name}: strokes recalculated on hole${holesChanged.length !== 1 ? 's' : ''} ${holesChanged.join(', ')}`)
+      }
+    }
   }
   return { success: true }
 }
@@ -953,6 +963,15 @@ export async function updatePlayingGroupSettings(groupId: string, settings: {
     if (!!before.auto_strokes !== settings.auto_strokes) changes.push(`auto strokes ${settings.auto_strokes ? 'on' : 'off'}`)
     if (settings.stroke_rounding !== undefined && (before.stroke_rounding ?? null) !== settings.stroke_rounding) changes.push(`stroke rounding → ${settings.stroke_rounding ?? 'default'}`)
     if (changes.length) await logRoundEvent(supabase, before.round_id, 'Group settings', `${before.name}: ${changes.join(', ')}`)
+    // Holes already played carry their strokes in hole_strokes, and that's what
+    // the leaderboard settles from — bring them onto the new rounding
+    if (settings.stroke_rounding !== undefined && (before.stroke_rounding ?? null) !== settings.stroke_rounding) {
+      const { holesChanged } = await recomputePlayingGroupHoleStrokes(supabase, groupId)
+      if (holesChanged.length) {
+        await logRoundEvent(supabase, before.round_id, 'Handicap settings',
+          `${before.name}: strokes recalculated on hole${holesChanged.length !== 1 ? 's' : ''} ${holesChanged.join(', ')}`)
+      }
+    }
   }
   return { success: true }
 }

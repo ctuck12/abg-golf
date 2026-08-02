@@ -9,7 +9,7 @@ import {
   computeBBStrokeHoles, applyPlayerStrokesToScoreMap, pressForfeitMap, type PressForfeit, roundHcp,
   computeMedley, computeAllMatchupPayouts, type MedleyMatchup,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
-  computeHoleDaytonaPointsFiveMan,
+  computeHoleDaytonaPointsFiveMan, daytonaAutoStrokeIds, bankerStrokeSplit,
   calculatePoolPayouts, settleDaytonaPlayerPoints,
   type DaytonaHoleAssignment, type DaytonaSide,
 } from '@/lib/scoring'
@@ -254,13 +254,8 @@ export default function ScoreEntry({
     const manual = holeStrokes[holeNumber]
     if (manual !== undefined) return manual
     if (!autoHandicap) return []
-    if (isBanker) {
-      const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
-      const playerStrokeIds = getBankerAutoStrokes(holeNumber)
-      const bankerGetsStroke = bankerPlayerId && getBankerReceiveStrokes(holeNumber).length > 0
-      return [...playerStrokeIds, ...(bankerGetsStroke ? [bankerPlayerId!] : [])]
-    }
-    if (isDaytonaMode) return autoHandicap ? getDaytonaAutoStrokes(holeNumber) : []
+    if (isBanker) return bankerSplit(holeNumber).all
+    if (isDaytonaMode) return getDaytonaAutoStrokes(holeNumber)
     return []
   }
 
@@ -346,74 +341,13 @@ export default function ScoreEntry({
   }
 
   function getDaytonaAutoStrokes(holeNumber: number): string[] {
-    const hole = holes.find((h) => h.hole_number === holeNumber)
-    if (!hole?.stroke_index) return []
-    // Compute min handicap from the whole playing group (all group players for side game, team players for pure Daytona)
-    const groupIds = isDaytonaSideGame && sideGameGroupPlayerIds?.length ? sideGameGroupPlayerIds : players.map((p) => p.id)
-    // Each player's handicap is rounded to a whole playing handicap first,
-    // then strokes = difference from the group's lowest playing handicap
-    const effHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
-    const groupHcps = groupIds.map((id) => allRoundPlayerHandicaps[id]).filter((h): h is number => h != null)
-    if (!groupHcps.length) return []
-    const minEff = Math.min(...groupHcps.map(effHcp))
-    return players.filter((p) => {
-      const hcp = allRoundPlayerHandicaps[p.id] ?? null
-      if (hcp == null) return false
-      const relStrokes = Math.max(0, effHcp(hcp) - minEff)
-      return relStrokes > 0 && hole.stroke_index! <= relStrokes
-    }).map((p) => p.id)
+    return daytonaAutoStrokeIds(holes.find((h) => h.hole_number === holeNumber), strokeSheetPlayers,
+      strokeSheetGroupHandicaps, handicapRounding)
   }
 
-  function getAutoStrokes(holeNumber: number): string[] {
-    if (!autoHandicap) return []
-    const hole = holes.find((h) => h.hole_number === holeNumber)
-    if (!hole?.stroke_index) return []
-    const allHandicaps = Object.values(allRoundPlayerHandicaps).filter((h): h is number => h != null)
-    if (allHandicaps.length === 0) return []
-    const effHcp = (h: number) => Math.max(0, roundHcp(h, handicapRounding, 'trunc'))
-    const minHcp = Math.min(...allHandicaps.map(effHcp))
-    return players.filter((p) => {
-      const hcp = allRoundPlayerHandicaps[p.id] ?? null
-      if (hcp == null) return false
-      const strokes = effHcp(hcp) - minHcp
-      return strokes > 0 && hole.stroke_index! <= strokes
-    }).map((p) => p.id)
-  }
-
-  function getBankerAutoStrokes(holeNumber: number): string[] {
-    const hole = holes.find((h) => h.hole_number === holeNumber)
-    if (!hole?.stroke_index) return []
-    const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
-    if (!bankerPlayerId) return []
-    const bankerHcpRaw = allRoundPlayerHandicaps[bankerPlayerId] ?? null
-    if (bankerHcpRaw == null) return []
-    const rawHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
-    const bankerHcp = rawHcp(bankerHcpRaw)
-    return players.filter((p) => {
-      if (p.id === bankerPlayerId) return false
-      const hcp = allRoundPlayerHandicaps[p.id] ?? null
-      if (hcp == null) return false
-      const diff = rawHcp(hcp) - bankerHcp
-      return diff > 0 && hole.stroke_index! <= diff
-    }).map((p) => p.id)
-  }
-
-  function getBankerReceiveStrokes(holeNumber: number): string[] {
-    const hole = holes.find((h) => h.hole_number === holeNumber)
-    if (!hole?.stroke_index) return []
-    const bankerPlayerId = bankerHoles[holeNumber]?.bankerPlayerId ?? null
-    if (!bankerPlayerId) return []
-    const bankerHcpRaw = allRoundPlayerHandicaps[bankerPlayerId] ?? null
-    if (bankerHcpRaw == null) return []
-    const rawHcp = (h: number) => roundHcp(h, handicapRounding, 'trunc')
-    const bankerHcp = rawHcp(bankerHcpRaw)
-    return players.filter((p) => {
-      if (p.id === bankerPlayerId) return false
-      const hcp = allRoundPlayerHandicaps[p.id] ?? null
-      if (hcp == null) return false
-      const diff = bankerHcp - rawHcp(hcp)
-      return diff > 0 && hole.stroke_index! <= diff
-    }).map((p) => p.id)
+  function bankerSplit(holeNumber: number) {
+    return bankerStrokeSplit(holes.find((h) => h.hole_number === holeNumber), strokeSheetPlayers,
+      bankerHoles[holeNumber]?.bankerPlayerId ?? null, handicapRounding)
   }
 
   async function handleStrokesToggle(holeNumber: number, playerId: string) {
@@ -2213,7 +2147,7 @@ export default function ScoreEntry({
                           </button>
                         )}
                         <span className="flex-1 text-sm font-medium text-gray-800 truncate min-w-0">
-                          {player.name}{(() => { const effIds = effectiveStrokeIds(hole.hole_number); const bpId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null; const hasStroke = effIds.includes(player.id); const bankerActive = bpId ? effIds.includes(bpId) : false; const bankerGetsFromThis = bankerActive && getBankerReceiveStrokes(hole.hole_number).includes(player.id); return <>{hasStroke && (bpId && player.id !== bpId ? <span className="text-green-500 font-bold text-base">*</span> : <span className="text-blue-500 font-bold text-base">*</span>)}{bankerGetsFromThis && <span className="text-orange-400 font-bold text-base">*</span>}</>; })()}
+                          {player.name}{(() => { const effIds = effectiveStrokeIds(hole.hole_number); const bpId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null; const hasStroke = effIds.includes(player.id); const bankerActive = bpId ? effIds.includes(bpId) : false; const bankerGetsFromThis = bankerActive && bankerSplit(hole.hole_number).bankerGettingFrom.includes(player.id); return <>{hasStroke && (bpId && player.id !== bpId ? <span className="text-green-500 font-bold text-base">*</span> : <span className="text-blue-500 font-bold text-base">*</span>)}{bankerGetsFromThis && <span className="text-orange-400 font-bold text-base">*</span>}</>; })()}
                           {isDaytonaMode && isSaved && (() => {
                             const pts = holePlayerPoints.get(player.id)
                             if (!pts) return null
@@ -2369,11 +2303,11 @@ export default function ScoreEntry({
 
                   {/* ── Strokes panel — only relevant for Daytona/Banker scoring ── */}
                   {(isDaytonaMode || isBanker) && (() => {
-                    const suggestedIds = isBanker ? getBankerAutoStrokes(hole.hole_number) : isDaytonaMode ? getDaytonaAutoStrokes(hole.hole_number) : []
+                    const suggestedIds = isBanker ? bankerSplit(hole.hole_number).opponentsGetting : isDaytonaMode ? getDaytonaAutoStrokes(hole.hole_number) : []
                     const activeStrokeIds = effectiveStrokeIds(hole.hole_number)
                     const bankerPlayerId = isBanker ? (bankerHoles[hole.hole_number]?.bankerPlayerId ?? null) : null
                     const visiblePlayers = players.filter((p) => p.id !== bankerPlayerId && (suggestedIds.includes(p.id) || activeStrokeIds.includes(p.id)))
-                    const bankerReceiveFromIds = isBanker ? getBankerReceiveStrokes(hole.hole_number) : []
+                    const bankerReceiveFromIds = isBanker ? bankerSplit(hole.hole_number).bankerGettingFrom : []
                     const bankerPlayer = bankerPlayerId ? players.find((p) => p.id === bankerPlayerId) : null
                     const bankerHasStroke = bankerPlayerId ? activeStrokeIds.includes(bankerPlayerId) : false
                     const showBankerBubble = !!bankerPlayer && bankerReceiveFromIds.length > 0

@@ -193,6 +193,70 @@ export function roundHcp(v: number, mode: string | null | undefined, fallback: '
   return fallback === 'trunc' ? Math.trunc(v) : Math.floor(v)
 }
 
+// ── Automatic stroke holes ───────────────────────────────────────────────────
+// Both score screens and the server-side recompute go through these, so a
+// stored stroke and a recalculated one can't disagree.
+
+export type StrokePlayer = { id: string; handicap?: number | null }
+export type StrokeHole = { hole_number: number; stroke_index?: number | null }
+
+/** Daytona (and plain auto-handicap): each handicap rounds to a whole playing
+ *  handicap, then strokes = the difference from the group's lowest, taken on
+ *  the hardest holes. `groupHandicaps` is the whole playing group, which can be
+ *  wider than `players` when a team plays a side game inside a larger group. */
+export function daytonaAutoStrokeIds(
+  hole: StrokeHole | undefined,
+  players: StrokePlayer[],
+  groupHandicaps: (number | null | undefined)[],
+  rounding: string | null | undefined,
+): string[] {
+  if (!hole?.stroke_index) return []
+  const effHcp = (h: number) => roundHcp(h, rounding, 'trunc')
+  const groupHcps = groupHandicaps.filter((h): h is number => h != null)
+  if (!groupHcps.length) return []
+  const minEff = Math.min(...groupHcps.map(effHcp))
+  return players.filter((p) => {
+    if (p.handicap == null) return false
+    const rel = Math.max(0, effHcp(p.handicap) - minEff)
+    return rel > 0 && hole.stroke_index! <= rel
+  }).map((p) => p.id)
+}
+
+/** Banker: every bet is played against the Banker, so the shot goes to whoever
+ *  of the two is higher.
+ *  - `opponentsGetting` — opponents taking a shot off the Banker on this hole
+ *  - `bankerGettingFrom` — opponents the Banker takes a shot off
+ *  - `all` — what actually gets stored: the opponents plus the Banker when
+ *    they're owed a shot by anyone */
+export function bankerStrokeSplit(
+  hole: StrokeHole | undefined,
+  players: StrokePlayer[],
+  bankerPlayerId: string | null | undefined,
+  rounding: string | null | undefined,
+): { opponentsGetting: string[]; bankerGettingFrom: string[]; all: string[] } {
+  const empty = { opponentsGetting: [], bankerGettingFrom: [], all: [] }
+  if (!hole?.stroke_index || !bankerPlayerId) return empty
+  const bankerHcpRaw = players.find((p) => p.id === bankerPlayerId)?.handicap ?? null
+  if (bankerHcpRaw == null) return empty
+  const effHcp = (h: number) => roundHcp(h, rounding, 'trunc')
+  const bankerHcp = effHcp(bankerHcpRaw)
+  const si = hole.stroke_index
+  const opponents = players.filter((p) => p.id !== bankerPlayerId && p.handicap != null)
+  const opponentsGetting = opponents.filter((p) => {
+    const diff = effHcp(p.handicap!) - bankerHcp
+    return diff > 0 && si <= diff
+  }).map((p) => p.id)
+  const bankerGettingFrom = opponents.filter((p) => {
+    const diff = bankerHcp - effHcp(p.handicap!)
+    return diff > 0 && si <= diff
+  }).map((p) => p.id)
+  return {
+    opponentsGetting,
+    bankerGettingFrom,
+    all: [...opponentsGetting, ...(bankerGettingFrom.length > 0 ? [bankerPlayerId] : [])],
+  }
+}
+
 // ── Best Ball per-player handicap strokes ────────────────────────────────────
 // Allocates each player's stroke count across the hardest holes (lowest
 // stroke_index first; holes without an index come last, then by hole number).
