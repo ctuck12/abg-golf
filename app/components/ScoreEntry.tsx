@@ -209,7 +209,6 @@ export default function ScoreEntry({
   const [roundCompleteChecked, setRoundCompleteChecked] = useState(false)
   const [showPayoutsModal, setShowPayoutsModal] = useState(false)
   const [playerPopup, setPlayerPopup] = useState<string | null>(null)
-  const [popupShowScorecard, setPopupShowScorecard] = useState(false)
   const [payoutsData, setPayoutsData] = useState<PayoutsData | null>(null)
   const [payoutsLoading, setPayoutsLoading] = useState(false)
   const [showDaytonaResultsModal, setShowDaytonaResultsModal] = useState(false)
@@ -1071,7 +1070,7 @@ export default function ScoreEntry({
                 return (
                   <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 6px' }}>
                     <button
-                      onClick={() => { setPopupShowScorecard(false); setPlayerPopup((prev) => prev === p.id ? null : p.id) }}
+                      onClick={() => setPlayerPopup((prev) => prev === p.id ? null : p.id)}
                       className="font-medium underline-offset-2 hover:underline flex-shrink-0 whitespace-nowrap"
                       style={{ color: 'rgba(255,255,255,0.55)' }}>
                       {p.name.split(' ')[0]}
@@ -1095,9 +1094,6 @@ export default function ScoreEntry({
         // The round-wide map is what the stroke assignment reads, so the popup does too
         const pHcp = allRoundPlayerHandicaps[p.id] ?? p.handicap ?? null
         const pScores = savedScores.filter((s) => s.player_id === p.id)
-        const scoreMap = Object.fromEntries(pScores.map((s) => [s.hole_number, s.strokes]))
-        const frontHoles = holes.filter((h) => h.hole_number <= 9).sort((a, b) => a.hole_number - b.hole_number)
-        const backHoles = holes.filter((h) => h.hole_number >= 10).sort((a, b) => a.hole_number - b.hole_number)
         const frontScores = pScores.filter((s) => s.hole_number <= 9)
         const backScores = pScores.filter((s) => s.hole_number >= 10)
         const fStrokes = frontScores.reduce((s, sc) => s + sc.strokes, 0)
@@ -1112,68 +1108,14 @@ export default function ScoreEntry({
         const fmt = (v: number | null) => v === null ? '–' : v === 0 ? 'E' : v > 0 ? `+${v}` : String(v)
         const col = (v: number | null) => v === null ? '#9ca3af' : v < 0 ? '#16a34a' : v > 0 ? '#dc2626' : '#111827'
 
-        // Hole points map for Daytona
-        const holePtsMaps = new Map<number, Map<string, number>>()
-        if (isDaytonaMode) {
-          for (const hole of holes) {
-            const ha = flatAssignments.filter((a) => a.hole_number === hole.hole_number)
-            const leftIds = ha.filter((a) => a.side === 'left').map((a) => a.player_id)
-            const rightIds = ha.filter((a) => a.side === 'right').map((a) => a.player_id)
-            if (is5ManForHole(hole.hole_number)) {
-              if (leftIds.length >= 2 && rightIds.length >= 3)
-                holePtsMaps.set(hole.hole_number, computeHoleDaytonaPointsFiveMan(leftIds, rightIds, netSavedScores, hole.hole_number, hole.par))
-            } else if (leftIds.length >= 2 && rightIds.length >= 2) {
-              const lSc = leftIds.map((id) => netSavedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-              const rSc = rightIds.map((id) => netSavedScores.find((s) => s.player_id === id && s.hole_number === hole.hole_number)?.strokes).filter((s): s is number => s !== undefined)
-              if (lSc.length >= 2 && rSc.length >= 2) {
-                const { leftDt, rightDt } = computeHoleDaytonaWithSides(lSc, rSc, hole.par)
-                if (leftDt !== null && rightDt !== null) {
-                  const diff = Math.abs(leftDt - rightDt)
-                  const lW = leftDt < rightDt, rW = rightDt < leftDt
-                  const m = new Map<string, number>()
-                  for (const id of leftIds) m.set(id, lW ? diff : rW ? -diff : 0)
-                  for (const id of rightIds) m.set(id, rW ? diff : lW ? -diff : 0)
-                  holePtsMaps.set(hole.hole_number, m)
-                }
-              }
-            }
-          }
-        }
-        const frontPts = frontHoles.some((h) => holePtsMaps.get(h.hole_number)?.has(p.id))
-          ? frontHoles.reduce((s, h) => s + (holePtsMaps.get(h.hole_number)?.get(p.id) ?? 0), 0) : null
-        const backPts = backHoles.some((h) => holePtsMaps.get(h.hole_number)?.has(p.id))
-          ? backHoles.reduce((s, h) => s + (holePtsMaps.get(h.hole_number)?.get(p.id) ?? 0), 0) : null
-        const totalPts = holePtsMaps.size > 0 && [...holePtsMaps.values()].some((m) => m.has(p.id))
-          ? [...holePtsMaps.values()].reduce((s, m) => s + (m.get(p.id) ?? 0), 0) : null
-        const pStr = (v: number | null) => v === null ? '–' : v === 0 ? '0' : v > 0 ? `+${v}` : String(v)
-        const pCol = (v: number | null) => v === null ? '#d1d5db' : v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#374151'
-
-        const thSt = (hi?: boolean, isHole?: boolean): React.CSSProperties => ({
-          background: hi ? '#4a7fa5' : isHole ? '#dde4ee' : navy,
-          color: hi ? 'white' : isHole ? navy : 'white',
-          fontWeight: 700, fontSize: '0.6rem', textAlign: 'center', padding: '0.35rem 0.2rem', whiteSpace: 'nowrap',
-        })
-        const tdP = (hi?: boolean): React.CSSProperties => ({
-          background: hi ? '#dbeafe' : 'white', color: hi ? '#1e40af' : '#6b7280',
-          fontWeight: hi ? 700 : 400, fontSize: '0.65rem', textAlign: 'center', padding: '0.3rem 0.2rem',
-        })
-        const tdC = (hi?: boolean): React.CSSProperties => ({
-          background: hi ? '#dbeafe' : 'white', fontWeight: hi ? 700 : 400,
-          color: hi ? '#1e40af' : undefined, fontSize: '0.65rem', textAlign: 'center', padding: '0.2rem 0.15rem',
-        })
-        const frontPar = frontHoles.reduce((s, h) => s + h.par, 0)
-        const backPar = backHoles.reduce((s, h) => s + h.par, 0)
-        const totalPar = holes.reduce((s, h) => s + h.par, 0)
-
         return (
-          <div className="fixed inset-0 z-40" onClick={() => setPlayerPopup(null)}>
-            <div
-              className={`absolute bg-white rounded-2xl shadow-xl border border-gray-200 overflow-y-auto ${popupShowScorecard ? 'left-2 right-2' : 'left-4 right-4 max-w-sm mx-auto'}`}
-              style={{ top: '5rem', maxHeight: 'calc(100dvh - 7rem)' }}
+          <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setPlayerPopup(null)}>
+            <div className="bg-white rounded-t-3xl w-full max-w-lg overflow-y-auto" style={{ maxHeight: '85dvh' }}
               onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 pt-4 pb-3">
+              <div className="flex items-center justify-between px-5 pt-5 pb-3">
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <p className="font-bold text-gray-900 text-sm">{p.name}</p>
+                  <p className="font-bold text-gray-900">{p.name}</p>
                   {pHcp != null && showsPlayerStrokes && (() => {
                     // Actual handicap, then what the round's rounding makes them
                     // play to — only when rounding actually moves the number.
@@ -1189,18 +1131,10 @@ export default function ScoreEntry({
                       </span>
                     )
                   })()}
-                  <button
-                    onClick={() => setPopupShowScorecard((v) => !v)}
-                    className="text-xs font-semibold px-2 py-0.5 rounded-md border transition"
-                    style={popupShowScorecard
-                      ? { background: navy, color: 'white', borderColor: navy }
-                      : { background: 'white', color: '#6b7280', borderColor: '#d1d5db' }}>
-                    Scorecard
-                  </button>
                 </div>
                 <button onClick={() => setPlayerPopup(null)} className="text-gray-400 text-lg font-bold leading-none">×</button>
               </div>
-              <div className={`flex justify-around text-center px-4 ${showsPlayerStrokes ? 'pb-1' : 'pb-4'}`}>
+              <div className={`flex justify-around text-center px-5 ${showsPlayerStrokes ? 'pb-1' : 'pb-8'}`}>
                 {[{ label: 'Front 9', v: fVp }, { label: 'Back 9', v: bVp }, { label: 'Total', v: tVp }].map(({ label, v }) => (
                   <div key={label}>
                     <p className="text-xs text-gray-400 mb-1">{label}</p>
@@ -1209,7 +1143,7 @@ export default function ScoreEntry({
                 ))}
               </div>
               {/* Handicap stroke transparency — spells out if/where/why strokes apply */}
-              <div className="px-4">
+              <div className="px-5">
                 <PlayerStrokesSection
                   player={{ id: p.id, name: p.name, handicap: pHcp }}
                   players={strokeSheetPlayers}
@@ -1223,95 +1157,7 @@ export default function ScoreEntry({
                   groupHandicaps={strokeSheetGroupHandicaps}
                 />
               </div>
-              {showsPlayerStrokes && <div className="pb-4" />}
-              {popupShowScorecard && (
-                <div className="border-t border-gray-100 overflow-x-auto">
-                  <table className="border-collapse" style={{ minWidth: '610px', width: '100%' }}>
-                    <thead style={{ borderTop: '1px solid #e5e7eb' }}>
-                      <tr>
-                        <th style={{ ...thSt(false, true), textAlign: 'left', paddingLeft: '0.5rem', width: '3rem' }}>HOLE</th>
-                        {frontHoles.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), width: '2.2rem' }}>{h.hole_number}</th>)}
-                        {frontHoles.length > 0 && <th style={thSt(true)}>Out</th>}
-                        {backHoles.map((h) => <th key={h.hole_number} style={{ ...thSt(false, true), width: '2.2rem' }}>{h.hole_number}</th>)}
-                        {backHoles.length > 0 && <th style={thSt(true)}>In</th>}
-                        <th style={thSt()}>TOT</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ ...tdP(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>PAR</td>
-                        {frontHoles.map((h) => <td key={h.hole_number} style={tdP()}>{h.par}</td>)}
-                        {frontHoles.length > 0 && <td style={tdP(true)}>{frontPar}</td>}
-                        {backHoles.map((h) => <td key={h.hole_number} style={tdP()}>{h.par}</td>)}
-                        {backHoles.length > 0 && <td style={tdP(true)}>{backPar}</td>}
-                        <td style={{ ...tdP(), fontWeight: 700, color: '#111827' }}>{totalPar}</td>
-                      </tr>
-                      <tr style={{ borderBottom: isDaytonaMode ? '1px solid #e5e7eb' : undefined }}>
-                        <td style={{ ...tdC(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>SCORE</td>
-                        {frontHoles.map((h) => {
-                          const s = scoreMap[h.hole_number] ?? null
-                          const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(p.id)
-                          return <td key={h.hole_number} style={tdC()}>{s != null ? <><ScoreNotation strokes={s} par={h.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                        })}
-                        {frontHoles.length > 0 && <td style={tdC(true)}>{frontScores.length > 0 ? fStrokes : '–'}</td>}
-                        {backHoles.map((h) => {
-                          const s = scoreMap[h.hole_number] ?? null
-                          const hasStroke = (holeStrokes[h.hole_number] ?? []).includes(p.id)
-                          return <td key={h.hole_number} style={tdC()}>{s != null ? <><ScoreNotation strokes={s} par={h.par} size="sm" />{hasStroke && <span style={{ color: '#16a34a', fontSize: '0.55rem', fontWeight: 900, verticalAlign: 'super', lineHeight: 0 }}>*</span>}</> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                        })}
-                        {backHoles.length > 0 && <td style={tdC(true)}>{backScores.length > 0 ? bStrokes : '–'}</td>}
-                        <td style={{ ...tdC(), fontWeight: 700, color: '#111827' }}>{pScores.length > 0 ? tStrokes : '–'}</td>
-                      </tr>
-                      {isDaytonaMode && <>
-                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                          <td style={{ ...tdC(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>PTS</td>
-                          {frontHoles.map((h) => {
-                            const pts = holePtsMaps.get(h.hole_number)?.has(p.id) ? holePtsMaps.get(h.hole_number)!.get(p.id)! : null
-                            return <td key={h.hole_number} style={tdC()}><span style={{ fontWeight: 600, color: pCol(pts), fontSize: '0.65rem' }}>{pStr(pts)}</span></td>
-                          })}
-                          <td style={tdC(true)}><span style={{ fontWeight: 700, color: pCol(frontPts) }}>{pStr(frontPts)}</span></td>
-                          {backHoles.map((h) => {
-                            const pts = holePtsMaps.get(h.hole_number)?.has(p.id) ? holePtsMaps.get(h.hole_number)!.get(p.id)! : null
-                            return <td key={h.hole_number} style={tdC()}><span style={{ fontWeight: 600, color: pCol(pts), fontSize: '0.65rem' }}>{pStr(pts)}</span></td>
-                          })}
-                          <td style={tdC(true)}><span style={{ fontWeight: 700, color: pCol(backPts) }}>{pStr(backPts)}</span></td>
-                          <td style={{ ...tdC(), fontWeight: 700, color: pCol(totalPts) }}>{pStr(totalPts)}</td>
-                        </tr>
-                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                          <td style={{ ...tdC(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>TEAM</td>
-                          {frontHoles.map((h) => {
-                            const side = assignments[h.hole_number]?.[p.id] ?? null
-                            const lC = isFlaresForHole(h.hole_number) ? (h.par === 3 ? 'C' : 'O') : 'L'
-                            const rC = isFlaresForHole(h.hole_number) ? (h.par === 3 ? 'F' : 'I') : 'R'
-                            return <td key={h.hole_number} style={tdC()}>{side ? <span style={{ fontWeight: 700, fontSize: '0.65rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? lC : rC}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                          })}
-                          <td style={tdC(true)} />
-                          {backHoles.map((h) => {
-                            const side = assignments[h.hole_number]?.[p.id] ?? null
-                            const lC = isFlaresForHole(h.hole_number) ? (h.par === 3 ? 'C' : 'O') : 'L'
-                            const rC = isFlaresForHole(h.hole_number) ? (h.par === 3 ? 'F' : 'I') : 'R'
-                            return <td key={h.hole_number} style={tdC()}>{side ? <span style={{ fontWeight: 700, fontSize: '0.65rem', color: side === 'left' ? '#2563eb' : '#92400e' }}>{side === 'left' ? lC : rC}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                          })}
-                          <td style={tdC(true)} /><td style={tdC()} />
-                        </tr>
-                        <tr>
-                          <td style={{ ...tdC(), textAlign: 'left', paddingLeft: '0.5rem', fontWeight: 700, color: '#374151' }}>PRESS</td>
-                          {frontHoles.map((h) => {
-                            const pressRate = initialHoleValues[h.hole_number]
-                            return <td key={h.hole_number} style={tdC()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color: '#f59e0b' }}>${pressRate}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                          })}
-                          <td style={tdC(true)} />
-                          {backHoles.map((h) => {
-                            const pressRate = initialHoleValues[h.hole_number]
-                            return <td key={h.hole_number} style={tdC()}>{pressRate !== undefined ? <span style={{ fontWeight: 600, fontSize: '0.65rem', color: '#f59e0b' }}>${pressRate}</span> : <span style={{ color: '#d1d5db' }}>–</span>}</td>
-                          })}
-                          <td style={tdC(true)} /><td style={tdC()} />
-                        </tr>
-                      </>}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              {showsPlayerStrokes && <div className="pb-8" />}
             </div>
           </div>
         )
