@@ -1120,11 +1120,15 @@ export default function ScoreEntry({
             </div>
           )}
 
-          {/* Player running point totals — Daytona / side game */}
-          {isDaytonaMode && playerPointTotals.size > 0 && (
+          {/* Player running point totals — Daytona / side game.
+              Always on once in Daytona: a hole everyone halves leaves every
+              total at 0, and gating on a non-zero total made the whole bar
+              vanish. Players with nothing saved yet read '–'. */}
+          {isDaytonaMode && (
             <div className="flex flex-nowrap mt-2 pt-2 border-t border-white/10" style={{ justifyContent: 'space-evenly', fontSize: `${scoreBarFs}px` }}>
               {players.map((p) => {
-                const pts = playerPointTotals.get(p.id) ?? 0
+                const hasPlayed = savedScores.some((s) => s.player_id === p.id)
+                const pts = hasPlayed ? (playerPointTotals.get(p.id) ?? 0) : null
                 return (
                   <span key={p.id} className="flex items-center gap-1 flex-shrink-0 whitespace-nowrap" style={{ padding: '0 6px' }}>
                     <button
@@ -1133,8 +1137,8 @@ export default function ScoreEntry({
                       style={{ color: 'rgba(255,255,255,0.55)' }}>
                       {p.name.split(' ')[0]}
                     </button>
-                    <span className="font-bold" style={{ color: pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
-                      {pts > 0 ? `+${pts}` : pts}
+                    <span className="font-bold" style={{ color: pts === null ? 'rgba(255,255,255,0.35)' : pts > 0 ? '#4ade80' : pts < 0 ? '#f87171' : 'rgba(255,255,255,0.4)' }}>
+                      {pts === null ? '–' : pts > 0 ? `+${pts}` : pts}
                     </span>
                   </span>
                 )

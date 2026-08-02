@@ -12,6 +12,7 @@ import {
   MANUAL_ORDER_BASE,
   computeSkinsResults,
   computeSkinsPotResults,
+  computePlayerDaytonaPointsSplit,
 } from './scoring'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,6 +71,40 @@ describe('computeTeamDaytonaSummary', () => {
     const s = computeTeamDaytonaSummary([hole(1)], ['a', 'b'], [score('a', 1, 4)])
     expect(s.total).toBeNull()
     expect(s.holesPlayed).toBe(0)
+  })
+})
+
+describe('computePlayerDaytonaPointsSplit', () => {
+  const side = (player_id: string, hole_number: number, s: 'left' | 'right') => ({ player_id, hole_number, side: s })
+
+  // A halved 5-man hole leaves every total at 0, and the 5-man branch only
+  // records non-zero points — so the map comes back empty even though the hole
+  // was played. Anything reading it must not treat "empty" as "nothing played".
+  it('returns an empty map when a 5-man hole is halved by every pairing', () => {
+    const assignments = [
+      side('bacon', 1, 'left'), side('jon', 1, 'left'),
+      side('chip', 1, 'right'), side('tyler', 1, 'right'), side('dillon', 1, 'right'),
+    ]
+    const netScores = [
+      score('bacon', 1, 3), score('jon', 1, 4),
+      score('chip', 1, 3), score('tyler', 1, 3), score('dillon', 1, 3),
+    ]
+    expect(computePlayerDaytonaPointsSplit([hole(1)], netScores, assignments, '5man-normal', null).size).toBe(0)
+  })
+
+  it('records points when the pairings are not halved', () => {
+    const assignments = [
+      side('bacon', 1, 'left'), side('jon', 1, 'left'),
+      side('chip', 1, 'right'), side('tyler', 1, 'right'), side('dillon', 1, 'right'),
+    ]
+    const grossScores = [
+      score('bacon', 1, 4), score('jon', 1, 5),
+      score('chip', 1, 3), score('tyler', 1, 4), score('dillon', 1, 4),
+    ]
+    const pts = computePlayerDaytonaPointsSplit([hole(1)], grossScores, assignments, '5man-normal', null)
+    expect(pts.get('bacon')).toBe(-40)
+    expect(pts.get('jon')).toBe(-40)
+    expect(pts.get('chip')).toBe(40)
   })
 })
 
