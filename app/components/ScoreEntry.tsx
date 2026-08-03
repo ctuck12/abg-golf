@@ -48,6 +48,12 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 const BALL_NAMES = ['1-Ball', '2-Ball', '3-Ball', '4-Ball']
 
+// Payouts read in whole dollars — the sign is carried by colour and by the
+// "pays" wording, so the number itself is the absolute amount. Same rule the
+// leaderboard's Payouts panel uses, so the two can't print different figures.
+const fmtNetSigned = (v: number) => { const r = Math.round(Math.abs(v)); return r === 0 ? 'Even' : `$${r}` }
+const fmtSettle = (v: number) => `$${Math.round(Math.abs(v))}`
+
 function formatHoleRateBreakdown(holes: { hole_number: number }[], overrides: Record<number, number>, defaultRate: number): string {
   if (Object.keys(overrides).length === 0) return `$${defaultRate}/point`
   const sorted = [...holes].sort((a, b) => a.hole_number - b.hole_number)
@@ -1167,10 +1173,10 @@ export default function ScoreEntry({
 
       {showPayoutsModal && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowPayoutsModal(false)}>
-          <div className="bg-white rounded-t-2xl max-h-[85vh] flex flex-col" style={{ animation: 'slideUp 0.28s ease-out' }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 flex-shrink-0 bg-white">
-              <h3 className="font-bold text-gray-900 text-base">{roundComplete ? 'Final Payouts' : 'Payouts'}</h3>
-              <button onClick={() => setShowPayoutsModal(false)} className="text-gray-400 text-xl font-bold leading-none">×</button>
+          <div className="bg-white rounded-t-2xl max-h-[85vh] flex flex-col" style={{ animation: 'slideUp 0.28s ease-out', boxShadow: '0 0 0 2px rgba(255,255,255,0.3)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 flex-shrink-0" style={{ background: navy, borderBottom: '1px solid rgba(255,255,255,0.35)' }}>
+              <h3 className="font-bold text-white text-base">{roundComplete ? 'Final Payouts' : 'Payouts'}</h3>
+              <button onClick={() => setShowPayoutsModal(false)} className="text-xl font-bold leading-none" style={{ color: 'rgba(255,255,255,0.7)' }}>×</button>
             </div>
             <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
               {payoutsLoading || !payoutsData ? (
@@ -1318,7 +1324,7 @@ export default function ScoreEntry({
                                         <div className={`flex items-center px-4 gap-2 ${segments.length > 0 ? 'pt-2 pb-1' : 'py-2.5'}`}>
                                           <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
                                           {segments.length === 0 && <span className="text-sm font-semibold tabular-nums w-16 text-right" style={{ color: pts > 0 ? '#16a34a' : pts < 0 ? '#dc2626' : '#6b7280' }}>{pts > 0 ? `+${pts}` : pts === 0 ? '0' : pts} pts</span>}
-                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{dollars > 0 ? `$${dollars.toFixed(2)}` : dollars < 0 ? `$${Math.abs(dollars).toFixed(2)}` : 'Even'}</span>
+                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: dollars > 0 ? '#16a34a' : dollars < 0 ? '#dc2626' : '#6b7280' }}>{fmtNetSigned(dollars)}</span>
                                         </div>
                                         {segments.length > 0 && (
                                           <div className="px-4 pb-2 flex gap-x-3" style={{ fontSize: segments.length <= 2 ? '12px' : segments.length === 3 ? '10px' : '9px' }}>
@@ -1336,7 +1342,7 @@ export default function ScoreEntry({
                                       </div>
                                     )})}
                                   </div>
-                                  {playerSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{playerSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
+                                  {playerSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{playerSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">{fmtSettle(s.amount)}</span></div>))}</div>)}
                                   {playerSettlements.length === 0 && teamPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">{[...pointTotals.values()].every((v) => v === 0) ? 'No holes scored yet.' : 'All even — no payments needed.'}</p>)}
                                 </div>
                               )
@@ -1396,12 +1402,12 @@ export default function ScoreEntry({
                                       return (
                                         <div key={p.id} className="flex items-center px-4 py-2.5 gap-2">
                                           <span className="flex-1 min-w-0 text-sm text-gray-900 truncate">{p.name}</span>
-                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span>
+                                          <span className="text-sm font-bold tabular-nums w-20 text-right" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{fmtNetSigned(v)}</span>
                                         </div>
                                       )
                                     })}
                                   </div>
-                                  {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}</div>)}
+                                  {tSettlements.length > 0 && (<div className="border-t border-gray-100 px-4 py-3"><p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Settlement</p>{tSettlements.map((s, i) => (<div key={i} className="flex items-center py-1 gap-2 text-sm"><span className="flex-1"><span className="font-semibold text-red-600">{s.fromName}</span>{' pays '}<span className="font-semibold text-green-700">{s.toName}</span></span><span className="font-bold text-gray-900">{fmtSettle(s.amount)}</span></div>))}</div>)}
                                   {tSettlements.length === 0 && teamPlayers.length > 0 && (<p className="text-xs text-gray-400 text-center py-3">All even — no payments needed.</p>)}
                                 </div>
                               )
@@ -1490,13 +1496,13 @@ export default function ScoreEntry({
                                   <div className="space-y-1">
                                     {[...payoutsData.players].filter((p) => matchupPayoutsResult.involvedIds.has(p.id)).sort((a, b) => (matchupPayoutsResult.net[b.id] ?? 0) - (matchupPayoutsResult.net[a.id] ?? 0)).map((p) => {
                                       const v = Math.round((matchupPayoutsResult.net[p.id] ?? 0) * 100) / 100
-                                      return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700">{p.name}</span><span className="text-xs font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                                      return (<div key={p.id} className="flex items-center justify-between"><span className="text-xs text-gray-700">{p.name}</span><span className="text-xs font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{fmtNetSigned(v)}</span></div>)
                                     })}
                                   </div>
                                 </div>
                                 <div className="border-t border-gray-100 px-4 py-3">
                                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Settlements</p>
-                                  {matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}
+                                  {matchupOnlySettlements.length === 0 ? <p className="text-xs text-gray-400 text-center">All even — no payments needed</p> : matchupOnlySettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-xs text-gray-800"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-400"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-xs font-bold text-gray-900">{fmtSettle(s.amount)}</span></div>))}
                                 </div>
                               </>
                             )}
@@ -1515,13 +1521,13 @@ export default function ScoreEntry({
                         <div className="space-y-1">
                           {[...payoutsData.players].sort((a, b) => (combinedNet[b.id] ?? 0) - (combinedNet[a.id] ?? 0)).map((p) => {
                             const v = Math.round((combinedNet[p.id] ?? 0) * 100) / 100
-                            return (<div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0"><span className="text-sm text-gray-900">{p.name}</span><span className="text-sm font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{v > 0 ? `$${v.toFixed(2)}` : v < 0 ? `$${Math.abs(v).toFixed(2)}` : 'Even'}</span></div>)
+                            return (<div key={p.id} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0"><span className="text-sm text-gray-900">{p.name}</span><span className="text-sm font-bold tabular-nums" style={{ color: v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#6b7280' }}>{fmtNetSigned(v)}</span></div>)
                           })}
                         </div>
                       </div>
                       <div className="border-t border-gray-200 px-4 py-3">
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Who Pays Who</p>
-                        {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900">${s.amount.toFixed(2)}</span></div>))}
+                        {combinedSettlements.length === 0 ? <p className="text-xs text-gray-400 text-center py-2">No payouts yet</p> : combinedSettlements.map((s, i) => (<div key={i} className="flex items-center justify-between py-1"><span className="text-sm text-gray-800"><span className="font-semibold text-red-500">{s.fromName}</span><span className="text-gray-500"> pays </span><span className="font-semibold text-green-600">{s.toName}</span></span><span className="text-sm font-bold text-gray-900">{fmtSettle(s.amount)}</span></div>))}
                       </div>
                     </div>
                   </>
