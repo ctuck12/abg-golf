@@ -3291,12 +3291,16 @@ export default function MatchupClient({
                                 {rankedLines.map((line) => {
                                   const lp = players.find((p) => p.id === line.id)
                                   const hasStrokes = line.strokes.front > 0 || line.strokes.back > 0 || line.strokes.total > 0
+                                  const wonTotal = !!tSeg?.settled && !tSeg.tied && tSeg.winnerId === line.id
                                   const chk = <span style={{ position: 'absolute', left: '100%', paddingLeft: '2px', color: '#16a34a' }}>✓</span>
                                   return (
                                     <tr key={line.id} className="border-t border-gray-100">
                                       <td className="px-3 py-2 whitespace-nowrap">
                                         <span className="text-xs font-semibold text-gray-800">{lp?.name ?? '?'}</span>
-                                        {tSeg?.settled && !tSeg.tied && tSeg.winnerId === line.id && (
+                                        {/* On an Overall bet the total IS the whole bet, so the win belongs
+                                            to the player. On a Nassau it's one of three, and marking the name
+                                            reads as having won the lot — it goes by the Total score instead. */}
+                                        {!isNassauMed && wonTotal && (
                                           <span className="ml-1 font-bold" style={{ color: '#16a34a' }}>✓</span>
                                         )}
                                         {hasStrokes && (
@@ -3320,9 +3324,9 @@ export default function MatchupClient({
                                         </span>
                                       </td>}
                                       <td className="px-3 py-2 text-center text-xs font-semibold" style={{ position: 'relative', color: vpColor(line.total) }}>
-                                        {/* Winner checkmark lives by the name only — marking the score too is redundant */}
                                         <span style={{ position: 'relative', display: 'inline-block' }}>
                                           <VsParDisplay n={line.total} />
+                                          {isNassauMed && wonTotal && chk}
                                         </span>
                                       </td>
                                       {medPressResults.map((pres, pi) => {
