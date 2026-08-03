@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const bankerSideGame = searchParams.get('bankerSideGame') === 'true'
 
   if (!roundId) {
-    return NextResponse.json({ teams: [], players: [], scores: [], ballValues: [], assignments: [], matchups: [], bestBallMatchups: [], medleyMatchups: [], holeValues: {}, bankerHolesAll: [], bankerBetsAll: [], holeStrokesAll: [] })
+    return NextResponse.json({ teams: [], players: [], scores: [], ballValues: [], assignments: [], matchups: [], bestBallMatchups: [], medleyMatchups: [], holeValues: {}, bankerHolesAll: [], bankerBetsAll: [], holeStrokesAll: [], skins: { enabled: false, amount: 0, mode: 'per_hole' } })
   }
 
   const supabase = createServerClient()
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   const allPlayersRes = await supabase
     .from('players')
-    .select('id, team_id, name, position')
+    .select('id, team_id, name, position, holes_range, skins_participant')
     .in('team_id', allTeamIds.length ? allTeamIds : [''])
     .order('position', { ascending: true })
 
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     { data: bankerBetsRaw },
     { data: holeStrokesRaw },
     { data: medleyData },
+    { data: roundSkins },
   ] = await Promise.all([
     supabase.from('scores').select('player_id, hole_number, strokes').in('player_id', allPlayerIds.length ? allPlayerIds : ['']),
     supabase.from('ball_values').select('ball_number, value_dollars').eq('round_id', roundId).order('ball_number'),
@@ -57,10 +58,11 @@ export async function GET(request: NextRequest) {
     bankerSideGame && allTeamIds.length
       ? supabase.from('banker_bets').select('team_id, hole_number, player_id, base_bet, player_doubled, banker_doubled').eq('round_id', roundId).in('team_id', allTeamIds)
       : Promise.resolve({ data: [] }),
-    bankerSideGame && allPlayerIds.length
+    allPlayerIds.length
       ? supabase.from('hole_strokes').select('hole_number, player_id').eq('round_id', roundId).in('player_id', allPlayerIds)
       : Promise.resolve({ data: [] }),
     supabase.from('medley_matchups').select('id, players, bet_type, amount, press').eq('round_id', roundId),
+    supabase.from('rounds').select('skins_enabled, skins_amount, skins_mode').eq('id', roundId).single(),
   ])
 
   const holeValues: Record<string, Record<number, number>> = {}
@@ -82,5 +84,10 @@ export async function GET(request: NextRequest) {
     bankerHolesAll: bankerHolesRaw ?? [],
     bankerBetsAll: bankerBetsRaw ?? [],
     holeStrokesAll: holeStrokesRaw ?? [],
+    skins: {
+      enabled: !!roundSkins?.skins_enabled,
+      amount: roundSkins?.skins_amount ?? 0,
+      mode: roundSkins?.skins_mode ?? 'per_hole',
+    },
   })
 }

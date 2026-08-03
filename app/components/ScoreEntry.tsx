@@ -10,7 +10,7 @@ import {
   computeMedley, computeAllMatchupPayouts, type MedleyMatchup,
   computePlayerDaytonaPointsSplit, computePlayerDaytonaDollarsSplit,
   computeHoleDaytonaPointsFiveMan, daytonaAutoStrokeIds, bankerStrokeSplit,
-  calculatePoolPayouts, settleDaytonaPlayerPoints,
+  calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults, computeSkinsPotResults, netScoresForHoleStrokes,
   type DaytonaHoleAssignment, type DaytonaSide,
 } from '@/lib/scoring'
 import { ScoreNotation } from './ScoreNotation'
@@ -27,7 +27,7 @@ type Score = { player_id: string; hole_number: number; strokes: number }
 type Team = { id: string; name: string }
 type AssignmentMap = Record<number, Record<string, DaytonaSide>>
 type AllTeam = { id: string; name: string; daytona_variant?: string | null; daytona_variant_back9?: string | null }
-type AllPlayer = { id: string; team_id: string; name: string; position: number | null }
+type AllPlayer = { id: string; team_id: string; name: string; position: number | null; holes_range?: string | null; skins_participant?: boolean }
 type BallValue = { ball_number: number; value_dollars: number }
 type MPressEntry = { id: string; holeStart: number; holeEnd: number; amount: number; strokesSide?: 'p1' | 'p2'; strokes?: number; forfeit?: PressForfeit | null }
 type SavedMatchup = { id: string; player1_id: string; player2_id: string; bet: string; press?: MPressEntry[]; hole_range?: string | null }
@@ -37,6 +37,7 @@ type MatchupScoringType = 'stroke' | 'match'
 type PayoutsData = {
   teams: AllTeam[]; players: AllPlayer[]; scores: Score[]; ballValues: BallValue[]
   assignments: DaytonaHoleAssignment[]; matchups: SavedMatchup[]; bestBallMatchups: BestBallMatchup[]; medleyMatchups: MedleyMatchup[]
+  skins: { enabled: boolean; amount: number; mode: string }
   holeValues: Record<string, Record<number, number>>
   bankerHolesAll: { team_id: string; hole_number: number; banker_player_id: string | null; max_bet: number }[]
   bankerBetsAll: { team_id: string; hole_number: number; player_id: string; base_bet: number; player_doubled: boolean; banker_doubled: boolean }[]
@@ -424,6 +425,7 @@ export default function ScoreEntry({
         bankerHolesAll: data.bankerHolesAll,
         bankerBetsAll: data.bankerBetsAll,
         holeStrokesAll: data.holeStrokesAll,
+        skins: data.skins ?? { enabled: false, amount: 0, mode: 'per_hole' },
       })
     }
     setPayoutsLoading(false)
@@ -1177,7 +1179,7 @@ export default function ScoreEntry({
                 const frontHolesP = holes.filter((h) => h.hole_number <= 9)
                 const backHolesP = holes.filter((h) => h.hole_number >= 10)
                 const perBallValue = payoutsData.ballValues.find((bv) => bv.ball_number === 1)?.value_dollars ?? 5
-                const dtPayoutValue = perBallValue
+                const dtPayoutValue = payoutsData.ballValues.find((bv) => bv.ball_number === 1)?.value_dollars ?? 0
                 const numSegments = includeTotal ? 3 : 2
 
                 // Score map for matchup computations
@@ -1211,13 +1213,23 @@ export default function ScoreEntry({
                 const isDaytonaShowing = isDaytona || isDaytonaSideGame
                 const daytonaNetByPlayer: Record<string, number> = {}
                 if (isDaytonaShowing) {
+                  // Handicap strokes come off the Daytona money. Scoring them gross
+                  // here is what put this modal at odds with the leaderboard's payouts.
+                  const strokeKeys = new Set(payoutsData.holeStrokesAll.map((hs) => `${hs.hole_number}:${hs.player_id}`))
                   for (const t of payoutsData.teams) {
                     const tp = payoutsData.players.filter((p) => p.team_id === t.id)
                     const tpIds = tp.map((p) => p.id)
                     const tAssign = payoutsData.assignments.filter((a) => tpIds.includes(a.player_id))
-                    const tScores = payoutsData.scores.filter((s) => tpIds.includes(s.player_id))
+                    const tScores = netScoresForHoleStrokes(
+                      payoutsData.scores.filter((s) => tpIds.includes(s.player_id)),
+                      (pid, hn) => strokeKeys.has(`${hn}:${pid}`))
                     const tHoleVals = payoutsData.holeValues[t.id] ?? {}
-                    const dollarTotals = computePlayerDaytonaDollarsSplit(holes, tScores, tAssign, t.daytona_variant ?? daytonaVariant, t.daytona_variant_back9 ?? (t.id === team.id ? daytonaVariantBack9 : null), dtPayoutValue, tHoleVals)
+                    // A side game carries its per-point value inside the variant string
+                    const rawVariant = t.daytona_variant ?? null
+                    const tVariant = rawVariant ? rawVariant.split('|')[0] : daytonaVariant
+                    const payoutStr = rawVariant?.includes('|') ? rawVariant.split('|')[1] : null
+                    const tPayoutValue = payoutStr ? (parseFloat(payoutStr) || dtPayoutValue) : dtPayoutValue
+                    const dollarTotals = computePlayerDaytonaDollarsSplit(holes, tScores, tAssign, tVariant, t.daytona_variant_back9 ?? null, tPayoutValue, tHoleVals)
                     const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
                     for (const [id, amt] of Object.entries(pNet)) daytonaNetByPlayer[id] = (daytonaNetByPlayer[id] ?? 0) + amt
                   }
@@ -1257,11 +1269,19 @@ export default function ScoreEntry({
                   }
                 }
 
+                // Skins — part of the leaderboard's combined net, so it belongs here too
+                const skinsParticipants = payoutsData.players.filter((p) => p.skins_participant)
+                const skinsNet = (payoutsData.skins.enabled && skinsParticipants.length > 0
+                  ? (payoutsData.skins.mode === 'pot'
+                      ? computeSkinsPotResults(holes, payoutsData.scores, skinsParticipants, payoutsData.skins.amount)
+                      : computeSkinsResults(holes, payoutsData.scores, skinsParticipants, payoutsData.skins.amount))
+                  : { playerNet: {} as Record<string, number> }).playerNet
+
                 // Combined net
                 const combinedNet: Record<string, number> = {}
                 for (const p of payoutsData.players) {
                   const ballNet = (isDaytona || format === 'traditional' || format === 'banker' || format === 'hammer') ? 0 : (poolResults.playerNet[p.id] ?? 0)
-                  combinedNet[p.id] = ballNet + (matchupPayoutsResult.net[p.id] ?? 0) + (daytonaNetByPlayer[p.id] ?? 0) + (bankerNetByPlayer[p.id] ?? 0)
+                  combinedNet[p.id] = ballNet + (matchupPayoutsResult.net[p.id] ?? 0) + (daytonaNetByPlayer[p.id] ?? 0) + (bankerNetByPlayer[p.id] ?? 0) + (skinsNet[p.id] ?? 0)
                 }
                 const combinedSettlements = minimizeSettlements(payoutsData.players, combinedNet)
 
@@ -1489,7 +1509,7 @@ export default function ScoreEntry({
                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       <div className="px-4 py-3 border-b border-gray-100">
                         <h4 className="font-semibold text-gray-900 text-sm">Combined Settlements</h4>
-                        <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game' : 'Ball game'}{isDaytonaSideGame ? ' + Daytona side game' : ''}{bankerSideGame ? ' + Banker side game' : ''} + all matchup bets</p>
+                        <p className="text-xs text-gray-500">{isDaytona ? 'Daytona game' : 'Ball game'}{isDaytonaSideGame ? ' + Daytona side game' : ''}{bankerSideGame ? ' + Banker side game' : ''} + all matchup bets{payoutsData.skins.enabled ? ' + skins' : ''}</p>
                       </div>
                       <div className="px-4 pt-3 pb-2">
                         <div className="space-y-1">

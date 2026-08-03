@@ -193,6 +193,19 @@ export function roundHcp(v: number, mode: string | null | undefined, fallback: '
   return fallback === 'trunc' ? Math.trunc(v) : Math.floor(v)
 }
 
+/** Subtract the handicap stroke on each hole a player has one.
+ *
+ *  Daytona money is settled on these netted scores, so every view that shows
+ *  the payout has to net the same way — the scorekeeper's Final Payouts once
+ *  scored it gross and disagreed with the leaderboard about who owed what.
+ */
+export function netScoresForHoleStrokes<T extends { player_id: string; hole_number: number; strokes: number }>(
+  scores: T[],
+  hasStroke: (playerId: string, holeNumber: number) => boolean,
+): T[] {
+  return scores.map((s) => hasStroke(s.player_id, s.hole_number) ? { ...s, strokes: s.strokes - 1 } : s)
+}
+
 // ── Automatic stroke holes ───────────────────────────────────────────────────
 // Both score screens and the server-side recompute go through these, so a
 // stored stroke and a recalculated one can't disagree.

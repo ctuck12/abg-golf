@@ -15,6 +15,8 @@ import {
   computePlayerDaytonaPointsSplit,
   daytonaAutoStrokeIds,
   bankerStrokeSplit,
+  netScoresForHoleStrokes,
+  computePlayerDaytonaDollarsSplit,
 } from './scoring'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -107,6 +109,47 @@ describe('computePlayerDaytonaPointsSplit', () => {
     expect(pts.get('bacon')).toBe(-40)
     expect(pts.get('jon')).toBe(-40)
     expect(pts.get('chip')).toBe(40)
+  })
+})
+
+// ── Netting handicap strokes into the money ──────────────────────────────────
+
+describe('netScoresForHoleStrokes', () => {
+  it('takes a stroke off only the holes a player has one on', () => {
+    const scores = [score('jon', 1, 5), score('jon', 2, 4), score('chip', 1, 4)]
+    const out = netScoresForHoleStrokes(scores, (pid, hn) => pid === 'jon' && hn === 1)
+    expect(out).toEqual([score('jon', 1, 4), score('jon', 2, 4), score('chip', 1, 4)])
+  })
+
+  it('returns the untouched rows by reference and never mutates the input', () => {
+    const scores = [score('jon', 1, 5), score('chip', 1, 4)]
+    const out = netScoresForHoleStrokes(scores, (pid) => pid === 'jon')
+    expect(out[1]).toBe(scores[1])
+    expect(scores[0].strokes).toBe(5)
+  })
+
+  // The Final Payouts modal scored Daytona gross while the leaderboard netted,
+  // so the two put different money on the same round. Whoever is carrying the
+  // strokes moves the most, which is exactly what made it visible.
+  it('changes who owes what in the Daytona dollars', () => {
+    const holes = [hole(1), hole(2)]
+    const side = (player_id: string, hole_number: number, s: 'left' | 'right') => ({ player_id, hole_number, side: s })
+    const assignments = [
+      side('chip', 1, 'left'), side('bacon', 1, 'left'), side('jon', 1, 'right'), side('tyler', 1, 'right'),
+      side('chip', 2, 'left'), side('bacon', 2, 'left'), side('jon', 2, 'right'), side('tyler', 2, 'right'),
+    ]
+    // Left is 40 (low ball at par). Right's best is over par, so it flips to the
+    // high ball: 60 gross, 50 once Jon's stroke lands.
+    const gross = [
+      score('chip', 1, 4), score('bacon', 1, 5), score('jon', 1, 6), score('tyler', 1, 5),
+      score('chip', 2, 4), score('bacon', 2, 5), score('jon', 2, 6), score('tyler', 2, 5),
+    ]
+    const net = netScoresForHoleStrokes(gross, (pid) => pid === 'jon')
+    const grossDollars = computePlayerDaytonaDollarsSplit(holes, gross, assignments, '4man', null, 0.25)
+    const netDollars = computePlayerDaytonaDollarsSplit(holes, net, assignments, '4man', null, 0.25)
+    // Losing 20 a hole gross, 10 a hole net — the strokes are worth real money
+    expect(grossDollars.get('jon')).toBe(-10)
+    expect(netDollars.get('jon')).toBe(-5)
   })
 })
 

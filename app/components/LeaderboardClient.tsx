@@ -10,7 +10,7 @@ import {
   calculatePoolPayouts, settleDaytonaPlayerPoints, computeSkinsResults, computeSkinsPotResults,
   computeHoleDaytonaWithSides, computeHoleDaytonaPointsFiveMan,
   type DaytonaHoleAssignment, type SkinResult,
-  computeAllMatchupPayouts,
+  computeAllMatchupPayouts, netScoresForHoleStrokes,
 } from '@/lib/scoring'
 import PinLoginModal from './PinLoginModal'
 import { readRoundRole, writeRoundRole } from '../../lib/round-role'
@@ -906,7 +906,7 @@ export default function LeaderboardClient({
       const tpIds = tp.map((p) => p.id)
       const tAssign = assignments.filter((a) => tpIds.includes(a.player_id))
       const tScores = scores.filter((s) => tpIds.includes(s.player_id))
-      const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+      const netTScores = netScoresForHoleStrokes(tScores, (pid, hn) => (liveHoleStrokes[hn] ?? []).includes(pid))
       const tHoleVals = liveHoleValues[group.team.id] ?? {}
       const dollarTotals = computePlayerDaytonaDollarsSplit(holes, netTScores, tAssign, group.variant, group.back9, dtPayoutValue, tHoleVals)
       const { net: pNet } = settleDaytonaPlayerPoints(tp, dollarTotals, 1)
@@ -927,7 +927,7 @@ export default function LeaderboardClient({
     const groupPlayers = players.filter((p) => pids.includes(p.id))
     const tAssign = assignments.filter((a) => pids.includes(a.player_id))
     const tScores = scores.filter((s) => pids.includes(s.player_id))
-    const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+    const netTScores = netScoresForHoleStrokes(tScores, (pid, hn) => (liveHoleStrokes[hn] ?? []).includes(pid))
     const tHoleVals = liveHoleValues[group.id] ?? {}
     const dollarTotals = computePlayerDaytonaDollarsSplit(holes, netTScores, tAssign, variant, group.daytona_variant_back9, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
@@ -946,7 +946,7 @@ export default function LeaderboardClient({
     const groupPlayers = players.filter((p) => pids.includes(p.id))
     const tAssign = assignments.filter((a) => pids.includes(a.player_id))
     const tScores = scores.filter((s) => pids.includes(s.player_id))
-    const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+    const netTScores = netScoresForHoleStrokes(tScores, (pid, hn) => (liveHoleStrokes[hn] ?? []).includes(pid))
     const tHoleVals = liveHoleValues[group.team.id] ?? {}
     const dollarTotals = computePlayerDaytonaDollarsSplit(holes, netTScores, tAssign, variant, group.team.daytona_variant_back9, groupPayoutValue, tHoleVals)
     const { net: pNet } = settleDaytonaPlayerPoints(groupPlayers, dollarTotals, 1)
@@ -1464,7 +1464,7 @@ export default function LeaderboardClient({
                         const groupPlayers = players.filter((p) => pids.includes(p.id))
                         const tAssign = assignments.filter((a) => pids.includes(a.player_id))
                         const tScores = scores.filter((s) => pids.includes(s.player_id))
-                        const netTScores = tScores.map((s) => ({ ...s, strokes: s.strokes - ((liveHoleStrokes[s.hole_number] ?? []).includes(s.player_id) ? 1 : 0) }))
+                        const netTScores = netScoresForHoleStrokes(tScores, (pid, hn) => (liveHoleStrokes[hn] ?? []).includes(pid))
                         const tHoleVals = liveHoleValues[group.id] ?? {}
                         const pointTotals = group.pointsMap ?? new Map<string, number>()
                         const dollarTotals = computePlayerDaytonaDollarsSplit(holes, netTScores, tAssign, variant, group.daytona_variant_back9, groupPayoutValue, tHoleVals)
