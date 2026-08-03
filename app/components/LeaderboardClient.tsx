@@ -2661,13 +2661,6 @@ export default function LeaderboardClient({
               style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: 'clamp(9px, 2.4vw, 11px)' }}>
               Payouts
             </button>
-            {isDaytona && initialTeams.length === 1 && (
-              <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
-                className="font-semibold px-2 py-1 rounded-full flex-shrink-0"
-                style={{ background: 'rgba(245,158,11,0.12)', border: '1.5px solid #f59e0b', color: navy, boxShadow: '0 2px 8px rgba(245,158,11,0.3)', fontSize: 'clamp(9px, 2.4vw, 11px)' }}>
-                All Scorecards
-              </a>
-            )}
           </div>
         )}
 
@@ -2983,14 +2976,22 @@ export default function LeaderboardClient({
               <div className="flex items-center px-4 py-2 text-xs font-semibold uppercase" style={{ color: 'white' }}>
                 <span className="w-5 mr-2 flex-shrink-0">#</span>
                 <span className="flex-1 min-w-0">Player</span>
-                {leaderboardView === 'individual' && (
+                {leaderboardView === 'individual' ? (
                   <button
                     onClick={() => { setAllScorecardsGroupId(null); setShowAllScorecards(true) }}
                     className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
                     style={{ background: gold, color: navy }}>
                     All Scorecards
                   </button>
-                )}
+                ) : isDaytona && initialTeams.length === 1 ? (
+                  /* The in-depth per-player cards, points and all. This used to sit
+                     beside Payouts, a row away from the standings it belongs to. */
+                  <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                    style={{ background: gold, color: navy }}>
+                    All Scorecards
+                  </a>
+                ) : null}
                 <span className="inline-flex justify-center flex-shrink-0" style={{ width: '4rem', color: gold }}>{isDaytona && leaderboardView === 'group' ? 'Points' : 'Score'}</span>
                 <span className="inline-flex justify-center flex-shrink-0" style={{ width: '2.75rem' }}>Thru</span>
               </div>
