@@ -237,7 +237,7 @@ export default function AdminDashboard({
   orgSlug: string; orgId: string; orgName: string; isMaster?: boolean
   round: Round; teams: Team[]; players: Player[]; holes: Hole[]; ballValues: BallValue[]; scores: Score[]; scorecardTeamId?: string | null; scorecardGroupId?: string | null; dtAssignments?: DaytonaHoleAssignment[]
   matchups?: SavedMatchup[]; bestBallMatchups?: BestBallMatchup[]; medleyMatchups?: MedleyMatchup[]; initialHoleValues?: Record<string, Record<number, number>>
-  courses?: { name: string; slug: string; pars: number[] }[]
+  courses?: { name: string; slug: string; pars: number[]; course_tees?: { id: string; name: string; position?: number | null }[] | null }[]
   playingGroups?: PlayingGroup[]
   playingGroupPlayers?: PlayingGroupPlayer[]
   roster?: RosterPlayer[]
@@ -291,6 +291,9 @@ export default function AdminDashboard({
   const [editDaytonaPayout, setEditDaytonaPayout] = useState('')
   const [editDaytonaBack9, setEditDaytonaBack9] = useState('')
   const [selectedCourse, setSelectedCourse] = useState('')
+  // Which tee the round is played from. Only matters if posting to GHIN gets set
+  // up — nothing that scores the round reads it.
+  const [selectedTeeId, setSelectedTeeId] = useState('')
   const [selectedFormat, setSelectedFormat] = useState('')
   const [showNewRoundForm, setShowNewRoundForm] = useState(!round)
   const [showNewRoundWarning, setShowNewRoundWarning] = useState(false)
@@ -1519,14 +1522,24 @@ export default function AdminDashboard({
 
   function handleCourseChange(courseKey: string) {
     setSelectedCourse(courseKey)
+    // A tee belongs to one course, so a course change invalidates the choice.
+    // Preselect when there's only one tee to pick.
+    const tees = courseTeesFor(courseKey)
+    setSelectedTeeId(tees.length === 1 ? tees[0].id : '')
     const presetPars = COURSE_PARS_CLIENT[courseKey]
     if (presetPars) {
       setPars(Object.fromEntries(presetPars.map((par, i) => [i + 1, par])))
     }
   }
 
+  function courseTeesFor(courseKey: string) {
+    const c = courses.find((x) => x.slug === courseKey)
+    return [...(c?.course_tees ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  }
+
   function enterRoundEditMode() {
     if (!round) return
+    setSelectedTeeId((round as { course_tee_id?: string | null }).course_tee_id ?? '')
     setNewRoundName(round.name ?? '')
     setNewRoundDate(round.date ?? '')
     setSelectedFormat(round.format ?? 'standard')
@@ -1568,6 +1581,7 @@ export default function AdminDashboard({
           name: newRoundName.trim(),
           date: newRoundDate,
           courseSlug: selectedCourse,
+          courseTeeId: selectedTeeId || null,
           format: selectedFormat,
           ballsCount: parseInt(selectedBallsCount) || 3,
           includeTotal: createIncludeTotal,
@@ -3395,6 +3409,24 @@ export default function AdminDashboard({
                     </select>
                     <p className="text-xs text-gray-400 mt-1">Course pars auto-load — edit them in the Par Per Hole section after creating.</p>
                   </div>
+                  {/* ── Which tee. Recorded on the round; nothing that scores it reads
+                      this, it's there for posting handicaps later. ── */}
+                  {selectedCourse && courseTeesFor(selectedCourse).length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Tees Playing</label>
+                      <select
+                        name="course_tee_id"
+                        value={selectedTeeId}
+                        onChange={(e) => setSelectedTeeId(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      >
+                        <option value="">Not set</option>
+                        {courseTeesFor(selectedCourse).map((t) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   {editingRoundSettings ? (
                     <button
                       type="button"

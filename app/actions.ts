@@ -259,6 +259,9 @@ export async function createRound(_prev: unknown, formData: FormData) {
     const orgId = formData.get('orgId') as string
     const orgSlug = (formData.get('orgSlug') as string)?.trim()
     const courseSlug = (formData.get('course') as string) || 'south'
+    // Which tee the round is played from. Recorded only — nothing that scores a
+    // round reads it; it's there for posting handicaps later.
+    const courseTeeId = (formData.get('course_tee_id') as string) || null
     const format = (formData.get('format') as string) || 'standard'
     const daytonaVariant = null
     const isBanker = format === 'banker'
@@ -300,7 +303,7 @@ export async function createRound(_prev: unknown, formData: FormData) {
     // any step can no longer leave the group with no active round.
     const { data: round, error } = await supabase
       .from('rounds')
-      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: false, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}), ...(bankerDefaultMaxBet != null ? { banker_default_max_bet: bankerDefaultMaxBet } : {}), ...(bankerDoubleScope != null ? { banker_double_scope: bankerDoubleScope } : {}), ...((format === 'daytona' || isBanker) ? { auto_handicap: true } : {}) })
+      .insert({ name, date, course: courseName, balls_count: ballsCount, format, daytona_variant: daytonaVariant, include_total: includeTotal, is_active: false, is_started: false, org_id: orgId, ...(bankerMinBet != null ? { banker_min_bet: bankerMinBet } : {}), ...(bankerDefaultMaxBet != null ? { banker_default_max_bet: bankerDefaultMaxBet } : {}), ...(bankerDoubleScope != null ? { banker_double_scope: bankerDoubleScope } : {}), ...((format === 'daytona' || isBanker) ? { auto_handicap: true } : {}), ...(courseTeeId ? { course_tee_id: courseTeeId } : {}) })
       .select().single()
 
     if (error || !round) return { error: error?.message ?? 'Failed to create round.' }

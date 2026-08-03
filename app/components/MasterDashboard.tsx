@@ -9,7 +9,14 @@ const navy = '#0f172a'
 const gold = '#f59e0b'
 
 type Org = { id: string; name: string; slug: string; is_active: boolean; created_at: string }
-type Course = { id: string; name: string; slug: string; pars: number[]; stroke_indexes?: number[] | null; is_active: boolean }
+type CourseTee = {
+  id: string; name: string; course_rating?: number | null; slope_rating?: number | null
+  ghin_course_id?: string | null; ghin_tee_set_id?: string | null; position?: number | null
+}
+type Course = {
+  id: string; name: string; slug: string; pars: number[]; stroke_indexes?: number[] | null; is_active: boolean
+  course_tees?: CourseTee[] | null
+}
 type ActiveRound = { id: string; name: string; date: string; course: string; format: string; is_started: boolean; org_id: string }
 
 export default function MasterDashboard({
@@ -139,6 +146,11 @@ export default function MasterDashboard({
   const [courseSlug, setCourseSlug] = useState('')
   const [coursePars, setCoursePars] = useState<string[]>(Array(18).fill('4'))
   const [courseStrokeIndexes, setCourseStrokeIndexes] = useState<string[]>(Array(18).fill(''))
+  type TeeDraft = { name: string; rating: string; slope: string; ghinCourseId: string; ghinTeeSetId: string }
+  const emptyTee: TeeDraft = { name: '', rating: '', slope: '', ghinCourseId: '', ghinTeeSetId: '' }
+  const [courseTees, setCourseTees] = useState<TeeDraft[]>([])
+  const updateTee = (i: number, patch: Partial<TeeDraft>) =>
+    setCourseTees((prev) => prev.map((t, ti) => ti === i ? { ...t, ...patch } : t))
   const [courseError, setCourseError] = useState('')
   const [coursePending, setCoursePending] = useState(false)
 
@@ -218,6 +230,7 @@ export default function MasterDashboard({
   function openNewCourse() {
     setEditingCourse(null)
     setCourseName(''); setCourseSlug(''); setCoursePars(Array(18).fill('4')); setCourseStrokeIndexes(Array(18).fill('')); setCourseError('')
+    setCourseTees([])
     setShowCourseForm(true)
   }
   function openEditCourse(c: Course) {
@@ -229,6 +242,15 @@ export default function MasterDashboard({
     const siRaw = c.stroke_indexes
     const siArr = Array.isArray(siRaw) ? siRaw : (siRaw ? (() => { try { return JSON.parse(String(siRaw)) } catch { return null } })() : null)
     setCourseStrokeIndexes(Array.isArray(siArr) ? siArr.map(String) : Array(18).fill(''))
+    setCourseTees([...(c.course_tees ?? [])]
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .map((t) => ({
+        name: t.name,
+        rating: t.course_rating != null ? String(t.course_rating) : '',
+        slope: t.slope_rating != null ? String(t.slope_rating) : '',
+        ghinCourseId: t.ghin_course_id ?? '',
+        ghinTeeSetId: t.ghin_tee_set_id ?? '',
+      })))
     setCourseError(''); setShowCourseForm(true)
   }
 
@@ -246,7 +268,13 @@ export default function MasterDashboard({
         stroke_indexes = si
       }
       const url = editingCourse ? `/api/master/courses/${editingCourse.id}` : '/api/master/courses'
-      const res = await fetch(url, { method: editingCourse ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: courseName, slug: courseSlug, pars, stroke_indexes }) })
+      const res = await fetch(url, { method: editingCourse ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        name: courseName, slug: courseSlug, pars, stroke_indexes,
+        tees: courseTees.map((t) => ({
+          name: t.name, course_rating: t.rating, slope_rating: t.slope,
+          ghin_course_id: t.ghinCourseId, ghin_tee_set_id: t.ghinTeeSetId,
+        })),
+      }) })
       const data = await res.json()
       if (data.error) { setCourseError(data.error); return }
       setShowCourseForm(false); router.refresh()
@@ -508,6 +536,66 @@ export default function MasterDashboard({
                     <label className="block text-xs font-medium text-gray-600 mb-1">Slug</label>
                     <input value={courseSlug} onChange={(e) => setCourseSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} required placeholder="e.g. acc-south" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" disabled={!!editingCourse} />
                   </div>
+                  {/* ── Tees. Pars and stroke indexes are the same whichever tee you
+                      play, so only the rating and slope live here. Optional: every
+                      game in the app works without them; they're what a GHIN post
+                      and a course handicap need. ── */}
+                  <div className="border-t border-gray-100 pt-3">
+                    <div className="flex items-baseline justify-between gap-2 mb-2">
+                      <div className="flex items-baseline gap-2 min-w-0">
+                        <label className="block text-xs font-medium text-gray-600">Tees</label>
+                        <span className="text-[11px] text-gray-400">rating &amp; slope are optional</span>
+                      </div>
+                      <button type="button" onClick={() => setCourseTees((prev) => [...prev, { ...emptyTee }])}
+                        className="text-xs font-semibold px-2 py-0.5 rounded-lg border border-gray-300 text-gray-700 flex-shrink-0">
+                        + Tee
+                      </button>
+                    </div>
+                    {courseTees.length === 0 ? (
+                      <p className="text-[11px] text-gray-400">No tees yet. Add one and it becomes selectable when setting up a round.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {courseTees.map((t, i) => (
+                          <div key={i} className="border border-gray-200 rounded-lg p-2 space-y-2">
+                            <div className="flex gap-2">
+                              <div className="flex-1 min-w-0">
+                                <label className="block text-[11px] text-gray-500 mb-1">Tee</label>
+                                <input value={t.name} onChange={(e) => updateTee(i, { name: e.target.value })} placeholder="e.g. Blue"
+                                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none" />
+                              </div>
+                              <div className="w-20 flex-shrink-0">
+                                <label className="block text-[11px] text-gray-500 mb-1">Rating</label>
+                                <input type="number" step="0.1" min="55" max="85" inputMode="decimal" value={t.rating}
+                                  onChange={(e) => updateTee(i, { rating: e.target.value })} placeholder="71.2"
+                                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none" />
+                              </div>
+                              <div className="w-20 flex-shrink-0">
+                                <label className="block text-[11px] text-gray-500 mb-1">Slope</label>
+                                <input type="number" step="1" min="55" max="155" inputMode="numeric" value={t.slope}
+                                  onChange={(e) => updateTee(i, { slope: e.target.value })} placeholder="129"
+                                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none" />
+                              </div>
+                              <button type="button" onClick={() => setCourseTees((prev) => prev.filter((_, ti) => ti !== i))}
+                                className="text-xs text-gray-400 hover:text-red-500 self-end pb-2 flex-shrink-0" title="Remove tee">✕</button>
+                            </div>
+                            <div className="flex gap-2">
+                              <div className="flex-1 min-w-0">
+                                <label className="block text-[11px] text-gray-500 mb-1">GHIN Course ID</label>
+                                <input value={t.ghinCourseId} onChange={(e) => updateTee(i, { ghinCourseId: e.target.value })} placeholder="blank for now"
+                                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none font-mono" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <label className="block text-[11px] text-gray-500 mb-1">GHIN Tee Set ID</label>
+                                <input value={t.ghinTeeSetId} onChange={(e) => updateTee(i, { ghinTeeSetId: e.target.value })} placeholder="blank for now"
+                                  className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none font-mono" />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-1.5">Rating and slope are printed on the scorecard and on ghin.com.</p>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-2">Hole Data</label>
                     <div className="overflow-x-auto -mx-1 pb-1">
@@ -588,6 +676,15 @@ export default function MasterDashboard({
                       <div>
                         <p className="font-semibold text-gray-900 text-sm">{c.name}</p>
                         <p className="text-xs text-gray-400">Par {total} · /{c.slug}</p>
+                        {(c.course_tees ?? []).length > 0 && (
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            {[...(c.course_tees ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((t) => (
+                              t.course_rating != null && t.slope_rating != null
+                                ? `${t.name} ${t.course_rating}/${t.slope_rating}`
+                                : t.name
+                            )).join(' · ')}
+                          </p>
+                        )}
                       </div>
                       <div className="flex gap-1.5 flex-shrink-0">
                         <button onClick={() => openEditCourse(c)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 font-medium text-gray-700">Edit</button>
