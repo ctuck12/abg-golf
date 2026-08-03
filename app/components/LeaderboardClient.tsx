@@ -2987,7 +2987,7 @@ export default function LeaderboardClient({
                   /* The in-depth per-player cards, points and all. This used to sit
                      beside Payouts, a row away from the standings it belongs to. */
                   <a href={`/${orgSlug}/scorecards?teamId=${initialTeams[0].id}`}
-                    className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0 normal-case inline-block"
                     style={{ background: gold, color: navy }}>
                     All Scorecards
                   </a>
