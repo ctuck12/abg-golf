@@ -27,6 +27,9 @@ export default function MasterDashboard({
   activeRounds: ActiveRound[]
 }) {
   const router = useRouter()
+  // The deployment's own hostname, so renaming the domain doesn't strand this label
+  const [siteHost, setSiteHost] = useState('abgscoring.vercel.app')
+  useEffect(() => { if (typeof window !== 'undefined') setSiteHost(window.location.host) }, [])
   const [tab, setTab] = useState<'groups' | 'courses' | 'rounds' | 'rosters'>('groups')
   // PWA push notifications: 'checking' | 'unsupported' | 'subscribed' | 'unsubscribed' | 'denied'
   const [pushState, setPushState] = useState('checking')
@@ -428,7 +431,8 @@ export default function MasterDashboard({
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">URL Slug</label>
                     <input value={orgSlug} onChange={(e) => setOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} required placeholder="e.g. abg-group" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none font-mono" />
-                    <p className="text-xs text-gray-400 mt-0.5">URL: abg-golf.vercel.app/{orgSlug || '…'}</p>
+                    {/* Read from the browser so a domain change can't leave this stale */}
+                    <p className="text-xs text-gray-400 mt-0.5">URL: {siteHost}/{orgSlug || '…'}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
