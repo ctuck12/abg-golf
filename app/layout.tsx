@@ -1,14 +1,36 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
+const SITE_NAME = 'Anything But Golf Scoring'
+const SITE_DESCRIPTION = 'Live scoring for the Saturday golf group — Daytona, Banker, matchups and payouts.'
+
 export const metadata: Metadata = {
-  title: 'Golf Scoring',
-  description: 'Anything But Golf Group — live scoring',
+  // Needed for the share card: relative image paths only become the absolute
+  // URLs a link preview requires once there's a base to resolve them against.
+  metadataBase: new URL('https://abgscoring.vercel.app'),
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
   manifest: '/manifest.json',
+  // What iMessage, Slack and the rest read when the link is shared. Without
+  // these there's nothing to build a preview from, so the link stays a bare
+  // grey bubble. The image itself comes from app/opengraph-image.tsx.
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    url: '/',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Golf Scoring',
+    title: 'ABG Scoring',
   },
   icons: {
     icon: [
