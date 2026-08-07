@@ -1,7 +1,7 @@
 {
-  "name": "Golf Scoring",
-  "short_name": "Golf Scoring",
-  "description": "Anything But Golf Group — live scoring",
+  "name": "Anything But Golf Scoring",
+  "short_name": "ABG Scoring",
+  "description": "Live scoring for the Saturday golf group — Daytona, Banker, matchups and payouts.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
